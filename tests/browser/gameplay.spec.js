@@ -398,3 +398,21 @@ test('a swipe made the instant a modal closes is not swallowed', async ({ page }
   await expect.poll(async () => (await H.snapshot(page)).moves_left, { timeout: 30000 }).toBe(19);
   H.expectClean(problems);
 });
+
+test('a fast flick with no move events in between still swaps (release point counts)', async ({ page }) => {
+  const problems = H.guardPage(page);
+  await H.bootGame(page, { name: '' });
+  await page.evaluate(() => window.SC.game.startLevel(1));
+  await H.waitState(page, 'PLAYING');
+  const move = (await H.snapshot(page)).move;
+  // Only pointerdown and pointerup, like a coalesced flick on a slow device.
+  await page.evaluate(([x1, y1, x2, y2]) => {
+    const canvas = document.getElementById('game-canvas');
+    const base = { pointerId: 7, pointerType: 'touch', isPrimary: true, bubbles: true, cancelable: true };
+    canvas.dispatchEvent(new PointerEvent('pointerdown', { ...base, clientX: x1, clientY: y1, buttons: 1 }));
+    canvas.dispatchEvent(new PointerEvent('pointerup', { ...base, clientX: x2, clientY: y2, buttons: 0 }));
+  }, move);
+  await expect.poll(async () => (await H.snapshot(page)).moves_played, { timeout: 30000 }).toBe(1);
+  expect((await H.snapshot(page)).selected).toBe(-1);
+  H.expectClean(problems);
+});

@@ -70,7 +70,7 @@ make_move() { # one real swipe from the hook's suggested move; waits until it ha
   before=$(q 's.moves_played')
   swipe_points=$(q 'swipe(s.move)')
   [ "$swipe_points" = "none" ] && return 1
-  adb shell input swipe $swipe_points 140
+  adb shell input swipe $swipe_points 260
   wait_for "s.moves_played > $before || s.state === 'WON' || s.state === 'LOST'" 60 "the move to resolve"
   return 0
 }

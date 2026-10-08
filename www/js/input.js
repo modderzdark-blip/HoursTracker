@@ -56,34 +56,45 @@
       }
     }
 
+    // Starts the swap once the finger has travelled far enough; returns true when the gesture became a swipe.
+    function trySwipe(event) {
+      const cell_size = renderer.layout.cell;
+      const delta_x = event.clientX - gesture.start_x;
+      const delta_y = event.clientY - gesture.start_y;
+      if (Math.max(Math.abs(delta_x), Math.abs(delta_y)) <= CONFIG.SWIPE_THRESHOLD * cell_size) return false;
+      const target = neighborInDirection(gesture.cell, delta_x, delta_y);
+      gesture.swapped = true;
+      renderer.setDrag(-1, 0, 0);
+      if (target >= 0) {
+        handlers.select(-1);
+        handlers.requestSwap(gesture.cell, target);
+      }
+      return true;
+    }
+
     function onPointerMove(event) {
       if (!gesture || event.pointerId !== gesture.pointer_id || gesture.swapped) return;
       if (!handlers.canInteract()) {
         resetGesture();
         return;
       }
+      if (trySwipe(event)) return;
+      // The candy follows the finger along the dominant axis, clamped to one cell.
       const cell_size = renderer.layout.cell;
       const delta_x = event.clientX - gesture.start_x;
       const delta_y = event.clientY - gesture.start_y;
       const horizontal = Math.abs(delta_x) >= Math.abs(delta_y);
-      const distance = Math.max(Math.abs(delta_x), Math.abs(delta_y));
-      if (distance > CONFIG.SWIPE_THRESHOLD * cell_size) {
-        const target = neighborInDirection(gesture.cell, delta_x, delta_y);
-        gesture.swapped = true;
-        renderer.setDrag(-1, 0, 0);
-        if (target >= 0) {
-          handlers.select(-1);
-          handlers.requestSwap(gesture.cell, target);
-        }
-        return;
-      }
-      // The candy follows the finger along the dominant axis, clamped to one cell.
       const clamp = (value) => Math.max(-cell_size, Math.min(cell_size, value));
       renderer.setDrag(gesture.cell, horizontal ? clamp(delta_x) : 0, horizontal ? 0 : clamp(delta_y));
     }
 
     function onPointerUp(event) {
       if (!gesture || event.pointerId !== gesture.pointer_id) return;
+      // Fast flicks can arrive with few or coalesced move events, so the release point also counts as a swipe.
+      if (!gesture.swapped && handlers.canInteract() && trySwipe(event)) {
+        resetGesture();
+        return;
+      }
       const finished = gesture;
       resetGesture();
       if (finished.swapped || !handlers.canInteract()) return;
