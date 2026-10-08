@@ -5,7 +5,7 @@ module.exports = defineConfig({
   testDir: 'tests/browser',
   timeout: 180000,
   fullyParallel: false,
-  workers: 2,
+  workers: 3,
   retries: 0,
   reporter: [['list'], ['html', { outputFolder: 'qa/playwright-report', open: 'never' }]],
   outputDir: 'qa/test-results',

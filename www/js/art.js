@@ -486,12 +486,12 @@
       ctx.scale(side, 1);
       const end = new Path2D();
       end.moveTo(r * 0.55, -r * 0.16);
-      end.quadraticCurveTo(r * 0.8, -r * 0.3, r * 1.12, -r * 0.56);
-      end.quadraticCurveTo(r * 1.02, -r * 0.2, r * 1.14, -r * 0.02);
-      end.quadraticCurveTo(r * 1.02, r * 0.2, r * 1.12, r * 0.56);
+      end.quadraticCurveTo(r * 0.78, -r * 0.3, r * 1.05, -r * 0.52);
+      end.quadraticCurveTo(r * 0.96, -r * 0.2, r * 1.07, -r * 0.02);
+      end.quadraticCurveTo(r * 0.96, r * 0.2, r * 1.05, r * 0.52);
       end.quadraticCurveTo(r * 0.8, r * 0.3, r * 0.55, r * 0.16);
       end.closePath();
-      const end_fill = ctx.createLinearGradient(r * 0.55, -r * 0.6, r * 1.1, r * 0.6);
+      const end_fill = ctx.createLinearGradient(r * 0.55, -r * 0.6, r * 1.05, r * 0.6);
       end_fill.addColorStop(0, mix(candy.highlight, '#ffffff', 0.45));
       end_fill.addColorStop(0.5, candy.base);
       end_fill.addColorStop(1, candy.shadow);

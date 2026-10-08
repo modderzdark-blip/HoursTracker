@@ -199,6 +199,7 @@
       if (renderer.board && dom.screen_game.classList.contains('is-active')) {
         const slot = dom.board_slot.getBoundingClientRect();
         renderer.placeBoard({ left: slot.left, top: slot.top, width: slot.width, height: slot.height });
+        ui.placeTutorial(renderer.boardRect());
       }
       if (machine === STATE.MAP || (machine === STATE.INTRO && dom.screen_map.classList.contains('is-active'))) ui.renderMap(LEVELS, save(), openIntro);
     }
@@ -385,6 +386,7 @@
       if (!save().tutorials_seen[level_id] && level.tutorial) {
         tutorial_active = true;
         ui.tutorial(level.tutorial);
+        ui.placeTutorial(renderer.boardRect());
         if (level_id === 1) showHint('tutorial');
       }
       const goal_text = LOGIC.goalProgress(logic_state).map((progress) => `${progress.type} ${progress.target}`).join(', ');
@@ -753,7 +755,8 @@
       requestSwap,
       activity: () => {
         renderer.markActivity();
-        clearHint();
+        if (machine === STATE.PLAYING && level && level.id !== 1) ui.fadeTutorialOverlay();
+        if (!(tutorial_active && level && level.id === 1)) clearHint();
       },
     });
 
@@ -841,6 +844,9 @@
       },
       get selected() {
         return selected_cell;
+      },
+      get hintVisible() {
+        return hint_visible;
       },
       get movesPlayed() {
         return moves_played;

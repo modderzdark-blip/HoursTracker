@@ -417,6 +417,11 @@
         row = end;
       }
     }
+    return groupRuns(runs);
+  }
+
+  /** Merges runs that share cells into groups (L, T and + shapes) sorted by their first cell. */
+  function groupRuns(runs) {
     if (runs.length === 0) return [];
     const parent = runs.map((run, index) => index);
     const findRoot = (index) => {
@@ -454,6 +459,76 @@
     });
     groups.sort((a, b) => a.cells[0] - b.cells[0]);
     return groups;
+  }
+
+  /**
+   * Match groups through specific cells only. On a board that was stable before a swap, every new match passes through
+   * a swapped cell, so this equals findMatchGroups() at a fraction of the cost (used to evaluate candidate moves).
+   */
+  function findMatchGroupsAt(state, focus_cells) {
+    const cols = state.cols;
+    const runs = [];
+    const seen_runs = new Set();
+    focus_cells.forEach((cell) => {
+      const color = matchColorAt(state, cell);
+      if (color < 0) return;
+      const row = Math.floor(cell / cols);
+      const col = cell % cols;
+      let left = col;
+      while (left > 0 && matchColorAt(state, row * cols + left - 1) === color) left -= 1;
+      let right = col;
+      while (right < cols - 1 && matchColorAt(state, row * cols + right + 1) === color) right += 1;
+      if (right - left + 1 >= 3 && !seen_runs.has(`h${row}:${left}`)) {
+        seen_runs.add(`h${row}:${left}`);
+        const run_cells = [];
+        for (let run_col = left; run_col <= right; run_col += 1) run_cells.push(row * cols + run_col);
+        runs.push({ direction: 'h', color, cells: run_cells });
+      }
+      let top = row;
+      while (top > 0 && matchColorAt(state, (top - 1) * cols + col) === color) top -= 1;
+      let bottom = row;
+      while (bottom < state.rows - 1 && matchColorAt(state, (bottom + 1) * cols + col) === color) bottom += 1;
+      if (bottom - top + 1 >= 3 && !seen_runs.has(`v${col}:${top}`)) {
+        seen_runs.add(`v${col}:${top}`);
+        const run_cells = [];
+        for (let run_row = top; run_row <= bottom; run_row += 1) run_cells.push(run_row * cols + col);
+        runs.push({ direction: 'v', color, cells: run_cells });
+      }
+      // A run through the focus cell can cross a perpendicular run that does not pass through it (L/T shapes).
+      [[left, right, 'h'], [top, bottom, 'v']].forEach(([start, end, direction]) => {
+        if (end - start + 1 < 3) return;
+        for (let position = start; position <= end; position += 1) {
+          const crossing_cell = direction === 'h' ? row * cols + position : position * cols + col;
+          if (crossing_cell === cell) continue;
+          const crossing_row = Math.floor(crossing_cell / cols);
+          const crossing_col = crossing_cell % cols;
+          if (direction === 'h') {
+            let cross_top = crossing_row;
+            while (cross_top > 0 && matchColorAt(state, (cross_top - 1) * cols + crossing_col) === color) cross_top -= 1;
+            let cross_bottom = crossing_row;
+            while (cross_bottom < state.rows - 1 && matchColorAt(state, (cross_bottom + 1) * cols + crossing_col) === color) cross_bottom += 1;
+            if (cross_bottom - cross_top + 1 >= 3 && !seen_runs.has(`v${crossing_col}:${cross_top}`)) {
+              seen_runs.add(`v${crossing_col}:${cross_top}`);
+              const run_cells = [];
+              for (let run_row = cross_top; run_row <= cross_bottom; run_row += 1) run_cells.push(run_row * cols + crossing_col);
+              runs.push({ direction: 'v', color, cells: run_cells });
+            }
+          } else {
+            let cross_left = crossing_col;
+            while (cross_left > 0 && matchColorAt(state, crossing_row * cols + cross_left - 1) === color) cross_left -= 1;
+            let cross_right = crossing_col;
+            while (cross_right < cols - 1 && matchColorAt(state, crossing_row * cols + cross_right + 1) === color) cross_right += 1;
+            if (cross_right - cross_left + 1 >= 3 && !seen_runs.has(`h${crossing_row}:${cross_left}`)) {
+              seen_runs.add(`h${crossing_row}:${cross_left}`);
+              const run_cells = [];
+              for (let run_col = cross_left; run_col <= cross_right; run_col += 1) run_cells.push(crossing_row * cols + run_col);
+              runs.push({ direction: 'h', color, cells: run_cells });
+            }
+          }
+        }
+      });
+    });
+    return groupRuns(runs);
   }
 
   /** Decides which special (if any) a match group creates and where. */
@@ -1187,7 +1262,7 @@
     }
     state.cells[move.from] = to_piece;
     state.cells[move.to] = from_piece;
-    const groups = findMatchGroups(state);
+    const groups = findMatchGroupsAt(state, [move.from, move.to]);
     state.cells[move.from] = from_piece;
     state.cells[move.to] = to_piece;
     const wanted_colors = new Set();
@@ -1444,6 +1519,7 @@
     createGame,
     cloneState,
     findMatchGroups,
+    findMatchGroupsAt,
     planCreation,
     isValidSwap,
     listValidMoves,

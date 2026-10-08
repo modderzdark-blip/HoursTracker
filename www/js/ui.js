@@ -352,7 +352,27 @@
           return;
         }
         dom.tutorial_bubble.textContent = text;
+        dom.tutorial_bubble.classList.remove('is-overlay', 'is-faded');
         dom.tutorial_bubble.hidden = false;
+      },
+      /** Puts the tutorial bubble in free space below or above the board; if there is none, it overlays and fades on touch. */
+      placeTutorial(board_rect) {
+        const bubble = dom.tutorial_bubble;
+        if (bubble.hidden || !board_rect) return;
+        const bar_top = dom.btn_pause.getBoundingClientRect().top - 8;
+        const hud_bottom = document.getElementById('hud').getBoundingClientRect().bottom + 6;
+        const height = bubble.offsetHeight;
+        const board_bottom = board_rect.top + board_rect.height + board_rect.cell * 0.35;
+        let top;
+        if (bar_top - board_bottom >= height + 8) top = board_bottom + (bar_top - board_bottom - height) / 2;
+        else if (board_rect.top - hud_bottom >= height + 8) top = hud_bottom + (board_rect.top - hud_bottom - height) / 2;
+        else top = board_rect.top + board_rect.height - height - 6;
+        bubble.style.top = `${Math.round(top)}px`;
+        bubble.style.bottom = 'auto';
+        bubble.classList.toggle('is-overlay', top < board_bottom && top + height > board_rect.top);
+      },
+      fadeTutorialOverlay() {
+        if (dom.tutorial_bubble.classList.contains('is-overlay')) dom.tutorial_bubble.classList.add('is-faded');
       },
 
       // ------------------------------------------------------------ banners, toasts, live region

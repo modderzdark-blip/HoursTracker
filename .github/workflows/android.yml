@@ -209,7 +209,7 @@ jobs:
           profile: pixel_6
           ram-size: 3072M
           emulator-boot-timeout: 900
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none -camera-front none
+          emulator-options: -no-window -gpu swiftshader_indirect -no-boot-anim -no-snapshot -camera-back none -camera-front none
           disable-animations: true
           script: bash tests/emulator/run-emulator-tests.sh
       - name: Retry once (only if the emulator never finished booting)
@@ -223,7 +223,7 @@ jobs:
           profile: pixel_6
           ram-size: 3072M
           emulator-boot-timeout: 900
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none -camera-front none
+          emulator-options: -no-window -gpu swiftshader_indirect -no-boot-anim -no-snapshot -camera-back none -camera-front none
           disable-animations: true
           script: bash tests/emulator/run-emulator-tests.sh
       - name: Fail on app test failure

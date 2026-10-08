@@ -263,6 +263,7 @@ button:focus-visible, input:focus-visible, .map-node:focus-visible {
 .banner.is-small { font-size: clamp(26px, 8vw, 44px); padding: 0 16px; }
 
 .tutorial-bubble {
+  pointer-events: none !important;
   position: absolute; left: 50%; bottom: calc(var(--safe-bottom) + 86px); transform: translateX(-50%);
   z-index: 6; width: min(88vw, 420px);
   padding: 12px 16px; border-radius: 20px;
@@ -270,7 +271,9 @@ button:focus-visible, input:focus-visible, .map-node:focus-visible {
   font-size: 17px; font-weight: 800; text-align: center;
   box-shadow: 0 8px 20px rgba(80, 10, 60, 0.25), inset 0 2px 0 #fff;
 }
-.tutorial-bubble::after { content: ""; position: absolute; left: 50%; top: -10px; margin-left: -10px; border: 10px solid transparent; border-top: 0; border-bottom-color: var(--card-strong); }
+.tutorial-bubble { transition: opacity 0.3s ease; }
+.tutorial-bubble.is-overlay { opacity: 0.94; }
+.tutorial-bubble.is-faded { opacity: 0; }
 
 /* ---------------------------------------------------------------- modals */
 .modal-root { position: absolute; inset: 0; z-index: 20; }
