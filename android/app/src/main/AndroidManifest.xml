@@ -37,6 +37,18 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
 
+        <!-- No EmojiCompat start-up: it binds the app to Google Play services' font provider, and Android kills the
+             game whenever that provider's process dies. The game draws all text in the WebView, so it is not needed. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+                tools:node="remove" />
+        </provider>
+
         <!-- Lets Google Play services back-port the system photo picker to Android 11/12 (no storage permission needed). -->
         <service
             android:name="com.google.android.gms.metadata.ModuleDependencies"

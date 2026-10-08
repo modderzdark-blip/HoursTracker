@@ -130,6 +130,7 @@ check('release build is not debuggable', !release_badging.debuggable);
 
 const manifest_tree = run(findBuildTool('aapt2'), ['dump', 'xmltree', '--file', 'AndroidManifest.xml', release_apk_path]);
 check('manifest has no android:debuggable=true', !/debuggable\(0x0101000f\)=(true|\(type 0x12\)0xffffffff|-1)/.test(manifest_tree));
+check('no EmojiCompat start-up (no tie to the Play services font provider)', !/EmojiCompatInitializer/.test(manifest_tree));
 check('activity locked to portrait', /screenOrientation\(0x0101001e\)=(1|\(type 0x10\)0x1)\b/.test(manifest_tree), (manifest_tree.match(/screenOrientation[^\n]*/) || ['(missing)'])[0].trim());
 
 let signer_output = '';
