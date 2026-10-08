@@ -26,6 +26,24 @@ fail() {
 }
 shot() { adb exec-out screencap -p > "$OUT/screenshots/$1.png" 2>/dev/null; }
 app_alive() { adb shell pidof "$PKG" >/dev/null 2>&1; }
+# An overloaded CI emulator sometimes shows "<system app> isn't responding" on top of the game, which would swallow
+# the next tap. Before every input, make sure the game's window has focus; dismiss a foreign system dialog if not.
+ensure_app_focused() {
+  local attempt focus
+  for attempt in 1 2 3 4 5 6; do
+    focus=$(adb shell dumpsys window 2>/dev/null | grep -m1 'mCurrentFocus' | tr -d '\r')
+    case "$focus" in
+      *"$PKG"*) return 0 ;;
+      *"Not Responding"*|*"isn't responding"*|*"Application Error"*|*"has stopped"*)
+        log "dismissing a system dialog over the game: $focus"
+        echo "$focus" >> "$OUT/system-dialogs.txt"
+        adb shell input keyevent KEYCODE_BACK
+        sleep 1.5 ;;
+      *) sleep 1 ;;
+    esac
+  done
+  log "game window not focused before input: $focus"
+}
 dump_hook() {
   adb logcat -d -s 'Capacitor/Console:*' 2>/dev/null | grep 'SCTEST ' | tail -n 5 > "$HOOK_LOG"
   if [ ! -s "$HOOK_LOG" ]; then adb logcat -d 2>/dev/null | grep 'SCTEST ' | tail -n 5 > "$HOOK_LOG"; fi
@@ -50,15 +68,17 @@ tap_button() { # button id or label as reported by the hook
   local point
   point=$(q "px(s.buttons[$(printf '%s' "$1" | node -e 'process.stdout.write(JSON.stringify(require("fs").readFileSync(0,"utf8")))')])")
   [ "$point" = "none" ] && fail "button '$1' not visible"
+  ensure_app_focused
   adb shell input tap $point
 }
 tap_map_node() {
   local point
   point=$(q "px(s.map_nodes['$1'])")
   [ "$point" = "none" ] && fail "map node $1 not visible"
+  ensure_app_focused
   adb shell input tap $point
 }
-back() { adb shell input keyevent KEYCODE_BACK; sleep 1.2; }
+back() { ensure_app_focused; adb shell input keyevent KEYCODE_BACK; sleep 1.2; }
 check_no_crash() {
   if adb logcat -d 2>/dev/null | grep -E "FATAL EXCEPTION|ANR in $PKG|onRenderProcessGone|Render(er)? process (crashed|gone|was killed)|Fatal signal.*(sweetcascade|webview|sandboxed)" > "$OUT/crash-lines.txt"; then
     cat "$OUT/crash-lines.txt"
@@ -70,6 +90,7 @@ make_move() { # one real swipe from the hook's suggested move; waits until it ha
   before=$(q 's.moves_played')
   swipe_points=$(q 'swipe(s.move)')
   [ "$swipe_points" = "none" ] && return 1
+  ensure_app_focused
   adb shell input swipe $swipe_points 260
   wait_for "s.moves_played > $before || s.state === 'WON' || s.state === 'LOST'" 60 "the move to resolve"
   return 0
@@ -88,6 +109,9 @@ play_until_end() { # plays real swipes until a win/lose modal shows; $1 = max se
 
 adb logcat -G 16M >/dev/null 2>&1 || true
 adb shell settings put secure immersive_mode_confirmations confirmed
+# Other apps' crash/"not responding" dialogs are not part of this test; hide them (best effort).
+adb shell settings put global hide_error_dialogs 1 || true
+adb shell settings put secure anr_show_background 0 || true
 adb shell getprop ro.build.version.release | tee "$OUT/android-version.txt"
 adb shell wm size | tee -a "$OUT/android-version.txt"
 adb shell dumpsys package com.google.android.webview | grep -m1 versionName | tee -a "$OUT/android-version.txt"
@@ -152,6 +176,7 @@ pass "Back on 'Exit game?' closes the question; the app stays open"
 # --- A long press released on a button still activates it (WebView sends no click after a long press)
 help_point=$(q "px(s.buttons['btn-title-help'])")
 [ "$help_point" = "none" ] && fail "Help button not visible"
+ensure_app_focused
 adb shell input swipe $help_point $help_point 900
 wait_for "s.modal === 'help'" 15 "a 900 ms press on Help to open it"
 back
