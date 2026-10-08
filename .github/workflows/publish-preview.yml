@@ -1,0 +1,35 @@
+name: Publish preview APK from a finished build
+
+# One-off, owner request: runs only when this file changes on the work branch.
+on:
+  push:
+    branches: ['ccr-**']
+    paths: ['.github/workflows/publish-preview.yml']
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: apks
+          path: dist
+          run-id: 37842807281
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish "preview" pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ls -la dist
+          APK=$(ls dist/SweetCascade-v*.apk | head -1)
+          sha256sum "$APK"
+          gh release delete preview --cleanup-tag --yes || true
+          gh release create preview "$APK" --prerelease \
+            --target 0a6ea1779be02c2b278db9af840147ea10a863df \
+            --title "Sweet Cascade preview (CI run 8)" \
+            --notes "APK built by CI run 8 (commit 0a6ea17). Logic, browser, build and APK verification passed; published at the owner's request before the emulator suite finished. Install: open this file on your phone, allow installing from your browser if asked, tap Install."
