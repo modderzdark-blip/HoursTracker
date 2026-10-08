@@ -6,6 +6,8 @@ PKG=app.sweetcascade.game
 ACTIVITY="$PKG/.MainActivity"
 mkdir -p "$OUT/screenshots"
 touch "$OUT/booted.marker"
+# Pre-confirm the one-time "Viewing full screen" notice Android shows for immersive apps.
+adb shell settings put secure immersive_mode_confirmations confirmed
 adb shell getprop ro.build.version.release | tee "$OUT/android-version.txt"
 
 APK_RELEASE=$(ls dist/SweetCascade-v*.apk | head -1)

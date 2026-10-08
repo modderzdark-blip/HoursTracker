@@ -51,6 +51,17 @@ public class NativeShellPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void getSafeArea(PluginCall call) {
+        int[] css_px = MainActivity.getSafeAreaCssPx();
+        JSObject safe_area = new JSObject();
+        safe_area.put("top", css_px[0]);
+        safe_area.put("right", css_px[1]);
+        safe_area.put("bottom", css_px[2]);
+        safe_area.put("left", css_px[3]);
+        call.resolve(safe_area);
+    }
+
+    @PluginMethod
     public void setKeepAwake(PluginCall call) {
         boolean keep_awake = Boolean.TRUE.equals(call.getBoolean("enabled", false));
         getBridge().executeOnMainThread(() -> {

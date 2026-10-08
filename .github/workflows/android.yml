@@ -18,6 +18,10 @@ concurrency:
   group: android-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash
+
 env:
   NODE_VERSION: '22'
   JAVA_VERSION: '21'
@@ -37,7 +41,7 @@ jobs:
         run: node tests/logic.test.js | tee logic-tests.txt
       - name: Fuzz and bot simulations
         run: node tests/simulate.js --report sim-report.json | tee simulation.txt
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: logic-reports
@@ -69,7 +73,7 @@ jobs:
           mkdir -p qa
           (cd qa && zip -qr ../qa-browser.zip . ) || true
           ls -la qa-browser.zip || true
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: browser-screenshots
@@ -145,7 +149,7 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "signing_mode=${SIGNING_MODE}" >> "$GITHUB_OUTPUT"
           echo "apk_name=${APK_NAME}" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: apks
           path: dist/
@@ -161,13 +165,13 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
           name: apks
           path: dist
       - name: Verify APKs (badging, permissions, debuggable, signature, bundled URLs, size)
         run: node tests/apk/verify-apk.mjs dist | tee apk-verify.txt
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: apk-verify-report
@@ -185,7 +189,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
           name: apks
           path: dist
@@ -232,7 +236,7 @@ jobs:
         run: |
           mkdir -p emulator-output
           (cd emulator-output && zip -qr ../qa-emulator.zip . ) || true
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: emulator-output
@@ -257,7 +261,7 @@ jobs:
       SIGNING_MODE: ${{ needs.build.outputs.signing_mode }}
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
           name: apks
           path: dist

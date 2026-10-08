@@ -7,6 +7,8 @@ import android.view.View;
 import android.view.WindowManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -14,11 +16,19 @@ import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
 
+    /** Display-cutout and system-bar insets in CSS pixels: top, right, bottom, left. */
+    private static volatile int[] safe_area_css_px = new int[] { 0, 0, 0, 0 };
+
+    static int[] getSafeAreaCssPx() {
+        return safe_area_css_px.clone();
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(NativeShellPlugin.class);
         super.onCreate(savedInstanceState);
         configureWebView();
+        installSafeAreaListener();
         applyImmersiveMode();
     }
 
@@ -47,6 +57,41 @@ public class MainActivity extends BridgeActivity {
         WindowInsetsControllerCompat insets_controller = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
         insets_controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
         insets_controller.hide(WindowInsetsCompat.Type.systemBars());
+    }
+
+    /**
+     * The WebView stays full-bleed (the game background reaches every edge); the cutout and any visible system bars
+     * are handed to CSS as --native-safe-* variables so the HUD and buttons stay clear of them.
+     */
+    private void installSafeAreaListener() {
+        View decor_view = getWindow().getDecorView();
+        ViewCompat.setOnApplyWindowInsetsListener(decor_view, (view, window_insets) -> {
+            Insets unsafe_insets = window_insets.getInsets(WindowInsetsCompat.Type.displayCutout() | WindowInsetsCompat.Type.systemBars());
+            float density = getResources().getDisplayMetrics().density;
+            safe_area_css_px = new int[] {
+                Math.round(unsafe_insets.top / density),
+                Math.round(unsafe_insets.right / density),
+                Math.round(unsafe_insets.bottom / density),
+                Math.round(unsafe_insets.left / density),
+            };
+            pushSafeAreaToWeb();
+            return window_insets;
+        });
+        ViewCompat.requestApplyInsets(decor_view);
+    }
+
+    void pushSafeAreaToWeb() {
+        if (getBridge() == null || getBridge().getWebView() == null) {
+            return;
+        }
+        int[] css_px = getSafeAreaCssPx();
+        String script = "(function(){var s=document.documentElement.style;"
+            + "s.setProperty('--native-safe-top','" + css_px[0] + "px');"
+            + "s.setProperty('--native-safe-right','" + css_px[1] + "px');"
+            + "s.setProperty('--native-safe-bottom','" + css_px[2] + "px');"
+            + "s.setProperty('--native-safe-left','" + css_px[3] + "px');"
+            + "window.dispatchEvent(new Event('sc-safe-area'));})();";
+        getBridge().getWebView().post(() -> getBridge().getWebView().evaluateJavascript(script, null));
     }
 
     /** No scrollbars, overscroll glow, zoom, long-press menu or font scaling; DevTools only in debuggable builds. */

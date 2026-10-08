@@ -50,7 +50,7 @@ function readBadging(apk_path) {
     const match = line.match(new RegExp(`${name}='([^']*)'`));
     return match ? match[1] : null;
   };
-  const sdk_line = badging.split('\n').find((line) => line.startsWith('sdkVersion:')) || '';
+  const sdk_line = badging.split('\n').find((line) => line.startsWith('minSdkVersion:') || line.startsWith('sdkVersion:')) || '';
   const target_line = badging.split('\n').find((line) => line.startsWith('targetSdkVersion:')) || '';
   const permissions = [...badging.matchAll(/^uses-permission: name='([^']+)'/gm)].map((match) => match[1]);
   return {
@@ -141,8 +141,8 @@ try {
   signer_output = String(signer_error.stdout || signer_error.message);
 }
 check('apksigner verify (v2 signature)', signature_ok);
-const signer_dn = (signer_output.match(/Signer #1 certificate DN: (.*)/) || [])[1] || '?';
-const signer_sha256 = (signer_output.match(/Signer #1 certificate SHA-256 digest: (.*)/) || [])[1] || '?';
+const signer_dn = (signer_output.match(/certificate DN: (.*)/) || [])[1] || '?';
+const signer_sha256 = (signer_output.match(/certificate SHA-256 digest: (.*)/) || [])[1] || '?';
 
 const release_entries = listZipEntries(release_apk_path);
 check('game bundled (assets/public/index.html)', release_entries.includes('assets/public/index.html'));
