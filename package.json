@@ -1,0 +1,26 @@
+{
+  "name": "sweet-cascade",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sweet Cascade - an original, offline match-3 puzzle game for Android (Capacitor).",
+  "license": "UNLICENSED",
+  "scripts": {
+    "test": "node tests/logic.test.js",
+    "sim": "node tests/simulate.js",
+    "test:browser": "playwright test",
+    "icons": "node scripts/generate-icons.mjs",
+    "sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/haptics": "8.0.2",
+    "@capacitor/preferences": "8.0.1",
+    "@capacitor/splash-screen": "8.0.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3",
+    "@playwright/test": "1.56.1"
+  }
+}

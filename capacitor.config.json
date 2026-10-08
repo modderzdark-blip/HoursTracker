@@ -1,0 +1,25 @@
+{
+  "appId": "app.sweetcascade.game",
+  "appName": "Sweet Cascade",
+  "webDir": "www",
+  "loggingBehavior": "debug",
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": false,
+    "backgroundColor": "#ff9ad5"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": false,
+      "launchShowDuration": 3000,
+      "launchFadeOutDuration": 300,
+      "backgroundColor": "#ff9ad5"
+    },
+    "SystemBars": {
+      "hidden": true,
+      "insetsHandling": "css",
+      "style": "DARK",
+      "initialViewportFitValueHint": "cover"
+    }
+  }
+}

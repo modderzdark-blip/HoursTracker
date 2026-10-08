@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Sweet Cascade</title>
+<style>
+  html, body { margin: 0; height: 100%; background: linear-gradient(135deg, #ff9ad5, #ffd36e, #8ee3ff); font-family: system-ui, sans-serif; }
+  h1 { margin: 0; padding-top: 40vh; text-align: center; color: #fff; text-shadow: 0 2px 0 #7a2e6e; }
+</style>
+<script src="js/config.js"></script>
+</head>
+<body>
+<h1 id="title-text">Sweet Cascade</h1>
+<script>
+  (function bootPlaceholder() {
+    document.getElementById('title-text').textContent = SC.GAME_TITLE;
+    var native_plugins = window.Capacitor && window.Capacitor.Plugins;
+    if (!native_plugins) return;
+    if (native_plugins.SplashScreen) native_plugins.SplashScreen.hide();
+    if (native_plugins.NativeShell) {
+      native_plugins.NativeShell.getInfo().then(function (info) {
+        if (!info.debug) return;
+        var hook_script = document.createElement('script');
+        hook_script.src = 'test-hook.js';
+        document.body.appendChild(hook_script);
+      });
+    }
+  })();
+</script>
+</body>
+</html>

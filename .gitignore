@@ -1,0 +1,11 @@
+node_modules/
+qa/
+dist/
+emulator-output/
+test-results/
+playwright-report/
+*.jks
+release.keystore
+*.log
+.DS_Store
+sim-report.json

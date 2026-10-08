@@ -1,0 +1,287 @@
+name: Android build, test and release
+
+on:
+  push:
+    branches: [main, 'ccr-**']
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publish_versioned_release:
+        description: Also publish the versioned release vX.Y.Z (version from package.json) for this commit
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+  JAVA_VERSION: '21'
+  QA_RELEASE_TAG: qa
+
+jobs:
+  logic:
+    name: logic
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Logic unit tests
+        run: node tests/logic.test.js | tee logic-tests.txt
+      - name: Fuzz and bot simulations
+        run: node tests/simulate.js --report sim-report.json | tee simulation.txt
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: logic-reports
+          path: |
+            logic-tests.txt
+            simulation.txt
+            sim-report.json
+          if-no-files-found: ignore
+
+  browser:
+    name: browser
+    needs: logic
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Playwright mobile-emulation tests and screenshots
+        run: npx playwright test
+      - name: Pack QA output
+        if: always()
+        run: |
+          mkdir -p qa
+          (cd qa && zip -qr ../qa-browser.zip . ) || true
+          ls -la qa-browser.zip || true
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: browser-screenshots
+          path: qa/
+          if-no-files-found: ignore
+      - name: Attach QA output to the "qa" pre-release
+        if: always() && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/ci/upload-qa-asset.sh qa-browser.zip
+
+  build:
+    name: build
+    needs: browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      version: ${{ steps.collect.outputs.version }}
+      signing_mode: ${{ steps.collect.outputs.signing_mode }}
+      apk_name: ${{ steps.collect.outputs.apk_name }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: gradle/actions/setup-gradle@v5
+      - run: npm ci
+      - name: Apply GAME_TITLE branding and sync Capacitor
+        run: |
+          node scripts/sync-branding.mjs
+          npx cap sync android
+      - name: Decode release keystore (only if the signing secrets exist)
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_B64" ]; then
+            echo "$ANDROID_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+            echo "SIGNING_MODE=release" >> "$GITHUB_ENV"
+            echo "Release keystore found in secrets."
+          else
+            echo "SIGNING_MODE=sideload" >> "$GITHUB_ENV"
+            echo "No signing secrets: release build is signed with the public sideload debug key."
+          fi
+      - name: Gradle assembleDebug assembleRelease bundleRelease
+        working-directory: android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace assembleDebug assembleRelease bundleRelease
+      - name: Collect APKs
+        id: collect
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "$SIGNING_MODE" = "release" ]; then SUFFIX=""; else SUFFIX="-debug"; fi
+          APK_NAME="SweetCascade-v${VERSION}${SUFFIX}.apk"
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/${APK_NAME}"
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/test-only-debug-build.apk
+          cp android/app/build/outputs/bundle/release/app-release.aab "dist/SweetCascade-v${VERSION}.aab"
+          printf '{"version":"%s","versionCode":%s,"signing":"%s","apk":"%s"}\n' "$VERSION" "$GITHUB_RUN_NUMBER" "$SIGNING_MODE" "$APK_NAME" > dist/build-info.json
+          cat dist/build-info.json
+          ls -la dist
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "signing_mode=${SIGNING_MODE}" >> "$GITHUB_OUTPUT"
+          echo "apk_name=${APK_NAME}" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: apks
+          path: dist/
+          if-no-files-found: error
+
+  apk-verify:
+    name: apk-verify
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/download-artifact@v5
+        with:
+          name: apks
+          path: dist
+      - name: Verify APKs (badging, permissions, debuggable, signature, bundled URLs, size)
+        run: node tests/apk/verify-apk.mjs dist | tee apk-verify.txt
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: apk-verify-report
+          path: apk-verify.txt
+
+  emulator:
+    name: emulator
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      EMULATOR_OUTPUT: ${{ github.workspace }}/emulator-output
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/download-artifact@v5
+        with:
+          name: apks
+          path: dist
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Emulator tests (API 34, Pixel 6)
+        id: emulator_attempt_1
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          ram-size: 3072M
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none -camera-front none
+          disable-animations: true
+          script: bash tests/emulator/run-emulator-tests.sh
+      - name: Retry once (only if the emulator never finished booting)
+        id: emulator_attempt_2
+        if: steps.emulator_attempt_1.outcome == 'failure' && hashFiles('emulator-output/booted.marker') == ''
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          ram-size: 3072M
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none -camera-front none
+          disable-animations: true
+          script: bash tests/emulator/run-emulator-tests.sh
+      - name: Fail on app test failure
+        if: steps.emulator_attempt_1.outcome == 'failure' && steps.emulator_attempt_2.outcome != 'success'
+        run: |
+          echo "Emulator tests failed (attempt 1: ${{ steps.emulator_attempt_1.outcome }}, attempt 2: ${{ steps.emulator_attempt_2.outcome }})."
+          exit 1
+      - name: Pack emulator output
+        if: always()
+        run: |
+          mkdir -p emulator-output
+          (cd emulator-output && zip -qr ../qa-emulator.zip . ) || true
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: emulator-output
+          path: emulator-output/
+          if-no-files-found: ignore
+      - name: Attach emulator output to the "qa" pre-release
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/ci/upload-qa-asset.sh qa-emulator.zip
+
+  release:
+    name: release
+    needs: [build, apk-verify, emulator]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.build.outputs.version }}
+      APK_NAME: ${{ needs.build.outputs.apk_name }}
+      SIGNING_MODE: ${{ needs.build.outputs.signing_mode }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          name: apks
+          path: dist
+      - name: Write release notes
+        run: bash scripts/ci/write-release-notes.sh > release-notes.md && cat release-notes.md
+      - name: Publish rolling "latest" pre-release
+        if: github.ref_type == 'branch'
+        run: |
+          gh release delete latest --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+          gh release create latest "dist/${APK_NAME}" "dist/SweetCascade-v${VERSION}.aab" \
+            --repo "$GITHUB_REPOSITORY" --prerelease --target "$GITHUB_SHA" \
+            --title "Sweet Cascade - latest build (v${VERSION}, build ${GITHUB_RUN_NUMBER})" \
+            --notes-file release-notes.md
+          echo "APK: https://github.com/${GITHUB_REPOSITORY}/releases/download/latest/${APK_NAME}"
+      - name: Publish versioned release
+        if: github.ref_type == 'tag' || inputs.publish_versioned_release
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then TAG="$GITHUB_REF_NAME"; else TAG="v${VERSION}"; fi
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "dist/${APK_NAME}" "dist/SweetCascade-v${VERSION}.aab" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file release-notes.md
+          else
+            gh release create "$TAG" "dist/${APK_NAME}" "dist/SweetCascade-v${VERSION}.aab" \
+              --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --latest \
+              --title "Sweet Cascade ${TAG}" --notes-file release-notes.md
+          fi
+          echo "APK: https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${APK_NAME}"
