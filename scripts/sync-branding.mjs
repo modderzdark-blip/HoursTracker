@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 
 const config_source = fs.readFileSync('www/js/config.js', 'utf8');
-const title_match = config_source.match(/GAME_TITLE\s*=\s*'([^']+)'/);
+const title_match = config_source.match(/GAME_TITLE\s*[:=]\s*'([^']+)'/);
 if (!title_match) throw new Error('GAME_TITLE not found in www/js/config.js');
 const game_title = title_match[1];
 const xml_title = game_title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/'/g, "\\'");

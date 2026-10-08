@@ -3,30 +3,102 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#ff9ad5">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'none'; connect-src 'self'; font-src 'none'; object-src 'none'; base-uri 'none'">
 <title>Sweet Cascade</title>
-<style>
-  html, body { margin: 0; height: 100%; background: linear-gradient(135deg, #ff9ad5, #ffd36e, #8ee3ff); font-family: system-ui, sans-serif; }
-  h1 { margin: 0; padding-top: 40vh; text-align: center; color: #fff; text-shadow: 0 2px 0 #7a2e6e; }
-</style>
-<script src="js/config.js"></script>
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<h1 id="title-text">Sweet Cascade</h1>
-<script>
-  (function bootPlaceholder() {
-    document.getElementById('title-text').textContent = SC.GAME_TITLE;
-    var native_plugins = window.Capacitor && window.Capacitor.Plugins;
-    if (!native_plugins) return;
-    if (native_plugins.SplashScreen) native_plugins.SplashScreen.hide();
-    if (native_plugins.NativeShell) {
-      native_plugins.NativeShell.getInfo().then(function (info) {
-        if (!info.debug) return;
-        var hook_script = document.createElement('script');
-        hook_script.src = 'test-hook.js';
-        document.body.appendChild(hook_script);
-      });
-    }
-  })();
-</script>
+<div id="app" class="app">
+  <canvas id="bg-canvas" class="layer-canvas" aria-hidden="true"></canvas>
+  <div id="photo-layer" class="photo-layer" aria-hidden="true"><div id="photo-image" class="photo-image"></div><div class="photo-tint"></div></div>
+  <canvas id="game-canvas" class="layer-canvas game-canvas" aria-hidden="true"></canvas>
+
+  <section id="screen-title" class="screen screen-title" aria-label="Title screen">
+    <div id="title-candies" class="title-candies" aria-hidden="true"></div>
+    <div class="title-stack">
+      <h1 class="logo">
+        <span class="glossy-text logo-line" id="logo-line-1" data-text="Sweet">Sweet</span>
+        <span class="glossy-text logo-line logo-line-2" id="logo-line-2" data-text="Cascade">Cascade</span>
+      </h1>
+      <p id="title-greeting" class="greeting"></p>
+      <button id="btn-play" class="pill pill-big" type="button" aria-label="Play">Play</button>
+      <div class="title-row">
+        <button id="btn-title-settings" class="round" type="button" aria-label="Settings" data-icon="gear"></button>
+        <button id="btn-title-help" class="round" type="button" aria-label="How to play" data-icon="help"></button>
+      </div>
+    </div>
+    <p class="version" id="title-version"></p>
+  </section>
+
+  <section id="screen-map" class="screen screen-map" aria-label="Level map">
+    <header class="top-bar">
+      <button id="btn-map-back" class="round small" type="button" aria-label="Back to title" data-icon="back"></button>
+      <h2 class="glossy-text bar-title" data-text="Candy Trail">Candy Trail</h2>
+      <button id="btn-map-settings" class="round small" type="button" aria-label="Settings" data-icon="gear"></button>
+    </header>
+    <div id="map-scroll" class="map-scroll">
+      <div id="map-inner" class="map-inner">
+        <canvas id="map-canvas" class="map-canvas" aria-hidden="true"></canvas>
+        <div id="map-nodes" class="map-nodes"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-game" class="screen screen-game" aria-label="Game">
+    <header id="hud" class="hud">
+      <div class="hud-card hud-moves" aria-label="Moves left">
+        <span class="hud-label">Moves</span>
+        <span id="hud-moves" class="hud-number">0</span>
+      </div>
+      <div class="hud-card hud-goals">
+        <div id="hud-level" class="hud-level">Level 1</div>
+        <div id="hud-goal-list" class="goal-list"></div>
+      </div>
+      <div class="hud-card hud-score" aria-label="Score">
+        <span class="hud-label">Score</span>
+        <span id="hud-score" class="hud-number hud-score-number">0</span>
+        <div class="star-bar" aria-hidden="true">
+          <div id="star-fill" class="star-fill"></div>
+          <span class="star-mark" id="star-mark-0"></span>
+          <span class="star-mark" id="star-mark-1"></span>
+          <span class="star-mark" id="star-mark-2"></span>
+        </div>
+      </div>
+    </header>
+    <div id="board-slot" class="board-slot"></div>
+    <div id="banner" class="banner" aria-hidden="true"></div>
+    <div id="tutorial-bubble" class="tutorial-bubble" hidden></div>
+    <footer class="game-bar">
+      <button id="btn-pause" class="round" type="button" aria-label="Pause" data-icon="pause"></button>
+      <button id="btn-hint" class="round" type="button" aria-label="Show a hint" data-icon="hint"></button>
+      <button id="btn-sound" class="round" type="button" aria-label="Mute sound" data-icon="sound"></button>
+    </footer>
+  </section>
+
+  <div id="modal-root" class="modal-root" hidden>
+    <div class="modal-backdrop"></div>
+    <div id="modal-stack" class="modal-stack"></div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="live-region" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
+</div>
+<input type="file" id="photo-input" accept="image/*" hidden>
+
+<script src="js/config.js"></script>
+<script src="js/util.js"></script>
+<script src="js/logic.js"></script>
+<script src="js/levels.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/art.js"></script>
+<script src="js/render.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/selftest.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/input.js"></script>
+<script src="js/game.js"></script>
+<script src="js/boot.js"></script>
 </body>
 </html>
