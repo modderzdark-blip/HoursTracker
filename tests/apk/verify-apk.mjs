@@ -155,6 +155,17 @@ check('no remote server.url in capacitor config', !(capacitor_config.server && c
 const url_scan = scanUrls(release_assets_dir);
 check('no external http(s) URLs in bundled assets', url_scan.offending_urls.length === 0, url_scan.offending_urls.slice(0, 10).join(' | '));
 
+// Fonts: only system families. A named web font (e.g. a Google Fonts family) makes Android WebView fetch it through
+// Google Play services, which ties the game's process to Play services (Android kills the game when that dies).
+const SYSTEM_FONT_NAMES = new Set(['segoe ui', 'roboto', 'sans-serif', 'system-ui', 'ui-rounded', '-apple-system', 'ui-monospace']);
+const css_text = fs.readFileSync(path.join(release_assets_dir, 'assets', 'public', 'css', 'style.css'), 'utf8');
+const named_fonts = [...css_text.matchAll(/(?:font-family|--font)\s*:\s*([^;]+);/g)]
+  .flatMap((match) => match[1].split(','))
+  .map((name) => name.trim().replace(/^["']|["']$/g, '').toLowerCase())
+  .filter((name) => name && !name.startsWith('var(') && !['inherit', 'initial', 'monospace', 'serif'].includes(name));
+const web_fonts = named_fonts.filter((name) => !SYSTEM_FONT_NAMES.has(name));
+check('only system fonts named in CSS (no Play services font downloads)', web_fonts.length === 0, web_fonts.join(', ') || [...new Set(named_fonts)].join(', '));
+
 const release_size_bytes = fs.statSync(release_apk_path).size;
 check('APK size under 25 MB', release_size_bytes < MAX_APK_BYTES, `${(release_size_bytes / 1048576).toFixed(2)} MB`);
 

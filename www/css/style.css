@@ -14,7 +14,9 @@
   --safe-right: max(var(--native-safe-right, 0px), env(safe-area-inset-right, 0px));
   --safe-bottom: max(var(--native-safe-bottom, 0px), env(safe-area-inset-bottom, 0px));
   --safe-left: max(var(--native-safe-left, 0px), env(safe-area-inset-left, 0px));
-  --font: "Baloo 2", "Nunito", "Varela Round", ui-rounded, "Arial Rounded MT Bold", system-ui, -apple-system, Roboto, "Segoe UI", sans-serif;
+  /* System fonts only. Naming web fonts here (e.g. Google Fonts families) makes Android WebView fetch them through
+     Google Play services, which ties the game's process to Play services: Android kills it when that process dies. */
+  --font: ui-rounded, system-ui, -apple-system, Roboto, "Segoe UI", sans-serif;
   --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -398,7 +400,7 @@ input[type="range"] { width: 130px; height: 36px; accent-color: var(--btn2); }
 .help-footer { font-size: 13px; opacity: 0.75; margin-top: 14px; }
 
 /* self-test */
-.selftest-report { text-align: left; font-family: ui-monospace, "Roboto Mono", monospace; font-size: 12px; white-space: pre-wrap; background: #fff; border-radius: 12px; padding: 10px; max-height: 40vh; overflow: auto; -webkit-user-select: text; user-select: text; }
+.selftest-report { text-align: left; font-family: ui-monospace, monospace; font-size: 12px; white-space: pre-wrap; background: #fff; border-radius: 12px; padding: 10px; max-height: 40vh; overflow: auto; -webkit-user-select: text; user-select: text; }
 .selftest-status { font-size: 22px; font-weight: 900; padding: 10px; border-radius: 16px; }
 .selftest-status.is-pass { background: #c9f7df; color: #0b6646; }
 .selftest-status.is-fail { background: #ffd1d8; color: #8c0f2b; }
