@@ -308,7 +308,7 @@ check_no_crash "3 minutes of play"
 pass "3 minutes of play: $played moves, metrics recorded"
 
 # --- "Exit game?" -> Exit really closes the app
-for attempt in 1 2 3 4 5 6; do
+for attempt in $(seq 1 12); do
   case "$(q 's.modal || s.state')" in
     TITLE) break ;;
     win|lose) back ;;
