@@ -30,10 +30,11 @@ app_alive() { adb shell pidof "$PKG" >/dev/null 2>&1; }
 # the next tap. Before every input, make sure the game's window has focus; dismiss a foreign system dialog if not.
 ensure_app_focused() {
   local attempt focus
-  for attempt in 1 2 3 4 5 6; do
+  for attempt in $(seq 1 12); do
     focus=$(adb shell dumpsys window 2>/dev/null | grep -m1 'mCurrentFocus' | tr -d '\r')
     case "$focus" in
-      *"$PKG"*) return 0 ;;
+      *"Splash Screen"*) sleep 1 ;;
+      *"$PKG/"*MainActivity*) return 0 ;;
       *"Not Responding"*|*"isn't responding"*|*"Application Error"*|*"has stopped"*)
         log "dismissing a system dialog over the game: $focus"
         echo "$focus" >> "$OUT/system-dialogs.txt"
@@ -226,7 +227,7 @@ adb shell input keyevent KEYCODE_HOME
 sleep 4
 adb shell dumpsys activity activities | grep -E "mResumedActivity|topResumedActivity" | head -2 > "$OUT/home-activity.txt"
 grep -q "$PKG" "$OUT/home-activity.txt" && fail "app still in the foreground after Home"
-adb shell am start -n "$ACTIVITY" > /dev/null
+adb shell am start -W -n "$ACTIVITY" > /dev/null
 wait_fresh "$before_home"
 sleep 1.5
 wait_for "s.lifecycle.some((entry) => entry.event === 'hidden') && s.lifecycle.some((entry) => entry.event === 'visible')" 15 "the app to report hidden then visible"
@@ -301,7 +302,7 @@ sleep 2
 metric airplane_mode_on "$(adb shell settings get global airplane_mode_on | tr -d '\r')"
 adb shell am force-stop "$PKG"
 adb logcat -c
-adb shell am start -n "$ACTIVITY" > /dev/null
+adb shell am start -W -n "$ACTIVITY" > /dev/null
 wait_for "s.ready && s.state === 'TITLE'" 60 "the title screen offline"
 tap_button "btn-play"
 wait_for "s.state === 'MAP' && s.map_nodes['2'] !== undefined" 15 "the map offline"

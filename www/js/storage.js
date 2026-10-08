@@ -7,8 +7,8 @@
 
   const SAVE_KEY = 'sweet_cascade_save';
   const PHOTO_KEY = 'sweet_cascade_photo';
-  const SAVE_VERSION = 2;
-  const THEMES = ['gummy', 'hard', 'sprinkle'];
+  const SAVE_VERSION = 3;
+  const THEMES = ['classic', 'gummy', 'hard', 'sprinkle'];
   const ACCENTS = ['bubblegum', 'sunset', 'ocean', 'mint', 'grape', 'cherry', 'gold', 'midnight'];
   const MAX_NAME_LENGTH = 16;
   const MAX_MESSAGE_LENGTH = 80;
@@ -22,7 +22,7 @@
       haptics: true,
       reduced_motion: false,
       colorblind: false,
-      theme: 'gummy',
+      theme: 'classic',
       accent: 'bubblegum',
       photo_brightness: 0.75,
       win_message: '',
@@ -112,6 +112,8 @@
     save.levels = sanitizeLevels(source.levels);
     save.unlocked = Math.floor(clampNumber(source.unlocked, 1, 9999, 1));
     save.settings = sanitizeSettings(source.settings);
+    // v3 made the solid Classic candies the default; v1/v2 saves still on the old default (Gummy) move to it.
+    if ((source.version === undefined || source.version <= 2) && save.settings.theme === 'gummy') save.settings.theme = 'classic';
     if (source.tutorials_seen && typeof source.tutorials_seen === 'object') {
       Object.keys(source.tutorials_seen).forEach((level_key) => {
         if (source.tutorials_seen[level_key] === true && /^\d+$/.test(level_key)) save.tutorials_seen[level_key] = true;

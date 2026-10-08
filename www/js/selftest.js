@@ -649,6 +649,18 @@
       const level_state = LOGIC.createGame(level);
       const level_hint = LOGIC.findHint(level_state);
       assert.ok(level_hint && LOGIC.isValidSwap(level_state, level_hint.from, level_hint.to), `hint valid on level ${level.id}`);
+      // What the hint highlights: the moving candy plus the candies it lines up with, as they sit now.
+      const shown = LOGIC.hintFor(level_state, level_hint);
+      assert.ok(shown.cells.length >= 3 && shown.cells.includes(shown.from), `hint highlights the whole match on level ${level.id}`);
+      assert.ok(!shown.cells.includes(shown.to) || shown.cells.length >= 4, `hint target is not part of a plain 3-match on level ${level.id}`);
+    });
+    // The mover is found whichever way round the swap is given.
+    const simple = makeTestState(['. . . . .', '. . 0 . .', '0 0 1 . .', '. . . . .', '. . . . .']);
+    [[at(simple, 2, 2), at(simple, 1, 2)], [at(simple, 1, 2), at(simple, 2, 2)]].forEach(([from, to]) => {
+      const shown = LOGIC.hintFor(simple, { from, to });
+      assert.strictEqual(shown.from, at(simple, 1, 2), 'the red candy above is the one that moves');
+      assert.strictEqual(shown.to, at(simple, 2, 2));
+      assert.deepStrictEqual(shown.cells.slice().sort((a, b) => a - b), [at(simple, 1, 2), at(simple, 2, 0), at(simple, 2, 1)]);
     });
   });
 
@@ -699,6 +711,10 @@
     assert.strictEqual(migrated.player_name, 'Ana');
     assert.strictEqual(migrated.settings.sfx_on, false);
     assert.strictEqual(migrated.levels[3].best_score, 9000);
+    // v2 -> v3: the old default theme (Gummy) becomes the new default (Classic); a deliberate other choice is kept.
+    assert.strictEqual(STORAGE.parseSave(JSON.stringify({ version: 2, settings: { theme: 'gummy' } })).save.settings.theme, 'classic');
+    assert.strictEqual(STORAGE.parseSave(JSON.stringify({ version: 3, settings: { theme: 'gummy' } })).save.settings.theme, 'gummy');
+    assert.strictEqual(STORAGE.defaultSave().settings.theme, 'classic');
     const partial = STORAGE.parseSave(JSON.stringify({ version: 2, settings: { theme: 'sprinkle', sfx_volume: 7, accent: 'neon' }, levels: { 2: { best_score: -5, best_stars: 9 }, banana: {} } })).save;
     assert.strictEqual(partial.settings.theme, 'sprinkle');
     assert.strictEqual(partial.settings.sfx_volume, 1, 'clamped');

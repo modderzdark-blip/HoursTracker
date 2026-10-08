@@ -4,9 +4,9 @@
 // Colors: 0 Cherry Bean, 1 Orange Lozenge, 2 Lemon Drop, 3 Mint Square, 4 Blueberry Ball, 5 Grape Gem.
 // Goals are always candy goals (collect, glaze, cherries): a level is never won by points alone.
 // `palette` (optional) picks which candies appear; by default the first `colors` candies are used.
-// Finishing the goals always earns at least 1 star. Star thresholds come from the greedy-bot simulation
-// (tests/simulate.js): 2 and 3 stars sit at the 8th and 25th percentile of the bot's final winning scores
-// (end bonus included), so a solid game earns 3 stars; see README for the numbers.
+// Finishing the goals always earns at least 1 star. Star thresholds come from tests/simulate.js and are set for a
+// casual player: 3 stars = the median winning score of a player making random valid moves (end bonus included),
+// 2 stars = its 20th percentile, so an ordinary win earns 3 stars; see README for the numbers.
 (function attachLevels(root) {
   'use strict';
   const SC = root.SC || (root.SC = {});
@@ -25,7 +25,7 @@
         '.......',
       ],
       goals: [{ type: 'collect', color: 0, count: 25 }],
-      stars: [9000, 23000, 29000],
+      stars: [6500, 16500, 24000],
       tutorial: 'Swap two neighboring candies to make a row of three! Collect the red jelly beans shown at the top.',
     },
     {
@@ -42,7 +42,7 @@
         '........',
       ],
       goals: [{ type: 'collect', color: 0, count: 30 }, { type: 'collect', color: 4, count: 30 }],
-      stars: [12000, 31000, 39500],
+      stars: [8000, 20500, 33500],
       tutorial: 'Collect the candies shown at the top. Every bean and ball you clear counts!',
     },
     {
@@ -60,7 +60,7 @@
         '.........',
       ],
       goals: [{ type: 'collect', color: 1, count: 30 }, { type: 'collect', color: 3, count: 30 }],
-      stars: [9000, 23500, 28500],
+      stars: [4500, 11500, 18000],
       tutorial: 'Match 4 in a line to make a Striped candy. Match it again to clear a whole row or column!',
     },
     {
@@ -78,7 +78,7 @@
         '.........',
       ],
       goals: [{ type: 'jelly' }],
-      stars: [10000, 25500, 30000],
+      stars: [6000, 15500, 22500],
       tutorial: 'Glaze sits under some candies. Make matches on top of it to wipe it all away!',
     },
     {
@@ -96,7 +96,7 @@
         '##.....##',
       ],
       goals: [{ type: 'collect', color: 3, count: 25 }],
-      stars: [6500, 17000, 21500],
+      stars: [3500, 9000, 14500],
       tutorial: 'Make an L or T shape to create a Wrapped candy. It explodes twice!',
     },
     {
@@ -114,7 +114,7 @@
         'xxxxxxxxx',
       ],
       goals: [{ type: 'ingredients', count: 2 }],
-      stars: [8000, 20500, 26000],
+      stars: [5500, 14500, 19000],
       tutorial: 'Clear the candies under the cherries to drop them into the trays at the bottom.',
     },
     {
@@ -132,7 +132,7 @@
         '.........',
       ],
       goals: [{ type: 'jelly' }],
-      stars: [11500, 29000, 34500],
+      stars: [9500, 24000, 30500],
       tutorial: 'Frosting blocks swaps. Match next to it to crack it. Thick glaze needs two hits!',
     },
     {
@@ -150,7 +150,7 @@
         '.........',
       ],
       goals: [{ type: 'collect', color: 2, count: 30 }, { type: 'collect', color: 5, count: 30 }],
-      stars: [4000, 11000, 14000],
+      stars: [3000, 8000, 11500],
       tutorial: 'Match 5 in a line to make a Color Bomb. Swap it with a candy to clear every candy of that color!',
     },
     {
@@ -168,7 +168,7 @@
         'xxxxxxxxx',
       ],
       goals: [{ type: 'jelly' }, { type: 'ingredients', count: 3 }],
-      stars: [6000, 15500, 19000],
+      stars: [5000, 13000, 15500],
       tutorial: 'Two goals at once: wipe the glaze and bring all three cherries down through the orchard.',
     },
     {
@@ -186,7 +186,7 @@
         '.........',
       ],
       goals: [{ type: 'jelly' }, { type: 'collect', color: 5, count: 30 }],
-      stars: [7000, 17500, 22000],
+      stars: [5500, 14000, 17500],
       tutorial: 'The grand finale! Clear every bit of glaze and collect the purple gems. Combine specials for huge blasts.',
     },
   ];

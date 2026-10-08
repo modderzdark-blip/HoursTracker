@@ -66,9 +66,9 @@ async function render(kind, size) {
       ctx.save();
       ctx.translate(center_x - 3 * unit * scale, center_y + 3 * unit * scale);
       ctx.rotate(-0.12);
-      ART.paintCandy(ctx, 0, 0, 25 * unit * scale, bean, { theme: 'gummy', scale: unit * 1.15 * scale });
+      ART.paintCandy(ctx, 0, 0, 25 * unit * scale, bean, { theme: 'classic', scale: unit * 1.15 * scale });
       ctx.restore();
-      ART.paintCandy(ctx, center_x + 17 * unit * scale, center_y - 15 * unit * scale, 10 * unit * scale, gem, { theme: 'gummy', scale: unit * 0.7 * scale, skip_shadow: true });
+      ART.paintCandy(ctx, center_x + 17 * unit * scale, center_y - 15 * unit * scale, 10 * unit * scale, gem, { theme: 'classic', scale: unit * 0.7 * scale, skip_shadow: true });
       ctx.fillStyle = '#ffffff';
       window.SC.RENDER.drawStar(ctx, center_x - 19 * unit * scale, center_y - 18 * unit * scale, 5 * unit * scale, 0, 4);
     }
@@ -125,9 +125,9 @@ async function render(kind, size) {
       ctx.save();
       ctx.translate(center - 3 * splash_unit, center + 3 * splash_unit);
       ctx.rotate(-0.12);
-      ART.paintCandy(ctx, 0, 0, 34 * splash_unit, window.SC.CONFIG.CANDIES[0], { theme: 'gummy', scale: splash_unit * 1.5 });
+      ART.paintCandy(ctx, 0, 0, 34 * splash_unit, window.SC.CONFIG.CANDIES[0], { theme: 'classic', scale: splash_unit * 1.5 });
       ctx.restore();
-      ART.paintCandy(ctx, center + 24 * splash_unit, center - 21 * splash_unit, 13 * splash_unit, window.SC.CONFIG.CANDIES[5], { theme: 'gummy', scale: splash_unit * 0.9, skip_shadow: true });
+      ART.paintCandy(ctx, center + 24 * splash_unit, center - 21 * splash_unit, 13 * splash_unit, window.SC.CONFIG.CANDIES[5], { theme: 'classic', scale: splash_unit * 0.9, skip_shadow: true });
       ctx.fillStyle = '#ffffff';
       window.SC.RENDER.drawStar(ctx, center - 26 * splash_unit, center - 25 * splash_unit, 7 * splash_unit, 0, 4);
     }

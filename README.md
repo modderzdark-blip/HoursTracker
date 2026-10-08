@@ -4,19 +4,20 @@ An original, fully offline **match-3 puzzle game for Android**. Swap candies, ma
 
 GitHub Actions builds, tests, signs and publishes the installable APK. There is nothing to build on your phone or computer.
 
-* **Download:** [latest APK](https://github.com/modderzdark-blip/HoursTracker/releases/tag/latest) (rolling build of the newest green commit) or the versioned release `v1.0.0` under [Releases](https://github.com/modderzdark-blip/HoursTracker/releases).
+* **Download:** [latest APK](https://github.com/modderzdark-blip/HoursTracker/releases/tag/latest) (rolling build of the newest commit that passed every test, emulator included) or the versioned release `v1.0.0` under [Releases](https://github.com/modderzdark-blip/HoursTracker/releases).
+* **Early preview:** [SweetCascade-v1.0.0-preview.apk](https://github.com/modderzdark-blip/HoursTracker/releases/download/qa/SweetCascade-v1.0.0-preview.apk) is replaced on every push as soon as the APK is built and verified, before the slower emulator tests finish.
 * All art is drawn procedurally (Canvas and CSS gradients) and all sound is synthesized with the Web Audio API. There are no image, font or audio files and no third-party assets.
 * No ads, no purchases, no analytics, no network access. The app requests no dangerous permissions and has no `INTERNET` permission at all.
 
 <p>
   <img src="docs/screenshots/title.png" width="200" alt="Title screen">
   <img src="docs/screenshots/map.png" width="200" alt="Candy trail map">
-  <img src="docs/screenshots/board-gummy.png" width="200" alt="Gameplay, Gummy theme">
+  <img src="docs/screenshots/board-classic.png" width="200" alt="Gameplay, Classic theme">
   <img src="docs/screenshots/win.png" width="200" alt="Level complete">
 </p>
 <p>
+  <img src="docs/screenshots/board-classic.png" width="200" alt="Classic theme">
   <img src="docs/screenshots/board-gummy.png" width="200" alt="Gummy theme">
-  <img src="docs/screenshots/board-hard.png" width="200" alt="Hard Candy theme">
   <img src="docs/screenshots/board-sprinkle.png" width="200" alt="Sugar Sprinkle theme">
   <img src="docs/icon-512.png" width="200" alt="App icon">
 </p>
@@ -32,7 +33,10 @@ Newer builds install over older ones and keep your progress, because every build
 ## What's in the game
 
 * 6 candies in classic candy-shop shapes, each with its own color **and** shape: Cherry Bean (jelly bean), Orange Lozenge, Lemon Drop, Mint Square, Blueberry Ball and Grape Gem (hexagon). All art is drawn by the game's own code; each candy uses an 8-layer gloss recipe (ground shadow, base body, rim light, inner glow, subsurface tint, main specular, secondary glint, outline). The board is a see-through deep-blue checkerboard so the candies pop.
-* 3 switchable materials: **Gummy**, **Hard Candy** and **Sugar Sprinkle**.
+* 4 switchable materials: **Classic** (solid, shiny 3D hard candy, the default), **Gummy**, **Hard Candy** and **Sugar Sprinkle**.
+* A painted candy-land backdrop (sky, clouds, candy hills, lollipop and cotton-candy trees) behind deep-blue glass panels, light-blue popups with ribbon titles and green action buttons.
+* The level map is a candy land with a cobbled road, a chocolate river and candy trees; your marker sits on the furthest level reached.
+* Hints work like the classic games: after a few idle seconds (or the Hint button) every candy of the suggested match glows and pulses, and the one to move nudges toward its spot.
 * Specials: striped (match 4), wrapped (L/T/+ shape, explodes twice) and color bomb (match 5). All six special+special combos are implemented.
 * Blockers and goals: single and double glaze (jelly), one- and two-layer frosting, cherries that must reach the exit trays, collect goals and combined goals. A level is never won by points alone: finishing its candy goals always passes it with at least 1 star, and points only decide 2 and 3 stars.
 * Juice: squash and stretch, gravity falls, swell-and-pop clears with particles, beams, shockwaves, lightning arcs, cascade banners ("Tasty!" … "Sugar Rush!"), Sugar Bonus, confetti, and haptics.
@@ -64,6 +68,7 @@ Every push to `main` (and to the development branch), every `v*` tag, and manual
 2. **browser**: Playwright with Chromium mobile emulation (`npx playwright test`). It plays Level 1 to a win with real swipes and taps, and checks persistence, losing, pause/restart/quit mid-animation, back navigation, lifecycle, hints, settings, the self-test, accessibility and reduced motion. It also captures 228 screenshots (6 sizes × 3 themes × 12 screens, plus landscape, desktop and zoomed art sheets).
 3. **build**: Node 22, JDK 21, Android SDK, `npx cap sync android`, then Gradle `assembleDebug assembleRelease bundleRelease`.
 4. **apk-verify**: `aapt2 dump badging`, `apksigner verify` and a scan of the bundled assets (`tests/apk/verify-apk.mjs`).
+   **preview**: right after that, the verified APK is attached to the `qa` pre-release as `SweetCascade-vX.Y.Z-preview.apk` for quick testing.
 5. **emulator**: Android 14 (API 34) emulator, Pixel 6 profile (`tests/emulator/run-emulator-tests.sh`). It installs the APK, wins Level 1 with real `adb` swipes, and tests Back at every screen, Home and resume, the portrait lock, airplane mode, 3 minutes of play (frame pacing and memory), release cold start and a 3,000-event monkey run.
 6. **release**: replaces the rolling `latest` pre-release with the new APK. A `v*` tag (or a manual run with *publish versioned release* ticked) creates the versioned release.
 
@@ -105,12 +110,12 @@ Levels are data only. Append an object to the array in `www/js/levels.js`:
   // '.' normal  '#' hole  'j' single jelly  'J' double jelly  'f' frosting(1)  'F' frosting(2)  'c' cherry start  'x' exit tray
   layout: ['.........', /* nine rows of nine characters */],
   goals: [{ type: 'collect', color: 2, count: 30 }],   // collect (color, count) | jelly | ingredients (count)
-  stars: [6000, 15000, 20000],   // 1 star = any win (this value is only the first mark on the score bar)
+  stars: [5000, 12000, 17000],   // 1 star = any win (this value is only the first mark on the score bar)
   tutorial: 'Optional one-line tip shown the first time.',
 }
 ```
 
-The map, intro, HUD and tests pick it up automatically. `node tests/logic.test.js` checks that every cell is reachable and that cherries can reach an exit. `node tests/simulate.js` shows the bot win rate and suggests star thresholds (2 and 3 stars at the 8th and 25th percentile of the bot's winning scores). Score-only goals are rejected by the tests: levels are always won with candy goals.
+The map, intro, HUD and tests pick it up automatically. `node tests/logic.test.js` checks that every cell is reachable and that cherries can reach an exit. `node tests/simulate.js` shows the bot win rate and suggests star thresholds (3 stars = the median winning score of a random-move player, 2 stars = its 20th percentile, so an ordinary win earns 3 stars). Score-only goals are rejected by the tests: levels are always won with candy goals.
 
 ## Running the tests yourself (optional)
 

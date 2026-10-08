@@ -138,6 +138,8 @@
 
   // ---------------------------------------------------------------- materials
   const MATERIALS = {
+    // Classic: solid, saturated hard candy with a domed 3D body, a crisp window highlight and bounce light below.
+    classic: { specular: 1.0, specular_size: 1.05, subsurface: 0.3, rim: 0.55, outline: 0.9, inner_glow: 1.0, bubbles: false, swirl: false, sugar: false, dome: true, body_highlight_stop: 0.3, core_glow: 0 },
     gummy: { specular: 0.88, specular_size: 1.0, subsurface: 0.6, rim: 0.35, outline: 0.7, inner_glow: 0.85, bubbles: true, swirl: false, sugar: false, body_highlight_stop: 0.42, core_glow: 0.28 },
     hard: { specular: 1.0, specular_size: 0.78, subsurface: 0.22, rim: 0.75, outline: 0.95, inner_glow: 0.95, bubbles: false, swirl: true, sugar: false, body_highlight_stop: 0.26, core_glow: 0 },
     sprinkle: { specular: 0.38, specular_size: 1.15, subsurface: 0.2, rim: 0.2, outline: 0.65, inner_glow: 0.5, bubbles: false, swirl: false, sugar: true, body_highlight_stop: 0.55, core_glow: 0 },
@@ -380,6 +382,28 @@
         ctx.arc(bubble_x, bubble_y, bubble_r, Math.PI * 1.1, Math.PI * 1.8);
         ctx.stroke();
       }
+    }
+    if (material.dome) {
+      // Domed body: the upper-left swells toward the light, the lower edge catches light bounced off the board.
+      ctx.save();
+      const swell = ctx.createRadialGradient(-r * 0.2, -r * 0.28, 0, -r * 0.2, -r * 0.28, r * 0.85);
+      swell.addColorStop(0, rgba(mix(candy.highlight, '#ffffff', 0.2), 0.5));
+      swell.addColorStop(0.6, rgba(candy.highlight, 0.12));
+      swell.addColorStop(1, rgba(candy.highlight, 0));
+      ctx.fillStyle = swell;
+      ctx.fillRect(-r * 1.5, -r * 1.5, r * 3, r * 3);
+      const bounce = ctx.createRadialGradient(r * 0.12, r * 0.95, r * 0.1, r * 0.12, r * 0.95, r * 0.6);
+      bounce.addColorStop(0, rgba(mix(candy.warm, '#ffffff', 0.35), 0.55));
+      bounce.addColorStop(1, rgba(candy.warm, 0));
+      ctx.fillStyle = bounce;
+      ctx.fillRect(-r * 1.5, -r * 1.5, r * 3, r * 3);
+      // Deep saturated core under the dome keeps the color rich rather than pastel.
+      const core = ctx.createRadialGradient(r * 0.15, r * 0.2, 0, r * 0.15, r * 0.2, r * 0.7);
+      core.addColorStop(0, rgba(mix(candy.base, candy.shadow, 0.2), 0.35));
+      core.addColorStop(1, rgba(candy.base, 0));
+      ctx.fillStyle = core;
+      ctx.fillRect(-r * 1.5, -r * 1.5, r * 3, r * 3);
+      ctx.restore();
     }
     if (material.swirl) {
       // Hard candy: a two-tone swirl inside the glass, crisp bright edges and a deep saturated core.
@@ -857,7 +881,7 @@
         const pixel = sprite_px / Math.max(1, cell_px);
         const center = sprite_px / 2;
         const radius = sprite_px * 0.42;
-        if (kind === 'candy') paintSpecial(ctx, center, center, sprite_px * 0.45, color, special, { theme, colorblind, scale: pixel });
+        if (kind === 'candy') paintSpecial(ctx, center, center, sprite_px * 0.465, color, special, { theme, colorblind, scale: pixel });
         else if (kind === 'frosting') paintFrosting(ctx, center, center, sprite_px, layers, pixel);
         else if (kind === 'cherry') paintCherry(ctx, center, center, radius, pixel);
         else if (kind === 'jelly') paintJelly(ctx, 0, 0, sprite_px, layers, pixel);

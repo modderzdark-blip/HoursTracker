@@ -31,7 +31,7 @@
 
   // ---------------------------------------------------------------- canvas-painted images for the DOM
   const image_cache = new Map();
-  let icon_theme = 'gummy';
+  let icon_theme = 'classic';
   let icon_colorblind = false;
 
   function paintedImage(key, size, painter) {
@@ -1114,94 +1114,186 @@
     const ctx = canvas.getContext('2d');
     ctx.scale(ratio, ratio);
     const random = UTIL.createRng(2024);
-    // Clouds.
-    for (let index = 0; index < 9; index += 1) {
+
+    // The road between level nodes, sampled so scenery can keep clear of it.
+    const road = new Path2D();
+    const road_points = [];
+    positions.forEach((point, index) => {
+      if (index === 0) {
+        road.moveTo(point.x, point.y);
+        road_points.push(point);
+        return;
+      }
+      const previous = positions[index - 1];
+      const middle_y = (previous.y + point.y) / 2;
+      road.bezierCurveTo(previous.x, middle_y, point.x, middle_y, point.x, point.y);
+      for (let step = 1; step <= 12; step += 1) {
+        const t = step / 12;
+        const u = 1 - t;
+        road_points.push({
+          x: u * u * u * previous.x + 3 * u * u * t * previous.x + 3 * u * t * t * point.x + t * t * t * point.x,
+          y: u * u * u * previous.y + 3 * u * u * t * middle_y + 3 * u * t * t * middle_y + t * t * t * point.y,
+        });
+      }
+    });
+    const clearOfRoad = (x, y, margin) => road_points.every((point) => Math.hypot(point.x - x, point.y - y) > margin);
+
+    // Land: a green meadow at the bottom that turns into a pink candy meadow higher up.
+    const land = ctx.createLinearGradient(0, height, 0, 0);
+    land.addColorStop(0, '#5cc94f');
+    land.addColorStop(0.45, '#8fe06a');
+    land.addColorStop(0.55, '#ffc4e6');
+    land.addColorStop(1, '#ffd9f0');
+    ctx.fillStyle = land;
+    ctx.fillRect(0, 0, width, height);
+    // Grass and sugar texture.
+    for (let index = 0; index < 260; index += 1) {
       const x = random() * width;
       const y = random() * height;
-      const size = 26 + random() * 30;
-      ctx.fillStyle = 'rgba(255,255,255,0.55)';
-      [[0, 0, 1], [0.9, 0.15, 0.75], [-0.9, 0.2, 0.7], [0.35, -0.45, 0.8]].forEach(([dx, dy, scale]) => {
-        ctx.beginPath();
-        ctx.arc(x + dx * size, y + dy * size, size * scale, 0, Math.PI * 2);
-        ctx.fill();
-      });
+      const in_meadow = y > height * 0.5;
+      ctx.fillStyle = in_meadow ? (random() < 0.5 ? 'rgba(40,140,40,0.14)' : 'rgba(255,255,255,0.16)') : (random() < 0.5 ? 'rgba(220,90,170,0.12)' : 'rgba(255,255,255,0.3)');
+      ctx.beginPath();
+      ctx.ellipse(x, y, 10 + random() * 26, 4 + random() * 9, 0, 0, Math.PI * 2);
+      ctx.fill();
     }
-    // Gumdrop hills along the sides.
-    for (let y = 120; y < height; y += 170) {
-      [-1, 1].forEach((side) => {
-        const x = side < 0 ? random() * width * 0.16 : width - random() * width * 0.16;
-        const radius = 34 + random() * 26;
-        const candy = CONFIG.CANDIES[Math.floor(random() * 6)];
-        const hill = ctx.createRadialGradient(x - radius * 0.3, y - radius * 0.5, radius * 0.1, x, y, radius * 1.2);
-        hill.addColorStop(0, candy.highlight);
-        hill.addColorStop(0.6, candy.base);
-        hill.addColorStop(1, candy.shadow);
-        ctx.fillStyle = hill;
-        ctx.beginPath();
-        ctx.arc(x, y, radius, Math.PI, 0);
-        ctx.quadraticCurveTo(x + radius, y + radius * 0.25, x, y + radius * 0.22);
-        ctx.quadraticCurveTo(x - radius, y + radius * 0.25, x - radius, y);
-        ctx.fill();
-        ctx.fillStyle = 'rgba(255,255,255,0.75)';
-        for (let sugar = 0; sugar < 8; sugar += 1) ctx.fillRect(x - radius * 0.7 + random() * radius * 1.4, y - radius * 0.8 + random() * radius * 0.7, 2.5, 2.5);
-        ctx.beginPath();
-        ctx.ellipse(x - radius * 0.35, y - radius * 0.62, radius * 0.25, radius * 0.1, -0.5, 0, Math.PI * 2);
-        ctx.fill();
-      });
+    // Tiny flowers and sprinkles.
+    const sprinkle_colors = ['#ff5c8a', '#ffd34d', '#4aa8ff', '#ffffff', '#a45bff'];
+    for (let index = 0; index < 140; index += 1) {
+      const x = random() * width;
+      const y = random() * height;
+      ctx.fillStyle = sprinkle_colors[index % sprinkle_colors.length];
+      ctx.beginPath();
+      ctx.arc(x, y, 2 + random() * 1.8, 0, Math.PI * 2);
+      ctx.fill();
     }
-    // Lollipop trees.
-    for (let y = 40; y < height; y += 210) {
-      const side = random() < 0.5 ? -1 : 1;
-      const x = side < 0 ? width * (0.1 + random() * 0.12) : width * (0.78 + random() * 0.12);
-      const radius = 22 + random() * 10;
+
+    // A chocolate river crossing the trail halfway up, with a bridge where the road meets it.
+    const river_y = height * 0.5;
+    const river = new Path2D();
+    river.moveTo(0, river_y - 24);
+    for (let x = 0; x <= width + 10; x += 10) river.lineTo(x, river_y - 24 + Math.sin(x / 55) * 10);
+    for (let x = width + 10; x >= 0; x -= 10) river.lineTo(x, river_y + 24 + Math.sin(x / 55 + 0.8) * 10);
+    river.closePath();
+    ctx.fillStyle = '#7a3f1d';
+    ctx.fill(river);
+    ctx.save();
+    ctx.clip(river);
+    ctx.strokeStyle = 'rgba(255,220,180,0.35)';
+    ctx.lineWidth = 3;
+    for (let index = 0; index < 18; index += 1) {
+      const x = random() * width;
+      const y = river_y - 14 + random() * 28;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x + 14, y - 4, x + 28, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 4;
+    ctx.stroke(river);
+
+    // Trees and gumdrops on both sides, never on the road.
+    const lollipop = (x, y, radius, color) => {
       ctx.strokeStyle = '#fff6fb';
       ctx.lineWidth = 6;
       ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.moveTo(x, y + radius);
-      ctx.lineTo(x, y + radius + 54);
+      ctx.lineTo(x, y + radius + 48);
       ctx.stroke();
-      const colors = [CONFIG.CANDIES[Math.floor(random() * 6)].base, '#ffffff'];
       for (let ring = 6; ring >= 1; ring -= 1) {
-        ctx.fillStyle = colors[ring % 2];
+        ctx.fillStyle = ring % 2 ? color : '#ffffff';
         ctx.beginPath();
         ctx.arc(x, y, (radius * ring) / 6, 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.fillStyle = 'rgba(255,255,255,0.65)';
       ctx.beginPath();
       ctx.ellipse(x - radius * 0.35, y - radius * 0.45, radius * 0.3, radius * 0.14, -0.6, 0, Math.PI * 2);
       ctx.fill();
-    }
-    // Candy trail: a thick glossy road with candy-cane dashes joining the level nodes.
-    const tracePath = () => {
-      ctx.beginPath();
-      positions.forEach((point, index) => {
-        if (index === 0) ctx.moveTo(point.x, point.y);
-        else {
-          const previous = positions[index - 1];
-          const middle_y = (previous.y + point.y) / 2;
-          ctx.bezierCurveTo(previous.x, middle_y, point.x, middle_y, point.x, point.y);
-        }
+    };
+    const cotton = (x, y, size, color) => {
+      ctx.fillStyle = '#a8673d';
+      ctx.fillRect(x - size * 0.09, y, size * 0.18, size * 0.9);
+      [[-0.45, 0.05, 0.5], [0.45, 0.05, 0.5], [0, -0.3, 0.6], [0, 0.12, 0.55]].forEach(([dx, dy, scale]) => {
+        const blob = ctx.createRadialGradient(x + dx * size - size * 0.2, y + dy * size - size * 0.25, 0, x + dx * size, y + dy * size, scale * size);
+        blob.addColorStop(0, '#ffffff');
+        blob.addColorStop(0.4, color);
+        blob.addColorStop(1, mixHex(color, '#5a1a6e', 0.25));
+        ctx.fillStyle = blob;
+        ctx.beginPath();
+        ctx.arc(x + dx * size, y + dy * size, scale * size, 0, Math.PI * 2);
+        ctx.fill();
       });
     };
+    const gumdrop = (x, y, radius, candy) => {
+      const dome = ctx.createRadialGradient(x - radius * 0.3, y - radius * 0.5, radius * 0.1, x, y, radius * 1.2);
+      dome.addColorStop(0, candy.highlight);
+      dome.addColorStop(0.6, candy.base);
+      dome.addColorStop(1, candy.shadow);
+      ctx.fillStyle = dome;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, Math.PI, 0);
+      ctx.quadraticCurveTo(x + radius, y + radius * 0.25, x, y + radius * 0.22);
+      ctx.quadraticCurveTo(x - radius, y + radius * 0.25, x - radius, y);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      for (let sugar = 0; sugar < 7; sugar += 1) ctx.fillRect(x - radius * 0.7 + random() * radius * 1.4, y - radius * 0.8 + random() * radius * 0.7, 2.5, 2.5);
+    };
+    for (let y = 60; y < height - 40; y += 64) {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const x = random() * width;
+        if (Math.abs(y - river_y) < 60 || !clearOfRoad(x, y, 70)) continue;
+        const pick = random();
+        if (pick < 0.35) lollipop(x, y, 18 + random() * 10, CONFIG.CANDIES[Math.floor(random() * 6)].base);
+        else if (pick < 0.65) cotton(x, y, 26 + random() * 12, ['#ff9ad5', '#b9a1ff', '#8ee3ff'][Math.floor(random() * 3)]);
+        else gumdrop(x, y, 22 + random() * 16, CONFIG.CANDIES[Math.floor(random() * 6)]);
+        break;
+      }
+    }
+
+    // The road: a soft shadow, a caramel edge and a cream-colored cobbled surface.
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    tracePath();
-    ctx.strokeStyle = 'rgba(120,30,90,0.25)';
-    ctx.lineWidth = 34;
-    ctx.stroke();
-    tracePath();
-    ctx.strokeStyle = '#fff4fa';
-    ctx.lineWidth = 28;
-    ctx.stroke();
-    tracePath();
-    ctx.setLineDash([16, 16]);
-    ctx.strokeStyle = '#ff7fbf';
-    ctx.lineWidth = 12;
-    ctx.stroke();
+    ctx.save();
+    ctx.translate(0, 5);
+    ctx.strokeStyle = 'rgba(40,60,20,0.25)';
+    ctx.lineWidth = 46;
+    ctx.stroke(road);
+    ctx.restore();
+    ctx.strokeStyle = '#c98b4a';
+    ctx.lineWidth = 44;
+    ctx.stroke(road);
+    ctx.strokeStyle = '#fff1d2';
+    ctx.lineWidth = 36;
+    ctx.stroke(road);
+    ctx.strokeStyle = 'rgba(214,160,100,0.45)';
+    ctx.lineWidth = 8;
+    ctx.setLineDash([2, 16]);
+    ctx.stroke(road);
     ctx.setLineDash([]);
+    // Bridge planks where the road crosses the river.
+    road_points.forEach((point, index) => {
+      if (index % 2 || Math.abs(point.y - river_y) > 30) return;
+      ctx.fillStyle = index % 4 ? '#ff7fbf' : '#ffffff';
+      ctx.fillRect(point.x - 24, point.y - 3, 48, 6);
+    });
+    // Mist over the not-yet-built part of the trail.
+    const mist = ctx.createLinearGradient(0, 0, 0, 200);
+    mist.addColorStop(0, 'rgba(255,255,255,0.85)');
+    mist.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = mist;
+    ctx.fillRect(0, 0, width, 200);
   }
+
+  function mixHex(first_hex, second_hex, amount) {
+    const parse = (hex) => [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16));
+    const first = parse(first_hex);
+    const second = parse(second_hex);
+    return '#' + first.map((channel, index) => Math.round(channel + (second[index] - channel) * amount).toString(16).padStart(2, '0')).join('');
+  }
+
 
   SC.UI = { createUi, ICONS, icon };
 })(typeof window !== 'undefined' ? window : globalThis);

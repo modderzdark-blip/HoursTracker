@@ -174,10 +174,11 @@
     let display_jelly = null;
     let layout = { cell: 48, origin_x: 0, origin_y: 0, width: 0, height: 0, dpr: 1, view_w: 0, view_h: 0 };
     let static_layer = null;
-    let settings = { theme: 'gummy', colorblind: false, reduced_motion: false };
+    let settings = { theme: 'classic', colorblind: false, reduced_motion: false };
     let quality = 2; // 2 high, 1 medium, 0 low (adaptive)
     let selected_cell = -1;
     let hint_move = null;
+    let hint_cells = new Set(); // every candy of the suggested match (they pulse together)
     let drag = null; // { cell, dx, dy }
     let shake = { amplitude: 0, until: 0 };
     let board_visible = false;
@@ -436,6 +437,20 @@
       }
       let offset_x = 0;
       let offset_y = -visual.lift * cell * 0.06;
+      // Hint: the candies of the suggested match pulse together and the one to move nudges toward its target.
+      if (hint_move && !timeline.busy && visual.kind === 'candy' && !settings.reduced_motion) {
+        const cell_index = Math.round(visual.y) * board.cols + Math.round(visual.x);
+        if (hint_cells.has(cell_index)) {
+          const pulse = 0.5 + 0.5 * Math.sin(now / 150);
+          scale_x *= 1 + 0.1 * pulse;
+          scale_y *= 1 + 0.1 * pulse;
+          if (cell_index === hint_move.from) {
+            const target = cellXY(hint_move.to);
+            offset_x += (target.col - Math.round(visual.x)) * cell * 0.14 * pulse;
+            offset_y += (target.row - Math.round(visual.y)) * cell * 0.14 * pulse;
+          }
+        }
+      }
       if (drag && drag.piece_id === visual.id) {
         offset_x = drag.dx;
         offset_y += drag.dy;
@@ -659,13 +674,15 @@
 
     function drawHintAndSelection(now) {
       const cell = layout.cell;
-      if (hint_move) {
-        const pulse = 0.5 + 0.5 * Math.sin(now / 180);
-        [hint_move.from, hint_move.to].forEach((cell_index) => {
+      if (hint_move && !timeline.busy) {
+        // A warm glow under every candy of the suggested match (steady when motion is reduced).
+        const pulse = settings.reduced_motion ? 0.8 : 0.5 + 0.5 * Math.sin(now / 150);
+        hint_cells.forEach((cell_index) => {
           const center = cellCenter(cell_index);
-          const glow = ctx.createRadialGradient(center.x, center.y, cell * 0.2, center.x, center.y, cell * 0.62);
-          glow.addColorStop(0, `rgba(255,255,255,${0.15 + 0.4 * pulse})`);
-          glow.addColorStop(1, 'rgba(255,255,255,0)');
+          const glow = ctx.createRadialGradient(center.x, center.y, cell * 0.1, center.x, center.y, cell * 0.78);
+          glow.addColorStop(0, `rgba(255,250,200,${0.6 + 0.4 * pulse})`);
+          glow.addColorStop(0.5, `rgba(255,220,100,${0.4 + 0.45 * pulse})`);
+          glow.addColorStop(1, 'rgba(255,200,60,0)');
           ctx.fillStyle = glow;
           ctx.fillRect(center.x - cell, center.y - cell, cell * 2, cell * 2);
         });
@@ -1281,6 +1298,7 @@
       },
       setHint(move) {
         hint_move = move;
+        hint_cells = new Set(move ? move.cells || [move.from, move.to] : []);
       },
       setDrag(cell_index, dx, dy) {
         if (cell_index < 0) {
@@ -1326,6 +1344,177 @@
 
   // ================================================================ BACKGROUND
   /** Diagonal candy gradient with drifting bokeh and floating sparkles (static when motion is reduced). */
+  /**
+   * Painted candy-land backdrop (drawn once per size): sky from the accent palette, sun glow, clouds, two ranges of
+   * rolling hills with lollipop and cotton-candy trees, and a grassy foreground with gumdrops and candy canes.
+   */
+  function paintCandyLand(ctx, width, height, palette) {
+    if (!(width >= 1 && height >= 1)) return; // not laid out yet
+    const random = UTIL.createRng(9091);
+    const unit = Math.min(width, height * 0.6);
+    const sky = ctx.createLinearGradient(0, 0, 0, height);
+    sky.addColorStop(0, palette[0]);
+    sky.addColorStop(0.45, palette[1]);
+    sky.addColorStop(0.72, palette[2]);
+    sky.addColorStop(1, palette[2]);
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, width, height);
+    const sun = ctx.createRadialGradient(width * 0.82, height * 0.1, 0, width * 0.82, height * 0.1, unit * 0.55);
+    sun.addColorStop(0, 'rgba(255,255,235,0.75)');
+    sun.addColorStop(0.35, 'rgba(255,250,210,0.3)');
+    sun.addColorStop(1, 'rgba(255,250,210,0)');
+    ctx.fillStyle = sun;
+    ctx.fillRect(0, 0, width, height);
+
+    const cloud = (cx, cy, size) => {
+      const puffs = [[-0.9, 0.15, 0.55], [-0.35, -0.2, 0.75], [0.3, -0.1, 0.7], [0.85, 0.15, 0.5], [0, 0.25, 0.6]];
+      ctx.fillStyle = 'rgba(190,170,230,0.35)';
+      puffs.forEach(([px, py, pr]) => {
+        ctx.beginPath();
+        ctx.arc(cx + px * size, cy + py * size + size * 0.12, pr * size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      puffs.forEach(([px, py, pr]) => {
+        const puff = ctx.createRadialGradient(cx + px * size - pr * size * 0.3, cy + py * size - pr * size * 0.4, 0, cx + px * size, cy + py * size, pr * size);
+        puff.addColorStop(0, '#ffffff');
+        puff.addColorStop(1, 'rgba(248,244,255,0.96)');
+        ctx.fillStyle = puff;
+        ctx.beginPath();
+        ctx.arc(cx + px * size, cy + py * size, pr * size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    };
+    cloud(width * 0.17, height * 0.13, unit * 0.09);
+    cloud(width * 0.72, height * 0.22, unit * 0.075);
+    cloud(width * 0.48, height * 0.06, unit * 0.055);
+    cloud(width * 0.92, height * 0.4, unit * 0.06);
+    cloud(width * 0.06, height * 0.44, unit * 0.055);
+
+    const hill = (base_y, amplitude, waves, phase, top_color, bottom_color) => {
+      const path = new Path2D();
+      path.moveTo(0, height);
+      for (let x = 0; x <= width + 8; x += 8) {
+        const y = base_y - amplitude * (0.55 + 0.45 * Math.sin((x / width) * Math.PI * waves + phase));
+        path.lineTo(x, y);
+      }
+      path.lineTo(width, height);
+      path.closePath();
+      const fill = ctx.createLinearGradient(0, base_y - amplitude, 0, base_y + height * 0.12);
+      fill.addColorStop(0, top_color);
+      fill.addColorStop(1, bottom_color);
+      ctx.fillStyle = fill;
+      ctx.fill(path);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+      ctx.lineWidth = Math.max(2, unit * 0.008);
+      ctx.translate(0, Math.max(1.5, unit * 0.004));
+      ctx.stroke(path);
+      ctx.restore();
+      return (x) => base_y - amplitude * (0.55 + 0.45 * Math.sin((x / width) * Math.PI * waves + phase));
+    };
+
+    const lollipopTree = (x, ground_y, size, colors) => {
+      ctx.fillStyle = '#fff8f0';
+      ctx.fillRect(x - size * 0.07, ground_y - size * 1.5, size * 0.14, size * 1.5);
+      ctx.fillStyle = 'rgba(120,60,80,0.18)';
+      ctx.fillRect(x + size * 0.02, ground_y - size * 1.5, size * 0.05, size * 1.5);
+      const top_y = ground_y - size * 1.5 - size * 0.45;
+      const disc = ctx.createRadialGradient(x - size * 0.2, top_y - size * 0.2, 0, x, top_y, size * 0.6);
+      disc.addColorStop(0, '#ffffff');
+      disc.addColorStop(0.3, colors[0]);
+      disc.addColorStop(1, colors[1]);
+      ctx.fillStyle = disc;
+      ctx.beginPath();
+      ctx.arc(x, top_y, size * 0.58, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      ctx.lineWidth = size * 0.09;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      for (let step = 0; step <= 40; step += 1) {
+        const angle = step * 0.32;
+        const radius = step * size * 0.0125;
+        const px = x + Math.cos(angle) * radius;
+        const py = top_y + Math.sin(angle) * radius;
+        if (step === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    };
+    const cottonTree = (x, ground_y, size, color) => {
+      ctx.fillStyle = '#a8673d';
+      ctx.fillRect(x - size * 0.08, ground_y - size * 1.1, size * 0.16, size * 1.1);
+      const top_y = ground_y - size * 1.35;
+      [[-0.45, 0.1, 0.5], [0.45, 0.1, 0.5], [0, -0.25, 0.62], [0, 0.18, 0.55]].forEach(([px, py, pr]) => {
+        const blob = ctx.createRadialGradient(x + px * size - pr * size * 0.3, top_y + py * size - pr * size * 0.35, 0, x + px * size, top_y + py * size, pr * size);
+        blob.addColorStop(0, '#ffffff');
+        blob.addColorStop(0.35, color);
+        blob.addColorStop(1, mixColor(color, '#7a2e6e', 0.25));
+        ctx.fillStyle = blob;
+        ctx.beginPath();
+        ctx.arc(x + px * size, top_y + py * size, pr * size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    };
+
+    // Far hills: candy-pink and lavender, with a few trees.
+    const far = hill(height * 0.66, height * 0.06, 3.2, 0.6, '#f7c3ea', '#d993d9');
+    [[0.08, 0.5, ['#ffd3ef', '#ff6fb5']], [0.42, 0.42, ['#d8f7ff', '#4aa8ff']], [0.78, 0.48, ['#fff1b8', '#ffb020']]].forEach(([fx, fs, colors]) => {
+      lollipopTree(width * fx, far(width * fx) + unit * 0.01, unit * 0.07 * fs * 2, colors);
+    });
+    // Mid hills: mint green with lollipop and cotton-candy trees.
+    const mid = hill(height * 0.76, height * 0.05, 2.4, 2.2, '#a7ef8f', '#58c25a');
+    cottonTree(width * 0.2, mid(width * 0.2) + unit * 0.01, unit * 0.075, '#ff9ad5');
+    lollipopTree(width * 0.55, mid(width * 0.55) + unit * 0.01, unit * 0.07, ['#ffd0d8', '#ff3b6b']);
+    cottonTree(width * 0.88, mid(width * 0.88) + unit * 0.01, unit * 0.065, '#b9a1ff');
+    // Foreground grass with gumdrops and candy canes.
+    hill(height * 0.86, height * 0.03, 1.6, 4.0, '#7bdc5f', '#38a33a');
+    const gumdrop = (x, y, size, color) => {
+      const dome = ctx.createRadialGradient(x - size * 0.3, y - size * 0.6, 0, x, y - size * 0.3, size * 1.1);
+      dome.addColorStop(0, '#ffffff');
+      dome.addColorStop(0.3, color);
+      dome.addColorStop(1, mixColor(color, '#000000', 0.3));
+      ctx.fillStyle = dome;
+      ctx.beginPath();
+      ctx.ellipse(x, y, size, size * 0.85, 0, Math.PI, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      for (let index = 0; index < 6; index += 1) {
+        ctx.beginPath();
+        ctx.arc(x + (random() - 0.5) * size * 1.3, y - random() * size * 0.7, size * 0.05, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    };
+    const cane = (x, y, size) => {
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineWidth = size * 0.28;
+      const path = new Path2D();
+      path.moveTo(x, y);
+      path.lineTo(x, y - size * 1.6);
+      path.arc(x - size * 0.35, y - size * 1.6, size * 0.35, 0, Math.PI, true);
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke(path);
+      ctx.setLineDash([size * 0.22, size * 0.22]);
+      ctx.strokeStyle = '#ff3b5c';
+      ctx.stroke(path);
+      ctx.restore();
+    };
+    gumdrop(width * 0.08, height * 0.95, unit * 0.06, '#ff5c8a');
+    gumdrop(width * 0.3, height * 0.985, unit * 0.05, '#ffcf3a');
+    cane(width * 0.66, height * 0.97, unit * 0.06);
+    gumdrop(width * 0.9, height * 0.96, unit * 0.065, '#4aa8ff');
+    gumdrop(width * 0.5, height * 0.93, unit * 0.035, '#a45bff');
+  }
+
+  function mixColor(first_hex, second_hex, amount) {
+    const parse = (hex) => [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16));
+    const first = parse(first_hex);
+    const second = parse(second_hex);
+    return '#' + first.map((channel, index) => Math.round(channel + (second[index] - channel) * amount).toString(16).padStart(2, '0')).join('');
+  }
+
   function createBackgroundRenderer(bg_canvas) {
     const ctx = bg_canvas.getContext('2d');
     let view = { width: 0, height: 0, dpr: 1 };
@@ -1344,17 +1533,8 @@
     function rebuildGradient() {
       gradient_layer = ART.createCanvas(Math.max(1, Math.round(view.width * view.dpr)), Math.max(1, Math.round(view.height * view.dpr)));
       const layer = gradient_layer.getContext('2d');
-      const gradient = layer.createLinearGradient(0, 0, gradient_layer.width, gradient_layer.height);
-      gradient.addColorStop(0, palette[0]);
-      gradient.addColorStop(0.5, palette[1]);
-      gradient.addColorStop(1, palette[2]);
-      layer.fillStyle = gradient;
-      layer.fillRect(0, 0, gradient_layer.width, gradient_layer.height);
-      const glow = layer.createRadialGradient(gradient_layer.width * 0.5, gradient_layer.height * 0.35, 0, gradient_layer.width * 0.5, gradient_layer.height * 0.35, gradient_layer.height * 0.7);
-      glow.addColorStop(0, 'rgba(255,255,255,0.28)');
-      glow.addColorStop(1, 'rgba(255,255,255,0)');
-      layer.fillStyle = glow;
-      layer.fillRect(0, 0, gradient_layer.width, gradient_layer.height);
+      layer.scale(view.dpr, view.dpr);
+      paintCandyLand(layer, view.width, view.height, palette);
       dirty = true;
     }
 
@@ -1366,27 +1546,6 @@
       ctx.drawImage(gradient_layer, 0, 0);
       ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
       const size = Math.max(view.width, view.height);
-      bokeh.forEach((dot) => {
-        if (animate) {
-          dot.x += dot.vx * (delta_ms / 1000);
-          dot.y += dot.vy * (delta_ms / 1000);
-          if (dot.y < -0.2) dot.y = 1.2;
-          if (dot.x < -0.2) dot.x = 1.2;
-          if (dot.x > 1.2) dot.x = -0.2;
-        }
-        const x = dot.x * view.width;
-        const y = dot.y * view.height;
-        const radius = dot.r * size;
-        const fill = ctx.createRadialGradient(x, y, 0, x, y, radius);
-        const tint = ['#ffffff', '#fff3b0', '#ffd6f0'][dot.hue];
-        fill.addColorStop(0, ART.rgba(tint, dot.alpha));
-        fill.addColorStop(0.7, ART.rgba(tint, dot.alpha * 0.5));
-        fill.addColorStop(1, ART.rgba(tint, 0));
-        ctx.fillStyle = fill;
-        ctx.beginPath();
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
-        ctx.fill();
-      });
       sparkles.forEach((sparkle) => {
         const twinkle = animate ? 0.5 + 0.5 * Math.sin(time_ms / 1000 * sparkle.speed * 3 + sparkle.phase) : 0.7;
         ctx.globalAlpha = 0.25 + twinkle * 0.6;

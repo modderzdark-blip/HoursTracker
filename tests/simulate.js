@@ -2,8 +2,8 @@
 //  - Fuzz: 2,000 random-valid-move games per level; board invariants checked after every move; iteration caps.
 //  - Greedy bot: 300 games per level (specials first, then the largest match, with goal-relevance weighting).
 // Prints win rate, median score and suggested star thresholds per level (1 star = 40% of the 2-star score, only a mark on
-// the HUD meter because a win always earns 1 star; 2 stars = 8th, 3 stars = 25th percentile of the bot's final winning
-// scores, end bonus included).
+// the HUD meter because a win always earns 1 star; 3 stars = the random-move player's median winning score and 2 stars
+// its 20th percentile, end bonus included, so an ordinary win earns 3 stars; see the fallback below).
 // Fails if any level is never won, if Level 1 is not near-certain, if Level 10 leaves the 30-60% target band,
 // or on any exception / invariant break.
 // Usage: node tests/simulate.js [--fuzz 2000] [--bot 300] [--report sim-report.json]
@@ -118,10 +118,10 @@ if (!isMainThread) {
     const failures = [];
     const report = { generated: new Date().toISOString(), fuzz_games_per_level: fuzz_games, bot_games_per_level: bot_games, levels: [] };
     console.log('================ FUZZ (random valid moves) ================');
-    console.log('Level  Name               Games  Moves    Exceptions  InvariantFails  RandomWin%');
+    console.log('Level  Name               Games  Moves    Exceptions  InvariantFails  RandomWin%  RandomFinal(win) p20/p50');
     LEVELS.forEach((level) => {
       const fuzz = merged.get(`${level.id}:fuzz`);
-      console.log(`${String(level.id).padEnd(6)} ${level.name.padEnd(18)} ${String(fuzz.games).padEnd(6)} ${String(fuzz.moves_played).padEnd(8)} ${String(fuzz.exceptions.length).padEnd(11)} ${String(fuzz.invariant_failures.length).padEnd(15)} ${(100 * fuzz.wins / fuzz.games).toFixed(1)}`);
+      console.log(`${String(level.id).padEnd(6)} ${level.name.padEnd(18)} ${String(fuzz.games).padEnd(6)} ${String(fuzz.moves_played).padEnd(8)} ${String(fuzz.exceptions.length).padEnd(11)} ${String(fuzz.invariant_failures.length).padEnd(15)} ${(100 * fuzz.wins / fuzz.games).toFixed(1).padEnd(11)} ${percentile(fuzz.win_final_scores, 0.2)}/${percentile(fuzz.win_final_scores, 0.5)}`);
       fuzz.exceptions.slice(0, 3).forEach((line) => console.log(`       ! ${line}`));
       fuzz.invariant_failures.slice(0, 3).forEach((line) => console.log(`       ! ${line}`));
       if (fuzz.exceptions.length) failures.push(`level ${level.id}: ${fuzz.exceptions.length} fuzz exceptions`);
@@ -135,10 +135,13 @@ if (!isMainThread) {
       const bot = merged.get(`${level.id}:bot`);
       const win_rate = bot.games ? (100 * bot.wins) / bot.games : 0;
       const score_goal = level.goals.find((goal) => goal.type === 'score');
+      // Stars are set for a casual player: 3 stars = a typical win by the random-move player, 2 stars = its 20th
+      // percentile. Where random play rarely wins, fall back to 80% of the bot's 8th and 25th percentiles.
+      const casual = fuzz.wins >= 40;
       const suggested = [
         0,
-        floor500(percentile(bot.win_final_scores, 0.08)),
-        floor500(percentile(bot.win_final_scores, 0.25)),
+        floor500(casual ? percentile(fuzz.win_final_scores, 0.2) : 0.8 * percentile(bot.win_final_scores, 0.08)),
+        floor500(casual ? percentile(fuzz.win_final_scores, 0.5) : 0.8 * percentile(bot.win_final_scores, 0.25)),
       ];
       suggested[0] = score_goal ? score_goal.target : floor500(0.4 * suggested[1]);
       if (suggested[1] <= suggested[0]) suggested[1] = suggested[0] + 500;

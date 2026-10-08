@@ -177,6 +177,31 @@ jobs:
           name: apk-verify-report
           path: apk-verify.txt
 
+  preview:
+    # Early test build for the owner: as soon as the APK is built and verified, it is attached to the "qa"
+    # pre-release as SweetCascade-vX.Y.Z-preview.apk. The rolling "latest" release still waits for the emulator suite.
+    name: preview
+    needs: [build, apk-verify]
+    if: github.event_name == 'push' && github.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.build.outputs.version }}
+      APK_NAME: ${{ needs.build.outputs.apk_name }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v7
+        with:
+          name: apks
+          path: dist
+      - name: Attach the preview APK to the "qa" pre-release
+        run: |
+          cp "dist/${APK_NAME}" "SweetCascade-v${VERSION}-preview.apk"
+          sha256sum "SweetCascade-v${VERSION}-preview.apk"
+          bash scripts/ci/upload-qa-asset.sh "SweetCascade-v${VERSION}-preview.apk"
+          echo "Preview APK: https://github.com/${GITHUB_REPOSITORY}/releases/download/qa/SweetCascade-v${VERSION}-preview.apk"
+
   emulator:
     name: emulator
     needs: build

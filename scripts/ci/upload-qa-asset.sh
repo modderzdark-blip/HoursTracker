@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Attaches a QA zip (screenshots, logs, reports) to the rolling "qa" pre-release so it can be
-# downloaded without signing in. This is not a game build; the APK lives in the "latest" release.
+# Attaches a file to the rolling "qa" pre-release so it can be downloaded without signing in: QA zips (screenshots,
+# logs, reports) and the early preview APK. The fully tested game build lives in the "latest" release.
 set -u
 asset_path="${1:-}"
 if [ -z "$asset_path" ] || [ ! -f "$asset_path" ]; then
@@ -12,7 +12,7 @@ tag="${QA_RELEASE_TAG:-qa}"
 if ! gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
   gh release create "$tag" --repo "$repo" --prerelease --target "$GITHUB_SHA" \
     --title "QA artifacts (CI screenshots and reports)" \
-    --notes "Screenshots, logs and reports from the most recent CI run. This is NOT a game build: download the game from the 'latest' release." \
+    --notes "Screenshots, logs and reports from the most recent CI run, plus an early preview APK (built and verified, before the emulator suite). The fully tested game is in the 'latest' release." \
     || echo "QA release already being created by a parallel job."
 fi
 for attempt in 1 2 3; do

@@ -429,7 +429,7 @@
       const move = LOGIC.findHint(logic_state);
       if (!move) return;
       hint_visible = true;
-      renderer.setHint(move);
+      renderer.setHint(LOGIC.hintFor(logic_state, move));
       if (source === 'button') {
         sound('select');
         ui.announce('Hint shown on the board');

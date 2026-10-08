@@ -18,14 +18,15 @@
     ],
 
     THEMES: [
+      { id: 'classic', name: 'Classic' },
       { id: 'gummy', name: 'Gummy' },
       { id: 'hard', name: 'Hard Candy' },
       { id: 'sprinkle', name: 'Sugar Sprinkle' },
     ],
 
-    // Accent palettes recolor the background gradient and buttons.
+    // Accent palettes recolor the sky of the candy-land backdrop and the buttons.
     ACCENTS: [
-      { id: 'bubblegum', name: 'Bubblegum', background: ['#ff9ad5', '#ffd36e', '#8ee3ff'], button: ['#ff6fb5', '#e8418f'], depth: '#a3205f', ink: '#6a1b5a' },
+      { id: 'bubblegum', name: 'Candy Land', background: ['#4fb3ff', '#a9e0ff', '#ffe0f4'], button: ['#7be25b', '#2fae35'], depth: '#1d7a24', ink: '#3a1d6e' },
       { id: 'sunset', name: 'Sunset', background: ['#ff7e5f', '#feb47b', '#ffe0a8'], button: ['#ff8a4c', '#e5552a'], depth: '#9c3415', ink: '#6b2410' },
       { id: 'ocean', name: 'Ocean', background: ['#4facfe', '#00d4fe', '#a1ffce'], button: ['#36a3ff', '#1468d8'], depth: '#0c3f8a', ink: '#0d2f66' },
       { id: 'mint', name: 'Mint', background: ['#9ef08a', '#6fe8c8', '#dcfca0'], button: ['#2fd59a', '#139c6c'], depth: '#0b6646', ink: '#0d4f37' },
