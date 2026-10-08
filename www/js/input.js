@@ -132,5 +132,44 @@
     };
   }
 
-  SC.INPUT = { createBoardInput };
+  /**
+   * Android WebView turns a press into a long press after about half a second and then sends no click, so a
+   * slow press (or a busy phone delaying the release) would do nothing. Like a native Android button, releasing
+   * on the same button still activates it; a native click that arrives anyway is swallowed so nothing fires twice.
+   */
+  function installLongPressClick(root_element) {
+    const LONG_PRESS_MS = 450;
+    let press = null; // { button, pointer_id, time }
+    let synthetic = null; // { time } of the last click made here
+    const buttonAt = (target) => (target && target.closest ? target.closest('button') : null);
+
+    root_element.addEventListener('pointerdown', (event) => {
+      const button = buttonAt(event.target);
+      press = button && !button.disabled && event.isPrimary ? { button, pointer_id: event.pointerId, time: performance.now() } : null;
+    }, true);
+    root_element.addEventListener('pointercancel', () => {
+      press = null;
+    }, true);
+    root_element.addEventListener('pointerup', (event) => {
+      const started = press;
+      press = null;
+      if (!started || event.pointerId !== started.pointer_id || started.button.disabled) return;
+      if (performance.now() - started.time < LONG_PRESS_MS) return;
+      const released_on = buttonAt(document.elementFromPoint(event.clientX, event.clientY));
+      if (released_on !== started.button || !started.button.isConnected) return;
+      synthetic = { time: performance.now() };
+      started.button.click();
+    }, true);
+    root_element.addEventListener('click', (event) => {
+      if (!event.isTrusted || !synthetic) return;
+      // The browser's own click for the same release arrives right after it (its target may already be gone).
+      if (performance.now() - synthetic.time < 350) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+      synthetic = null;
+    }, true);
+  }
+
+  SC.INPUT = { createBoardInput, installLongPressClick };
 })(typeof window !== 'undefined' ? window : globalThis);

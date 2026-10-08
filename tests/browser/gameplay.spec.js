@@ -416,3 +416,37 @@ test('a fast flick with no move events in between still swaps (release point cou
   expect((await H.snapshot(page)).selected).toBe(-1);
   H.expectClean(problems);
 });
+
+// Android WebView drops the click after a long press (the emulator suite checks that case on a device); desktop
+// Chromium does not, so here this proves the long-press fallback never makes a button fire twice.
+test('a long press released on a button activates it exactly once (mouse and touch)', async ({ page }) => {
+  const problems = H.guardPage(page);
+  await H.bootGame(page, { name: '' });
+  await page.evaluate(() => window.SC.game.startLevel(1));
+  await H.waitState(page, 'PLAYING');
+  const soundOn = async () => (await H.snapshot(page)).audio.sfx_on;
+  const box = await page.locator('#btn-sound').boundingBox();
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  expect(await soundOn()).toBe(true);
+
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.waitForTimeout(900);
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  expect(await soundOn()).toBe(false);
+
+  const client = await page.context().newCDPSession(page);
+  await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+  await page.waitForTimeout(900);
+  await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.waitForTimeout(500);
+  expect(await soundOn()).toBe(true);
+
+  // A normal quick tap still works once.
+  await page.tap('#btn-sound');
+  await page.waitForTimeout(500);
+  expect(await soundOn()).toBe(false);
+  H.expectClean(problems);
+});

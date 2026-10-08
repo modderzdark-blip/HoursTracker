@@ -110,6 +110,7 @@
     SC.native = native;
     // Phones only allow audio after a gesture: create/resume the AudioContext on the first tap.
     const unlockAudio = () => audio.unlock();
+    SC.INPUT.installLongPressClick(document);
     document.addEventListener('pointerdown', unlockAudio, { capture: true });
     document.addEventListener('touchend', unlockAudio, { capture: true });
     game.start(load_result);

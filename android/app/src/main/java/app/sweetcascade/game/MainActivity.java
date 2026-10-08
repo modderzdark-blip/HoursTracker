@@ -81,7 +81,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     void pushSafeAreaToWeb() {
-        if (getBridge() == null || getBridge().getWebView() == null) {
+        if (isFinishing() || isDestroyed() || getBridge() == null || getBridge().getWebView() == null) {
             return;
         }
         int[] css_px = getSafeAreaCssPx();
@@ -91,7 +91,13 @@ public class MainActivity extends BridgeActivity {
             + "s.setProperty('--native-safe-bottom','" + css_px[2] + "px');"
             + "s.setProperty('--native-safe-left','" + css_px[3] + "px');"
             + "window.dispatchEvent(new Event('sc-safe-area'));})();";
-        getBridge().getWebView().post(() -> getBridge().getWebView().evaluateJavascript(script, null));
+        WebView web_view = getBridge().getWebView();
+        web_view.post(() -> {
+            // The activity can be recreated by a configuration change before this runs.
+            if (!isDestroyed()) {
+                web_view.evaluateJavascript(script, null);
+            }
+        });
     }
 
     /** No scrollbars, overscroll glow, zoom, long-press menu or font scaling; DevTools only in debuggable builds. */

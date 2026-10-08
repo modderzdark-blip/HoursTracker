@@ -92,6 +92,16 @@ adb shell getprop ro.build.version.release | tee "$OUT/android-version.txt"
 adb shell wm size | tee -a "$OUT/android-version.txt"
 adb shell dumpsys package com.google.android.webview | grep -m1 versionName | tee -a "$OUT/android-version.txt"
 
+# A freshly booted emulator keeps delivering boot broadcasts and starting services for a while; launching into
+# that stalls the app's UI thread for seconds. Wait until the boot animation has stopped and the load settles.
+for settle in $(seq 1 90); do
+  load=$(adb shell cat /proc/loadavg 2>/dev/null | awk '{print int($1)}')
+  [ "$(adb shell getprop init.svc.bootanim | tr -d '\r')" = "stopped" ] && [ "${load:-99}" -lt 3 ] && break
+  sleep 2
+done
+metric settle_wait_seconds "$((settle * 2))"
+metric load_average_at_launch "$(adb shell cat /proc/loadavg | tr -d '\r')"
+
 APK_RELEASE=$(ls dist/SweetCascade-v*.apk | head -1)
 APK_DEBUG=dist/test-only-debug-build.apk
 
@@ -138,6 +148,15 @@ back
 wait_for "s.state === 'TITLE' && !s.modal" 15 "Back to close the exit question"
 app_alive || fail "app exited by accident"
 pass "Back on 'Exit game?' closes the question; the app stays open"
+
+# --- A long press released on a button still activates it (WebView sends no click after a long press)
+help_point=$(q "px(s.buttons['btn-title-help'])")
+[ "$help_point" = "none" ] && fail "Help button not visible"
+adb shell input swipe $help_point $help_point 900
+wait_for "s.modal === 'help'" 15 "a 900 ms press on Help to open it"
+back
+wait_for "s.state === 'TITLE' && !s.modal" 15 "one Back to close Help (it must have opened only once)"
+pass "a 900 ms long press on a button activates it exactly once"
 tap_button "btn-play"
 wait_for "s.state === 'MAP' && s.map_nodes['1'] !== undefined" 15 "the map"
 sleep 1
