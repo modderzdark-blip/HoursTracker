@@ -31,13 +31,14 @@ Newer builds install over older ones and keep your progress, because every build
 
 ## What's in the game
 
-* 6 original candies, each with its own color **and** shape: Strawberry Heart, Orange Wedge, Lemon Drop, Mint Cube, Blueberry Orb and Grape Star. Each is painted with an 8-layer gloss recipe (ground shadow, base body, rim light, inner glow, subsurface tint, main specular, secondary glint, outline).
+* 6 candies in classic candy-shop shapes, each with its own color **and** shape: Cherry Bean (jelly bean), Orange Lozenge, Lemon Drop, Mint Square, Blueberry Ball and Grape Gem (hexagon). All art is drawn by the game's own code; each candy uses an 8-layer gloss recipe (ground shadow, base body, rim light, inner glow, subsurface tint, main specular, secondary glint, outline). The board is a see-through deep-blue checkerboard so the candies pop.
 * 3 switchable materials: **Gummy**, **Hard Candy** and **Sugar Sprinkle**.
 * Specials: striped (match 4), wrapped (L/T/+ shape, explodes twice) and color bomb (match 5). All six special+special combos are implemented.
-* Blockers and goals: single and double glaze (jelly), one- and two-layer frosting, cherries that must reach the exit trays, collect goals, score goals and combined goals.
+* Blockers and goals: single and double glaze (jelly), one- and two-layer frosting, cherries that must reach the exit trays, collect goals and combined goals. A level is never won by points alone: finishing its candy goals always passes it with at least 1 star, and points only decide 2 and 3 stars.
 * Juice: squash and stretch, gravity falls, swell-and-pop clears with particles, beams, shockwaves, lightning arcs, cascade banners ("Tasty!" … "Sugar Rush!"), Sugar Bonus, confetti, and haptics.
 * Personal touches: your name on the title and win screen, a background photo picked with the system photo picker (stays on the phone), 8 accent palettes, and a custom level-complete message.
-* Accessibility: color-blind assist (letters on candies), reduced motion (also follows the system setting), labelled buttons, visible focus rings and a screen-reader live region. Keyboard play works on desktop (arrows, Space/Enter, Esc, H, M).
+* Classic map flow: after a win, **Next level** returns to the candy trail, your marker hops to the newly unlocked level and its start screen opens by itself.
+* Accessibility: color-blind assist (color initials R, O, Y, G, B, P on candies), reduced motion (also follows the system setting), labelled buttons, visible focus rings and a screen-reader live region. Keyboard play works on desktop (arrows, Space/Enter, Esc, H, M).
 * **Settings → Run self-test** runs the logic test suite and a 200-game bot simulation on the phone, then shows a green or red report you can copy.
 
 ## How it is built
@@ -103,13 +104,13 @@ Levels are data only. Append an object to the array in `www/js/levels.js`:
   rows: 9, cols: 9,
   // '.' normal  '#' hole  'j' single jelly  'J' double jelly  'f' frosting(1)  'F' frosting(2)  'c' cherry start  'x' exit tray
   layout: ['.........', /* nine rows of nine characters */],
-  goals: [{ type: 'score', target: 9000 }],   // score | collect (color, count) | jelly | ingredients (count)
-  stars: [9000, 14000, 20000],
+  goals: [{ type: 'collect', color: 2, count: 30 }],   // collect (color, count) | jelly | ingredients (count)
+  stars: [6000, 15000, 20000],   // 1 star = any win (this value is only the first mark on the score bar)
   tutorial: 'Optional one-line tip shown the first time.',
 }
 ```
 
-The map, intro, HUD and tests pick it up automatically. `node tests/logic.test.js` checks that every cell is reachable and that cherries can reach an exit. `node tests/simulate.js` shows the bot win rate and suggests star thresholds.
+The map, intro, HUD and tests pick it up automatically. `node tests/logic.test.js` checks that every cell is reachable and that cherries can reach an exit. `node tests/simulate.js` shows the bot win rate and suggests star thresholds (2 and 3 stars at the 8th and 25th percentile of the bot's winning scores). Score-only goals are rejected by the tests: levels are always won with candy goals.
 
 ## Running the tests yourself (optional)
 

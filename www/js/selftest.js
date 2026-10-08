@@ -136,7 +136,7 @@
   });
 
   // 2. Initial boards
-  test('initial', 'all levels: no matches, a valid move, palette colors, layout features', (assert) => {
+  test('initial', 'all levels: no matches, a valid move, palette colors, layout features, candy goals only', (assert) => {
     LEVELS.forEach((level) => {
       const layout = LOGIC.parseLayout(level);
       for (let variant = 0; variant < 12; variant += 1) {
@@ -166,6 +166,16 @@
         assert.strictEqual(seen_colors.size, level.colors, `level ${level.id} should show all ${level.colors} colors`);
         assert.strictEqual(state.moves_left, level.moves);
       }
+      // Levels are won by candy goals only, never by points alone; collect goals use colors that appear.
+      assert.ok(level.goals.length > 0, `level ${level.id} has no goal`);
+      level.goals.forEach((goal) => {
+        assert.notStrictEqual(goal.type, 'score', `level ${level.id} must not have a score goal`);
+        if (goal.type === 'collect') {
+          const palette = level.palette || Array.from({ length: level.colors }, (unused, color) => color);
+          assert.ok(palette.indexOf(goal.color) >= 0, `level ${level.id} collects a color it never spawns`);
+        }
+      });
+      assert.ok(level.stars[0] < level.stars[1] && level.stars[1] < level.stars[2], `level ${level.id} star thresholds must rise`);
     });
   });
 
@@ -726,6 +736,7 @@
       strictEqual: (actual, expected, message) => { if (actual !== expected) fail(`${message || 'strictEqual'}: ${JSON.stringify(actual)} !== ${JSON.stringify(expected)}`); },
       deepStrictEqual: (actual, expected, message) => { if (!deepEqual(actual, expected)) fail(`${message || 'deepStrictEqual'}: ${JSON.stringify(actual)} vs ${JSON.stringify(expected)}`); },
       notDeepStrictEqual: (actual, expected, message) => { if (deepEqual(actual, expected)) fail(message || 'values should differ'); },
+      notStrictEqual: (actual, expected, message) => { if (actual === expected) fail(`${message || 'notStrictEqual'}: ${JSON.stringify(actual)}`); },
       throws: (run, message) => {
         try {
           run();

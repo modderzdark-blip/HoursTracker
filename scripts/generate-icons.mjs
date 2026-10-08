@@ -58,17 +58,17 @@ async function render(kind, size) {
     }
 
     function paintCandies(scale) {
-      // A plump strawberry heart with a grape star and a sparkle, inside the 66 dp safe zone.
+      // A plump cherry jelly bean with a grape gem and a sparkle, inside the 66 dp safe zone.
       const center_x = size / 2;
       const center_y = size / 2;
-      const heart = window.SC.CONFIG.CANDIES[0];
-      const star = window.SC.CONFIG.CANDIES[5];
+      const bean = window.SC.CONFIG.CANDIES[0];
+      const gem = window.SC.CONFIG.CANDIES[5];
       ctx.save();
       ctx.translate(center_x - 3 * unit * scale, center_y + 3 * unit * scale);
       ctx.rotate(-0.12);
-      ART.paintCandy(ctx, 0, 0, 25 * unit * scale, heart, { theme: 'gummy', scale: unit * 1.15 * scale });
+      ART.paintCandy(ctx, 0, 0, 25 * unit * scale, bean, { theme: 'gummy', scale: unit * 1.15 * scale });
       ctx.restore();
-      ART.paintCandy(ctx, center_x + 17 * unit * scale, center_y - 15 * unit * scale, 10 * unit * scale, star, { theme: 'gummy', scale: unit * 0.7 * scale, skip_shadow: true });
+      ART.paintCandy(ctx, center_x + 17 * unit * scale, center_y - 15 * unit * scale, 10 * unit * scale, gem, { theme: 'gummy', scale: unit * 0.7 * scale, skip_shadow: true });
       ctx.fillStyle = '#ffffff';
       window.SC.RENDER.drawStar(ctx, center_x - 19 * unit * scale, center_y - 18 * unit * scale, 5 * unit * scale, 0, 4);
     }
@@ -78,11 +78,11 @@ async function render(kind, size) {
       ctx.save();
       ctx.translate(size / 2 - 3 * unit, size / 2 + 3 * unit);
       ctx.rotate(-0.12);
-      ctx.fill(ART.SHAPES.heart(25 * unit));
+      ctx.fill(ART.SHAPES.bean(25 * unit));
       ctx.restore();
       ctx.save();
       ctx.translate(size / 2 + 17 * unit, size / 2 - 15 * unit);
-      ctx.fill(ART.SHAPES.star(10 * unit));
+      ctx.fill(ART.SHAPES.hexagon(10 * unit));
       ctx.restore();
       window.SC.RENDER.drawStar(ctx, size / 2 - 19 * unit, size / 2 - 18 * unit, 5 * unit, 0, 4);
     }

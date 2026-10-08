@@ -201,6 +201,7 @@ jobs:
       - name: Emulator tests (API 34, Pixel 6)
         id: emulator_attempt_1
         continue-on-error: true
+        timeout-minutes: 40
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -215,6 +216,7 @@ jobs:
       - name: Retry once (only if the emulator never finished booting)
         id: emulator_attempt_2
         if: steps.emulator_attempt_1.outcome == 'failure' && hashFiles('emulator-output/booted.marker') == ''
+        timeout-minutes: 40
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34

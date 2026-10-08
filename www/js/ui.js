@@ -134,6 +134,7 @@
     let toast_timer = null;
     let banner_timer = null;
     let hud_level = null;
+    let map_generation = 0; // bumps on every map render so an old after-win sequence stops touching the DOM
     let hud_goal_nodes = [];
     let displayed_score = 0;
     let score_target = 0;
@@ -195,7 +196,17 @@
       },
 
       // ------------------------------------------------------------ map
-      renderMap(levels, save, on_select) {
+      /**
+       * Draws the candy trail. options.advance = { from, to } plays the after-win sequence: the trail scrolls up,
+       * the player's marker hops from the finished level to the next one and the new level pops open.
+       * Returns a promise that resolves (true) when the sequence has finished, or false if the map was left.
+       */
+      renderMap(levels, save, on_select, options) {
+        const opts = options || {};
+        map_generation += 1;
+        dom.map_scroll.classList.remove('is-advancing');
+        const generation = map_generation;
+        const reduced = dom.app.classList.contains('reduced-motion');
         const width = Math.min(dom.map_scroll.clientWidth || 360, 900);
         const spacing = 150;
         const height = (levels.length + 1) * spacing + 220;
@@ -209,10 +220,17 @@
         }
         paintMapScenery(dom.map_canvas, width, height, positions);
         dom.map_nodes.innerHTML = '';
-        levels.forEach((level, index) => {
+        const furthest = Math.min(save.unlocked, levels.length);
+        const advance = opts.advance && levels.some((level) => level.id === opts.advance.to) ? opts.advance : null;
+        // The marker only travels when this win opened a brand-new level; replays just scroll to the next level.
+        const hop = !!advance && advance.to === furthest && advance.from === advance.to - 1;
+        const shown_furthest = hop ? advance.from : furthest;
+        const node_elements = {};
+
+        const makeNode = (level, index, reached) => {
           const record = save.levels[level.id];
-          const unlocked = level.id <= save.unlocked;
-          const is_current = level.id === Math.min(save.unlocked, levels.length);
+          const unlocked = level.id <= reached;
+          const is_current = level.id === reached;
           const node = element('button', `map-node${unlocked ? '' : ' is-locked'}${is_current ? ' is-current' : ''}`, { type: 'button' });
           node.style.left = `${positions[index].x}px`;
           node.style.top = `${positions[index].y}px`;
@@ -230,6 +248,12 @@
             if (unlocked) on_select(level.id);
             else ui.toast('Finish the previous level to unlock this one!');
           });
+          return node;
+        };
+
+        levels.forEach((level, index) => {
+          const node = makeNode(level, index, shown_furthest);
+          node_elements[level.id] = node;
           dom.map_nodes.appendChild(node);
         });
         const soon = element('button', 'map-node is-soon', { type: 'button', 'aria-label': 'More levels coming soon' });
@@ -241,9 +265,102 @@
           ui.toast('New levels are on the way!');
         });
         dom.map_nodes.appendChild(soon);
-        const current_index = Math.min(save.unlocked, levels.length) - 1;
-        const target_scroll = positions[current_index].y - dom.map_scroll.clientHeight * 0.55;
-        dom.map_scroll.scrollTop = Math.max(0, target_scroll);
+
+        // The player's marker sits above the furthest level reached.
+        const marker = element('div', 'map-marker', { 'aria-hidden': 'true' });
+        const initial = (save.player_name || '').trim().charAt(0).toUpperCase();
+        if (initial) marker.innerHTML = `<span>${initial}</span>`;
+        else marker.appendChild(element('img', '', { src: candyImage(0, 'none', 40), alt: '' }));
+        const markerPoint = (level_id) => {
+          const point = positions[level_id - 1];
+          return { x: point.x, y: point.y - 64 };
+        };
+        const marker_start = markerPoint(shown_furthest);
+        marker.style.left = `${marker_start.x}px`;
+        marker.style.top = `${marker_start.y}px`;
+        dom.map_nodes.appendChild(marker);
+
+        const scrollTargetFor = (level_id) => Math.max(0, positions[level_id - 1].y - dom.map_scroll.clientHeight * 0.55);
+        if (!advance) {
+          dom.map_scroll.scrollTop = scrollTargetFor(furthest);
+          return Promise.resolve(true);
+        }
+
+        const alive = () => generation === map_generation && dom.screen_map.classList.contains('is-active');
+        const pause = (ms) => new Promise((resolve) => setTimeout(resolve, reduced ? 0 : ms));
+        const scrollTo = (target, ms) => new Promise((resolve) => {
+          const from_top = dom.map_scroll.scrollTop;
+          if (reduced || Math.abs(target - from_top) < 2) {
+            dom.map_scroll.scrollTop = target;
+            resolve();
+            return;
+          }
+          const begin = performance.now();
+          const step = (time) => {
+            if (!alive()) return resolve();
+            const progress = Math.min(1, (time - begin) / ms);
+            dom.map_scroll.scrollTop = from_top + (target - from_top) * UTIL.EASE.inOutQuad(progress);
+            if (progress < 1) requestAnimationFrame(step);
+            else resolve();
+          };
+          requestAnimationFrame(step);
+        });
+
+        dom.map_scroll.classList.add('is-advancing');
+        dom.map_scroll.scrollTop = scrollTargetFor(advance.from);
+        const finished_node = node_elements[advance.from];
+        if (finished_node) finished_node.classList.add('just-finished');
+        return (async () => {
+          await pause(450);
+          if (!alive()) return false;
+          await scrollTo(scrollTargetFor(advance.to), 700);
+          if (!alive()) return false;
+          if (hop) {
+            const from_point = markerPoint(advance.from);
+            const to_point = markerPoint(advance.to);
+            const delta_x = to_point.x - from_point.x;
+            const delta_y = to_point.y - from_point.y;
+            if (!reduced && marker.animate) {
+              const frames = [];
+              for (let index = 0; index <= 12; index += 1) {
+                const t = index / 12;
+                const lift = -70 * 4 * t * (1 - t);
+                frames.push({ transform: `translate(${delta_x * t}px, ${delta_y * t + lift}px) scale(${1 + 0.12 * Math.sin(Math.PI * t)})` });
+              }
+              hooks.sound('swap');
+              await new Promise((resolve) => {
+                const flight = marker.animate(frames, { duration: 750, easing: 'ease-in-out' });
+                flight.onfinish = resolve;
+                flight.oncancel = resolve;
+              });
+              if (!alive()) return false;
+            }
+            marker.style.left = `${to_point.x}px`;
+            marker.style.top = `${to_point.y}px`;
+            const to_index = levels.findIndex((level) => level.id === advance.to);
+            const unlocked_node = makeNode(levels[to_index], to_index, advance.to);
+            unlocked_node.classList.add('is-unlocking');
+            node_elements[advance.to].replaceWith(unlocked_node);
+            node_elements[advance.to] = unlocked_node;
+            if (finished_node) finished_node.classList.remove('is-current');
+            const burst = element('div', 'map-burst', { 'aria-hidden': 'true' });
+            burst.style.left = `${positions[to_index].x}px`;
+            burst.style.top = `${positions[to_index].y}px`;
+            dom.map_nodes.appendChild(burst);
+            setTimeout(() => burst.remove(), 900);
+            hooks.sound('create');
+            hooks.haptic('medium');
+            ui.announce(`Level ${advance.to} unlocked!`);
+            await pause(650);
+            unlocked_node.classList.remove('is-unlocking');
+          } else {
+            await pause(250);
+          }
+          if (!alive()) return false;
+          dom.map_scroll.classList.remove('is-advancing');
+          if (finished_node) finished_node.classList.remove('just-finished');
+          return true;
+        })();
       },
 
       // ------------------------------------------------------------ HUD

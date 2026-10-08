@@ -1,8 +1,9 @@
 // Fuzz and bot simulations (CI job "logic").
 //  - Fuzz: 2,000 random-valid-move games per level; board invariants checked after every move; iteration caps.
 //  - Greedy bot: 300 games per level (specials first, then the largest match, with goal-relevance weighting).
-// Prints win rate, median score and suggested star thresholds per level (1 star = score goal or 5th percentile,
-// 2 stars = 15th percentile, 3 stars = 55th percentile of the bot's final winning scores, end bonus included).
+// Prints win rate, median score and suggested star thresholds per level (1 star = 40% of the 2-star score, only a mark on
+// the HUD meter because a win always earns 1 star; 2 stars = 8th, 3 stars = 25th percentile of the bot's final winning
+// scores, end bonus included).
 // Fails if any level is never won, if Level 1 is not near-certain, if Level 10 leaves the 30-60% target band,
 // or on any exception / invariant break.
 // Usage: node tests/simulate.js [--fuzz 2000] [--bot 300] [--report sim-report.json]
@@ -135,10 +136,11 @@ if (!isMainThread) {
       const win_rate = bot.games ? (100 * bot.wins) / bot.games : 0;
       const score_goal = level.goals.find((goal) => goal.type === 'score');
       const suggested = [
-        score_goal ? score_goal.target : floor500(percentile(bot.win_final_scores, 0.05)),
-        floor500(percentile(bot.win_final_scores, 0.15)),
-        floor500(percentile(bot.win_final_scores, 0.55)),
+        0,
+        floor500(percentile(bot.win_final_scores, 0.08)),
+        floor500(percentile(bot.win_final_scores, 0.25)),
       ];
+      suggested[0] = score_goal ? score_goal.target : floor500(0.4 * suggested[1]);
       if (suggested[1] <= suggested[0]) suggested[1] = suggested[0] + 500;
       if (suggested[2] <= suggested[1]) suggested[2] = suggested[1] + 500;
       const median_end = percentile(bot.end_scores, 0.5);

@@ -340,15 +340,24 @@
       audio.setMusicWanted(true);
     }
 
-    function goMap() {
+    /** options.advance = { from, to, open_next }: after a win the marker hops to the next level and, with
+     *  open_next, that level's intro opens by itself (the classic map flow). */
+    function goMap(options) {
+      const opts = options || {};
       cancelLevel();
       ui.closeAllModals();
       machine = STATE.MAP;
       level = null;
       logic_state = null;
       ui.showScreen('map');
-      ui.renderMap(LEVELS, save(), openIntro);
       audio.setMusicWanted(true);
+      const advance = opts.advance || null;
+      const sequence = ui.renderMap(LEVELS, save(), openIntro, { advance });
+      if (!advance) return sequence;
+      return sequence.then((finished) => {
+        if (finished && advance.open_next && machine === STATE.MAP && !ui.topModal()) openIntro(advance.to);
+        return finished;
+      });
     }
 
     function openIntro(level_id) {
@@ -520,9 +529,9 @@
         score: logic_state.score, stars, is_new_best: outcome.is_new_best, player_name: save().player_name,
         win_message: settings().win_message, has_next: finished_level.id < LEVELS.length,
       }, {
-        next: () => startLevel(finished_level.id + 1),
+        next: () => goMap({ advance: { from: finished_level.id, to: finished_level.id + 1, open_next: true } }),
         replay: () => startLevel(finished_level.id),
-        map: () => goMap(),
+        map: () => goMap(finished_level.id < LEVELS.length ? { advance: { from: finished_level.id, to: finished_level.id + 1, open_next: false } } : {}),
       });
     }
 

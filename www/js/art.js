@@ -26,54 +26,57 @@
   }
 
   // ---------------------------------------------------------------- shapes (centered on 0,0, radius r)
-  function heartPath(r) {
-    const path = new Path2D();
-    path.moveTo(0, r * 0.9);
-    path.bezierCurveTo(-r * 0.18, r * 0.78, -r * 0.98, r * 0.32, -r * 0.97, -r * 0.22);
-    path.bezierCurveTo(-r * 0.96, -r * 0.74, -r * 0.42, -r * 0.98, 0, -r * 0.56);
-    path.bezierCurveTo(r * 0.42, -r * 0.98, r * 0.96, -r * 0.74, r * 0.97, -r * 0.22);
-    path.bezierCurveTo(r * 0.98, r * 0.32, r * 0.18, r * 0.78, 0, r * 0.9);
-    path.closePath();
-    return path;
+  // Classic candy-shop silhouettes: jelly bean, lozenge, lemon drop, square chew, ball and hexagon gem.
+  function rotatedPath(path, degrees) {
+    const rotated = new Path2D();
+    rotated.addPath(path, new DOMMatrix().rotateSelf(degrees));
+    return rotated;
   }
 
-  function wedgePath(r) {
-    // Orange slice: flat rounded top edge, deep half-moon belly.
+  function beanPath(r) {
+    // Kidney-shaped jelly bean, tilted like it was tossed onto the board.
     const path = new Path2D();
-    const top = -r * 0.5;
-    const half_width = r * 0.98;
-    const belly = r * 1.38;
-    const corner = r * 0.2;
-    path.moveTo(-half_width + corner, top);
-    path.lineTo(half_width - corner, top);
-    path.quadraticCurveTo(half_width, top, half_width, top + corner * 0.9);
-    path.ellipse(0, top + corner * 0.9, half_width, belly - corner * 0.9, 0, 0, Math.PI, false);
-    path.quadraticCurveTo(-half_width, top, -half_width + corner, top);
+    path.moveTo(-r * 0.52, -r * 0.6);
+    path.bezierCurveTo(-r * 0.28, -r * 0.7, -r * 0.14, -r * 0.47, r * 0.02, -r * 0.46);
+    path.bezierCurveTo(r * 0.2, -r * 0.45, r * 0.36, -r * 0.68, r * 0.62, -r * 0.6);
+    path.bezierCurveTo(r * 0.92, -r * 0.5, r * 1.04, -r * 0.2, r * 0.98, r * 0.06);
+    path.bezierCurveTo(r * 0.92, r * 0.46, r * 0.66, r * 0.66, r * 0.34, r * 0.66);
+    path.bezierCurveTo(r * 0.06, r * 0.68, -r * 0.2, r * 0.72, -r * 0.5, r * 0.64);
+    path.bezierCurveTo(-r * 0.84, r * 0.56, -r * 1.02, r * 0.3, -r * 0.98, -r * 0.04);
+    path.bezierCurveTo(-r * 0.95, -r * 0.4, -r * 0.78, -r * 0.56, -r * 0.52, -r * 0.6);
     path.closePath();
-    return path;
+    return rotatedPath(path, -24);
   }
 
-  function diamondPath(r) {
+  function superellipsePath(half_width, half_height, exponent) {
     const path = new Path2D();
-    const width = r * 0.9;
-    const height = r * 0.98;
-    const bulge = 0.2;
-    const corner = 0.16;
-    const points = [[0, -height], [width, 0], [0, height], [-width, 0]];
-    const lerpPoint = (from, to, t) => [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t];
-    for (let index = 0; index < 4; index += 1) {
-      const point = points[index];
-      const next = points[(index + 1) % 4];
-      const previous = points[(index + 3) % 4];
-      const start = lerpPoint(point, previous, corner);
-      const end = lerpPoint(point, next, corner);
-      if (index === 0) path.moveTo(start[0], start[1]);
-      path.quadraticCurveTo(point[0], point[1], end[0], end[1]);
-      const edge_end = lerpPoint(next, point, corner);
-      const middle = lerpPoint(point, next, 0.5);
-      const outward = [middle[0] * (1 + bulge), middle[1] * (1 + bulge)];
-      path.quadraticCurveTo(outward[0], outward[1], edge_end[0], edge_end[1]);
+    const steps = 72;
+    for (let index = 0; index <= steps; index += 1) {
+      const angle = (index / steps) * Math.PI * 2;
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      const x = half_width * Math.sign(cos) * Math.pow(Math.abs(cos), 2 / exponent);
+      const y = half_height * Math.sign(sin) * Math.pow(Math.abs(sin), 2 / exponent);
+      if (index === 0) path.moveTo(x, y);
+      else path.lineTo(x, y);
     }
+    path.closePath();
+    return path;
+  }
+
+  function lozengePath(r) {
+    // Cushion-shaped lozenge: wider than tall with softly squared sides.
+    return superellipsePath(r * 0.98, r * 0.76, 2.7);
+  }
+
+  function dropPath(r) {
+    // Lemon drop: plump round bottom rising to a soft point.
+    const path = new Path2D();
+    path.moveTo(0, -r * 0.98);
+    path.bezierCurveTo(r * 0.2, -r * 0.72, r * 0.86, -r * 0.24, r * 0.86, r * 0.3);
+    path.bezierCurveTo(r * 0.86, r * 0.72, r * 0.46, r * 0.94, 0, r * 0.94);
+    path.bezierCurveTo(-r * 0.46, r * 0.94, -r * 0.86, r * 0.72, -r * 0.86, r * 0.3);
+    path.bezierCurveTo(-r * 0.86, -r * 0.24, -r * 0.2, -r * 0.72, 0, -r * 0.98);
     path.closePath();
     return path;
   }
@@ -92,41 +95,37 @@
     return path;
   }
 
-  function cubePath(r) {
-    const side = r * 1.62;
-    return roundedRectPath(new Path2D(), -side / 2, -side / 2, side, side, r * 0.36);
+  function squarePath(r) {
+    const side = r * 1.66;
+    return roundedRectPath(new Path2D(), -side / 2, -side / 2, side, side, r * 0.3);
   }
 
-  function orbPath(r) {
-    // Circle with a small leaf notch at the top.
+  function ballPath(r) {
     const path = new Path2D();
-    const radius = r * 0.92;
-    const notch = 0.2;
-    path.moveTo(Math.sin(notch) * radius, -Math.cos(notch) * radius + r * 0.04);
-    path.arc(0, r * 0.04, radius, -Math.PI / 2 + notch, -Math.PI / 2 - notch + Math.PI * 2, false);
-    path.quadraticCurveTo(0, -radius + r * 0.2, Math.sin(notch) * radius, -Math.cos(notch) * radius + r * 0.04);
-    path.closePath();
+    path.arc(0, 0, r * 0.93, 0, Math.PI * 2);
     return path;
   }
 
-  function starPath(r) {
-    const path = new Path2D();
-    const outer = r * 1.0;
-    const inner = r * 0.56;
+  function hexagonPoints(radius) {
     const points = [];
-    for (let index = 0; index < 10; index += 1) {
-      const angle = -Math.PI / 2 + (index * Math.PI) / 5;
-      const radius = index % 2 === 0 ? outer : inner;
-      points.push([Math.cos(angle) * radius, Math.sin(angle) * radius + r * 0.06]);
+    for (let index = 0; index < 6; index += 1) {
+      const angle = -Math.PI / 2 + (index * Math.PI) / 3;
+      points.push([Math.cos(angle) * radius, Math.sin(angle) * radius]);
     }
-    const softness = 0.26;
-    for (let index = 0; index < 10; index += 1) {
+    return points;
+  }
+
+  function hexagonPath(r) {
+    // Cut-gem hexagon with rounded corners.
+    const path = new Path2D();
+    const points = hexagonPoints(r * 1.0);
+    const corner = 0.16;
+    for (let index = 0; index < 6; index += 1) {
       const point = points[index];
-      const previous = points[(index + 9) % 10];
-      const next = points[(index + 1) % 10];
-      const amount = index % 2 === 0 ? softness : softness * 0.6;
-      const start = [point[0] + (previous[0] - point[0]) * amount, point[1] + (previous[1] - point[1]) * amount];
-      const end = [point[0] + (next[0] - point[0]) * amount, point[1] + (next[1] - point[1]) * amount];
+      const previous = points[(index + 5) % 6];
+      const next = points[(index + 1) % 6];
+      const start = [point[0] + (previous[0] - point[0]) * corner, point[1] + (previous[1] - point[1]) * corner];
+      const end = [point[0] + (next[0] - point[0]) * corner, point[1] + (next[1] - point[1]) * corner];
       if (index === 0) path.moveTo(start[0], start[1]);
       else path.lineTo(start[0], start[1]);
       path.quadraticCurveTo(point[0], point[1], end[0], end[1]);
@@ -135,7 +134,7 @@
     return path;
   }
 
-  const SHAPES = { heart: heartPath, wedge: wedgePath, diamond: diamondPath, cube: cubePath, orb: orbPath, star: starPath };
+  const SHAPES = { bean: beanPath, lozenge: lozengePath, drop: dropPath, square: squarePath, ball: ballPath, hexagon: hexagonPath };
 
   // ---------------------------------------------------------------- materials
   const MATERIALS = {
@@ -277,81 +276,88 @@
   }
 
   function paintShapeDetails(ctx, r, candy, material, pixel) {
-    if (candy.shape === 'wedge') {
-      // Rind band along the belly and pulp segment lines.
-      const top = -r * 0.5;
-      ctx.save();
-      ctx.strokeStyle = rgba('#fff3d6', 0.55);
-      ctx.lineWidth = r * 0.1;
-      ctx.beginPath();
-      ctx.ellipse(0, top + r * 0.18, r * 0.86, r * 1.18, 0, 0.05, Math.PI - 0.05, false);
-      ctx.stroke();
-      ctx.strokeStyle = rgba('#fff6e0', 0.6);
-      ctx.lineWidth = Math.max(1.5 * pixel, r * 0.035);
-      ctx.lineCap = 'round';
-      [-0.62, -0.2, 0.2, 0.62].forEach((angle_offset) => {
-        const angle = Math.PI / 2 + angle_offset * 1.15;
-        ctx.beginPath();
-        ctx.moveTo(0, top + r * 0.12);
-        ctx.lineTo(Math.cos(angle) * r * 0.7, top + r * 0.12 + Math.sin(angle) * r * 0.86);
-        ctx.stroke();
-      });
-      ctx.restore();
-    } else if (candy.shape === 'cube') {
-      // Bevel: lighter top-left inner edge, darker bottom-right inner edge.
-      const side = r * 1.62;
-      const inset = r * 0.16;
-      const bevel = roundedRectPath(new Path2D(), -side / 2 + inset, -side / 2 + inset, side - inset * 2, side - inset * 2, r * 0.24);
+    if (candy.shape === 'square') {
+      // Raised pillow top: lighter top-left inner edge, darker bottom-right inner edge.
+      const side = r * 1.66;
+      const inset = r * 0.17;
+      const bevel = roundedRectPath(new Path2D(), -side / 2 + inset, -side / 2 + inset, side - inset * 2, side - inset * 2, r * 0.2);
       const bevel_light = ctx.createLinearGradient(-r, -r, r, r);
-      bevel_light.addColorStop(0, 'rgba(255,255,255,0.55)');
+      bevel_light.addColorStop(0, 'rgba(255,255,255,0.6)');
       bevel_light.addColorStop(0.5, 'rgba(255,255,255,0.05)');
-      bevel_light.addColorStop(1, rgba(candy.shadow, 0.45));
+      bevel_light.addColorStop(1, rgba(candy.shadow, 0.5));
       ctx.strokeStyle = bevel_light;
-      ctx.lineWidth = Math.max(2 * pixel, r * 0.06);
+      ctx.lineWidth = Math.max(2 * pixel, r * 0.07);
       ctx.stroke(bevel);
-    } else if (candy.shape === 'star') {
+    } else if (candy.shape === 'lozenge') {
+      // Pressed edge: a thin raised ring just inside the outline.
       ctx.save();
-      ctx.strokeStyle = rgba(candy.highlight, 0.35);
+      ctx.strokeStyle = rgba('#ffffff', 0.3);
+      ctx.lineWidth = Math.max(1.5 * pixel, r * 0.05);
+      ctx.stroke(superellipsePath(r * 0.76, r * 0.56, 2.7));
+      ctx.strokeStyle = rgba(candy.shadow, 0.28);
+      ctx.translate(r * 0.02, r * 0.03);
+      ctx.stroke(superellipsePath(r * 0.76, r * 0.56, 2.7));
+      ctx.restore();
+    } else if (candy.shape === 'hexagon') {
+      // Cut facets: a flat table in the middle with spokes to every corner.
+      ctx.save();
+      const table = hexagonPoints(r * 0.5);
+      const outer = hexagonPoints(r * 0.92);
+      const table_path = new Path2D();
+      table.forEach((point, index) => (index === 0 ? table_path.moveTo(point[0], point[1]) : table_path.lineTo(point[0], point[1])));
+      table_path.closePath();
+      ctx.fillStyle = rgba(candy.highlight, 0.32);
+      ctx.fill(table_path);
+      // Lower facets fall into shadow, upper facets catch the light.
+      for (let index = 0; index < 6; index += 1) {
+        const facet = new Path2D();
+        const next = (index + 1) % 6;
+        facet.moveTo(table[index][0], table[index][1]);
+        facet.lineTo(outer[index][0], outer[index][1]);
+        facet.lineTo(outer[next][0], outer[next][1]);
+        facet.lineTo(table[next][0], table[next][1]);
+        facet.closePath();
+        const shade = [0.16, 0.04, -0.12, -0.2, -0.06, 0.1][index];
+        ctx.fillStyle = shade > 0 ? rgba('#ffffff', shade) : rgba(candy.shadow, -shade * 1.6);
+        ctx.fill(facet);
+      }
+      ctx.strokeStyle = rgba('#ffffff', 0.32);
       ctx.lineWidth = Math.max(1.2 * pixel, r * 0.03);
-      for (let index = 0; index < 5; index += 1) {
-        const angle = -Math.PI / 2 + (index * 2 * Math.PI) / 5;
+      ctx.stroke(table_path);
+      for (let index = 0; index < 6; index += 1) {
         ctx.beginPath();
-        ctx.moveTo(0, r * 0.06);
-        ctx.lineTo(Math.cos(angle) * r * 0.72, Math.sin(angle) * r * 0.72 + r * 0.06);
+        ctx.moveTo(table[index][0], table[index][1]);
+        ctx.lineTo(outer[index][0], outer[index][1]);
         ctx.stroke();
       }
       ctx.restore();
-    } else if (candy.shape === 'orb') {
-      // Blueberry crown: a tiny five-lobed calyx at the notch, plus a small leaf.
+    } else if (candy.shape === 'bean') {
+      // Glossy sugar shell: a long soft highlight along the bean's back.
       ctx.save();
-      ctx.translate(0, -r * 0.66);
-      ctx.fillStyle = rgba(candy.shadow, 0.55);
-      for (let index = 0; index < 5; index += 1) {
-        ctx.rotate((Math.PI * 2) / 5);
-        ctx.beginPath();
-        ctx.ellipse(0, -r * 0.07, r * 0.035, r * 0.08, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      ctx.rotate((-24 * Math.PI) / 180);
+      const sheen = ctx.createLinearGradient(0, -r * 0.6, 0, r * 0.1);
+      sheen.addColorStop(0, rgba(candy.highlight, 0.5));
+      sheen.addColorStop(1, rgba(candy.highlight, 0));
+      ctx.fillStyle = sheen;
+      ctx.beginPath();
+      ctx.ellipse(r * 0.05, -r * 0.24, r * 0.72, r * 0.3, 0, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
-    } else if (candy.shape === 'diamond') {
+    } else if (candy.shape === 'drop') {
+      // Light gathering in the plump bottom of the drop.
+      const bulb = ctx.createRadialGradient(0, r * 0.42, 0, 0, r * 0.42, r * 0.5);
+      bulb.addColorStop(0, rgba(candy.highlight, 0.45));
+      bulb.addColorStop(1, rgba(candy.highlight, 0));
+      ctx.fillStyle = bulb;
+      ctx.fillRect(-r, -r * 0.1, r * 2, r * 1.1);
+    } else if (candy.shape === 'ball') {
+      // A faint equator line, like a pressed gumball.
       ctx.save();
-      ctx.strokeStyle = rgba('#ffffff', 0.28);
+      ctx.strokeStyle = rgba(candy.shadow, 0.22);
       ctx.lineWidth = Math.max(1.2 * pixel, r * 0.03);
       ctx.beginPath();
-      ctx.moveTo(0, -r * 0.7);
-      ctx.lineTo(r * 0.5, 0);
-      ctx.lineTo(0, r * 0.7);
-      ctx.lineTo(-r * 0.5, 0);
-      ctx.closePath();
+      ctx.ellipse(0, r * 0.08, r * 0.9, r * 0.26, 0, 0.15, Math.PI - 0.15, false);
       ctx.stroke();
-      ctx.restore();
-    } else if (candy.shape === 'heart') {
-      ctx.save();
-      const lobe = ctx.createRadialGradient(r * 0.48, -r * 0.42, 0, r * 0.48, -r * 0.42, r * 0.36);
-      lobe.addColorStop(0, rgba(candy.highlight, 0.55));
-      lobe.addColorStop(1, rgba(candy.highlight, 0));
-      ctx.fillStyle = lobe;
-      ctx.fillRect(0, -r, r, r);
       ctx.restore();
     }
   }
@@ -437,7 +443,7 @@
     }
   }
 
-  const GLYPHS = ['S', 'O', 'L', 'M', 'B', 'G'];
+  const GLYPHS = ['R', 'O', 'Y', 'G', 'B', 'P']; // color initials: red, orange, yellow, green, blue, purple
   function paintColorblindGlyph(ctx, r, candy, pixel) {
     ctx.save();
     ctx.font = `900 ${Math.round(r * 0.62)}px system-ui, -apple-system, Roboto, sans-serif`;
@@ -446,7 +452,7 @@
     ctx.lineJoin = 'round';
     ctx.lineWidth = Math.max(3 * pixel, r * 0.12);
     ctx.strokeStyle = 'rgba(30,0,25,0.85)';
-    const glyph_y = candy.shape === 'wedge' ? -r * 0.02 : r * 0.08;
+    const glyph_y = candy.shape === 'drop' ? r * 0.22 : r * 0.04;
     ctx.strokeText(GLYPHS[candy.id], 0, glyph_y);
     ctx.fillStyle = '#ffffff';
     ctx.fillText(GLYPHS[candy.id], 0, glyph_y);
@@ -851,7 +857,7 @@
         const pixel = sprite_px / Math.max(1, cell_px);
         const center = sprite_px / 2;
         const radius = sprite_px * 0.42;
-        if (kind === 'candy') paintSpecial(ctx, center, center, radius, color, special, { theme, colorblind, scale: pixel });
+        if (kind === 'candy') paintSpecial(ctx, center, center, sprite_px * 0.45, color, special, { theme, colorblind, scale: pixel });
         else if (kind === 'frosting') paintFrosting(ctx, center, center, sprite_px, layers, pixel);
         else if (kind === 'cherry') paintCherry(ctx, center, center, radius, pixel);
         else if (kind === 'jelly') paintJelly(ctx, 0, 0, sprite_px, layers, pixel);

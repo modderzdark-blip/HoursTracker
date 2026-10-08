@@ -450,3 +450,42 @@ test('a long press released on a button activates it exactly once (mouse and tou
   expect(await soundOn()).toBe(false);
   H.expectClean(problems);
 });
+
+test('after a win, Next level goes to the map, the marker hops to the new level and its intro opens', async ({ page }) => {
+  const problems = H.guardPage(page);
+  await H.bootGame(page, { name: 'Florin' });
+  await H.playLevel(page, { max_moves: 20 });
+  await H.waitForModal(page, 'win', 120000);
+  await page.waitForTimeout(1500);
+  await page.click('#btn-next');
+  await H.waitState(page, 'MAP');
+  await expect(page.locator('.map-marker')).toBeVisible();
+  await expect(page.locator('.map-marker')).toHaveText('F');
+  // During the hop the new level still looks locked and nodes ignore taps.
+  await expect(page.locator('#map-scroll')).toHaveClass(/is-advancing/);
+  await H.waitForModal(page, 'intro', 15000);
+  await expect(page.locator('[data-modal="intro"]')).toContainText('Level 2');
+  await expect(page.locator('.map-node[data-level-id="2"]')).toHaveClass(/is-current/);
+  await expect(page.locator('.map-node[data-level-id="1"]')).not.toHaveClass(/is-current/);
+  const marker = await page.locator('.map-marker').boundingBox();
+  const node = await page.locator('.map-node[data-level-id="2"]').boundingBox();
+  expect(Math.abs(marker.x + marker.width / 2 - (node.x + node.width / 2))).toBeLessThan(4);
+  await page.click('#btn-intro-play');
+  await H.waitState(page, 'PLAYING');
+  expect((await H.snapshot(page)).level).toBe(2);
+  H.expectClean(problems);
+});
+
+test('Back on the win screen returns to the map with the new level unlocked, without opening it', async ({ page }) => {
+  const problems = H.guardPage(page);
+  await H.bootGame(page, { name: '' });
+  await H.playLevel(page, { max_moves: 20 });
+  await H.waitForModal(page, 'win', 120000);
+  await page.evaluate(() => window.SC.game.handleBack());
+  await H.waitState(page, 'MAP');
+  await expect(page.locator('.map-node[data-level-id="2"]')).toHaveClass(/is-current/, { timeout: 10000 });
+  await expect(page.locator('#map-scroll')).not.toHaveClass(/is-advancing/, { timeout: 10000 });
+  await page.waitForTimeout(800);
+  expect((await H.snapshot(page)).modal).toBe(null);
+  H.expectClean(problems);
+});

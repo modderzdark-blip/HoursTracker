@@ -241,46 +241,46 @@
           ART.roundedRectPath(frame_rim, col * cell - pad - 2, row * cell - pad - 2, cell + pad * 2 + 4, cell + pad * 2 + 4, pad * 1.8);
         }
       }
-      // Frosted glass: soft drop shadow, a bright rim, then the translucent pane (filled unions never show seams).
+      // Deep-blue glass board: soft drop shadow, a pale rim, then a see-through navy pane (filled unions never
+      // show seams) with a checkerboard of lighter tiles, so the bright candies pop.
       layer.save();
-      layer.shadowColor = 'rgba(90,20,80,0.35)';
+      layer.shadowColor = 'rgba(20,10,60,0.45)';
       layer.shadowBlur = cell * 0.4;
       layer.shadowOffsetY = cell * 0.1;
-      layer.fillStyle = 'rgba(255,255,255,0.55)';
+      layer.fillStyle = 'rgba(225,235,255,0.85)';
       layer.fill(frame_rim, 'nonzero');
       layer.restore();
       const pane = layer.createLinearGradient(0, -pad, 0, board.rows * cell + pad);
-      pane.addColorStop(0, 'rgba(255,250,253,0.62)');
-      pane.addColorStop(1, 'rgba(255,225,245,0.5)');
+      pane.addColorStop(0, 'rgba(36,58,150,0.86)');
+      pane.addColorStop(1, 'rgba(22,34,105,0.9)');
       layer.fillStyle = pane;
       layer.fill(frame, 'nonzero');
-      // Inner white highlight along the top of the pane.
+      // Faint highlight along the top of the pane.
       layer.save();
       layer.clip(frame, 'nonzero');
-      const sheen = layer.createLinearGradient(0, -pad, 0, cell * 0.8);
-      sheen.addColorStop(0, 'rgba(255,255,255,0.7)');
+      const sheen = layer.createLinearGradient(0, -pad, 0, cell * 0.9);
+      sheen.addColorStop(0, 'rgba(255,255,255,0.18)');
       sheen.addColorStop(1, 'rgba(255,255,255,0)');
       layer.fillStyle = sheen;
-      layer.fillRect(-pad, -pad, board.cols * cell + pad * 2, cell * 0.8 + pad);
+      layer.fillRect(-pad, -pad, board.cols * cell + pad * 2, cell * 0.9 + pad);
       layer.restore();
       for (let row = 0; row < board.rows; row += 1) {
         for (let col = 0; col < board.cols; col += 1) {
           if (!isActive(row, col)) continue;
           const x = col * cell;
           const y = row * cell;
-          const tile = ART.roundedRectPath(new Path2D(), x + 1, y + 1, cell - 2, cell - 2, cell * 0.12);
-          layer.fillStyle = (row + col) % 2 === 0 ? 'rgba(255,255,255,0.5)' : 'rgba(250,215,240,0.32)';
+          const tile = ART.roundedRectPath(new Path2D(), x + 1.5, y + 1.5, cell - 3, cell - 3, cell * 0.1);
+          layer.fillStyle = (row + col) % 2 === 0 ? 'rgba(130,165,255,0.3)' : 'rgba(95,125,230,0.18)';
           layer.fill(tile);
-          // Subtle inner bevel: light top-left, soft plum bottom-right.
+          // Soft inner light at the top of each tile.
           layer.save();
           layer.clip(tile);
-          const bevel = layer.createLinearGradient(x, y, x + cell, y + cell);
-          bevel.addColorStop(0, 'rgba(255,255,255,0.55)');
-          bevel.addColorStop(0.5, 'rgba(255,255,255,0)');
-          bevel.addColorStop(1, 'rgba(140,50,120,0.14)');
-          layer.strokeStyle = bevel;
-          layer.lineWidth = 3;
-          layer.stroke(tile);
+          const glow = layer.createLinearGradient(x, y, x, y + cell);
+          glow.addColorStop(0, 'rgba(255,255,255,0.12)');
+          glow.addColorStop(0.5, 'rgba(255,255,255,0)');
+          glow.addColorStop(1, 'rgba(10,15,60,0.12)');
+          layer.fillStyle = glow;
+          layer.fillRect(x, y, cell, cell);
           layer.restore();
           if (board.exits[row * board.cols + col]) {
             // Exit tray: a small glossy basket hanging under the cell with a down arrow.

@@ -1,10 +1,12 @@
 // LEVELS: data only. Adding level 11+ means appending one more object to this array (see README "Adding levels").
 // Layout legend: '.' normal  '#' hole  'j' single jelly  'J' double jelly  'f' frosting (1)  'F' frosting (2)
 //                'c' cherry start  'x' exit tray (cherries reaching it are collected)
-// Colors: 0 Strawberry Heart, 1 Orange Wedge, 2 Lemon Drop, 3 Mint Cube, 4 Blueberry Orb, 5 Grape Star.
+// Colors: 0 Cherry Bean, 1 Orange Lozenge, 2 Lemon Drop, 3 Mint Square, 4 Blueberry Ball, 5 Grape Gem.
+// Goals are always candy goals (collect, glaze, cherries): a level is never won by points alone.
 // `palette` (optional) picks which candies appear; by default the first `colors` candies are used.
-// Star thresholds come from the greedy-bot simulation (tests/simulate.js): 2 and 3 stars sit at the 15th and 55th
-// percentile of the bot's final winning scores (end bonus included); see README for the numbers.
+// Finishing the goals always earns at least 1 star. Star thresholds come from the greedy-bot simulation
+// (tests/simulate.js): 2 and 3 stars sit at the 8th and 25th percentile of the bot's final winning scores
+// (end bonus included), so a solid game earns 3 stars; see README for the numbers.
 (function attachLevels(root) {
   'use strict';
   const SC = root.SC || (root.SC = {});
@@ -22,9 +24,9 @@
         '.......',
         '.......',
       ],
-      goals: [{ type: 'score', target: 1500 }],
-      stars: [1500, 23500, 33000],
-      tutorial: 'Swap two neighboring candies to make a row of three!',
+      goals: [{ type: 'collect', color: 0, count: 25 }],
+      stars: [9000, 23000, 29000],
+      tutorial: 'Swap two neighboring candies to make a row of three! Collect the red jelly beans shown at the top.',
     },
     {
       id: 2, name: 'Berry Rush', moves: 20, colors: 4, seed: 2002, palette: [0, 4, 1, 3],
@@ -39,9 +41,9 @@
         '........',
         '........',
       ],
-      goals: [{ type: 'collect', color: 0, count: 15 }, { type: 'collect', color: 4, count: 15 }],
-      stars: [25500, 31500, 51000],
-      tutorial: 'Collect the candies shown at the top. Every heart and orb you clear counts!',
+      goals: [{ type: 'collect', color: 0, count: 30 }, { type: 'collect', color: 4, count: 30 }],
+      stars: [12000, 31000, 39500],
+      tutorial: 'Collect the candies shown at the top. Every bean and ball you clear counts!',
     },
     {
       id: 3, name: 'Striped Surprise', moves: 25, colors: 5, seed: 3003,
@@ -57,8 +59,8 @@
         '.........',
         '.........',
       ],
-      goals: [{ type: 'score', target: 4000 }],
-      stars: [4000, 27000, 34000],
+      goals: [{ type: 'collect', color: 1, count: 30 }, { type: 'collect', color: 3, count: 30 }],
+      stars: [9000, 23500, 28500],
       tutorial: 'Match 4 in a line to make a Striped candy. Match it again to clear a whole row or column!',
     },
     {
@@ -76,7 +78,7 @@
         '.........',
       ],
       goals: [{ type: 'jelly' }],
-      stars: [24500, 27500, 36000],
+      stars: [10000, 25500, 30000],
       tutorial: 'Glaze sits under some candies. Make matches on top of it to wipe it all away!',
     },
     {
@@ -94,7 +96,7 @@
         '##.....##',
       ],
       goals: [{ type: 'collect', color: 3, count: 25 }],
-      stars: [16000, 19500, 26500],
+      stars: [6500, 17000, 21500],
       tutorial: 'Make an L or T shape to create a Wrapped candy. It explodes twice!',
     },
     {
@@ -112,7 +114,7 @@
         'xxxxxxxxx',
       ],
       goals: [{ type: 'ingredients', count: 2 }],
-      stars: [18500, 23000, 31000],
+      stars: [8000, 20500, 26000],
       tutorial: 'Clear the candies under the cherries to drop them into the trays at the bottom.',
     },
     {
@@ -129,8 +131,8 @@
         '..JJ.JJ..',
         '.........',
       ],
-      goals: [{ type: 'jelly' }, { type: 'score', target: 5000 }],
-      stars: [5000, 31500, 44500],
+      goals: [{ type: 'jelly' }],
+      stars: [11500, 29000, 34500],
       tutorial: 'Frosting blocks swaps. Match next to it to crack it. Thick glaze needs two hits!',
     },
     {
@@ -148,7 +150,7 @@
         '.........',
       ],
       goals: [{ type: 'collect', color: 2, count: 30 }, { type: 'collect', color: 5, count: 30 }],
-      stars: [10000, 12500, 20000],
+      stars: [4000, 11000, 14000],
       tutorial: 'Match 5 in a line to make a Color Bomb. Swap it with a candy to clear every candy of that color!',
     },
     {
@@ -166,7 +168,7 @@
         'xxxxxxxxx',
       ],
       goals: [{ type: 'jelly' }, { type: 'ingredients', count: 3 }],
-      stars: [14500, 17000, 24500],
+      stars: [6000, 15500, 19000],
       tutorial: 'Two goals at once: wipe the glaze and bring all three cherries down through the orchard.',
     },
     {
@@ -183,9 +185,9 @@
         '.JJ...JJ.',
         '.........',
       ],
-      goals: [{ type: 'score', target: 12000 }, { type: 'jelly' }],
-      stars: [12000, 20000, 28500],
-      tutorial: 'The grand finale! Score big and clear every bit of glaze. Combine specials for huge blasts.',
+      goals: [{ type: 'jelly' }, { type: 'collect', color: 5, count: 30 }],
+      stars: [7000, 17500, 22000],
+      tutorial: 'The grand finale! Clear every bit of glaze and collect the purple gems. Combine specials for huge blasts.',
     },
   ];
 

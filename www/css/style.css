@@ -214,6 +214,34 @@ button:focus-visible, input:focus-visible, .map-node:focus-visible {
 .map-node .node-stars { position: absolute; left: 50%; top: 66px; transform: translateX(-50%); display: flex; gap: 1px; }
 .map-node .node-stars svg { width: 18px; height: 18px; }
 .map-node.is-soon { width: 132px; height: 72px; margin-left: -66px; border-radius: 36px; font-size: 14px; line-height: 1.15; --node1: #ffffff; --node2: #d9c7ff; --node3: #8e78c9; color: var(--ink); text-shadow: none; }
+/* After a win: the player's marker hops to the next level, which pops open with a sparkle ring. */
+.map-scroll.is-advancing .map-node { pointer-events: none; }
+.map-marker {
+  position: absolute; z-index: 3;
+  width: 46px; height: 46px; margin: -23px 0 0 -23px;
+  border-radius: 50%; border: 3px solid #fff;
+  background: radial-gradient(circle at 35% 28%, #ffffff 0 10%, transparent 11%), radial-gradient(circle at 50% 40%, var(--btn1, #ff6fb5), var(--btn2, #e8418f));
+  box-shadow: 0 4px 0 var(--depth, #a3205f), 0 8px 14px rgba(60, 10, 50, 0.35);
+  display: grid; place-items: center;
+  color: #fff; font-size: 22px; font-weight: 900; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+.map-marker::after {
+  content: ''; position: absolute; left: 50%; bottom: -11px; margin-left: -7px;
+  border: 7px solid transparent; border-top: 9px solid #fff; border-bottom: 0;
+}
+.map-marker img { width: 34px; height: 34px; }
+.map-node.just-finished { filter: drop-shadow(0 0 10px rgba(255, 236, 140, 0.95)); }
+.app:not(.reduced-motion) .map-node.is-unlocking { animation: node-unlock 0.65s var(--spring) both; }
+@keyframes node-unlock { 0% { transform: scale(0.4); } 55% { transform: scale(1.3); } 100% { transform: scale(1); } }
+.map-burst {
+  position: absolute; z-index: 2; width: 150px; height: 150px; margin: -75px 0 0 -75px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0 18%, rgba(255, 230, 120, 0.75) 32%, rgba(255, 150, 210, 0) 62%);
+  pointer-events: none;
+}
+.app:not(.reduced-motion) .map-burst { animation: map-burst 0.85s ease-out both; }
+.app.reduced-motion .map-burst { display: none; }
+@keyframes map-burst { 0% { transform: scale(0.2); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
 
 /* ---------------------------------------------------------------- gameplay */
 .screen-game { flex-direction: column; pointer-events: none; }

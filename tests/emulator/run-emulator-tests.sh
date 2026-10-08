@@ -286,12 +286,16 @@ wait_for "s.modal === 'intro'" 15 "the Level 2 intro"
 tap_button "btn-intro-play"
 wait_for "s.state === 'PLAYING' && s.level === 2" 15 "Level 2 offline"
 offline_moves=0
+offline_deadline=$((SECONDS + 420))
 while [ "$offline_moves" -lt 10 ]; do
+  [ $SECONDS -lt $offline_deadline ] || fail "only $offline_moves offline moves in 7 minutes (stuck at '$(q 's.modal || s.state')')"
   state="$(q 's.modal || s.state')"
   case "$state" in
     PLAYING) make_move && offline_moves=$((offline_moves + 1)) ;;
     win) tap_button "btn-next"; sleep 2 ;;
+    intro) tap_button "btn-intro-play"; sleep 1.5 ;;
     lose) tap_button "btn-retry"; sleep 2 ;;
+    pause) tap_button "btn-resume"; sleep 1 ;;
     *) sleep 1 ;;
   esac
 done
@@ -310,7 +314,9 @@ while [ $SECONDS -lt $play_deadline ]; do
   case "$(q 's.modal || s.state')" in
     PLAYING) make_move && played=$((played + 1)) ;;
     win) tap_button "btn-next"; sleep 2 ;;
+    intro) tap_button "btn-intro-play"; sleep 1.5 ;;
     lose) tap_button "btn-retry"; sleep 2 ;;
+    pause) tap_button "btn-resume"; sleep 1 ;;
     *) sleep 1 ;;
   esac
 done
