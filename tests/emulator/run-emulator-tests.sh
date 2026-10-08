@@ -166,6 +166,11 @@ wait_for "s.state === 'PLAYING' && !s.modal" 15 "Resume"
 app_alive || fail "app exited by accident during Back tests"
 pass "every Back press behaved as specified; the app never exited by accident"
 
+# --- Keep awake during gameplay (FLAG_KEEP_SCREEN_ON on the game window)
+adb shell dumpsys window windows | grep -A12 "$PKG/$PKG.MainActivity" > "$OUT/window-flags.txt"
+grep -q "KEEP_SCREEN_ON" "$OUT/window-flags.txt" || fail "screen is not kept awake during gameplay"
+pass "keep-awake is on during gameplay"
+
 # --- Background / foreground: audio and timers pause and resume
 make_move || fail "could not make a move before backgrounding"
 wait_for "s.state === 'PLAYING'" 60 "the board to settle"
@@ -202,6 +207,32 @@ wait_for "s.viewport[1] > s.viewport[0]" 10 "the portrait lock to hold"
 adb shell settings put system user_rotation 0
 pass "rotation request ignored: portrait lock holds (viewport $(cat "$OUT/viewport-after-rotation.txt"))"
 
+# --- Background photo: the system photo picker opens without any permission prompt
+back
+wait_for "s.modal === 'pause'" 15 "Pause"
+back
+wait_for "s.modal === 'confirm-quit'" 15 "'Quit to map?'"
+tap_button "Quit"
+wait_for "s.state === 'MAP' && !s.modal" 15 "the map after quitting"
+back
+wait_for "s.state === 'TITLE' && !s.modal" 15 "the title"
+tap_button "btn-title-settings"
+wait_for "s.modal === 'settings'" 15 "settings"
+for scroll in 1 2 3; do adb shell input swipe 540 1900 540 700 300; sleep 0.8; done
+wait_for "s.buttons['btn-choose-photo'] !== undefined" 15 "the Choose photo button"
+shot "11a-settings-photo"
+tap_button "btn-choose-photo"
+sleep 4
+adb shell dumpsys activity activities | grep -iE "topResumedActivity|mResumedActivity" | head -2 > "$OUT/photo-picker-activity.txt"
+shot "11b-system-photo-picker"
+grep -qiE "photopicker|documentsui|PickImages" "$OUT/photo-picker-activity.txt" || fail "the system photo picker did not open ($(cat "$OUT/photo-picker-activity.txt"))"
+adb shell dumpsys package "$PKG" | grep -iE "android.permission.(READ_MEDIA|READ_EXTERNAL)" && fail "app holds a storage/media permission"
+adb shell input keyevent KEYCODE_BACK
+wait_for "s.modal === 'settings'" 20 "the app to come back from the photo picker"
+back
+wait_for "!s.modal" 15 "settings to close"
+pass "Choose photo opens the system photo picker ($(head -c 160 "$OUT/photo-picker-activity.txt" | tr -s ' ')) with no storage permission"
+
 # --- Airplane mode: relaunch and play 10 moves offline
 adb shell cmd connectivity airplane-mode enable
 sleep 2
@@ -227,7 +258,7 @@ while [ "$offline_moves" -lt 10 ]; do
     *) sleep 1 ;;
   esac
 done
-shot "11-airplane-mode-play"
+shot "11c-airplane-mode-play"
 [ "$(q 's.errors')" = "0" ] || fail "script errors while offline"
 check_no_crash "airplane mode"
 adb shell cmd connectivity airplane-mode disable

@@ -34,6 +34,7 @@
     let keyboard_picked = false;
     let last_haptic_at = 0;
     let pause_handle = null;
+    let invalid_swap_playing = false;
     let moves_played = 0;
     let lifecycle_log = [];
     const session_attempts = {};
@@ -199,7 +200,7 @@
       if (renderer.board && dom.screen_game.classList.contains('is-active')) {
         const slot = dom.board_slot.getBoundingClientRect();
         renderer.placeBoard({ left: slot.left, top: slot.top, width: slot.width, height: slot.height });
-        ui.placeTutorial(renderer.boardRect());
+        ui.placeTutorial(renderer.boardRect(), boardHasTrays());
       }
       if (machine === STATE.MAP || (machine === STATE.INTRO && dom.screen_map.classList.contains('is-active'))) ui.renderMap(LEVELS, save(), openIntro);
     }
@@ -314,6 +315,7 @@
 
     // ---------------------------------------------------------------- screens
     function cancelLevel() {
+      invalid_swap_playing = false;
       renderer.cancelAll();
       renderer.setSpeed(1);
       renderer.clearEffects();
@@ -385,8 +387,9 @@
       audio.setMusicWanted(true);
       if (!save().tutorials_seen[level_id] && level.tutorial) {
         tutorial_active = true;
+        ui.keepTutorial(level_id === 1); // the guided Level 1 tutorial stays until the first move
         ui.tutorial(level.tutorial);
-        ui.placeTutorial(renderer.boardRect());
+        ui.placeTutorial(renderer.boardRect(), boardHasTrays());
         if (level_id === 1) showHint('tutorial');
       }
       const goal_text = LOGIC.goalProgress(logic_state).map((progress) => `${progress.type} ${progress.target}`).join(', ');
@@ -394,6 +397,10 @@
     }
 
     // ---------------------------------------------------------------- moves
+    function boardHasTrays() {
+      return !!(renderer.board && Array.prototype.some.call(renderer.board.exits, (exit) => exit === 1));
+    }
+
     function select(cell) {
       if (machine !== STATE.PLAYING) return;
       selected_cell = cell;
@@ -421,14 +428,16 @@
     }
 
     async function requestSwap(from_cell, to_cell) {
-      if (machine !== STATE.PLAYING || !logic_state) return;
+      if (machine !== STATE.PLAYING || !logic_state || invalid_swap_playing) return;
       renderer.markActivity();
       const before = logic_state;
       const result = LOGIC.applySwap(before, from_cell, to_cell);
       if (!result.valid) {
         clearHint();
         haptic('tick');
+        invalid_swap_playing = true;
         await renderer.playInvalidSwap(from_cell, to_cell, { sound });
+        invalid_swap_playing = false;
         renderer.markActivity();
         return;
       }
@@ -749,7 +758,7 @@
 
     // ---------------------------------------------------------------- wiring
     const boardInput = SC.INPUT.createBoardInput(dom.game_canvas, renderer, {
-      canInteract: () => machine === STATE.PLAYING && !ui.topModal(),
+      canInteract: () => machine === STATE.PLAYING && !ui.topModal() && !invalid_swap_playing,
       getSelected: () => selected_cell,
       select,
       requestSwap,
@@ -861,6 +870,7 @@
       audio,
       ui,
       store,
+      haptic,
       handleBack,
       openPause,
       requestSwap,

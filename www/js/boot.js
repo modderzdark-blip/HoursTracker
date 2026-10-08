@@ -103,7 +103,7 @@
     const background = SC.RENDER.createBackgroundRenderer(dom.bg_canvas);
     const ui = SC.UI.createUi(dom, {
       sound: (name, params) => audio.play(name, params),
-      haptic: () => {},
+      haptic: (kind) => SC.game && SC.game.haptic(kind),
     });
     const game = SC.GAME.createGame({ dom, native, store, audio, renderer, background, ui, photo });
     SC.game = game;

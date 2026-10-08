@@ -94,6 +94,8 @@ test('a forced loss shows what was left and Try again restarts the level', async
 test('pause, restart and quit in the middle of an animation never leave a stuck state', async ({ page }) => {
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });
+  // Slow the animation clock so "mid-animation" is a wide, deterministic window even on a loaded CI runner.
+  await page.evaluate(() => window.SC.game.renderer.setSpeed(0.25));
   await H.swipeMove(page, (await H.snapshot(page)).move);
   await expect.poll(async () => (await H.snapshot(page)).state).toBe('RESOLVING');
   await page.click('#btn-pause');
@@ -108,11 +110,13 @@ test('pause, restart and quit in the middle of an animation never leave a stuck 
   await H.waitState(page, 'PLAYING');
   await expect.poll(async () => (await H.snapshot(page)).busy, { timeout: 5000 }).toBe(false);
   expect((await H.snapshot(page)).moves_left).toBe(20);
+  expect(await page.evaluate(() => window.SC.game.renderer.speed)).toBe(1);
   const before = (await H.snapshot(page)).moves_played;
   await H.swipeMove(page, (await H.snapshot(page)).move);
   await expect.poll(async () => (await H.snapshot(page)).moves_played, { timeout: 30000 }).toBe(before + 1);
   await H.waitState(page, 'PLAYING');
   // Quit to map in the middle of a cascade.
+  await page.evaluate(() => window.SC.game.renderer.setSpeed(0.25));
   await H.swipeMove(page, (await H.snapshot(page)).move);
   await expect.poll(async () => (await H.snapshot(page)).state).toBe('RESOLVING');
   await page.keyboard.press('Escape');
@@ -319,4 +323,78 @@ test.describe('reduced motion', () => {
     expect(logo_animation).toBe('none');
     H.expectClean(problems);
   });
+});
+
+test('performance: logic stays far under 8 ms per move; frame pacing and heap growth are recorded', async ({ page }) => {
+  test.setTimeout(240000);
+  const problems = H.guardPage(page);
+  await H.bootGame(page, { name: '' });
+  const logic = await page.evaluate(() => {
+    const durations = [];
+    window.SC.LEVELS.forEach((level) => {
+      for (let game = 0; game < 6; game += 1) {
+        let state = window.SC.LOGIC.createGame(level, { seed: level.seed + game });
+        let guard = 0;
+        while (state.status === 'playing' && guard < 60) {
+          guard += 1;
+          const move = window.SC.LOGIC.findHint(state);
+          const started = performance.now();
+          state = window.SC.LOGIC.applySwap(state, move.from, move.to).state;
+          durations.push(performance.now() - started);
+        }
+      }
+    });
+    durations.sort((a, b) => a - b);
+    return { moves: durations.length, median_ms: durations[Math.floor(durations.length / 2)], p95_ms: durations[Math.floor(durations.length * 0.95)], max_ms: durations[durations.length - 1] };
+  });
+  expect(logic.p95_ms).toBeLessThan(8);
+  await page.evaluate(() => window.SC.game.startLevel(10));
+  await H.waitState(page, 'PLAYING');
+  const heap_before = await page.evaluate(() => (performance.memory ? performance.memory.usedJSHeapSize : 0));
+  const frame_samples = [];
+  for (let move = 0; move < 12; move += 1) {
+    const state = await H.snapshot(page);
+    if (state.modal || state.state !== 'PLAYING') break;
+    const sampling = page.evaluate(() => new Promise((resolve) => {
+      const intervals = [];
+      let last = 0;
+      const tick = (time) => {
+        if (last) intervals.push(time - last);
+        last = time;
+        if (intervals.length < 90) requestAnimationFrame(tick);
+        else resolve(intervals);
+      };
+      requestAnimationFrame(tick);
+    }));
+    await H.swipeMove(page, state.move);
+    frame_samples.push(...(await sampling));
+    await expect.poll(async () => (await H.snapshot(page)).state, { timeout: 30000 }).not.toBe('RESOLVING');
+  }
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 500)));
+  const heap_after = await page.evaluate(() => (performance.memory ? performance.memory.usedJSHeapSize : 0));
+  frame_samples.sort((a, b) => a - b);
+  const report = {
+    logic,
+    frames: { samples: frame_samples.length, median_ms: frame_samples[Math.floor(frame_samples.length / 2)], p95_ms: frame_samples[Math.floor(frame_samples.length * 0.95)] },
+    heap_mb: { before: +(heap_before / 1048576).toFixed(1), after: +(heap_after / 1048576).toFixed(1) },
+    quality_level: (await H.snapshot(page)).quality,
+  };
+  require('node:fs').mkdirSync('qa', { recursive: true });
+  require('node:fs').writeFileSync('qa/perf.json', JSON.stringify(report, null, 2));
+  console.log('PERF', JSON.stringify(report));
+  if (heap_before) expect(heap_after - heap_before).toBeLessThan(40 * 1048576);
+  H.expectClean(problems);
+});
+
+test('a swipe made the instant a modal closes is not swallowed', async ({ page }) => {
+  const problems = H.guardPage(page);
+  await H.bootGame(page, { name: '' });
+  await page.evaluate(() => window.SC.game.goMap());
+  await page.click('.map-node[data-level-id="1"]', { force: true });
+  await H.waitForModal(page, 'intro');
+  await page.click('#btn-intro-play');
+  await H.waitState(page, 'PLAYING');
+  await H.swipeMove(page, (await H.snapshot(page)).move);
+  await expect.poll(async () => (await H.snapshot(page)).moves_left, { timeout: 30000 }).toBe(19);
+  H.expectClean(problems);
 });

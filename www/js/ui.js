@@ -138,6 +138,8 @@
     let displayed_score = 0;
     let score_target = 0;
     let score_animation = null;
+    let tutorial_fade_timer = null;
+    let options_keep_tutorial = false;
 
     document.querySelectorAll('[data-icon]').forEach((node) => {
       node.innerHTML = icon(node.getAttribute('data-icon'));
@@ -194,7 +196,7 @@
 
       // ------------------------------------------------------------ map
       renderMap(levels, save, on_select) {
-        const width = Math.min(dom.map_scroll.clientWidth || 360, 560);
+        const width = Math.min(dom.map_scroll.clientWidth || 360, 900);
         const spacing = 150;
         const height = (levels.length + 1) * spacing + 220;
         dom.map_inner.style.width = `${width}px`;
@@ -347,6 +349,7 @@
         dom.btn_sound.classList.toggle('is-off', !sound_on);
       },
       tutorial(text) {
+        clearTimeout(tutorial_fade_timer);
         if (!text) {
           dom.tutorial_bubble.hidden = true;
           return;
@@ -356,20 +359,27 @@
         dom.tutorial_bubble.hidden = false;
       },
       /** Puts the tutorial bubble in free space below or above the board; if there is none, it overlays and fades on touch. */
-      placeTutorial(board_rect) {
+      placeTutorial(board_rect, has_trays) {
         const bubble = dom.tutorial_bubble;
         if (bubble.hidden || !board_rect) return;
-        const bar_top = dom.btn_pause.getBoundingClientRect().top - 8;
-        const hud_bottom = document.getElementById('hud').getBoundingClientRect().bottom + 6;
+        const bar_top = dom.btn_pause.getBoundingClientRect().top - 4;
+        const hud_bottom = document.getElementById('hud').getBoundingClientRect().bottom + 4;
         const height = bubble.offsetHeight;
-        const board_bottom = board_rect.top + board_rect.height + board_rect.cell * 0.35;
+        const board_bottom = board_rect.top + board_rect.height + (has_trays ? board_rect.cell * 0.35 : 4);
+        const board_top = board_rect.top - 4;
         let top;
-        if (bar_top - board_bottom >= height + 8) top = board_bottom + (bar_top - board_bottom - height) / 2;
-        else if (board_rect.top - hud_bottom >= height + 8) top = hud_bottom + (board_rect.top - hud_bottom - height) / 2;
+        if (bar_top - board_bottom >= height) top = board_bottom + (bar_top - board_bottom - height) / 2;
+        else if (board_top - hud_bottom >= height) top = hud_bottom + (board_top - hud_bottom - height) / 2;
         else top = board_rect.top + board_rect.height - height - 6;
         bubble.style.top = `${Math.round(top)}px`;
         bubble.style.bottom = 'auto';
-        bubble.classList.toggle('is-overlay', top < board_bottom && top + height > board_rect.top);
+        const overlays_board = top < board_bottom && top + height > board_rect.top;
+        bubble.classList.toggle('is-overlay', overlays_board);
+        clearTimeout(tutorial_fade_timer);
+        if (overlays_board && !options_keep_tutorial) tutorial_fade_timer = setTimeout(() => bubble.classList.add('is-faded'), 5000);
+      },
+      keepTutorial(keep) {
+        options_keep_tutorial = keep;
       },
       fadeTutorialOverlay() {
         if (dom.tutorial_bubble.classList.contains('is-overlay')) dom.tutorial_bubble.classList.add('is-faded');
@@ -404,6 +414,7 @@
       /** Opens a modal. `spec`: { id, build(container, handle), back(handle) }. Returns a handle with close(). */
       openModal(spec) {
         dom.modal_root.hidden = false;
+        dom.modal_root.classList.remove('is-closing');
         const modal = element('div', 'modal', { role: 'dialog', 'aria-modal': 'true', 'data-modal': spec.id });
         const handle = {
           id: spec.id,
@@ -417,10 +428,15 @@
             if (index >= 0) modal_handles.splice(index, 1);
             modal.classList.add('is-closing');
             setTimeout(() => modal.remove(), 180);
-            if (modal_handles.length === 0) setTimeout(() => {
-              if (modal_handles.length === 0) dom.modal_root.hidden = true;
-            }, 180);
-            else modal_handles[modal_handles.length - 1].node.style.visibility = '';
+            if (modal_handles.length === 0) {
+              // Stop catching touches immediately; only the fade-out keeps running.
+              dom.modal_root.classList.add('is-closing');
+              setTimeout(() => {
+                if (modal_handles.length === 0) dom.modal_root.hidden = true;
+              }, 180);
+            } else {
+              modal_handles[modal_handles.length - 1].node.style.visibility = '';
+            }
             if (spec.on_close) spec.on_close();
           },
         };
@@ -557,9 +573,15 @@
       },
 
       showWin(data, actions) {
+        const timers = [];
+        let count_frame = 0;
         return ui.openModal({
           id: 'win',
           back: () => actions.map(),
+          on_close: () => {
+            timers.forEach((timer) => clearTimeout(timer));
+            cancelAnimationFrame(count_frame);
+          },
           build(modal) {
             modal.appendChild(glossyHeading('h2', 'Level Complete!', 'modal-title'));
             modal.appendChild(element('p', '', { text: data.player_name ? `Great job, ${data.player_name}!` : 'Great job!' }));
@@ -608,21 +630,21 @@
             const count_up = (time) => {
               const progress = Math.min(1, (time - start) / 700);
               score_line.textContent = Math.round(data.score * UTIL.EASE.outCubic(progress)).toLocaleString('en-US');
-              if (progress < 1) requestAnimationFrame(count_up);
+              if (progress < 1) count_frame = requestAnimationFrame(count_up);
             };
-            requestAnimationFrame(count_up);
+            count_frame = requestAnimationFrame(count_up);
             slots.forEach((slot, index) => {
               if (index >= data.stars) return;
-              setTimeout(() => {
+              timers.push(setTimeout(() => {
                 slot.innerHTML = icon('star');
                 slot.classList.add('is-popping');
                 hooks.sound('star', { index });
                 hooks.haptic('medium');
-              }, 450 + index * 380);
+              }, 450 + index * 380));
             });
-            setTimeout(() => {
+            timers.push(setTimeout(() => {
               best.hidden = !data.is_new_best;
-            }, 450 + data.stars * 380);
+            }, 450 + data.stars * 380));
           },
         });
       },
