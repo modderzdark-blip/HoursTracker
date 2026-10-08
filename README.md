@@ -8,6 +8,19 @@ GitHub Actions builds, tests, signs and publishes the installable APK. There is 
 * All art is drawn procedurally (Canvas and CSS gradients) and all sound is synthesized with the Web Audio API. There are no image, font or audio files and no third-party assets.
 * No ads, no purchases, no analytics, no network access. The app requests no dangerous permissions and has no `INTERNET` permission at all.
 
+<p>
+  <img src="docs/screenshots/title.png" width="200" alt="Title screen">
+  <img src="docs/screenshots/map.png" width="200" alt="Candy trail map">
+  <img src="docs/screenshots/board-gummy.png" width="200" alt="Gameplay, Gummy theme">
+  <img src="docs/screenshots/win.png" width="200" alt="Level complete">
+</p>
+<p>
+  <img src="docs/screenshots/board-gummy.png" width="200" alt="Gummy theme">
+  <img src="docs/screenshots/board-hard.png" width="200" alt="Hard Candy theme">
+  <img src="docs/screenshots/board-sprinkle.png" width="200" alt="Sugar Sprinkle theme">
+  <img src="docs/icon-512.png" width="200" alt="App icon">
+</p>
+
 ## Install on your Android phone
 
 1. On your phone, open the [Releases page](https://github.com/modderzdark-blip/HoursTracker/releases) and tap the `SweetCascade-v1.0.0….apk` file. Your browser downloads it.

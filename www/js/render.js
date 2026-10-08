@@ -894,6 +894,13 @@
           }
           playActivationEffect(event, hooks);
         });
+        const wave_scores = wave_events.filter((event) => event.type === 'score' && event.reason !== 'jelly' && event.reason !== 'frosting');
+        if (wave_scores.length > 4) {
+          // Big chains: one large total instead of a pile of overlapping popups.
+          addPopup(-1, wave_scores.reduce((sum, event) => sum + event.points, 0));
+        } else {
+          wave_scores.forEach((event) => addPopup(event.cell, event.points));
+        }
         wave_events.forEach((event) => {
           hooks.event(event);
           if (event.type === 'clear') {
@@ -945,8 +952,6 @@
                 }));
               }
             }
-          } else if (event.type === 'score') {
-            if (event.reason !== 'jelly' && event.reason !== 'frosting') addPopup(event.cell, event.points);
           }
         });
         await Promise.all(pending);

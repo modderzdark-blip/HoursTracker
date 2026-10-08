@@ -233,6 +233,24 @@ back
 wait_for "!s.modal" 15 "settings to close"
 pass "Choose photo opens the system photo picker ($(head -c 160 "$OUT/photo-picker-activity.txt" | tr -s ' ')) with no storage permission"
 
+# --- In-game self-test on the device (logic tests + 200 bot games, chunked so the UI stays responsive)
+tap_button "btn-title-settings"
+wait_for "s.modal === 'settings'" 15 "settings"
+for scroll in 1 2 3 4; do adb shell input swipe 540 1900 540 700 300; sleep 0.8; done
+wait_for "s.buttons['btn-self-test'] !== undefined" 15 "the Run self-test button"
+tap_button "btn-self-test"
+wait_for "s.selftest !== null && (s.selftest.passed || s.selftest.failed)" 240 "the self-test to finish"
+sleep 1
+shot "11d-selftest-report"
+q 'JSON.stringify(s.selftest)' > "$OUT/selftest.json"
+[ "$(q 's.selftest.passed')" = "true" ] || fail "in-game self-test reported red: $(cat "$OUT/selftest.json")"
+metric selftest_on_device "$(q 's.selftest.done')"
+back
+wait_for "s.modal === 'settings'" 15 "settings after the self-test"
+back
+wait_for "!s.modal" 15 "settings to close"
+pass "in-game self-test on the device is green: $(cat "$OUT/selftest.json" | head -c 220)"
+
 # --- Airplane mode: relaunch and play 10 moves offline
 adb shell cmd connectivity airplane-mode enable
 sleep 2
@@ -258,7 +276,7 @@ while [ "$offline_moves" -lt 10 ]; do
     *) sleep 1 ;;
   esac
 done
-shot "11c-airplane-mode-play"
+shot "11e-airplane-mode-play"
 [ "$(q 's.errors')" = "0" ] || fail "script errors while offline"
 check_no_crash "airplane mode"
 adb shell cmd connectivity airplane-mode disable
@@ -288,6 +306,32 @@ metric pss_kb_after_3min "$(grep -m1 'TOTAL PSS:' "$OUT/meminfo-after-3min.txt" 
 metric render_quality_level "$(q 's.quality')"
 check_no_crash "3 minutes of play"
 pass "3 minutes of play: $played moves, metrics recorded"
+
+# --- "Exit game?" -> Exit really closes the app
+for attempt in 1 2 3 4 5 6; do
+  case "$(q 's.modal || s.state')" in
+    TITLE) break ;;
+    win|lose) back ;;
+    pause) back ;;
+    confirm-quit) tap_button "Quit"; sleep 1.5 ;;
+    PLAYING|RESOLVING|MAP) back ;;
+    *) sleep 1 ;;
+  esac
+done
+wait_for "s.state === 'TITLE' && !s.modal" 20 "the title screen"
+back
+wait_for "s.modal === 'confirm-exit'" 15 "'Exit game?'"
+tap_button "Exit"
+sleep 3
+adb shell dumpsys activity activities | grep -E "mResumedActivity|topResumedActivity" | head -2 > "$OUT/after-exit.txt"
+grep -q "$PKG" "$OUT/after-exit.txt" && fail "'Exit' did not close the app"
+pass "'Exit game?' -> Exit closes the app"
+adb shell input keyevent KEYCODE_HOME
+sleep 2
+adb shell input swipe 540 2000 540 500 300
+sleep 2.5
+shot "15-launcher-app-drawer"
+adb shell input keyevent KEYCODE_HOME
 
 # ============================================================ PHASE B: the release APK users install
 log "Installing the release APK over the debug build (same key, progress must survive)"

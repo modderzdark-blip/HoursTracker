@@ -97,6 +97,13 @@
       reduced_motion: document.getElementById('app').classList.contains('reduced-motion'),
       buttons: visibleButtons(),
       map_nodes: activeScreen() === 'map' && !top_modal ? mapNodes() : {},
+      selftest: (() => {
+        const status = document.getElementById('selftest-status');
+        const report = document.getElementById('selftest-report');
+        if (!status) return null;
+        const done_line = report ? (report.textContent.match(/Done in [^\n]*/) || [''])[0] : '';
+        return { passed: status.classList.contains('is-pass'), failed: status.classList.contains('is-fail'), text: status.textContent, done: done_line };
+      })(),
       move: move ? move.points : null,
       move_cells: move ? move.cells : null,
     };

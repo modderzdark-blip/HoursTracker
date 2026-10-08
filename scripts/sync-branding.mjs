@@ -1,4 +1,5 @@
-// Applies GAME_TITLE (from www/js/config.js) to the Android app name and capacitor.config.json.
+// Applies GAME_TITLE (from www/js/config.js) to the Android app name and capacitor.config.json, and copies the
+// version from package.json into CONFIG.VERSION so the title screen and Settings show the real version.
 // Run before `npx cap sync android` (CI does this automatically).
 import fs from 'node:fs';
 
@@ -22,4 +23,6 @@ fs.writeFileSync(strings_path, strings_xml);
 const index_path = 'www/index.html';
 const index_html = fs.readFileSync(index_path, 'utf8').replace(/<title>[^<]*<\/title>/, `<title>${xml_title}</title>`);
 fs.writeFileSync(index_path, index_html);
-console.log(`Branding applied: "${game_title}"`);
+const package_version = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
+fs.writeFileSync('www/js/config.js', config_source.replace(/VERSION:\s*'[^']*'/, `VERSION: '${package_version}'`));
+console.log(`Branding applied: "${game_title}" v${package_version}`);
