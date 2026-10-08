@@ -272,11 +272,18 @@ jobs:
       - name: Publish rolling "latest" pre-release
         if: github.ref_type == 'branch'
         run: |
-          gh release delete latest --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
-          gh release create latest "dist/${APK_NAME}" "dist/SweetCascade-v${VERSION}.aab" \
-            --repo "$GITHUB_REPOSITORY" --prerelease --target "$GITHUB_SHA" \
-            --title "Sweet Cascade - latest build (v${VERSION}, build ${GITHUB_RUN_NUMBER})" \
-            --notes-file release-notes.md
+          # Update the existing release in place (replace its files and notes) so the download link never breaks,
+          # even if creating a release or tag is refused; it is only created when it does not exist yet.
+          if gh release view latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload latest "dist/${APK_NAME}" "dist/SweetCascade-v${VERSION}.aab" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit latest --repo "$GITHUB_REPOSITORY" --prerelease \
+              --title "Sweet Cascade - latest build (v${VERSION}, build ${GITHUB_RUN_NUMBER})" --notes-file release-notes.md
+          else
+            gh release create latest "dist/${APK_NAME}" "dist/SweetCascade-v${VERSION}.aab" \
+              --repo "$GITHUB_REPOSITORY" --prerelease --target "$GITHUB_SHA" \
+              --title "Sweet Cascade - latest build (v${VERSION}, build ${GITHUB_RUN_NUMBER})" \
+              --notes-file release-notes.md
+          fi
           echo "APK: https://github.com/${GITHUB_REPOSITORY}/releases/download/latest/${APK_NAME}"
       - name: Publish versioned release
         if: github.ref_type == 'tag' || inputs.publish_versioned_release

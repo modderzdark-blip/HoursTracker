@@ -20,16 +20,13 @@ jobs:
           path: dist
           run-id: 37855081334
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Publish "preview" pre-release
+      - name: Attach the APK to the existing "qa" pre-release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
           ls -la dist
-          APK=$(ls dist/SweetCascade-v*.apk | head -1)
-          sha256sum "$APK"
-          gh release delete preview --yes || true
-          gh release create preview "$APK" --prerelease \
-            --target 0a6ea1779be02c2b278db9af840147ea10a863df \
-            --title "Sweet Cascade preview (CI run 11)" \
-            --notes "APK built by CI run 11 (commit 7879146): classic candy shapes, deep-blue board, candy goals only, easier stars, map flow after a win. Logic, browser, build and APK verification passed; the emulator run was stopped by an unrelated system dialog (Pixel Launcher not responding) and is being re-run. Published early at the owner's request. (The release tag sits on an earlier commit because CI's token may not tag commits that change workflow files; the APK itself is from 7879146.) Install: open this file on your phone, allow installing from your browser if asked, tap Install."
+          cp "$(ls dist/SweetCascade-v*.apk | head -1)" SweetCascade-v1.0.0-preview.apk
+          sha256sum SweetCascade-v1.0.0-preview.apk
+          gh release upload qa SweetCascade-v1.0.0-preview.apk --clobber
+          echo "APK: https://github.com/${GH_REPO}/releases/download/qa/SweetCascade-v1.0.0-preview.apk"
