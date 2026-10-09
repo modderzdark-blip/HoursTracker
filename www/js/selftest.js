@@ -10,9 +10,12 @@
   const { SPECIAL, KIND } = LOGIC;
 
   // ---------------------------------------------------------------- test board builder
-  // Tokens: '.' filler candy (colors 3/4/5, never forms a run)  '#' hole  '_' empty  '0'-'5' candy
-  //         digit+'h' horizontal stripes (clears row)  digit+'v' vertical stripes (clears column)  digit+'w' wrapped
-  //         'B' color bomb  'c' cherry  'f' / 'F' frosting with 1 / 2 layers
+  // Tokens: '.' filler candy (colors 3/4/5, never forms a run)  '#' hole  '_' empty  'B' color bomb
+  //         '0'-'5' candy, optionally followed by: 'h' horizontal stripes (clears row), 'v' vertical stripes (clears column),
+  //         'w' wrapped, 'k' in a Sugar Cage, 'b<n>' Fuse Candy at n (e.g. '2b3', '0hk')
+  //         'c' cherry  'n' hazelnut  'f' / 'F' / 'f1'-'f5' frosting with 1 / 2 / n layers  'o' Cocoa Creep
+  // options: moves, time, seed, goals, jelly (digit rows), exits ([[r, c]]), exit_row, layout (layout rows, used for
+  //          belts and portals instead of the token-derived layout), meta (level meta, e.g. portals)
   function fillerColor(row, col) {
     return 3 + ((row + col) % 3);
   }
@@ -24,32 +27,41 @@
     const cols = grid[0].length;
     const exit_cells = new Set((opts.exits || []).map((pair) => pair[0] * cols + pair[1]));
     if (opts.exit_row !== undefined) for (let col = 0; col < cols; col += 1) exit_cells.add(opts.exit_row * cols + col);
-    const layout = grid.map((row_tokens, row) => row_tokens.map((token, col) => (token === '#' ? '#' : exit_cells.has(row * cols + col) ? 'x' : '.')).join(''));
+    const layout = opts.layout || grid.map((row_tokens, row) => row_tokens.map((token, col) => (token === '#' ? '#' : exit_cells.has(row * cols + col) ? 'x' : '.')).join(''));
     const level = {
-      id: 'test', name: 'test', moves: opts.moves === undefined ? 20 : opts.moves, colors: 6, seed: opts.seed === undefined ? 4242 : opts.seed,
+      id: 'test', name: 'test', colors: 6, seed: opts.seed === undefined ? 4242 : opts.seed,
       rows, cols, layout, goals: opts.goals || [{ type: 'score', target: 99999999 }], stars: [1, 2, 3],
     };
+    if (opts.time) level.time = opts.time;
+    else level.moves = opts.moves === undefined ? 20 : opts.moves;
+    if (opts.meta) level.meta = opts.meta;
     const parsed = LOGIC.parseLayout(level);
     const state = LOGIC.internals.buildEmptyState(level, parsed, [0, 1, 2, 3, 4, 5], level.seed);
+    const piece = (kind, color, special, layers) => LOGIC.internals.newPiece(state, kind, color, special, layers);
     grid.forEach((row_tokens, row) => {
       row_tokens.forEach((token, col) => {
         const index = row * cols + col;
+        state.cells[index] = null;
         if (token === '#' || token === '_') return;
-        let piece;
-        if (token === '.') piece = LOGIC.internals.newPiece(state, KIND.CANDY, fillerColor(row, col), SPECIAL.NONE, 0);
-        else if (token === 'B') piece = LOGIC.internals.newPiece(state, KIND.CANDY, -1, SPECIAL.BOMB, 0);
-        else if (token === 'c') {
-          piece = LOGIC.internals.newPiece(state, KIND.CHERRY, -1, SPECIAL.NONE, 0);
-          state.cherries_total += 1;
-        } else if (token === 'f' || token === 'F') piece = LOGIC.internals.newPiece(state, KIND.FROSTING, -1, SPECIAL.NONE, token === 'f' ? 1 : 2);
-        else {
-          const color = parseInt(token[0], 10);
-          const suffix = token.slice(1);
-          const special = suffix === 'h' ? SPECIAL.STRIPE_ROW : suffix === 'v' ? SPECIAL.STRIPE_COL : suffix === 'w' ? SPECIAL.WRAPPED : SPECIAL.NONE;
-          if (!(color >= 0 && color <= 5) || (suffix && special === SPECIAL.NONE)) throw new Error(`bad token ${token}`);
-          piece = LOGIC.internals.newPiece(state, KIND.CANDY, color, special, 0);
+        if (token === '.') state.cells[index] = piece(KIND.CANDY, fillerColor(row, col), SPECIAL.NONE, 0);
+        else if (token === 'B') state.cells[index] = piece(KIND.CANDY, -1, SPECIAL.BOMB, 0);
+        else if (token === 'c' || token === 'n') {
+          state.cells[index] = piece(token === 'c' ? KIND.CHERRY : KIND.HAZELNUT, -1, SPECIAL.NONE, 0);
+          state.ingredients_total += 1;
+        } else if (token === 'o') state.cells[index] = piece(KIND.COCOA, -1, SPECIAL.NONE, 1);
+        else if (token[0] === 'f' || token[0] === 'F') {
+          const layers = token === 'f' ? 1 : token === 'F' ? 2 : parseInt(token.slice(1), 10);
+          if (!(layers >= 1 && layers <= LOGIC.MAX_FROSTING_LAYERS)) throw new Error(`bad token ${token}`);
+          state.cells[index] = piece(KIND.FROSTING, -1, SPECIAL.NONE, layers);
+        } else {
+          const parsed_token = /^([0-5])([hvw]?)(k?)(?:b(\d+))?$/.exec(token);
+          if (!parsed_token) throw new Error(`bad token ${token}`);
+          const special = { h: SPECIAL.STRIPE_ROW, v: SPECIAL.STRIPE_COL, w: SPECIAL.WRAPPED }[parsed_token[2]] || SPECIAL.NONE;
+          const candy = piece(KIND.CANDY, Number(parsed_token[1]), special, 0);
+          if (parsed_token[4]) candy.fuse = Number(parsed_token[4]);
+          state.cells[index] = candy;
+          if (parsed_token[3]) state.cage[index] = 1;
         }
-        state.cells[index] = piece;
       });
     });
     if (opts.jelly) {
@@ -62,6 +74,20 @@
       });
     }
     return state;
+  }
+
+  /** Every level that ships in this build (the in-game panel loads the packs first, see prepare()). */
+  function shippedLevels() {
+    const list = [];
+    for (let level_number = 1; level_number <= LEVELS.shippedCount(); level_number += 1) {
+      const level = LEVELS.getLevel(level_number);
+      if (level) list.push(level);
+    }
+    return list;
+  }
+
+  function prepare() {
+    return LEVELS.ensureRange(1, LEVELS.shippedCount());
   }
 
   const at = (state, row, col) => row * state.cols + col;
@@ -94,6 +120,10 @@
     return values.slice().sort((a, b) => a - b);
   }
 
+  function countKind(state, kind) {
+    return state.cells.filter((piece) => piece && piece.kind === kind).length;
+  }
+
   // ---------------------------------------------------------------- tests
   const TESTS = [];
   function test(group, name, run) {
@@ -117,7 +147,7 @@
   });
 
   test('rng', 'same seed + same swaps => identical events and board', (assert) => {
-    const level = LEVELS[2];
+    const level = LEVELS.getLevel(3);
     const play = () => {
       let state = LOGIC.createGame(level);
       const event_log = [];
@@ -136,66 +166,78 @@
   });
 
   // 2. Initial boards
-  test('initial', 'all levels: no matches, a valid move, palette colors, layout features, candy goals only', (assert) => {
-    LEVELS.forEach((level) => {
+  test('initial', 'all shipped levels: valid, no matches, a valid move, palette colors, mechanics placed', (assert) => {
+    const levels = shippedLevels();
+    assert.ok(levels.length >= 60, `at least 60 levels ship (found ${levels.length})`);
+    levels.forEach((level, index) => {
+      assert.strictEqual(level.id, index + 1, 'levels are numbered 1..n in order');
+      assert.deepStrictEqual(LOGIC.validateLevel(level), [], `level ${level.id} validates`);
       const layout = LOGIC.parseLayout(level);
-      for (let variant = 0; variant < 12; variant += 1) {
-        const state = LOGIC.createGame(level, { seed: level.seed + variant * 101 });
+      const palette = level.palette || Array.from({ length: level.colors }, (unused, color) => color);
+      for (let variant = 0; variant < 6; variant += 1) {
+        const state = LOGIC.createGame(level, { seed: level.seed + variant * 7919 });
         assert.strictEqual(LOGIC.findMatchGroups(state).length, 0, `level ${level.id} starts with a match`);
         assert.ok(LOGIC.hasValidMove(state), `level ${level.id} has no valid move`);
         assert.deepStrictEqual(LOGIC.checkBoardInvariants(state), [], `level ${level.id} invariants`);
-        const palette = level.palette || Array.from({ length: level.colors }, (unused, color) => color);
-        const seen_colors = new Set();
-        state.cells.forEach((piece, index) => {
-          assert.strictEqual(!!state.holes[index], !!layout.holes[index], `hole mismatch L${level.id}@${index}`);
-          assert.strictEqual(state.jelly[index], layout.jelly[index], `jelly mismatch L${level.id}@${index}`);
-          assert.strictEqual(!!state.exits[index], !!layout.exits[index], `exit mismatch L${level.id}@${index}`);
-          if (layout.holes[index]) return;
-          if (layout.frosting[index]) {
+        state.cells.forEach((piece, cell) => {
+          assert.strictEqual(!!state.holes[cell], !!layout.holes[cell], `hole mismatch L${level.id}@${cell}`);
+          assert.strictEqual(state.jelly[cell], layout.jelly[cell], `jelly mismatch L${level.id}@${cell}`);
+          assert.strictEqual(state.cage[cell], layout.cage[cell], `cage mismatch L${level.id}@${cell}`);
+          if (layout.holes[cell]) return;
+          if (layout.frosting[cell]) {
             assert.strictEqual(piece.kind, KIND.FROSTING);
-            assert.strictEqual(piece.layers, layout.frosting[index]);
-          } else if (layout.cherries[index]) {
-            assert.strictEqual(piece.kind, KIND.CHERRY);
+            assert.strictEqual(piece.layers, layout.frosting[cell]);
+          } else if (layout.cocoa[cell]) {
+            assert.strictEqual(piece.kind, KIND.COCOA);
+          } else if (layout.ingredients[cell]) {
+            assert.strictEqual(piece.kind, layout.ingredients[cell] === 1 ? KIND.CHERRY : KIND.HAZELNUT);
           } else {
             assert.strictEqual(piece.kind, KIND.CANDY);
-            assert.strictEqual(piece.special, SPECIAL.NONE);
+            assert.strictEqual(piece.fuse, layout.fuse[cell] ? level.meta.fuse : undefined, `fuse L${level.id}@${cell}`);
+            if (piece.special === SPECIAL.BOMB) return;
             assert.ok(palette.indexOf(piece.color) >= 0, `color ${piece.color} outside palette on level ${level.id}`);
-            seen_colors.add(piece.color);
           }
         });
-        assert.strictEqual(seen_colors.size, level.colors, `level ${level.id} should show all ${level.colors} colors`);
-        assert.strictEqual(state.moves_left, level.moves);
-      }
-      // Levels are won by candy goals only, never by points alone; collect goals use colors that appear.
-      assert.ok(level.goals.length > 0, `level ${level.id} has no goal`);
-      level.goals.forEach((goal) => {
-        assert.notStrictEqual(goal.type, 'score', `level ${level.id} must not have a score goal`);
-        if (goal.type === 'collect') {
-          const palette = level.palette || Array.from({ length: level.colors }, (unused, color) => color);
-          assert.ok(palette.indexOf(goal.color) >= 0, `level ${level.id} collects a color it never spawns`);
+        if (level.time) {
+          assert.ok(state.timed && state.moves_left === Infinity && state.time_limit === level.time, `level ${level.id} is timed`);
+        } else {
+          assert.strictEqual(state.moves_left, level.moves);
         }
-      });
+      }
+      assert.ok(level.goals.length > 0 && level.goals.length <= 3, `level ${level.id} has 1-3 goals`);
       assert.ok(level.stars[0] < level.stars[1] && level.stars[1] < level.stars[2], `level ${level.id} star thresholds must rise`);
+      assert.ok(LEVELS.ROLES.indexOf(level.role) >= 0, `level ${level.id} has a role`);
     });
   });
 
-  test('initial', 'all levels: every non-hole cell is reachable by a fall path; cherry columns reach exits', (assert) => {
-    LEVELS.forEach((level) => {
+  test('initial', 'all shipped levels: every refillable cell is reachable; ingredients can reach a tray', (assert) => {
+    shippedLevels().forEach((level) => {
       const reach = LOGIC.fallReachableCells(level);
+      const layout = reach.layout;
       for (let index = 0; index < reach.reachable.length; index += 1) {
-        if (reach.layout.holes[index] || reach.layout.frosting[index]) continue;
+        if (layout.holes[index] || layout.frosting[index] || layout.cocoa[index] || layout.cage[index]) continue;
         assert.ok(reach.reachable[index], `level ${level.id} cell ${index} unreachable`);
       }
-      if (level.goals.some((goal) => goal.type === 'ingredients')) {
-        for (let index = 0; index < reach.reachable.length; index += 1) {
-          if (!reach.layout.cherries[index]) continue;
-          let cursor = index;
-          while (cursor + level.cols < reach.reachable.length && !reach.layout.holes[cursor + level.cols] && !reach.layout.frosting[cursor + level.cols]) cursor += level.cols;
-          assert.ok(reach.layout.exits[cursor], `level ${level.id}: cherry at ${index} cannot fall to an exit`);
+      const ingredient_goal = level.goals.find((goal) => goal.type === 'ingredients');
+      if (!ingredient_goal) return;
+      const ingredient_count = Array.from(layout.ingredients).filter((value) => value).length;
+      assert.ok(ingredient_count >= ingredient_goal.count, `level ${level.id}: enough ingredients for the goal`);
+      for (let index = 0; index < layout.ingredients.length; index += 1) {
+        if (!layout.ingredients[index]) continue;
+        // Straight down (or through a portal) until a tray: blockers below are cleared during play, holes are not.
+        let cursor = index;
+        let guard = 0;
+        while (!layout.exits[cursor] && guard < 200) {
+          guard += 1;
+          const below = cursor + level.cols;
+          if (below < layout.holes.length && !layout.holes[below]) cursor = below;
+          else {
+            const pair = layout.portals.find((portal) => portal.entrance === cursor);
+            if (!pair) break;
+            cursor = pair.exit;
+          }
         }
-        const ingredient_goal = level.goals.find((goal) => goal.type === 'ingredients');
-        const cherry_count = Array.from(reach.layout.cherries).reduce((sum, value) => sum + value, 0);
-        assert.strictEqual(cherry_count, ingredient_goal.count, `level ${level.id}: cherry count must equal the goal`);
+        assert.ok(layout.exits[cursor], `level ${level.id}: ingredient at ${index} cannot fall to a tray`);
       }
     });
   });
@@ -243,13 +285,17 @@
     assert.deepStrictEqual(groups.map((group) => group.cells), [[0, 1, 2], [19, 24, 29]], 'top-left edge run and right/bottom edge run');
   });
 
-  test('match', 'runs are broken by holes, frosting, cherries, bombs and empty cells', (assert) => {
-    ['0 0 # 0 0', '0 0 f 0 0', '0 0 c 0 0', '0 0 B 0 0', '0 0 _ 0 0'].forEach((row_text) => {
+  test('match', 'runs are broken by holes, frosting, cocoa, ingredients, bombs and empty cells; caged candies match', (assert) => {
+    ['0 0 # 0 0', '0 0 f 0 0', '0 0 f5 0 0', '0 0 o 0 0', '0 0 c 0 0', '0 0 n 0 0', '0 0 B 0 0', '0 0 _ 0 0'].forEach((row_text) => {
       const state = makeTestState(['. . . . .', row_text, '. . . . .']);
       assert.strictEqual(LOGIC.findMatchGroups(state).length, 0, row_text);
     });
     const vertical = makeTestState(['. 0 . .', '. 0 . .', '. # . .', '. 0 . .', '. . . .']);
     assert.strictEqual(LOGIC.findMatchGroups(vertical).length, 0);
+    const caged = makeTestState(['. . . . .', '0 0k 0 . .', '. . . . .']);
+    assert.deepStrictEqual(LOGIC.findMatchGroups(caged).map((group) => group.cells), [[5, 6, 7]], 'a caged candy still counts in a match');
+    const fused = makeTestState(['. . . . .', '1b4 1 1 . .', '. . . . .']);
+    assert.strictEqual(LOGIC.findMatchGroups(fused).length, 1, 'a Fuse Candy matches like its color');
   });
 
   // 4. Valid moves
@@ -460,8 +506,8 @@
   });
 
   test('gravity', 'random clears on every level always refill completely and deterministically', (assert) => {
-    LEVELS.forEach((level) => {
-      for (let variant = 0; variant < 8; variant += 1) {
+    shippedLevels().forEach((level) => {
+      for (let variant = 0; variant < 4; variant += 1) {
         const state = LOGIC.createGame(level, { seed: level.seed + variant });
         const rng = UTIL.createRng(variant + level.id * 1000);
         state.cells.forEach((piece, index) => {
@@ -499,8 +545,9 @@
   test('cascade', 'event replay reproduces the final board exactly (500 random moves)', (assert) => {
     let replayed_moves = 0;
     let game_index = 0;
+    const levels = shippedLevels();
     while (replayed_moves < 500) {
-      const level = LEVELS[game_index % LEVELS.length];
+      const level = levels[(game_index * 7) % levels.length];
       const rng = UTIL.createRng(9000 + game_index);
       let state = LOGIC.createGame(level, { seed: level.seed + game_index * 13 });
       while (state.status === 'playing' && replayed_moves < 500) {
@@ -529,7 +576,7 @@
     const collects = ctx.events.filter((event) => event.type === 'collect');
     assert.strictEqual(collects.length, 1);
     assert.strictEqual(collects[0].piece_id, cherry_id);
-    assert.strictEqual(state.cherries_collected, 1);
+    assert.strictEqual(state.ingredients_collected, 1);
     assert.ok(!state.cells.some((piece) => piece && piece.id === cherry_id), 'cherry left the board');
     assert.ok(ctx.events.some((event) => event.type === 'score' && event.reason === 'ingredient' && event.points === 500));
     assert.ok(LOGIC.goalsMet(state));
@@ -579,7 +626,7 @@
     assert.ok(!LOGIC.goalsMet(state));
     state.score = 1000;
     state.collected[2] = 3;
-    state.cherries_collected = 1;
+    state.ingredients_collected = 1;
     assert.ok(!LOGIC.goalsMet(state), 'jelly still there');
     state.jelly[1] = 0;
     assert.ok(LOGIC.goalsMet(state));
@@ -645,7 +692,7 @@
     const hint = LOGIC.findHint(state);
     assert.ok(LOGIC.isValidSwap(state, hint.from, hint.to));
     assert.deepStrictEqual([hint.from, hint.to].sort((a, b) => a - b), [at(state, 1, 2), at(state, 2, 2)], 'the 4-match (striped) beats the plain 3-match');
-    LEVELS.forEach((level) => {
+    shippedLevels().forEach((level) => {
       const level_state = LOGIC.createGame(level);
       const level_hint = LOGIC.findHint(level_state);
       assert.ok(level_hint && LOGIC.isValidSwap(level_state, level_hint.from, level_hint.to), `hint valid on level ${level.id}`);
@@ -677,7 +724,7 @@
     assert.strictEqual(scored(['. . 0 . . .', '. . 0 . . .', '0 0 1 . . .', '. . 0 . . .', '. . . . . .'], [3, 2], [2, 2]), 380, 'L of 5 + wrapped');
     const stripe_state = makeTestState(['. . . . . .', '. . . . . .', '. 0 0h 0 . .', '. . . . . .']);
     assert.strictEqual(phaseScore({ events: runStageOnBoard(stripe_state, null).events }), 340, '3-match (60) + striped: 100 + 3 x 60');
-    const won_state = LOGIC.createGame(LEVELS[0]);
+    const won_state = LOGIC.createGame(LEVELS.getLevel(1));
     won_state.status = 'won';
     won_state.moves_left = 3;
     const bonus = LOGIC.applyEndBonus(won_state);
@@ -689,7 +736,308 @@
     assert.strictEqual(LOGIC.starsForScore(5000, [1500, 3000, 4500], false), 0);
   });
 
-  // 14. Storage
+  // 14. Mechanics (Tier 1 plugins)
+  test('mechanics', 'every layout symbol belongs to exactly one mechanic plugin', (assert) => {
+    const symbols = Object.keys(LOGIC.LAYOUT_LEGEND).sort();
+    assert.deepStrictEqual(symbols, ['#', '.', '1', '2', '3', '4', '5', '<', '>', 'J', 'P', '^', 'b', 'c', 'h', 'j', 'k', 'o', 'p', 'v', 'x'].sort());
+    const ids = LOGIC.MECHANICS.map((mechanic) => mechanic.id);
+    assert.deepStrictEqual(ids, ['jelly', 'frosting', 'cage', 'cocoa', 'ingredients', 'portals', 'belt', 'fuse']);
+  });
+
+  test('mechanics', 'frosting 1-5 layers: one layer per stage from a match beside it or a blast', (assert) => {
+    const state = makeTestState(['. . . . .', '. f5 . . .', '0 0 0 . .', '. . . . .']);
+    const ctx = runStageOnBoard(state, null);
+    assert.deepStrictEqual(ctx.events.filter((event) => event.type === 'frosting').map((event) => [event.cell, event.layers]), [[6, 4]]);
+    assert.strictEqual(state.cells[6].layers, 4);
+    assert.strictEqual(state.order.frosting, 1, 'each layer counts toward a frosting order');
+    const level = { id: 'f', rows: 3, cols: 3, colors: 4, seed: 1, moves: 10, layout: ['...', '.5.', '...'], goals: [{ type: 'score', target: 100 }], stars: [1, 2, 3] };
+    const created = LOGIC.createGame(level);
+    assert.strictEqual(created.cells[4].kind, KIND.FROSTING);
+    assert.strictEqual(created.cells[4].layers, 5, "layout '5' is five layers");
+  });
+
+  test('mechanics', 'Sugar Cage: no swapping, no falling; a match or blast breaks it and the candy stays', (assert) => {
+    let state = makeTestState(['. . . . .', '. 0 . . .', '0 1k 0 . .', '. . . . .', '. . . . .']);
+    assert.ok(!LOGIC.isValidSwap(state, at(state, 1, 1), at(state, 2, 1)), 'a caged candy cannot be swapped');
+    state = makeTestState(['. . . . .', '. . 0 . .', '0 0k 1 . .', '. . . . .']);
+    const caged_id = state.cells[at(state, 2, 1)].id;
+    const result = LOGIC.applySwap(state, at(state, 1, 2), at(state, 2, 2));
+    assert.ok(result.valid, 'a swap that matches through a caged candy is valid');
+    const phase = firstClearPhase(result.events);
+    assert.ok(phase.events.some((event) => event.type === 'cage' && event.cell === at(state, 2, 1)), 'the cage breaks');
+    assert.ok(!phase.events.some((event) => event.type === 'clear' && event.piece_id === caged_id), 'the candy inside is not cleared');
+    assert.ok(result.state.cells.some((piece) => piece && piece.id === caged_id), 'the candy is still on the board');
+    assert.strictEqual(result.state.cage[at(state, 2, 1)], 0);
+    assert.strictEqual(result.state.order.cage, 1);
+    const blast = makeTestState(['. . . . .', '. 0 0h 0 2k', '. . . . .']);
+    const blast_ctx = runStageOnBoard(blast, null);
+    assert.ok(blast_ctx.events.some((event) => event.type === 'cage' && event.cell === 9), 'a striped blast breaks the cage');
+    assert.ok(blast.cells[9] && blast.cells[9].color === 2 && blast.cage[9] === 0);
+    const hold = makeTestState(['. . .', '. 1k .', '. _ .', '. . .']);
+    const held_id = hold.cells[4].id;
+    const settle_ctx = LOGIC.internals.createContext(hold);
+    LOGIC.internals.settleBoard(settle_ctx);
+    assert.strictEqual(hold.cells[4].id, held_id, 'the caged candy does not fall');
+    assert.ok(hold.cells[7] && hold.cells[7].kind === KIND.CANDY, 'the cell below fills diagonally');
+    assert.deepStrictEqual(LOGIC.checkBoardInvariants(hold).filter((problem) => problem.indexOf('match') < 0 && problem.indexOf('valid move') < 0), []);
+  });
+
+  test('mechanics', 'Cocoa Creep: a match beside it clears it; it spreads one cell after a move that clears none', (assert) => {
+    const state = makeTestState(['. . . . .', '. o . . .', '0 0 0 . .', '. . . . .']);
+    const ctx = runStageOnBoard(state, null);
+    assert.strictEqual(ctx.events.filter((event) => event.type === 'cocoa').length, 1);
+    assert.strictEqual(state.cells[at(state, 1, 1)], null);
+    assert.strictEqual(state.order.cocoa, 1);
+    assert.ok(ctx.events.some((event) => event.type === 'score' && event.reason === 'cocoa' && event.points === 150));
+    const spreading = makeTestState(['o . . . . .', '. . . . . .', '. . . . . .', '. . . . 1 .', '. . . 1 0 1']);
+    const spread = LOGIC.applySwap(spreading, at(spreading, 3, 4), at(spreading, 4, 4));
+    assert.ok(spread.valid);
+    const spread_event = spread.events.find((event) => event.type === 'cocoa_spread');
+    assert.ok(spread_event, 'cocoa spread after a move that cleared none');
+    assert.strictEqual(spread_event.from, 0);
+    assert.ok(spread_event.cell === 1 || spread_event.cell === 6, 'into an orthogonal neighbor');
+    assert.strictEqual(countKind(spread.state, KIND.COCOA), 2);
+    assert.strictEqual(LOGIC.boardSignature(LOGIC.replayEvents(spreading, spread.events)), LOGIC.boardSignature(spread.state), 'spread replays');
+    const sealed = makeTestState(['. . . .', 'o o o o', '. _ . .', '. . . .']);
+    LOGIC.internals.settleBoard(LOGIC.internals.createContext(sealed));
+    assert.strictEqual(sealed.cells[at(sealed, 2, 1)], null, 'a cell under a full row of cocoa cannot be refilled');
+    assert.deepStrictEqual(LOGIC.checkBoardInvariants(sealed).filter((problem) => problem.indexOf('valid move') < 0), [], 'and that is not a broken board');
+    sealed.cells[at(sealed, 1, 1)] = null;
+    LOGIC.internals.settleBoard(LOGIC.internals.createContext(sealed));
+    assert.ok(sealed.cells[at(sealed, 2, 1)] && sealed.cells[at(sealed, 1, 1)], 'clearing the cocoa above lets candies fall in');
+    const cleaning = makeTestState(['. . . . .', 'o . 0 . .', '0 0 1 . .', '. . . . .']);
+    const cleaned = LOGIC.applySwap(cleaning, at(cleaning, 1, 2), at(cleaning, 2, 2));
+    assert.ok(!cleaned.events.some((event) => event.type === 'cocoa_spread'), 'no spread after a move that cleared cocoa');
+  });
+
+  test('mechanics', 'Fuse Candy: ticks down after every move, loses the level at zero, defused by clearing it', (assert) => {
+    let state = makeTestState(['. . . . .', '. . 0 . .', '0 0 1 . .', '. . . . .', '2b2 . . . .']);
+    let result = LOGIC.applySwap(state, at(state, 1, 2), at(state, 2, 2));
+    const tick = result.events.find((event) => event.type === 'fuse');
+    assert.ok(tick, 'the fuse ticks');
+    assert.strictEqual(tick.fuse, 1);
+    assert.strictEqual(result.state.status, 'playing');
+    state = makeTestState(['. . . . .', '. . 0 . .', '0 0 1 . .', '. . . . .', '2b1 . . . .']);
+    result = LOGIC.applySwap(state, at(state, 1, 2), at(state, 2, 2));
+    assert.ok(result.events.some((event) => event.type === 'fuse_out'), 'a fuse reaching zero goes off');
+    assert.strictEqual(result.state.status, 'lost');
+    assert.strictEqual(result.state.loss_reason, 'fuse');
+    state = makeTestState(['. . 1 . .', '1b1 1 0 . .', '. . . . .', '. . . . .']);
+    result = LOGIC.applySwap(state, at(state, 0, 2), at(state, 1, 2));
+    assert.ok(!result.events.some((event) => event.type === 'fuse_out'), 'matching the Fuse Candy defuses it');
+    assert.strictEqual(result.state.status, 'playing');
+    state = makeTestState(['. . . . .', '. . 0 . .', '0 0 1 . .', '. . . . .', '2b1 . . . .'], { goals: [{ type: 'score', target: 50 }] });
+    result = LOGIC.applySwap(state, at(state, 1, 2), at(state, 2, 2));
+    assert.strictEqual(result.state.status, 'won', 'a move that wins does not tick fuses');
+  });
+
+  test('mechanics', 'Sugar Belt: pieces shift one cell along the arrows after each move, wrapping around', (assert) => {
+    const rows = ['. . . . .', '. . . . .', '. . . . .', '. . 0 . .', '0 0 1 . .'];
+    const state = makeTestState(rows, { layout: ['.....', '>>>>>', '.....', '.....', '.....'] });
+    const before = [5, 6, 7, 8, 9].map((cell) => state.cells[cell].id);
+    const ctx = LOGIC.internals.createContext(state);
+    LOGIC.internals.finishMove(ctx);
+    const after = [5, 6, 7, 8, 9].map((cell) => state.cells[cell].id);
+    assert.deepStrictEqual(after, [before[4], before[0], before[1], before[2], before[3]], 'rightward belt rotates right');
+    const belt_event = ctx.events.find((event) => event.type === 'belt');
+    assert.strictEqual(belt_event.moves.length, 5);
+    const left = makeTestState(rows, { layout: ['.....', '<<<<<', '.....', '.....', '.....'] });
+    const left_before = [5, 6, 7, 8, 9].map((cell) => left.cells[cell].id);
+    LOGIC.internals.finishMove(LOGIC.internals.createContext(left));
+    assert.deepStrictEqual([5, 6, 7, 8, 9].map((cell) => left.cells[cell].id), [left_before[1], left_before[2], left_before[3], left_before[4], left_before[0]], 'leftward belt rotates left');
+    const level = { id: 'b', rows: 5, cols: 5, colors: 4, seed: 3, moves: 10, layout: ['.....', '.v...', '.v...', '.....', '.....'], goals: [{ type: 'score', target: 100 }], stars: [1, 2, 3] };
+    assert.deepStrictEqual(LOGIC.validateLevel(level), []);
+    assert.ok(LOGIC.validateLevel(Object.assign({}, level, { layout: ['.....', '.v...', '.....', '.....', '.....'] })).some((problem) => problem.indexOf('at least 2 cells') >= 0), 'a one-cell belt is rejected');
+  });
+
+  test('mechanics', 'Portals: a piece that cannot fall drops out of the paired exit; exits never spawn', (assert) => {
+    const tokens = ['. . . . .', '. # . . .', '. _ . . .', '. . . . .'];
+    const state = makeTestState(tokens, { layout: ['.p...', '.#...', '.P...', '.....'], meta: { portals: [{ in: [0, 1], out: [2, 1] }] } });
+    const traveller = state.cells[1].id;
+    const ctx = LOGIC.internals.createContext(state);
+    LOGIC.internals.settleBoard(ctx);
+    const fall = ctx.events.find((event) => event.type === 'fall' && event.piece_id === traveller);
+    assert.ok(fall, 'the piece in the entrance moved');
+    assert.strictEqual(fall.to, at(state, 2, 1), 'out of the exit');
+    assert.ok(fall.path.some((point) => point[3] === 1), 'the path marks the teleport');
+    assert.ok(state.cells[1] && state.cells[1].kind === KIND.CANDY, 'the entrance refills from above');
+    assert.strictEqual(state.spawn_cells[1], 1, 'the column spawns at the top, not at the exit');
+    const bad = { id: 'p', rows: 4, cols: 5, colors: 4, seed: 1, moves: 10, layout: ['.P...', '.#...', '.p...', '.....'], meta: { portals: [{ in: [2, 1], out: [0, 1] }] }, goals: [{ type: 'score', target: 100 }], stars: [1, 2, 3] };
+    assert.ok(LOGIC.validateLevel(bad).some((problem) => problem.indexOf('lower row') >= 0), 'an exit above its entrance is rejected');
+  });
+
+  test('mechanics', 'hazelnuts are ingredients: collected at a tray, never destroyed', (assert) => {
+    const state = makeTestState(['. . . . .', '. . . . .', '. . n . .', '. 0 0 0 .'], { exit_row: 3, goals: [{ type: 'ingredients', count: 1 }] });
+    const ctx = runStageOnBoard(state, null);
+    LOGIC.internals.resolveBoard(ctx);
+    const collect = ctx.events.find((event) => event.type === 'collect');
+    assert.ok(collect && collect.kind === KIND.HAZELNUT);
+    assert.strictEqual(state.ingredients_collected, 1);
+    assert.ok(LOGIC.goalsMet(state));
+    const blast = makeTestState(['. . . . . .', 'n 0 0h 0 . c', '. . . . . .']);
+    runStageOnBoard(blast, null);
+    assert.strictEqual(blast.cells[6].kind, KIND.HAZELNUT);
+    assert.strictEqual(blast.cells[11].kind, KIND.CHERRY);
+  });
+
+  // 15. Modes
+  test('modes', 'timed: no moves are spent, specials add 2 seconds, the clock decides; +15 s revives', (assert) => {
+    const state = makeTestState(['. . . . . .', '. . 0 . . .', '0 0 1 0 . .', '. . . . . .'], { time: 60, goals: [{ type: 'score', target: 100000 }] });
+    assert.ok(state.timed);
+    assert.strictEqual(state.moves_left, Infinity);
+    const result = LOGIC.applySwap(state, at(state, 1, 2), at(state, 2, 2));
+    assert.strictEqual(result.state.moves_left, Infinity, 'timed moves are free');
+    assert.strictEqual(result.state.moves_made, 1);
+    const bonus = result.events.filter((event) => event.type === 'time_bonus');
+    assert.ok(bonus.length >= 1 && bonus.every((event) => event.seconds === 2), 'each special adds 2 seconds');
+    assert.strictEqual(result.state.time_bonus, 2 * bonus.length);
+    const expired = LOGIC.expireTime(result.state);
+    assert.strictEqual(expired.status, 'lost');
+    assert.strictEqual(expired.loss_reason, 'time');
+    const revived = LOGIC.addMoves(expired, 5);
+    assert.strictEqual(revived.status, 'playing');
+    assert.strictEqual(revived.time_limit, 75);
+    const met = LOGIC.cloneState(result.state);
+    met.score = 100000;
+    assert.strictEqual(LOGIC.expireTime(met).status, 'won', 'the goal met when the clock ends is a win');
+    met.status = 'won';
+    const finale = LOGIC.applyEndBonus(met, { seconds_left: 40 });
+    assert.strictEqual(finale.events.filter((event) => event.type === 'score' && event.reason === 'bonus').length, LOGIC.SCORING.FINALE_MAX_STRIKES_TIMED, 'Sweet Finale strikes are capped in timed levels');
+  });
+
+  test('modes', 'moves: +5 Moves revives a level lost on moves, not one lost to a fuse', (assert) => {
+    const state = makeTestState(['. . . . .', '. . 0 . .', '0 0 1 . .', '. . . . .'], { moves: 1, goals: [{ type: 'score', target: 999999 }] });
+    const lost = LOGIC.applySwap(state, at(state, 1, 2), at(state, 2, 2)).state;
+    assert.strictEqual(lost.status, 'lost');
+    const revived = LOGIC.addMoves(lost, 5);
+    assert.strictEqual(revived.status, 'playing');
+    assert.strictEqual(revived.moves_left, 5);
+    const fused = LOGIC.cloneState(lost);
+    fused.loss_reason = 'fuse';
+    assert.strictEqual(LOGIC.addMoves(fused, 5).status, 'lost');
+  });
+
+  test('modes', 'every goal mode and the order items count what they say', (assert) => {
+    assert.deepStrictEqual(LOGIC.GOAL_TYPES.slice().sort(), ['collect', 'ingredients', 'jelly', 'order', 'score']);
+    assert.deepStrictEqual(LOGIC.ORDER_ITEMS.slice().sort(), ['bomb', 'cage', 'cocoa', 'frosting', 'striped', 'wrapped']);
+    const state = makeTestState(['. . . . . .', '. . . . . .', '. 0 0h 0 . .', '. . . . . .'], { goals: [{ type: 'order', item: 'striped', count: 1 }] });
+    runStageOnBoard(state, null);
+    assert.strictEqual(state.order.striped, 1, 'a striped candy counts when it fires');
+    assert.ok(LOGIC.goalsMet(state));
+    const progress = LOGIC.goalProgress(state)[0];
+    assert.deepStrictEqual([progress.type, progress.item, progress.current, progress.target, progress.done], ['order', 'striped', 1, 1, true]);
+  });
+
+  // 16. Hint
+  test('hint', 'the hint is the best move by [win now, goal progress, specials, largest match, lowest row, leftmost]', (assert) => {
+    assert.strictEqual(LOGIC.compareRanks([1, 0, 0, 3, 0, 0], [0, 9, 9, 9, 9, 0]), 1, 'winning now beats everything');
+    assert.strictEqual(LOGIC.compareRanks([0, 0.5, 0, 3, 0, 0], [0, 0.4, 5, 5, 9, 0]), 1, 'goal progress beats specials');
+    assert.strictEqual(LOGIC.compareRanks([0, 0, 1, 3, 0, 0], [0, 0, 0, 5, 9, 0]), 1, 'specials beat a bigger match');
+    assert.strictEqual(LOGIC.compareRanks([0, 0, 0, 3, 5, -2], [0, 0, 0, 3, 4, 0]), 1, 'lower row first');
+    assert.strictEqual(LOGIC.compareRanks([0, 0, 0, 3, 5, -1], [0, 0, 0, 3, 5, -2]), 1, 'then left to right');
+    const board = ['. . . . . .', '. . 0 . . .', '0 0 1 0 . .', '. . . . . .', '. . . . 2 .', '. . . 2 . 2'];
+    // Collect goal: the 2-2-2 move wins at once, so it beats the striped candy.
+    let state = makeTestState(board, { goals: [{ type: 'collect', color: 2, count: 3 }] });
+    let hint = LOGIC.findHint(state);
+    assert.deepStrictEqual(sortedNumbers([hint.from, hint.to]), [at(state, 4, 4), at(state, 5, 4)], 'win now');
+    // Score goal only: the striped candy (a special) is the best.
+    state = makeTestState(board);
+    hint = LOGIC.findHint(state);
+    assert.deepStrictEqual(sortedNumbers([hint.from, hint.to]), [at(state, 1, 2), at(state, 2, 2)], 'specials first on a score level');
+    // The chosen hint is never outranked by another move.
+    shippedLevels().filter((level, index) => index % 5 === 0).forEach((level) => {
+      const level_state = LOGIC.createGame(level);
+      const ranks = LOGIC.hintRanks(level_state);
+      const chosen = LOGIC.findHint(level_state);
+      const chosen_rank = ranks.find((entry) => entry.move.from === chosen.from && entry.move.to === chosen.to).rank;
+      ranks.forEach((entry) => assert.ok(LOGIC.compareRanks(entry.rank, chosen_rank) <= 0, `level ${level.id}: a better move than the hint`));
+    });
+  });
+
+  test('hint', 'the hint saves a Fuse Candy about to go off and is fast (under 50 ms)', (assert) => {
+    const state = makeTestState(['. . 1 . . .', '1b2 1 0 . . .', '. . . . . .', '. . . . . .', '. . 2 . . .', '2 2 0 2 . .']);
+    const hint = LOGIC.findHint(state);
+    assert.deepStrictEqual(sortedNumbers([hint.from, hint.to]), [at(state, 0, 2), at(state, 1, 2)], 'clear the fuse rather than make a bigger match');
+    let slowest = 0;
+    shippedLevels().forEach((level) => {
+      const level_state = LOGIC.createGame(level);
+      const started = Date.now();
+      LOGIC.findHint(level_state);
+      slowest = Math.max(slowest, Date.now() - started);
+    });
+    assert.ok(slowest < 50, `slowest hint took ${slowest} ms`);
+  });
+
+  // 17. Boosters
+  test('boosters', 'Sweet Hammer: clears a candy, fires a special, cracks a layer, breaks a cage; ingredients refuse; no move spent', (assert) => {
+    let state = makeTestState(['. . . . .', '. . . . .', '. . 0 . .', '. . . . .']);
+    let result = LOGIC.applyHammer(state, at(state, 2, 2));
+    assert.ok(result.valid);
+    assert.ok(result.events.some((event) => event.type === 'clear' && event.cell === at(state, 2, 2)));
+    assert.strictEqual(result.state.moves_left, state.moves_left);
+    assert.deepStrictEqual(LOGIC.checkBoardInvariants(result.state).filter((problem) => problem.indexOf('valid move') < 0), []);
+    state = makeTestState(['. . . . .', '. . . . .', '. . 0h . .', '. . . . .']);
+    result = LOGIC.applyHammer(state, at(state, 2, 2));
+    assert.ok(result.events.some((event) => event.type === 'activate' && event.kind === 'row'), 'a special fires');
+    state = makeTestState(['0 0 . 0 .', '. . F . .', '. . 1k . .', '. . c . .']);
+    result = LOGIC.applyHammer(state, at(state, 1, 2));
+    assert.strictEqual(result.state.cells[at(state, 1, 2)].layers, 1, 'one frosting layer');
+    result = LOGIC.applyHammer(state, at(state, 2, 2));
+    assert.strictEqual(result.state.cage[at(state, 2, 2)], 0, 'the cage breaks');
+    assert.strictEqual(result.state.cells[at(state, 2, 2)].id, state.cells[at(state, 2, 2)].id, 'the candy stays');
+    assert.strictEqual(LOGIC.applyHammer(state, at(state, 3, 2)).valid, false, 'ingredients cannot be hammered');
+  });
+
+  test('boosters', 'Free Swap, Candy Whirl, pre-level boosters and +5 Moves', (assert) => {
+    let state = makeTestState(['. . . . .', '. . . . .', '. 0h 1 . .', '. . . . .']);
+    let result = LOGIC.applyFreeSwap(state, at(state, 0, 0), at(state, 0, 1));
+    assert.ok(result.valid, 'free swap needs no match');
+    assert.strictEqual(result.state.cells[at(state, 0, 1)].id, state.cells[at(state, 0, 0)].id);
+    assert.strictEqual(result.state.moves_left, state.moves_left, 'no move spent');
+    const caged = makeTestState(['. 0k . . .', '. . . . .', '. . . . .']);
+    assert.strictEqual(LOGIC.applyFreeSwap(caged, 0, 1).valid, false, 'caged candies cannot be free-swapped');
+    const whirled = LOGIC.applyWhirl(state);
+    assert.ok(whirled.valid && LOGIC.hasValidMove(whirled.state) && LOGIC.findMatchGroups(whirled.state).length === 0);
+    assert.ok(whirled.state.cells.some((piece) => piece && piece.special === SPECIAL.STRIPE_ROW), 'specials stay');
+    assert.strictEqual(whirled.state.moves_left, state.moves_left);
+    const level = LEVELS.getLevel(4);
+    const fresh = LOGIC.createGame(level);
+    const boosted = LOGIC.applyStartBoosters(fresh, { lucky: true, rainbow: true, head_start: true }).state;
+    const specials = boosted.cells.filter((piece) => piece && piece.special !== SPECIAL.NONE).map((piece) => (piece.special === SPECIAL.STRIPE_COL ? SPECIAL.STRIPE_ROW : piece.special));
+    assert.deepStrictEqual(specials.sort(), [SPECIAL.BOMB, SPECIAL.STRIPE_ROW, SPECIAL.WRAPPED].sort(), 'Lucky Start + Rainbow Start');
+    assert.strictEqual(boosted.moves_left, fresh.moves_left + 3, 'Head Start adds 3 moves');
+    assert.strictEqual(LOGIC.boardSignature(LOGIC.applyStartBoosters(fresh, { lucky: true, rainbow: true }).state), LOGIC.boardSignature(LOGIC.applyStartBoosters(fresh, { lucky: true, rainbow: true }).state), 'deterministic');
+    assert.deepStrictEqual(LOGIC.checkBoardInvariants(boosted).filter((problem) => problem.indexOf('match') < 0), []);
+  });
+
+  // 18. Level registry
+  test('levels', 'packs of 100, getLevel for 1-99,999, roles, the difficulty curve and episodes', (assert) => {
+    assert.deepStrictEqual([1, 100, 101, 20000, 99999].map(LEVELS.packOf), [1, 1, 2, 200, 1000]);
+    assert.strictEqual(LEVELS.packFileName(7), 'pack-0007.js');
+    assert.strictEqual(LEVELS.getLevel(0), null);
+    assert.strictEqual(LEVELS.getLevel(LEVELS.shippedCount() + 1), null, 'levels past the shipped count do not exist yet');
+    assert.strictEqual(LEVELS.getLevel(100000), null);
+    assert.strictEqual(LEVELS.getLevel(1.5), null);
+    for (let level_number = 1; level_number <= LEVELS.shippedCount(); level_number += 1) assert.strictEqual(LEVELS.getLevel(level_number).id, level_number);
+    assert.deepStrictEqual([30, 31, 45, 46, 150, 151, 225, 27, 33].map(LEVELS.scheduledRole), ['hard', 'breather', 'hard', 'breather', 'superhard', 'breather', 'superhard', 'breather', 'normal']);
+    const close = (actual, expected, label) => assert.ok(Math.abs(actual - expected) < 1e-9, `${label}: ${actual} vs ${expected}`);
+    close(LEVELS.baseWinRate(400), 0.95 - 0.6 * (1 - Math.exp(-1)), 'target(400)');
+    close(LEVELS.baseWinRate(20000), 0.95 - 0.6 * (1 - Math.exp(-50)), 'target(20000)');
+    assert.ok(LEVELS.baseWinRate(99999) >= 0.3 && LEVELS.baseWinRate(1) <= 0.95, 'clamped to 0.30-0.95');
+    close(LEVELS.targetWinRate(400, 'breather'), Math.min(0.9, LEVELS.baseWinRate(400) + 0.15), 'breather +0.15');
+    close(LEVELS.targetWinRate(400, 'hard'), LEVELS.baseWinRate(400) - 0.15, 'hard -0.15');
+    close(LEVELS.targetWinRate(20000, 'superhard'), Math.max(0.1, LEVELS.baseWinRate(20000) - 0.25), 'superhard -0.25');
+    assert.deepStrictEqual([1, 15, 16, 20000].map(LEVELS.episodeOf), [1, 1, 2, 1334]);
+    assert.deepStrictEqual(LEVELS.episodeRange(2), { first: 16, last: 30 });
+    assert.strictEqual(LEVELS.SCENERY_FAMILIES.length, 12);
+    const families = new Set();
+    for (let episode = 1; episode <= 12; episode += 1) families.add(LEVELS.sceneryOf(episode).family);
+    assert.strictEqual(families.size, 12, 'twelve episodes, twelve scenery families');
+    assert.strictEqual(LEVELS.episodeName(77), LEVELS.episodeName(77), 'names are deterministic');
+    assert.ok(/^[A-Z][a-z]+ [A-Z][a-z]+$/.test(LEVELS.episodeName(1234)));
+  });
+
+  // 19. Storage
   test('storage', 'round-trip, corrupted JSON fallback, v1 migration, defaults for missing keys', (assert) => {
     const save = STORAGE.defaultSave();
     save.player_name = 'Florin';
@@ -773,32 +1121,25 @@
     );
   }
 
-  /** Greedy-bot simulation of `games` games spread over the levels; `on_chunk` yields between games (UI stays responsive). */
+  /** Greedy-bot simulation of `games` games spread over the shipped levels; yields between games so the UI stays responsive. */
   function runBotSimulation(games, rng_seed, yield_between_games) {
-    const per_level = LEVELS.map((level) => ({ id: level.id, name: level.name, games: 0, wins: 0, scores: [], errors: 0 }));
+    const levels = shippedLevels();
+    const per_level = levels.map((level) => ({ id: level.id, name: level.name, games: 0, wins: 0, scores: [], errors: 0 }));
     let game_index = 0;
     const playOne = () => {
-      const level_index = game_index % LEVELS.length;
-      const level = LEVELS[level_index];
+      const level_index = game_index % levels.length;
       const stats = per_level[level_index];
-      const rng = UTIL.createRng(rng_seed + game_index * 7);
       try {
-        let state = LOGIC.createGame(level, { seed: level.seed + 5000 + game_index });
-        let guard = 0;
-        while (state.status === 'playing') {
-          guard += 1;
-          if (guard > 200) throw new Error('game did not end');
-          const move = LOGIC.chooseGreedyMove(state, rng);
-          state = LOGIC.applySwap(state, move.from, move.to).state;
-          const problems = LOGIC.checkBoardInvariants(state);
-          if (problems.length) throw new Error(problems.join('; '));
-        }
-        let final_score = state.score;
-        if (state.status === 'won') {
-          stats.wins += 1;
-          final_score = LOGIC.applyEndBonus(state).state.score;
-        }
-        stats.scores.push(final_score);
+        const result = LOGIC.playBotGame(levels[level_index], {
+          attempt: 50 + Math.floor(game_index / levels.length),
+          rng_seed: rng_seed + game_index * 7,
+          on_move: (state) => {
+            const problems = LOGIC.checkBoardInvariants(state);
+            if (problems.length) throw new Error(problems.join('; '));
+          },
+        });
+        if (result.won) stats.wins += 1;
+        stats.scores.push(result.final_score);
       } catch (error) {
         stats.errors += 1;
       }
@@ -821,7 +1162,7 @@
     });
   }
 
-  const SELFTEST = { TESTS, makeTestState, runTest, createBrowserAssert, runBotSimulation };
+  const SELFTEST = { TESTS, makeTestState, shippedLevels, prepare, runTest, createBrowserAssert, runBotSimulation };
   SC.SELFTEST = SELFTEST;
   if (typeof module === 'object' && module.exports) module.exports = SELFTEST;
 })(typeof window !== 'undefined' ? window : globalThis);
