@@ -528,8 +528,9 @@
       for (let variant = 0; variant < 4; variant += 1) {
         const state = LOGIC.createGame(level, { seed: level.seed + variant });
         const rng = UTIL.createRng(variant + level.id * 1000);
+        // Only clears that play can make: a hit on a Sugar Cage breaks the cage and leaves its candy in place.
         state.cells.forEach((piece, index) => {
-          if (piece && piece.kind === KIND.CANDY && rng() < 0.35) state.cells[index] = null;
+          if (piece && piece.kind === KIND.CANDY && !state.cage[index] && rng() < 0.35) state.cells[index] = null;
         });
         const twin = LOGIC.cloneState(state);
         LOGIC.internals.settleBoard(LOGIC.internals.createContext(state));
