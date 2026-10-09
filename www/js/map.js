@@ -15,7 +15,7 @@
   const NODE_SPACING = 104;
   const EPISODE_GAP = 150;
   const TOP_PADDING = 260;
-  const BOTTOM_PADDING = 150;
+  const BOTTOM_PADDING = 185;
   const OVERSCAN_PX = 700;
   const MAX_LIVE_NODES = 60;
   const SCENERY_CACHE = 6;
