@@ -132,7 +132,7 @@ signed with a different key), which resets local progress.
 
 ### Decisions recorded
 
-* **System fonts only:** the game names a rounded font stack (`"Baloo 2", "Nunito", "Quicksand", ui-rounded, …, system-ui`) but bundles no font files, so on Android it uses the phone's own sans-serif. Nothing is downloaded.
+* **System fonts only:** the spec's rounded stack starts with "Baloo 2", "Nunito" and "Quicksand", but the game names only system fonts (`ui-rounded, system-ui, -apple-system, Roboto, "Segoe UI", sans-serif`) and bundles no font files, because on Android a named font that is not installed makes the WebView ask Google Play services' font provider, which ties the game's process to Play services (`apk-verify` checks this). On Android it uses the phone's own sans-serif in heavy weights.
 * **JDK 21 instead of 17:** Capacitor 8's Android library is compiled for Java 21, so CI uses Temurin 21.
 * **Native shell plugin:** keep-awake, the system photo picker (`PickVisualMedia`, no storage permission), display-cutout insets and app info come from one small app plugin (`NativeShellPlugin.java`) instead of extra third-party dependencies. Immersive fullscreen is applied natively in `MainActivity`; Capacitor 8's core `SystemBars` replaces the status-bar plugin.
 * **Save format v4:** per-level stars as 2-bit values plus best scores (stored as score/10 in varints), base64-encoded. A save with 20,000 cleared levels is about 58 KB and parses in a few milliseconds. Older saves migrate automatically.
