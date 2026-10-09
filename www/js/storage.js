@@ -174,9 +174,12 @@
     if (/[^A-Za-z0-9+/]/.test(clean)) throw new Error('bad base64');
     const bytes = new Uint8Array(Math.floor((clean.length * 3) / 4));
     let output = 0;
-    for (let index = 0; index < clean.length; index += 4) {
-      const values = [0, 1, 2, 3].map((offset) => (index + offset < clean.length ? BASE64_INDEX[clean.charCodeAt(index + offset)] : 0));
-      const triple = (values[0] << 18) | (values[1] << 12) | (values[2] << 6) | values[3];
+    const length = clean.length;
+    for (let index = 0; index < length; index += 4) {
+      const triple = (BASE64_INDEX[clean.charCodeAt(index)] << 18) |
+        ((index + 1 < length ? BASE64_INDEX[clean.charCodeAt(index + 1)] : 0) << 12) |
+        ((index + 2 < length ? BASE64_INDEX[clean.charCodeAt(index + 2)] : 0) << 6) |
+        (index + 3 < length ? BASE64_INDEX[clean.charCodeAt(index + 3)] : 0);
       if (output < bytes.length) bytes[output++] = (triple >> 16) & 255;
       if (output < bytes.length) bytes[output++] = (triple >> 8) & 255;
       if (output < bytes.length) bytes[output++] = triple & 255;
@@ -223,14 +226,15 @@
     };
     const count = readVarint();
     if (count > MAX_LEVEL) throw new Error('too many levels');
-    const stars = new Array(count);
+    const stars = [];
     for (let index = 0; index < count; index += 4) {
       if (cursor >= bytes.length) throw new Error('truncated stars');
       const packed = bytes[cursor++];
-      for (let offset = 0; offset < 4 && index + offset < count; offset += 1) stars[index + offset] = (packed >> (offset * 2)) & 3;
+      for (let offset = 0; offset < 4 && index + offset < count; offset += 1) stars.push((packed >> (offset * 2)) & 3);
     }
-    const scores = new Array(count);
-    for (let index = 0; index < count; index += 1) scores[index] = readVarint() * 10;
+    const scores = [];
+    for (let index = 0; index < count; index += 1) scores.push(Math.min(1e9, readVarint() * 10));
+    // Already in range (2-bit stars, non-negative whole tens, at most MAX_LEVEL levels): needs no sanitizing.
     return { stars, scores };
   }
 
@@ -299,15 +303,16 @@
         win_message: old_settings.win_message,
       });
     } else {
-      let progress = source.progress;
-      if (typeof progress === 'string') {
+      // A packed string decodes straight into valid progress; anything else is sanitized entry by entry.
+      let decoded = null;
+      if (typeof source.progress === 'string') {
         try {
-          progress = decodeProgress(progress);
+          decoded = decodeProgress(source.progress);
         } catch (decode_error) {
-          progress = null;
+          decoded = null;
         }
       }
-      save.progress = sanitizeProgress(progress);
+      save.progress = decoded || sanitizeProgress(typeof source.progress === 'string' ? null : source.progress);
       save.settings = sanitizeSettings(source.settings);
       save.meta = sanitizeMeta(source.meta);
     }

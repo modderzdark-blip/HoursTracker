@@ -118,6 +118,22 @@
     return ctx;
   }
 
+  /**
+   * Speed of a piece of work in ms: the median of three timed runs. A single sample on a phone (or a CI emulator without
+   * a GPU) can include a garbage-collection pause or the first JIT compile, which is not the speed of the code itself.
+   */
+  function medianMs(work) {
+    const clock = typeof performance !== 'undefined' && performance.now ? () => performance.now() : () => Date.now();
+    const times = [];
+    for (let run = 0; run < 3; run += 1) {
+      const started = clock();
+      work();
+      times.push(clock() - started);
+    }
+    times.sort((a, b) => a - b);
+    return Math.round(times[1] * 10) / 10;
+  }
+
   function sortedNumbers(values) {
     return values.slice().sort((a, b) => a - b);
   }
@@ -972,9 +988,7 @@
     let slowest = 0;
     shippedLevels().forEach((level) => {
       const level_state = LOGIC.createGame(level);
-      const started = Date.now();
-      LOGIC.findHint(level_state);
-      slowest = Math.max(slowest, Date.now() - started);
+      slowest = Math.max(slowest, medianMs(() => LOGIC.findHint(level_state)));
     });
     assert.ok(slowest < 50, `slowest hint took ${slowest} ms`);
   });
@@ -1167,10 +1181,8 @@
     // The button's work (finding the move) is well under 50 ms on every shipped level's opening board.
     shippedLevels().forEach((level) => {
       const state = LOGIC.createGame(level);
-      const started = Date.now();
-      const hint = LOGIC.findHint(state);
-      LOGIC.hintFor(state, hint);
-      assert.ok(Date.now() - started < 50, `level ${level.id} hint took ${Date.now() - started} ms`);
+      const elapsed = medianMs(() => LOGIC.hintFor(state, LOGIC.findHint(state)));
+      assert.ok(elapsed < 50, `level ${level.id} hint took ${elapsed} ms`);
     });
     assert.strictEqual(LOGIC.findHint(makeTestState(['o o o', 'o 0 o', 'o o o'])), null, 'no hint when no move exists');
   });

@@ -800,17 +800,33 @@
    * cells into groups (L, T and + shapes). Holes, blockers, ingredients, bombs and empty cells break runs.
    */
   function findMatchGroups(state) {
+    // Each run is read once, from its first cell (leftmost / topmost), in the same order a full scan would find it.
     const runs = [];
-    const seen = new Set();
-    for (let row = 0; row < state.rows; row += 1) {
-      for (let col = 0; col < state.cols; col += 1) {
-        ['h', 'v'].forEach((direction) => {
-          const run = scanRun(state, row, col, direction);
-          if (run && !seen.has(run.key)) {
-            seen.add(run.key);
-            runs.push(run);
+    const rows = state.rows;
+    const cols = state.cols;
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < cols; col += 1) {
+        const index = row * cols + col;
+        const color = matchColorAt(state, index);
+        if (color < 0) continue;
+        if (col === 0 || matchColorAt(state, index - 1) !== color) {
+          let right = col;
+          while (right < cols - 1 && matchColorAt(state, index + (right - col) + 1) === color) right += 1;
+          if (right - col + 1 >= 3) {
+            const cells = [];
+            for (let run_col = col; run_col <= right; run_col += 1) cells.push(row * cols + run_col);
+            runs.push({ direction: 'h', color, cells, key: `h${row}:${col}` });
           }
-        });
+        }
+        if (row === 0 || matchColorAt(state, index - cols) !== color) {
+          let bottom = row;
+          while (bottom < rows - 1 && matchColorAt(state, (bottom + 1) * cols + col) === color) bottom += 1;
+          if (bottom - row + 1 >= 3) {
+            const cells = [];
+            for (let run_row = row; run_row <= bottom; run_row += 1) cells.push(run_row * cols + col);
+            runs.push({ direction: 'v', color, cells, key: `v${col}:${row}` });
+          }
+        }
       }
     }
     return groupRuns(runs);
