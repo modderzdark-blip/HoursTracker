@@ -684,7 +684,7 @@
       ctx.arc(badge_x, badge_y, radius * 1.05, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, visual.fuse / 10));
       ctx.stroke();
       ctx.fillStyle = '#ffffff';
-      ctx.font = `900 ${Math.round(radius * 1.25)}px system-ui, -apple-system, Roboto, sans-serif`;
+      ctx.font = `900 ${Math.round(radius * 1.25)}px system-ui, Roboto, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(String(visual.fuse), badge_x, badge_y + radius * 0.05);
@@ -837,7 +837,7 @@
         ctx.globalAlpha = progress > 0.65 ? 1 - (progress - 0.65) / 0.35 : 1;
         ctx.translate(popup.x, popup.y - rise);
         ctx.scale(pop_scale, pop_scale);
-        ctx.font = `900 ${Math.round(popup.size)}px system-ui, -apple-system, Roboto, sans-serif`;
+        ctx.font = `900 ${Math.round(popup.size)}px system-ui, Roboto, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.lineJoin = 'round';

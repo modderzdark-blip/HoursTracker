@@ -18,6 +18,8 @@ pass() { echo "PASS: $*" | tee -a "$OUT/summary.txt"; }
 metric() { echo "$1=$2" | tee -a "$METRICS"; }
 fail() {
   echo "FAIL: $*" | tee -a "$OUT/summary.txt"
+  # Say so plainly when Android killed the game because a provider it was using died (not a crash in the game).
+  adb logcat -d 2>/dev/null | grep -E "Killing [0-9]+:$PKG/.*depends on provider" | tail -1 | sed 's/^/CAUSE: /' | tee -a "$OUT/summary.txt"
   shot "failure"
   adb logcat -d > "$OUT/logcat-at-failure.txt" 2>/dev/null
   cp "$HOOK_LOG" "$OUT/hook-at-failure.log" 2>/dev/null
@@ -98,10 +100,15 @@ tap_map_node() {
 }
 back() { ensure_app_focused; adb shell input keyevent KEYCODE_BACK; sleep 1.2; }
 check_no_crash() {
-  if adb logcat -d 2>/dev/null | grep -E "FATAL EXCEPTION|ANR in $PKG|onRenderProcessGone|Render(er)? process (crashed|gone|was killed)|Fatal signal.*(sweetcascade|webview|sandboxed)" > "$OUT/crash-lines.txt"; then
+  if adb logcat -d 2>/dev/null | grep -E "FATAL EXCEPTION|ANR in $PKG|onRenderProcessGone|Render(er)? process (crashed|gone|was killed)|Fatal signal.*(sweetcascade|webview|sandboxed)|Killing [0-9]+:$PKG/.*depends on provider" > "$OUT/crash-lines.txt"; then
     cat "$OUT/crash-lines.txt"
     fail "crash, ANR or WebView renderer crash in logcat ($1)"
   fi
+}
+# Records which processes hold Google Play services' font provider (Android kills every holder when that process dies).
+font_provider_link() { # label
+  adb shell dumpsys activity providers 2>/dev/null | grep -A60 "fonts.provider.FontsProvider" > "$OUT/font-provider-$1.txt"
+  if grep -q "$PKG" "$OUT/font-provider-$1.txt"; then metric "game_linked_to_play_services_fonts_$1" yes; else metric "game_linked_to_play_services_fonts_$1" no; fi
 }
 make_move() { # one real swipe from the hook's suggested move; waits until it has been played
   local before swipe_points
@@ -167,6 +174,14 @@ for settle in $(seq 1 90); do
   sleep 2
 done
 metric settle_wait_seconds "$((settle * 2))"
+# Google Play services restarts its own processes to refresh configuration during the first minutes after boot, and
+# Android then kills every app holding one of its providers. Start the tests only once the device has been up 3 minutes.
+uptime_s=$(adb shell cat /proc/uptime 2>/dev/null | awk '{print int($1)}')
+if [ "${uptime_s:-0}" -lt 180 ]; then
+  log "device up ${uptime_s:-0}s; waiting until it has been up 180s"
+  sleep $((180 - ${uptime_s:-0}))
+fi
+metric device_uptime_at_launch_s "$(adb shell cat /proc/uptime | awk '{print int($1)}')"
 metric load_average_at_launch "$(adb shell cat /proc/loadavg | tr -d '\r')"
 
 APK_RELEASE=$(ls dist/SweetCascade-v*.apk | head -1)
@@ -184,6 +199,7 @@ pass "debug build launched; first launch asks for the player name"
 sleep 1
 shot "02-title-name-prompt"
 check_no_crash "launch"
+font_provider_link "title"
 
 # --- Play Level 1 to a win with real swipes
 tap_button "btn-name-skip"
@@ -202,6 +218,7 @@ shot "04-win"
 pass "Level 1 played to a win with real adb swipes ($(q 's.moves_played') moves)"
 [ "$(q 's.unlocked')" = "2" ] || fail "Level 2 not unlocked"
 pass "Level 2 unlocked"
+font_provider_link "after-level-1"
 
 # --- Back button / gesture at every screen
 back

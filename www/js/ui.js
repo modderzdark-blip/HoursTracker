@@ -889,7 +889,7 @@
                 const flipped = Math.cos(((index + 0.5) / segments.length) * Math.PI * 2 - Math.PI / 2) < -0.01;
                 ctx.rotate((start + end) / 2 + (flipped ? Math.PI : 0));
                 ctx.fillStyle = '#3b1a4a';
-                ctx.font = '800 11px system-ui, -apple-system, Roboto, sans-serif';
+                ctx.font = '800 11px system-ui, Roboto, sans-serif';
                 ctx.textAlign = flipped ? 'left' : 'right';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(segment.kind === 'gold' ? `${segment.amount} drops` : segment.kind === 'heart' ? '1 heart' : segment.label, flipped ? -(radius - 10) : radius - 10, 0);
