@@ -981,6 +981,28 @@
     });
   });
 
+  test('hint', 'the glow marks the line the hinted swap makes (also when the candy that moves is a special one)', (assert) => {
+    let checked = 0;
+    shippedLevels().filter((level, index) => index % 3 === 0).forEach((level) => {
+      let state = LOGIC.createGame(level);
+      for (let move_number = 0; move_number < 8 && state.status === 'playing'; move_number += 1) {
+        const move = LOGIC.findHint(state);
+        if (!move) break;
+        const shown = LOGIC.hintFor(state, move);
+        const mover = state.cells[shown.from];
+        assert.ok(shown.cells.includes(shown.from), `level ${level.id}: the moving candy glows`);
+        assert.ok([shown.from, shown.to].sort().join() === [move.from, move.to].sort().join(), `level ${level.id}: the glow names the hinted swap`);
+        if (shown.cells.length > 2) {
+          shown.cells.forEach((cell) => assert.ok(cell === shown.from || (state.cells[cell] && state.cells[cell].color === mover.color),
+            `level ${level.id}: glowing cell ${cell} is not part of the line made by ${move.from}<->${move.to}`));
+        }
+        checked += 1;
+        state = LOGIC.applySwap(state, move.from, move.to).state;
+      }
+    });
+    assert.ok(checked > 50, `${checked} hints checked`);
+  });
+
   test('hint', 'the hint saves a Fuse Candy about to go off and is fast (under 50 ms)', (assert) => {
     const state = makeTestState(['. . 1 . . .', '1b2 1 0 . . .', '. . . . . .', '. . . . . .', '. . 2 . . .', '2 2 0 2 . .']);
     const hint = LOGIC.findHint(state);

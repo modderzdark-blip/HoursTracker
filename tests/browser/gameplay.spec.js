@@ -1,5 +1,5 @@
 // Browser QA (CI job "browser"): real pointer input, persistence, loss and +5 Moves, hearts, boosters, timed levels,
-// pause/restart/quit mid-animation, back navigation, lifecycle, instant hints, forced tutorial hints, the 20,000-level
+// pause/restart/quit mid-animation, back navigation, lifecycle, instant hints, tutorial hints (any valid move is allowed), the 20,000-level
 // map, the compact save, the Daily Wheel, reduced motion, settings, photo, self-test and accessibility.
 const { test, expect } = require('@playwright/test');
 const H = require('./helpers');
@@ -36,32 +36,18 @@ test('first launch plays Level 1 to a win with swipes and tap-taps; progress per
   H.expectClean(problems);
 });
 
-test('tutorial levels allow only the hinted move; selection rules; invalid swaps bounce back without using a move', async ({ page }) => {
+test('tutorial levels accept any valid move, not just the hinted one; selection rules; invalid swaps bounce back without using a move', async ({ page }) => {
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });
   const moves = await H.levelMoves(page, 1);
   const cell = (index) => page.evaluate((cell_index) => window.SC.game.renderer.cellCenter(cell_index), index);
-  // Level 1 shows its hint at once (forced hint) and Pip points at it.
+  // Level 1 shows its hint at once (Instant auto hint) and Pip points at it.
   await expect.poll(async () => (await H.snapshot(page)).hint, { timeout: 2000 }).toBe(true);
   const first = await cell(24);
   await page.touchscreen.tap(first.x, first.y);
   await expect.poll(async () => (await H.snapshot(page)).selected).toBe(24);
   await page.touchscreen.tap(first.x, first.y);
   await expect.poll(async () => (await H.snapshot(page)).selected).toBe(-1);
-  // A valid swap that is not the hinted one wobbles back on a tutorial level.
-  const other = await page.evaluate(() => {
-    const game = window.SC.game;
-    const hint = game.currentHint;
-    const moves_list = window.SC.LOGIC.listValidMoves(game.logic);
-    return moves_list.find((move) => !(move.from === hint.from && move.to === hint.to) && !(move.from === hint.to && move.to === hint.from)) || null;
-  });
-  if (other) {
-    const from = await cell(other.from);
-    const to = await cell(other.to);
-    await H.swipeMove(page, [from.x, from.y, to.x, to.y]);
-    await page.waitForTimeout(800);
-    expect((await H.snapshot(page)).moves_left).toBe(moves);
-  }
   const invalid = await page.evaluate(() => {
     const logic = window.SC.game.logic;
     for (let index = 0; index < logic.cells.length; index += 1) {
@@ -76,8 +62,25 @@ test('tutorial levels allow only the hinted move; selection rules; invalid swaps
   const after_invalid = await H.snapshot(page);
   expect(after_invalid.moves_left).toBe(moves);
   expect(after_invalid.state).toBe('PLAYING');
-  await H.tapTapMove(page, (await H.snapshot(page)).move);
-  await expect.poll(async () => (await H.snapshot(page)).moves_left, { timeout: 30000 }).toBe(moves - 1);
+  // A valid swap that is not the hinted one is played like any other move, even on a tutorial level.
+  const other = await page.evaluate(() => {
+    const game = window.SC.game;
+    const hint = game.currentHint;
+    const moves_list = window.SC.LOGIC.listValidMoves(game.logic);
+    return moves_list.find((move) => !(move.from === hint.from && move.to === hint.to) && !(move.from === hint.to && move.to === hint.from)) || null;
+  });
+  expect(other).not.toBeNull();
+  const other_from = await cell(other.from);
+  const other_to = await cell(other.to);
+  await H.swipeMove(page, [other_from.x, other_from.y, other_to.x, other_to.y]);
+  await expect.poll(async () => (await H.snapshot(page)).moves_left, { timeout: 30000 }).toBeLessThan(moves);
+  // Level 1 is easy: if that move already finished it, the hinted move has nothing left to prove.
+  await expect.poll(async () => { const s = await H.snapshot(page); return s.state === 'PLAYING' || s.state === 'WON' || s.modal === 'win'; }, { timeout: 30000 }).toBe(true);
+  if ((await H.snapshot(page)).state === 'PLAYING') {
+    const left = (await H.snapshot(page)).moves_left;
+    await H.tapTapMove(page, (await H.snapshot(page)).move);
+    await expect.poll(async () => (await H.snapshot(page)).moves_left, { timeout: 30000 }).toBeLessThan(left);
+  }
   H.expectClean(problems);
 });
 

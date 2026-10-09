@@ -1933,14 +1933,19 @@
    * `cells` are every candy of that match where they sit now, before the swap.
    */
   function hintFor(state, move) {
-    const result = applySwap(state, move.from, move.to);
-    const first_match = result.valid ? result.events.find((event) => event.type === 'match') : null;
-    if (!first_match) return { from: move.from, to: move.to, cells: [move.from, move.to] };
-    // After the swap the two candies have traded cells, so map the match back to the board as it is now.
+    // The glow shows the line the swap itself makes, read straight off the board with the two candies traded. (Reading
+    // it from the move's events would pick up a later cascade when a special candy fires first.)
+    const swapped = Object.assign({}, state, { cells: state.cells.slice() });
+    swapped.cells[move.from] = state.cells[move.to];
+    swapped.cells[move.to] = state.cells[move.from];
+    const groups = findMatchGroups(swapped).filter((group) => group.cells.includes(move.to) || group.cells.includes(move.from));
+    if (groups.length === 0) return { from: move.from, to: move.to, cells: [move.from, move.to] };
+    // The candy from `from` lands on `to`; prefer the line it completes, else the partner is the one that moves in.
+    const into_to = groups.find((group) => group.cells.includes(move.to));
+    const group = into_to || groups[0];
     const now_cell = (cell) => (cell === move.to ? move.from : cell === move.from ? move.to : cell);
-    const cells = first_match.cells.map(now_cell);
-    const mover_is_from = first_match.cells.includes(move.to);
-    return mover_is_from ? { from: move.from, to: move.to, cells } : { from: move.to, to: move.from, cells };
+    const cells = group.cells.map(now_cell);
+    return into_to ? { from: move.from, to: move.to, cells } : { from: move.to, to: move.from, cells };
   }
 
   /**

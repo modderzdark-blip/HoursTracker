@@ -555,7 +555,8 @@
       }
       let offset_x = 0;
       let offset_y = -visual.lift * cell * 0.06;
-      // Hint: the candies of the suggested match pulse together and the one to move nudges toward its target.
+      // Hint: the candies of the suggested match pulse together, the one to move slides toward its spot and the candy
+      // it swaps with leans the other way.
       if (hint_move && !timeline.busy && visual.kind === 'candy' && !settings.reduced_motion) {
         const cell_index = Math.round(visual.y) * board.cols + Math.round(visual.x);
         if (hint_cells.has(cell_index)) {
@@ -564,9 +565,15 @@
           scale_y *= 1 + 0.1 * pulse;
           if (cell_index === hint_move.from) {
             const target = cellXY(hint_move.to);
-            offset_x += (target.col - Math.round(visual.x)) * cell * 0.18 * pulse;
-            offset_y += (target.row - Math.round(visual.y)) * cell * 0.18 * pulse;
+            offset_x += (target.col - Math.round(visual.x)) * cell * 0.3 * pulse;
+            offset_y += (target.row - Math.round(visual.y)) * cell * 0.3 * pulse;
           }
+        } else if (cell_index === hint_move.to) {
+          // The candy it trades places with leans the other way: a small preview of the swap.
+          const source = cellXY(hint_move.from);
+          const pulse = 0.5 + 0.5 * Math.sin(now / 150);
+          offset_x += (source.col - Math.round(visual.x)) * cell * 0.12 * pulse;
+          offset_y += (source.row - Math.round(visual.y)) * cell * 0.12 * pulse;
         }
       }
       if (drag && drag.piece_id === visual.id) {
@@ -1601,6 +1608,11 @@
         }
         const visual = visualAtCell(cell_index);
         drag = visual ? { piece_id: visual.id, dx, dy } : null;
+      },
+      /** The piece drawn in a cell ({ id, color, kind, special } or null): lets tests check the screen matches the logic. */
+      pieceAt(cell_index) {
+        const visual = visualAtCell(cell_index);
+        return visual ? { id: visual.id, color: visual.color, kind: visual.kind, special: visual.special } : null;
       },
       cellFromPoint(client_x, client_y) {
         if (!board) return -1;

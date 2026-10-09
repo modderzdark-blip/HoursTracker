@@ -521,9 +521,9 @@
       native.keepAwake(true);
       audio.setMusic('level');
       if (Object.keys(boosters).length) ui.showBanner('Boosters ready!', false, true);
-      if (level.tutorial && (!save().tutorials_seen[level_id] || level.forced_hint)) {
+      if (level.tutorial && !save().tutorials_seen[level_id]) {
         tutorial_active = true;
-        ui.keepTutorial(!!level.forced_hint);
+        ui.keepTutorial(false);
         ui.tutorial(level.tutorial);
         ui.placeTutorial(renderer.boardRect(), boardHasTrays());
       }
@@ -555,11 +555,10 @@
       }
     }
 
-    /** The board settled and input is unlocked: forced-hint levels show it at once, otherwise the auto-hint setting decides. */
+    /** The board settled and input is unlocked: the auto-hint setting decides when the hint appears. */
     function boardIdle() {
       if (machine !== STATE.PLAYING || !logic_state) return;
-      if (level && level.forced_hint) showHint('forced');
-      else hint_scheduler.idle();
+      hint_scheduler.idle();
     }
 
     function showHint(source) {
@@ -568,11 +567,13 @@
       if (!move) return;
       current_hint = move;
       hint_visible = true;
-      renderer.setHint(LOGIC.hintFor(logic_state, move));
+      // The shown hint names the candy that actually moves into the match (it may be either end of the swap).
+      const shown = LOGIC.hintFor(logic_state, move);
+      renderer.setHint(shown);
       if (level && level.id <= PIP_POINTS_UNTIL_LEVEL && !pip_pointed) {
         pip_pointed = true;
         const pip_canvas = document.getElementById('game-pip');
-        const target = renderer.cellCenter(move.from);
+        const target = renderer.cellCenter(shown.from);
         const pip_rect = pip_canvas ? pip_canvas.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
         const angle = Math.atan2(target.y - (pip_rect.top + pip_rect.height / 2), target.x - (pip_rect.left + pip_rect.width / 2));
         ui.pip('pointing', 2600, angle);
@@ -634,15 +635,6 @@
         moves_played += 1;
         await playResult(result, before);
         return;
-      }
-      if (level && level.forced_hint && current_hint) {
-        const is_hinted = (from_cell === current_hint.from && to_cell === current_hint.to) || (from_cell === current_hint.to && to_cell === current_hint.from);
-        if (!is_hinted) {
-          // Tutorial levels: only the hinted move is allowed; other swaps wobble gently back.
-          await bounceBack(from_cell, to_cell);
-          showHint('forced');
-          return;
-        }
       }
       const result = LOGIC.applySwap(before, from_cell, to_cell);
       if (!result.valid) {
@@ -1122,8 +1114,8 @@
       activity: () => {
         renderer.markActivity();
         hint_scheduler.touch();
-        if (machine === STATE.PLAYING && level && !level.forced_hint) ui.fadeTutorialOverlay();
-        if (!(level && level.forced_hint)) clearHint();
+        if (machine === STATE.PLAYING) ui.fadeTutorialOverlay();
+        clearHint();
       },
     });
 
