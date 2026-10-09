@@ -755,9 +755,12 @@
         if (!(await renderer.timeline.wait(500)) || level !== level_at_start) return;
         const bonus = LOGIC.applyEndBonus(logic_state, { seconds_left });
         tracker = createTracker(logic_state);
-        // The Finale plays fast, and a tap anywhere fast-forwards it.
-        renderer.setSpeed(speed_base * 2.5);
-        const fastForward = () => renderer.setSpeed(speed_base * 7);
+        // The Finale plays fast and never drags: it speeds up with the number of strikes so that even 20 leftover
+        // moves take about six seconds (one strike is about 2.5 s of animation at normal speed). A tap anywhere
+        // fast-forwards it.
+        const strikes = (bonus.events.find((event) => event.type === 'end') || {}).bonus_moves || 0;
+        renderer.setSpeed(speed_base * Math.min(7, Math.max(2.5, strikes * 0.42)));
+        const fastForward = () => renderer.setSpeed(speed_base * 10);
         dom.app.addEventListener('pointerdown', fastForward);
         const finished = await renderer.playEvents(bonus.events, playbackHooks());
         dom.app.removeEventListener('pointerdown', fastForward);
