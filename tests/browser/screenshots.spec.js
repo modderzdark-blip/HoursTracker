@@ -20,8 +20,8 @@ const FEATURE_LEVELS = [[19, 'cage'], [21, 'portals'], [22, 'cocoa'], [24, 'fuse
 test.describe.configure({ mode: 'parallel' });
 
 async function prepare(page, theme) {
-  await H.bootGame(page, { name: 'Florin' });
-  await H.seedSave(page, { unlocked: 19001, stars_upto: 19000, name: 'Florin', settings: { theme } });
+  await H.bootGame(page, { name: 'Sam' });
+  await H.seedSave(page, { unlocked: 19001, stars_upto: 19000, name: 'Sam', settings: { theme } });
 }
 
 async function settle(page, milliseconds) {
@@ -100,7 +100,7 @@ for (const size of SIZES) {
       await page.evaluate(() => {
         const game = window.SC.game;
         game.ui.closeAllModals();
-        game.ui.showWin({ score: 34560, stars: 3, is_new_best: true, player_name: 'Florin', win_message: 'You are amazing!', has_next: true, rewards: { gold: 25, streak_reward: 'lucky', chest_ready: true }, streak: 3 }, { next() {}, replay() {}, map() {} });
+        game.ui.showWin({ score: 34560, stars: 3, is_new_best: true, player_name: 'Sam', win_message: 'You are amazing!', has_next: true, rewards: { gold: 25, streak_reward: 'lucky', chest_ready: true }, streak: 3 }, { next() {}, replay() {}, map() {} });
       });
       await page.waitForTimeout(2200);
       await shot('09-win');
@@ -108,7 +108,7 @@ for (const size of SIZES) {
         const game = window.SC.game;
         game.ui.closeAllModals();
         const progress = window.SC.LOGIC.goalProgress(game.logic);
-        game.ui.showLose({ progress, goals: game.level.goals, player_name: 'Florin', reason: game.logic.timed ? 'time' : 'moves', can_continue: true, price: 60, gold: 140, timed: game.logic.timed }, { retry() {}, map() {}, plusFive() {} });
+        game.ui.showLose({ progress, goals: game.level.goals, player_name: 'Sam', reason: game.logic.timed ? 'time' : 'moves', can_continue: true, price: 60, gold: 140, timed: game.logic.timed }, { retry() {}, map() {}, plusFive() {} });
       });
       await settle(page, 700);
       await shot('10-lose');

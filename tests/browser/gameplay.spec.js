@@ -8,7 +8,7 @@ test.describe.configure({ mode: 'parallel' });
 
 test('first launch plays Level 1 to a win with swipes and tap-taps; progress persists and Level 2 unlocks', async ({ page }) => {
   const problems = H.guardPage(page);
-  await H.bootGame(page, { name: 'Florin' });
+  await H.bootGame(page, { name: 'Sam' });
   const start = await H.snapshot(page);
   expect(start.level).toBe(1);
   expect(start.moves_left).toBe(await H.levelMoves(page, 1));
@@ -16,7 +16,7 @@ test('first launch plays Level 1 to a win with swipes and tap-taps; progress per
   const played = await H.playLevel(page, { max_moves: 30 });
   expect(played.used_swipe).toBeGreaterThan(0);
   await H.waitForModal(page, 'win', 120000);
-  await expect(page.locator('[data-modal="win"]')).toContainText('Great job, Florin!');
+  await expect(page.locator('[data-modal="win"]')).toContainText('Great job, Sam!');
   await expect.poll(async () => (await H.snapshot(page)).unlocked).toBe(2);
   const best = await page.evaluate(() => window.SC.STORAGE.levelBest(window.SC.game.store.save, 1));
   expect(best.stars).toBeGreaterThanOrEqual(1);
@@ -27,8 +27,8 @@ test('first launch plays Level 1 to a win with swipes and tap-taps; progress per
   await page.waitForTimeout(400);
   await H.reloadGame(page);
   const after_reload = await page.evaluate(() => ({ unlocked: window.SC.game.store.save.unlocked, stars: window.SC.STORAGE.levelBest(window.SC.game.store.save, 1).stars, name: window.SC.game.store.save.player_name }));
-  expect(after_reload).toEqual({ unlocked: 2, stars: best.stars, name: 'Florin' });
-  await expect(page.locator('#title-greeting')).toHaveText('Hi, Florin!');
+  expect(after_reload).toEqual({ unlocked: 2, stars: best.stars, name: 'Sam' });
+  await expect(page.locator('#title-greeting')).toHaveText('Hi, Sam!');
   await page.click('#btn-play');
   await H.waitState(page, 'MAP');
   await expect(page.locator('.map-node[data-level-id="2"]')).not.toHaveClass(/is-locked/);
@@ -695,7 +695,7 @@ test('a long press released on a button activates it exactly once (mouse and tou
 
 test('after a win, Next level goes to the map, the marker hops to the new level and its intro opens', async ({ page }) => {
   const problems = H.guardPage(page);
-  await H.bootGame(page, { name: 'Florin' });
+  await H.bootGame(page, { name: 'Sam' });
   await H.playLevel(page, { max_moves: 30 });
   await H.waitForModal(page, 'win', 120000);
   await page.waitForTimeout(1500);

@@ -1190,7 +1190,7 @@
   // 20. Storage
   test('storage', 'round-trip, corrupted JSON fallback, v1-v3 migration, defaults for missing keys', (assert) => {
     const save = STORAGE.defaultSave();
-    save.player_name = 'Florin';
+    save.player_name = 'Sam';
     save.settings.theme = 'hard';
     save.meta.boosters.hammer = 7;
     STORAGE.recordResult(save, 1, { won: true, score: 4005, stars: 2 });
