@@ -65,19 +65,35 @@ wait_fresh() { # wait until the hook reports a newer snapshot than $1
   local previous="$1"
   wait_for "s.seq > $previous" 20 "a fresh hook snapshot"
 }
+# Android drops touches that arrive while an activity is still finishing a launch transition and logs
+# "Not sending touch gesture to ... ActivityRecordInputSink <pkg> ... NO_INPUT_CHANNEL". Only when that exact OS-level
+# drop is logged for our activity is the tap repeated (once); a tap the game itself ignores still fails the test.
+dropped_taps() { adb logcat -d 2>/dev/null | grep -c "ActivityRecordInputSink $PKG.*NO_INPUT_CHANNEL"; }
+tap_point() {
+  local before
+  ensure_app_focused
+  before=$(dropped_taps)
+  adb shell input tap $1 $2
+  sleep 0.8
+  if [ "$(dropped_taps)" -gt "$before" ]; then
+    log "the system dropped the tap (activity still in transition); tapping again"
+    echo "dropped tap at $1 $2" >> "$OUT/dropped-taps.txt"
+    sleep 1.5
+    ensure_app_focused
+    adb shell input tap $1 $2
+  fi
+}
 tap_button() { # button id or label as reported by the hook
   local point
   point=$(q "px(s.buttons[$(printf '%s' "$1" | node -e 'process.stdout.write(JSON.stringify(require("fs").readFileSync(0,"utf8")))')])")
   [ "$point" = "none" ] && fail "button '$1' not visible"
-  ensure_app_focused
-  adb shell input tap $point
+  tap_point $point
 }
 tap_map_node() {
   local point
   point=$(q "px(s.map_nodes['$1'])")
   [ "$point" = "none" ] && fail "map node $1 not visible"
-  ensure_app_focused
-  adb shell input tap $point
+  tap_point $point
 }
 back() { ensure_app_focused; adb shell input keyevent KEYCODE_BACK; sleep 1.2; }
 check_no_crash() {
@@ -304,6 +320,7 @@ adb shell am force-stop "$PKG"
 adb logcat -c
 adb shell am start -W -n "$ACTIVITY" > /dev/null
 wait_for "s.ready && s.state === 'TITLE'" 60 "the title screen offline"
+sleep 1.5
 tap_button "btn-play"
 wait_for "s.state === 'MAP' && s.map_nodes['2'] !== undefined" 15 "the map offline"
 sleep 1
