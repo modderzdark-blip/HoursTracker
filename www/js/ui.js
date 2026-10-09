@@ -140,12 +140,33 @@
     return 1;
   }
 
+  /**
+   * Shrinks a modal's ribbon title until it fits beside the close button. Titles never wrap (the glossy overlay is a
+   * second copy of the text), and phone fonts run wider than the desktop ones, so the fit is measured, not guessed.
+   */
+  const CLOSE_BUTTON_ROOM = 56;
+  const MIN_TITLE_PX = 18;
+  function fitModalTitles(modal) {
+    const style = getComputedStyle(modal);
+    const content_width = modal.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    const available = content_width - (modal.querySelector('.modal-close') ? 2 * CLOSE_BUTTON_ROOM : 0);
+    modal.querySelectorAll('.modal-title').forEach((title) => {
+      title.style.fontSize = '';
+      let size = parseFloat(getComputedStyle(title).fontSize);
+      while (title.offsetWidth > available && size > MIN_TITLE_PX) {
+        size -= 1;
+        title.style.fontSize = `${size}px`;
+      }
+    });
+  }
+
   function pipImage(expression, size) {
     return element('img', 'pip-image', { src: PIP.pipImageUrl(expression, size), alt: '', width: String(size), height: String(Math.round(size * 1.15)) });
   }
 
   function createUi(dom, hooks) {
     const modal_handles = [];
+    root.addEventListener('resize', () => modal_handles.forEach((handle) => fitModalTitles(handle.node)));
     let toast_timer = null;
     let banner_timer = null;
     let hud_level = null;
@@ -482,6 +503,7 @@
         const title = modal.querySelector('.modal-title');
         modal.setAttribute('aria-label', title ? title.textContent : spec.id);
         dom.modal_stack.appendChild(modal);
+        fitModalTitles(modal);
         const focus_target = modal.querySelector('[data-autofocus]') || modal.querySelector('button');
         if (focus_target && !('ontouchstart' in root)) setTimeout(() => focus_target.focus({ preventScroll: true }), 60);
         return handle;
@@ -739,7 +761,7 @@
           build(modal) {
             modal.classList.add('lose');
             modal.appendChild(pipImage('worried', 64));
-            const titles = { moves: 'Out of moves!', time: "Time's up!", fuse: 'A Fuse Candy went off!', no_moves: 'No more moves!' };
+            const titles = { moves: 'Out of moves!', time: "Time's up!", fuse: 'The fuse went off!', no_moves: 'No more moves!' };
             modal.appendChild(glossyHeading('h2', titles[data.reason] || 'So close!', 'modal-title'));
             modal.appendChild(element('p', '', { text: `${data.player_name ? `So close, ${data.player_name}! ` : 'So close! '}Still to go:` }));
             const summary = element('div', 'intro-goals goal-summary');
@@ -1032,7 +1054,7 @@
         });
       },
 
-      /** First launch: "Is this volume comfortable?" with a slider and a gentle sample. */
+      /** First launch: "Volume check: is this volume comfortable?" with a slider and a gentle sample. */
       showComfort(settings, actions) {
         return ui.openModal({
           id: 'comfort',
@@ -1041,8 +1063,8 @@
             actions.done();
           },
           build(modal, handle) {
-            modal.appendChild(glossyHeading('h2', 'Is this volume comfortable?', 'modal-title'));
-            modal.appendChild(element('p', '', { text: 'All sounds are soft by design. Move the slider until the sample feels gentle.' }));
+            modal.appendChild(glossyHeading('h2', 'Volume check', 'modal-title'));
+            modal.appendChild(element('p', '', { text: 'Is this volume comfortable? All sounds are soft by design. Move the slider until the sample feels gentle.' }));
             const slider = element('input', 'comfort-slider', { type: 'range', min: '0', max: '1', step: '0.05', value: String(settings.master_volume), id: 'comfort-slider', 'aria-label': 'Overall volume' });
             slider.addEventListener('input', () => actions.change('master_volume', parseFloat(slider.value)));
             slider.addEventListener('change', () => actions.soundCheck());
