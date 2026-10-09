@@ -139,7 +139,7 @@ module.exports = [
   {
     id: 17, name: 'Beat the Clock', role: 'tutorial', time: 60, colors: 5, seed: 17017, rows: 8, cols: 8,
     layout: FULL8.slice(),
-    goals: [{ type: 'collect', color: 2, count: 25 }],
+    goals: [{ type: 'collect', color: 2, count: 40 }],
     newMechanic: 'timed',
     tutorial: 'A timed level! Collect the candies before the clock runs out. Every special candy adds 2 seconds.',
     tip: 'Quick matches first, think later!',
@@ -178,7 +178,7 @@ module.exports = [
   {
     id: 22, name: 'Cocoa Creep', role: 'tutorial', moves: 22, colors: 5, seed: 22022, rows: 8, cols: 8,
     layout: ['........', '........', '........', '...oo...', '........', '........', '........', '........'],
-    goals: [{ type: 'collect', color: 1, count: 20 }],
+    goals: [{ type: 'collect', color: 1, count: 30 }],
     newMechanic: 'cocoa',
     tutorial: "Cocoa spreads after any move that doesn't clear some. Match next to it to clean it up!",
     tip: 'Keep the cocoa in check every few moves.',
@@ -200,7 +200,7 @@ module.exports = [
     tip: 'Match a fuse candy, or blast it, to defuse it.',
   },
   {
-    id: 25, name: 'Sweet Summit', role: 'hard', moves: 28, colors: 5, seed: 25025, rows: 9, cols: 9,
+    id: 25, name: 'Sweet Summit', role: 'normal', moves: 28, colors: 5, seed: 25025, rows: 9, cols: 9,
     layout: ['...c.c...', '.........', '.2.....2.', '..jjjjj..', '..j...j..', '..jjjjj..', '.2.....2.', '.........', 'xxxxxxxxx'],
     goals: [{ type: 'jelly' }, { type: 'ingredients', count: 2 }],
     newMechanic: null,

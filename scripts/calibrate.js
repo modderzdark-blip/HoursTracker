@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 // Level calibration: for each level in a range, run greedy-bot games (300 by default) and random-bot games (100) and
-// binary-search the move count (or the time limit) until the greedy win rate lands within +-8 points of the level's
-// target. Generated levels that cannot get there are regenerated with the next variant (up to 20). Star thresholds are
-// set from the winning scores. Writes the level packs (www/levels/pack-NNNN.js), the manifest, and the difficulty report
-// (docs/difficulty/difficulty.csv + difficulty.svg). Runs in parallel worker threads; seeded, so results are reproducible.
+// binary-search the move count (or the time limit) until the greedy win rate lands within the tolerance of the level's
+// target (8 points, tighter for hard levels: LEVELS.calibrationTolerance). Generated levels whose goals are too small
+// for a comfortable number of moves get bigger goals; ones that still cannot get there are regenerated with the next
+// variant (up to 20). Star thresholds are set from the winning scores. Writes the level packs
+// (www/levels/pack-NNNN.js), the manifest, and the difficulty report (docs/difficulty/difficulty.csv + difficulty.svg).
+// Runs in parallel worker threads; seeded, so results are reproducible.
 //
 // Usage:
 //   node scripts/calibrate.js --from 1 --to 60                    calibrate and write packs + report
@@ -23,7 +25,7 @@ const LEVELS = require(path.join(ROOT, 'www/js/levels.js'));
 const GENERATOR = require(path.join(ROOT, 'scripts/levels/generator.js'));
 const AUTHORED = require(path.join(ROOT, 'scripts/levels/authored.js'));
 
-const TOLERANCE = 0.08;
+const TOLERANCE = LEVELS.calibrationTolerance;
 const MAX_VARIANTS = 20;
 const MOVE_RANGE = [10, 60]; // never fewer than 10 moves: short levels feel stingy
 const TIME_RANGE = [30, 240];
@@ -118,10 +120,11 @@ function tuneParameter(level, target, games) {
 }
 
 /**
- * Sanity floor (owner feedback: levels must stay approachable for people, who play slower than the greedy bot): when the
- * random-move bot almost never wins, moves (or seconds) are added while the greedy win rate stays inside the tolerance.
+ * Sanity floor for the easy roles: when the random-move bot almost never wins a tutorial, breather or normal level,
+ * moves (or seconds) are added while the greedy win rate stays inside the tolerance. Hard and super hard levels have no
+ * floor: like the original's, they are meant to take several tries (owner request: match the original's difficulty).
  */
-const RANDOM_FLOOR = Object.freeze({ tutorial: 0.3, breather: 0.25, normal: 0.12, hard: 0.05, superhard: 0.02 });
+const RANDOM_FLOOR = Object.freeze({ tutorial: 0.3, breather: 0.1, normal: 0.02, hard: 0, superhard: 0 });
 
 function applyRandomFloor(level, role, target, tuned, random_games) {
   const timed = !!level.time;
@@ -133,7 +136,7 @@ function applyRandomFloor(level, role, target, tuned, random_games) {
   let random = runGames(withParameter(level, value), random_games, 'random');
   while (random.win_rate < floor && value + step <= upper) {
     const next_greedy = runGames(withParameter(level, value + step), greedy.games, 'greedy');
-    if (next_greedy.win_rate > target + TOLERANCE) break;
+    if (next_greedy.win_rate > target + TOLERANCE(target)) break;
     value += step;
     greedy = next_greedy;
     random = runGames(withParameter(level, value), random_games, 'random');
@@ -141,19 +144,55 @@ function applyRandomFloor(level, role, target, tuned, random_games) {
   return { value, greedy, random, evaluations: tuned.evaluations };
 }
 
+/**
+ * A copy of the level with bigger goals (collect counts and special-candy orders grow by `factor`), or null when it has
+ * nothing to grow (jelly, ingredients and blocker orders are fixed by the layout).
+ */
+function withBiggerGoals(level, factor) {
+  let grew = false;
+  const copy = JSON.parse(JSON.stringify(level));
+  copy.goals.forEach((goal) => {
+    if (goal.type === 'collect' && goal.count < 99) {
+      goal.count = Math.min(99, Math.max(goal.count + 1, Math.round(goal.count * factor)));
+      grew = true;
+    } else if (goal.type === 'order' && ['striped', 'wrapped', 'bomb'].indexOf(goal.item) >= 0 && goal.count < 12) {
+      goal.count = Math.min(12, Math.max(goal.count + 1, Math.round(goal.count * factor)));
+      grew = true;
+    }
+  });
+  return grew ? copy : null;
+}
+
+// Like the original's levels, a generated level should give a decent number of moves (and a big goal) rather than a
+// tiny goal in a handful of moves, where luck decides everything: while the tuned setting is below this, goals grow.
+const COMFORT = Object.freeze({ moves: 15, time: 45 });
+const MAX_GOAL_GROWTH = 5;
+
 function calibrateLevel(level_number, options) {
   const games = options.games;
   const random_games = options.random_games;
   const authored = level_number <= AUTHORED.length;
   let best = null;
   for (let variant = 0; variant < (authored ? 1 : MAX_VARIANTS); variant += 1) {
-    const candidate = candidateFor(level_number, variant);
+    let candidate = candidateFor(level_number, variant);
     const role = candidate.role || LEVELS.scheduledRole(level_number);
     const target = LEVELS.targetWinRate(level_number, role);
-    const tuned = tuneParameter(candidate, target, games);
+    let tuned = tuneParameter(candidate, target, games);
+    for (let growth = 0; growth < MAX_GOAL_GROWTH; growth += 1) {
+      const floor = candidate.time ? TIME_RANGE[0] : MOVE_RANGE[0];
+      const too_easy_at_floor = tuned.value === floor && tuned.greedy.win_rate > target + TOLERANCE(target);
+      // Authored levels keep their goals as written (edit scripts/levels/authored.js instead).
+      const wants_more = !authored && (too_easy_at_floor || tuned.value < (candidate.time ? COMFORT.time : COMFORT.moves));
+      const bigger = wants_more ? withBiggerGoals(candidate, 1.35) : null;
+      if (!bigger) break;
+      const retuned = tuneParameter(bigger, target, games);
+      if (Math.abs(retuned.greedy.win_rate - target) > TOLERANCE(target) && Math.abs(tuned.greedy.win_rate - target) <= TOLERANCE(target)) break;
+      candidate = bigger;
+      tuned = retuned;
+    }
     const error = Math.abs(tuned.greedy.win_rate - target);
     if (!best || error < best.error) best = { candidate, role, target, tuned, error, variant };
-    if (error <= TOLERANCE) break;
+    if (error <= TOLERANCE(target)) break;
   }
   const floored = applyRandomFloor(best.candidate, best.role, best.target, best.tuned, random_games);
   best.tuned = floored;
@@ -172,7 +211,7 @@ function calibrateLevel(level_number, options) {
       target: Number(best.target.toFixed(3)),
       win_rate: Number(best.tuned.greedy.win_rate.toFixed(3)),
       random_win_rate: Number(random.win_rate.toFixed(3)),
-      within_tolerance: best.error <= TOLERANCE,
+      within_tolerance: best.error <= TOLERANCE(best.target),
       variant: best.variant,
       parameter: level.time ? `time ${level.time}s` : `moves ${level.moves}`,
       median_final: percentile(best.tuned.greedy.win_final_scores, 0.5),
@@ -260,13 +299,13 @@ function svgChart(rows) {
   const parts = [];
   parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="sans-serif" font-size="12">`);
   parts.push(`<rect width="${width}" height="${height}" fill="#fffaf4"/>`);
-  parts.push(`<text x="${margin.left}" y="18" font-size="14" font-weight="bold" fill="#3b1a4a">Greedy-bot win rate per level (target line and +-8 point band)</text>`);
+  parts.push(`<text x="${margin.left}" y="18" font-size="14" font-weight="bold" fill="#3b1a4a">Greedy-bot win rate per level (target line and tolerance band)</text>`);
   [0, 0.25, 0.5, 0.75, 1].forEach((rate) => {
     parts.push(`<line x1="${margin.left}" x2="${width - margin.right}" y1="${y(rate)}" y2="${y(rate)}" stroke="#e6dce8"/>`);
     parts.push(`<text x="${margin.left - 8}" y="${y(rate) + 4}" text-anchor="end" fill="#6b5874">${Math.round(rate * 100)}%</text>`);
   });
-  const band_upper = rows.map((row) => `${x(row.id)},${y(Math.min(1, row.target + TOLERANCE))}`).join(' ');
-  const band_lower = rows.slice().reverse().map((row) => `${x(row.id)},${y(Math.max(0, row.target - TOLERANCE))}`).join(' ');
+  const band_upper = rows.map((row) => `${x(row.id)},${y(Math.min(1, row.target + TOLERANCE(row.target)))}`).join(' ');
+  const band_lower = rows.slice().reverse().map((row) => `${x(row.id)},${y(Math.max(0, row.target - TOLERANCE(row.target)))}`).join(' ');
   parts.push(`<polygon points="${band_upper} ${band_lower}" fill="#ffd36e" opacity="0.35"/>`);
   parts.push(`<polyline points="${rows.map((row) => `${x(row.id)},${y(row.target)}`).join(' ')}" fill="none" stroke="#c48a00" stroke-width="2"/>`);
   parts.push(`<polyline points="${rows.map((row) => `${x(row.id)},${y(row.win_rate)}`).join(' ')}" fill="none" stroke="#3b1a4a" stroke-width="1.2" opacity="0.5"/>`);

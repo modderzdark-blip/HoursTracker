@@ -1066,14 +1066,18 @@
     assert.strictEqual(LEVELS.getLevel(100000), null);
     assert.strictEqual(LEVELS.getLevel(1.5), null);
     for (let level_number = 1; level_number <= LEVELS.shippedCount(); level_number += 1) assert.strictEqual(LEVELS.getLevel(level_number).id, level_number);
-    assert.deepStrictEqual([30, 31, 45, 46, 150, 151, 225, 27, 33].map(LEVELS.scheduledRole), ['hard', 'breather', 'hard', 'breather', 'superhard', 'breather', 'superhard', 'breather', 'normal']);
+    // Episodes follow the original's shape: an easy opener, hard levels in the middle with an easier one after each,
+    // and a hard gate at the end (super hard every 5th episode). The first two episodes are the on-ramp.
+    assert.deepStrictEqual([27, 30, 31, 37, 38, 43, 45, 46, 75, 150, 151].map(LEVELS.scheduledRole), ['normal', 'hard', 'breather', 'hard', 'breather', 'breather', 'hard', 'breather', 'superhard', 'superhard', 'breather']);
+    assert.deepStrictEqual([3, 5, 10].map((episode) => LEVELS.hardPositions(episode)), [[7], [9, 5], [8, 4, 11]]);
     const close = (actual, expected, label) => assert.ok(Math.abs(actual - expected) < 1e-9, `${label}: ${actual} vs ${expected}`);
-    close(LEVELS.baseWinRate(400), 0.95 - 0.6 * (1 - Math.exp(-1)), 'target(400)');
-    close(LEVELS.baseWinRate(20000), 0.95 - 0.6 * (1 - Math.exp(-50)), 'target(20000)');
-    assert.ok(LEVELS.baseWinRate(99999) >= 0.3 && LEVELS.baseWinRate(1) <= 0.95, 'clamped to 0.30-0.95');
-    close(LEVELS.targetWinRate(400, 'breather'), Math.min(0.9, LEVELS.baseWinRate(400) + 0.15), 'breather +0.15');
-    close(LEVELS.targetWinRate(400, 'hard'), LEVELS.baseWinRate(400) - 0.15, 'hard -0.15');
-    close(LEVELS.targetWinRate(20000, 'superhard'), Math.max(0.1, LEVELS.baseWinRate(20000) - 0.25), 'superhard -0.25');
+    close(LEVELS.baseWinRate(145), 0.27 + 0.36 * Math.exp(-1), 'base(145)');
+    close(LEVELS.baseWinRate(20000), 0.27, 'base(20000)');
+    close(LEVELS.targetWinRate(400, 'breather'), Math.min(0.9, LEVELS.baseWinRate(400) + 0.2), 'breather +0.20');
+    close(LEVELS.targetWinRate(400, 'hard'), LEVELS.baseWinRate(400) * 0.35, 'hard x0.35');
+    close(LEVELS.targetWinRate(20000, 'superhard'), LEVELS.baseWinRate(20000) * 0.18, 'superhard x0.18');
+    close(LEVELS.calibrationTolerance(0.6), 0.08, 'tolerance 8 points');
+    close(LEVELS.calibrationTolerance(0.05), 0.03, 'tolerance at least 3 points');
     assert.deepStrictEqual([1, 15, 16, 20000].map(LEVELS.episodeOf), [1, 1, 2, 1334]);
     assert.deepStrictEqual(LEVELS.episodeRange(2), { first: 16, last: 30 });
     assert.strictEqual(LEVELS.SCENERY_FAMILIES.length, 12);

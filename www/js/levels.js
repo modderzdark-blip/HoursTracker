@@ -113,16 +113,34 @@
   }
 
   // ---------------------------------------------------------------- difficulty roles and targets
+  //
+  // Matched to Candy Crush Saga player data (attempt logs for one 15-level episode, as published in the DataCamp
+  // "Level difficulty in Candy Crush Saga" sample): the first level of an episode was passed on about 62% of attempts,
+  // ordinary levels on 20-45%, hard ones on 4-14%, and the episode's last level, its gate, on about 4%. The same shape
+  // is used here, measured with the greedy bot (one attempt = one game): episodes open easy, have one to three hard
+  // levels in the middle, an easier level after each hard one, and end on a hard gate (super hard every 5th episode).
+  // The first two episodes are the gentle on-ramp, as in the original.
 
   const ROLES = Object.freeze(['normal', 'breather', 'hard', 'superhard', 'tutorial']);
 
+  /** Positions (1-15) of the hard levels inside an episode, besides its gate at 15. */
+  function hardPositions(episode_number) {
+    const positions = [];
+    if (episode_number >= 3) positions.push(7 + (episode_number % 3)); // 7, 8 or 9
+    if (episode_number >= 5) positions.push(4 + (episode_number % 2)); // 4 or 5
+    if (episode_number >= 10) positions.push(11 + (episode_number % 2)); // 11 or 12
+    return positions;
+  }
+
   /** The role a level number gets from the schedule (authored levels may override it in their record). */
   function scheduledRole(level_number) {
-    if (level_number >= 150 && level_number % 75 === 0) return 'superhard';
-    if (level_number >= 30 && level_number % 15 === 0) return 'hard';
-    const previous = level_number - 1;
-    if (previous >= 30 && previous % 15 === 0) return 'breather'; // always right after a hard or superhard level
-    if (level_number % 10 === 7) return 'breather';
+    const position = ((level_number - 1) % EPISODE_SIZE) + 1;
+    if (level_number >= 2 * EPISODE_SIZE && position === EPISODE_SIZE) return level_number % (5 * EPISODE_SIZE) === 0 ? 'superhard' : 'hard';
+    if (level_number <= 2 * EPISODE_SIZE) return 'normal';
+    const hard = hardPositions(episodeOf(level_number));
+    if (hard.indexOf(position) >= 0) return 'hard';
+    // After every hard level (and the gate before it), and just before the run-up to the gate: an easier one.
+    if (position === 1 || hard.indexOf(position - 1) >= 0 || position === 13) return 'breather';
     return 'normal';
   }
 
@@ -131,23 +149,30 @@
     return record && record.role ? record.role : scheduledRole(level_number);
   }
 
-  /** Long-run curve for a normal level: about 90% at level 50, 57% at 400, settling near 35% after about 2,000. */
+  /**
+   * Long-run curve for a normal level: about 62% per attempt after the first two episodes, 46% at level 100, 35% at
+   * 200, settling near 27% (a typical later level takes three or four tries, as in the original).
+   */
   function baseWinRate(level_number) {
-    const value = 0.95 - 0.6 * (1 - Math.exp(-level_number / 400));
-    return Math.min(0.95, Math.max(0.3, value));
+    return 0.27 + 0.36 * Math.exp(-Math.max(0, level_number - 25) / 120);
   }
 
   /** Target greedy-bot win rate for a level (the hand-authored opening has its own targets). */
   function targetWinRate(level_number, role) {
-    if (level_number <= 3) return 0.98;
+    if (level_number <= 3) return 0.97;
     if (level_number <= 10) return 0.92;
-    if (level_number <= 25) return 0.85 - (0.15 * (level_number - 11)) / 14;
+    if (level_number <= 25) return 0.85 - (0.22 * (level_number - 11)) / 14;
     const base = baseWinRate(level_number);
     const level_role = role || scheduledRole(level_number);
-    if (level_role === 'breather') return Math.min(0.9, base + 0.15);
-    if (level_role === 'hard') return base - 0.15;
-    if (level_role === 'superhard') return Math.max(0.1, base - 0.25);
+    if (level_role === 'breather') return Math.min(0.9, base + 0.2);
+    if (level_role === 'hard') return base * 0.35;
+    if (level_role === 'superhard') return base * 0.18;
     return base;
+  }
+
+  /** How close the calibrated win rate must land: 8 points, tighter for the rare-win hard levels (at least 3). */
+  function calibrationTolerance(target) {
+    return Math.min(0.08, Math.max(0.03, target * 0.3));
   }
 
   // ---------------------------------------------------------------- episodes and scenery
@@ -221,6 +246,8 @@
     roleOf,
     baseWinRate,
     targetWinRate,
+    calibrationTolerance,
+    hardPositions,
     episodeOf,
     episodeRange,
     episodeName,

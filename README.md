@@ -51,6 +51,12 @@ The repository is public, so you don't need to sign in to download.
   Sugar Belts, cherries and hazelnuts with exit trays.
 * **Modes:** collect candies, jelly, ingredients, Candy Order (specials, blockers), timed (collect candies before the clock runs out; each special adds 2 seconds)
   and mixed goals, with a goal tracker that pops when a goal completes.
+* **Difficulty:** matched to Candy Crush Saga player data (attempt logs for one 15-level episode: openers passed on
+  about 62% of tries, ordinary levels 20–45%, hard ones 4–14%, the episode's last level about 4%). Levels 1–30 are the
+  gentle on-ramp. After that every episode opens with an easy level, has one to three **Hard levels** in the middle
+  with an easier one after each, and ends on a hard gate (a **Super hard level** every 5th episode). Measured with the
+  greedy bot, one game per try: ordinary levels ease from about 60% down to 27%, hard ones about 10–20%, super hard
+  about 5–9% (`LEVELS.targetWinRate`, report in `docs/difficulty/`).
 * **Hints:** the suggested move glows and its candy nudges toward its spot. Settings → Auto hint: **Instant** (default),
   3 s, 8 s or Off; the bulb button shows it any time. Hints prefer the move that wins, then goal progress, then specials.
 * **Meta game:** Hearts (5, one refills every 30 minutes; Settings → Unlimited hearts turns them off), Gold Drops

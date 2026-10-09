@@ -3,7 +3,7 @@
 //  - one new idea per level, and no idea before its unlock level (levels 1-360: shipped + generated)
 //  - the generator's unlock schedule, colour schedule, complexity budget and blocker cap
 //  - 40+ board templates; no goal mode more than three times in a row
-//  - the calibrated curve: every shipped level inside +-8 points of its target
+//  - the calibrated curve: every shipped level inside its tolerance of its target (8 points, tighter for hard levels)
 //  - scale: 300 consecutive generated levels (61-360) plus a sample up to 20,000 validate, deterministically and fast
 // Usage: node tests/levels.test.js
 'use strict';
@@ -140,7 +140,7 @@ test('40+ board templates, all valid; no goal mode more than three times in a ro
   }
 });
 
-test('the calibrated curve: every shipped level within 8 points of its target', () => {
+test('the calibrated curve: every shipped level within its tolerance of its target', () => {
   const csv = fs.readFileSync(path.join(ROOT, 'docs/difficulty/difficulty.csv'), 'utf8').trim().split('\n');
   const header = csv[0].split(',');
   const rows = csv.slice(1).map((line) => {
@@ -154,12 +154,17 @@ test('the calibrated curve: every shipped level within 8 points of its target', 
     const level = LEVELS.getLevel(Number(row.level));
     const target = LEVELS.targetWinRate(level.id, level.role);
     assert.ok(Math.abs(Number(row.target) - target) < 0.001, `level ${level.id}: report target ${row.target} vs ${target.toFixed(3)}`);
-    assert.ok(Math.abs(Number(row.win_rate) - target) <= 0.08 + 1e-9, `level ${level.id}: ${row.win_rate} vs target ${target.toFixed(3)}`);
+    assert.ok(Math.abs(Number(row.win_rate) - target) <= LEVELS.calibrationTolerance(target) + 1e-9, `level ${level.id}: ${row.win_rate} vs target ${target.toFixed(3)}`);
     assert.deepStrictEqual([Number(row.star1), Number(row.star2), Number(row.star3)], level.stars, `level ${level.id} stars match the report`);
   });
-  for (let level_number = 26; level_number <= 400; level_number += 1) {
+  // The Candy Crush-matched shape: normal levels ease down to about 27%, hard ones take several tries.
+  let previous = 1;
+  for (let level_number = 26; level_number <= 2000; level_number += 1) {
     const base = LEVELS.baseWinRate(level_number);
-    assert.ok(Math.abs(base - Math.min(0.95, Math.max(0.3, 0.95 - 0.6 * (1 - Math.exp(-level_number / 400))))) < 1e-12);
+    assert.ok(base <= previous + 1e-12 && base >= 0.27 && base <= 0.63, `base(${level_number}) = ${base}`);
+    previous = base;
+    const hard = LEVELS.targetWinRate(level_number, 'hard');
+    assert.ok(hard >= 0.09 && hard <= 0.23 && LEVELS.targetWinRate(level_number, 'superhard') < hard, `hard targets at ${level_number}`);
   }
 });
 
