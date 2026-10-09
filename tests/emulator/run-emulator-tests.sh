@@ -121,7 +121,9 @@ play_step() { # one step of "keep playing" from whatever screen is showing (used
     lose) tap_button "btn-retry"; sleep 2 ;;
     pause) tap_button "btn-resume"; sleep 1 ;;
     hearts) tap_button "btn-hearts-unlimited"; sleep 1.5 ;;
-    MAP) tap_map_node "$(q 's.unlocked')"; sleep 1.5 ;;
+    MAP)
+      if [ "$(q "px(s.map_nodes[String(s.unlocked)])")" = "none" ]; then tap_button "btn-map-mine"; else tap_map_node "$(q 's.unlocked')"; fi
+      sleep 1.5 ;;
     *) sleep 1 ;;
   esac
   return 1
@@ -408,9 +410,8 @@ adb forward --remove tcp:9333 > /dev/null 2>&1
 log "seeded: $(cat "$OUT/seed-19000.json")"
 metric save_19000_bytes "$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).save_bytes)' "$OUT/seed-19000.json")"
 metric save_19000_parse_ms "$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).parse_ms)' "$OUT/seed-19000.json")"
-sleep 3
-wait_fresh "$before_seed"
-wait_for "s.ready && s.state === 'TITLE' && s.unlocked === 19000" 60 "the game to reload with the level-19,000 save"
+# The page reloads, so the hook starts counting again: a snapshot numbered below the one before seeding is a new page.
+wait_for "s.seq < $before_seed && s.ready && s.state === 'TITLE' && s.unlocked === 19000" 90 "the game to reload with the level-19,000 save"
 tap_button "btn-play"
 wait_for "s.state === 'MAP' && s.map_nodes['18999'] !== undefined" 30 "the map at level 19,000"
 sleep 2
@@ -448,9 +449,7 @@ adb forward tcp:9333 "localabstract:$devtools_socket" > /dev/null
 before_restore=$(fresh)
 node tests/emulator/cdp-eval.mjs 9333 tests/emulator/restore-save.js > "$OUT/restore-save.json" || fail "restoring the player's save failed"
 adb forward --remove tcp:9333 > /dev/null 2>&1
-sleep 3
-wait_fresh "$before_restore"
-wait_for "s.ready && s.state === 'TITLE' && s.unlocked < 19000" 60 "the game to reload with the player's own save"
+wait_for "s.seq < $before_restore && s.ready && s.state === 'TITLE' && s.unlocked < 19000" 90 "the game to reload with the player's own save"
 
 # --- "Exit game?" -> Exit really closes the app
 for attempt in $(seq 1 12); do
