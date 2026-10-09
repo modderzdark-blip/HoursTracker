@@ -5,7 +5,7 @@
 
   const CONFIG = {
     GAME_TITLE: 'Sweet Cascade',
-    VERSION: '1.1.0',
+    VERSION: '1.2.0',
 
     // Candy set: the classic candy-shop six, each with a distinct color AND shape. SPRITES shades them (same table there).
     CANDIES: [

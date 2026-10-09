@@ -288,6 +288,23 @@ button:focus-visible, input:focus-visible, .map-node:focus-visible {
 .board-slot { flex: 1; min-height: 0; margin: 6px 8px; pointer-events: none !important; }
 .game-bar { display: flex; justify-content: center; gap: 26px; padding: 4px 12px 12px; }
 
+.goal-ribbon {
+  position: absolute; left: 0; right: 0; top: 40%; z-index: 6; pointer-events: none !important;
+  display: none; flex-direction: column; align-items: center; gap: 6px; padding: 12px 16px 14px;
+  background: linear-gradient(180deg, rgba(255, 128, 196, 0.95), rgba(214, 51, 132, 0.95));
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.85), 0 10px 24px rgba(8, 20, 70, 0.35);
+  color: #ffffff; text-align: center;
+}
+.goal-ribbon.is-showing { display: flex; animation: ribbon-sweep 1.9s ease forwards; }
+.app.reduced-motion .goal-ribbon.is-showing { animation: ribbon-fade 1.5s ease forwards; }
+@keyframes ribbon-sweep { 0% { transform: translateX(-110%); } 16% { transform: translateX(0); } 82% { transform: translateX(0); } 100% { transform: translateX(110%); } }
+@keyframes ribbon-fade { 0% { opacity: 0; } 15%, 80% { opacity: 1; } 100% { opacity: 0; } }
+.goal-ribbon-title { font-size: clamp(24px, 7.5vw, 34px); }
+.goal-ribbon-items { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; }
+.goal-ribbon-item { display: flex; align-items: center; gap: 6px; font-size: 26px; font-weight: 900; font-variant-numeric: tabular-nums; text-shadow: 0 2px 0 #7a1048; }
+.goal-ribbon-item img { width: 52px; height: 52px; }
+.goal-ribbon-note { font-size: 15px; font-weight: 800; text-shadow: 0 1px 0 #7a1048; }
+
 .banner {
   position: absolute; left: 0; right: 0; top: 44%;
   text-align: center; z-index: 5; pointer-events: none !important;
@@ -299,6 +316,16 @@ button:focus-visible, input:focus-visible, .map-node:focus-visible {
 @keyframes banner-pop { 0% { opacity: 0; transform: scale(0.4) rotate(-8deg); } 18% { opacity: 1; transform: scale(1.12) rotate(3deg); } 30% { transform: scale(1) rotate(-2deg); } 78% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.2) translateY(-20px); } }
 @keyframes banner-fade { 0% { opacity: 0; transform: none; } 20%, 75% { opacity: 1; transform: none; } 100% { opacity: 0; transform: none; } }
 .banner.is-small { font-size: clamp(26px, 8vw, 44px); padding: 0 16px; }
+
+.heart-break { position: absolute; left: 50%; top: 42%; width: 120px; height: 120px; margin: -60px 0 0 -60px; z-index: 40; pointer-events: none !important; }
+.heart-half { position: absolute; inset: 0; width: 100%; height: 100%; }
+.heart-half-left { clip-path: polygon(0 0, 52% 0, 44% 30%, 56% 52%, 46% 76%, 50% 100%, 0 100%); animation: heart-left 1.5s ease-in forwards; }
+.heart-half-right { clip-path: polygon(52% 0, 100% 0, 100% 100%, 50% 100%, 46% 76%, 56% 52%, 44% 30%); animation: heart-right 1.5s ease-in forwards; }
+.heart-break-count { position: absolute; left: 0; right: 0; top: 100%; text-align: center; font-size: 40px; font-weight: 900; opacity: 0; animation: heart-count 1.5s ease forwards; }
+@keyframes heart-left { 0% { transform: scale(0.3); opacity: 0; } 18% { transform: scale(1.15); opacity: 1; } 30%, 42% { transform: scale(1); } 46% { transform: translateX(-3px) rotate(-4deg); } 100% { transform: translate(-46px, 120px) rotate(-38deg); opacity: 0; } }
+@keyframes heart-right { 0% { transform: scale(0.3); opacity: 0; } 18% { transform: scale(1.15); opacity: 1; } 30%, 42% { transform: scale(1); } 46% { transform: translateX(3px) rotate(4deg); } 100% { transform: translate(46px, 120px) rotate(38deg); opacity: 0; } }
+@keyframes heart-count { 0%, 40% { opacity: 0; transform: translateY(10px); } 55% { opacity: 1; transform: translateY(0); } 85% { opacity: 1; } 100% { opacity: 0; transform: translateY(-16px); } }
+.app.reduced-motion .heart-half, .app.reduced-motion .heart-break-count { animation: banner-fade 1.4s ease forwards; }
 
 .tutorial-bubble {
   pointer-events: none !important;

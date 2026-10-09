@@ -57,7 +57,9 @@ The repository is public, so you don't need to sign in to download.
   earned by winning, the boosters Sweet Hammer, Free Swap and Candy Whirl in a level, Lucky Start, Rainbow Start and
   Head Start before a level, **+5 Moves** (or +15 seconds) when you run out, the Daily Wheel, the Sweet Streak (a reward
   every 3 wins in a row) and the Star Chest (every 25 stars). Everything is earned in play; nothing is sold.
-* **Sweet Finale:** moves left at the end turn into striped candies that fire for bonus points.
+* **Level start and end:** the candies drop onto the board while a ribbon sweeps across with the goals. A win plays
+  "Sweet Victory!" and then the **Sweet Finale** (moves left turn into striped candies that fire for bonus points). A
+  loss pops "Out of moves!" (or "Time's up!") over the board before the keep-going popup, and giving up cracks a heart.
 * **Juice:** squash and stretch, gravity falls, pops with particles, beams and shockwaves, cascade banners
   ("Tasty!" … "Sugar Storm!"), confetti, Pip's reactions and haptics. Animation speed: Normal, Snappy (default) or Fast.
 * **Personal touches:** your name on the title and win screen, a background photo picked with the system photo picker
@@ -91,7 +93,7 @@ Game code is plain script files loaded in order, each one labelled section on `w
 `config.js`, `util.js`, `logic.js` (LOGIC: pure and DOM-free), `levels/manifest.js` + `levels.js` (LEVELS: lazy packs),
 `audio.js`, `sprites.js` (the shader), `scenery.js`, `pip.js`, `render.js`, `storage.js`, `meta.js` (hearts, gold,
 boosters, wheel, streak, chest), `selftest.js`, `ui.js`, `map.js`, `input.js`, `game.js` (state machine: TITLE → MAP →
-INTRO → PLAYING → RESOLVING → WON/LOST, plus PAUSED) and `boot.js`.
+INTRO → STARTING → PLAYING → RESOLVING → WON/LOST, plus PAUSED) and `boot.js`.
 
 **Architecture rule:** `LOGIC.applySwap(state, from, to)` computes the full result of a move instantly and
 deterministically and returns the new state plus an event list (swap, match, clear, create, fall, spawn, collect, jelly,

@@ -443,6 +443,53 @@
       },
 
       // ------------------------------------------------------------ banners, toasts, live region
+      /**
+       * The level-start goal ribbon: a band sweeps across the board with the goals ("Collect the candies!" and each
+       * candy with its count), holds, and sweeps out. Returns its length in ms (the game waits for it before play).
+       */
+      showGoalIntro(goals, options) {
+        const ribbon = dom.goal_ribbon;
+        if (!ribbon) return 0;
+        const types = new Set(goals.map((goal) => goal.type));
+        let title = 'Reach every goal!';
+        if (types.size === 1) {
+          if (types.has('collect')) title = goals.length > 1 ? 'Collect these candies!' : 'Collect the candies!';
+          else if (types.has('jelly')) title = 'Clear all the jelly!';
+          else if (types.has('ingredients')) title = 'Bring the treats down!';
+          else if (types.has('order')) title = 'Complete the order!';
+        }
+        ribbon.innerHTML = '';
+        ribbon.appendChild(element('div', 'goal-ribbon-title glossy-text', { 'data-text': title, text: title }));
+        const counted = goals.filter((goal) => goal.type !== 'jelly');
+        if (counted.length) {
+          const items = element('div', 'goal-ribbon-items');
+          counted.forEach((goal) => {
+            const item = element('div', 'goal-ribbon-item');
+            item.appendChild(element('img', '', { src: goalIcon(goal, 52), alt: '' }));
+            item.appendChild(element('span', '', { text: String(goal.count || goal.target || '') }));
+            items.appendChild(item);
+          });
+          ribbon.appendChild(items);
+        }
+        if (options && options.timed) ribbon.appendChild(element('div', 'goal-ribbon-note', { text: 'before the clock runs out!' }));
+        const total_ms = root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches ? 1500 : 1900;
+        ribbon.classList.remove('is-showing');
+        void ribbon.offsetWidth;
+        ribbon.classList.add('is-showing');
+        clearTimeout(ribbon.hide_timer);
+        ribbon.hide_timer = setTimeout(() => ribbon.classList.remove('is-showing'), total_ms + 50);
+        return total_ms;
+      },
+      /** A lost heart: the heart pops up over everything, cracks in two and the halves fall away with a "-1". */
+      heartBreak() {
+        const holder = element('div', 'heart-break', { 'aria-hidden': 'true' });
+        const url = SPRITES.iconUrl('heart', 192);
+        holder.appendChild(element('img', 'heart-half heart-half-left', { src: url, alt: '' }));
+        holder.appendChild(element('img', 'heart-half heart-half-right', { src: url, alt: '' }));
+        holder.appendChild(element('div', 'heart-break-count glossy-text', { 'data-text': '-1', text: '-1' }));
+        dom.app.appendChild(holder);
+        setTimeout(() => holder.remove(), 1600);
+      },
       showBanner(text, rainbow, small) {
         clearTimeout(banner_timer);
         dom.banner.innerHTML = '';

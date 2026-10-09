@@ -25,6 +25,8 @@
     let hint_visible = false;
     let current_hint = null;
     let tutorial_active = false;
+    let opening = false; // the level opening (candies drop in, the goal ribbon) is playing: input and clock wait
+    let opening_token = 0;
     let tracker = null;
     let hud_dirty = false;
     let photo_data_url = env.photo || null;
@@ -240,7 +242,7 @@
 
     /** Whether the level clock runs: only while the board is in play and nothing covers it. */
     function clockRunning() {
-      return !!(logic_state && logic_state.timed && (machine === STATE.PLAYING || machine === STATE.RESOLVING) && !ui.topModal() && !app_hidden);
+      return !!(logic_state && logic_state.timed && (machine === STATE.PLAYING || machine === STATE.RESOLVING) && !opening && !ui.topModal() && !app_hidden);
     }
 
     function timeLeftMs() {
@@ -520,7 +522,6 @@
       paused_from = null;
       native.keepAwake(true);
       audio.setMusic('level');
-      if (Object.keys(boosters).length) ui.showBanner('Boosters ready!', false, true);
       if (level.tutorial && !save().tutorials_seen[level_id]) {
         tutorial_active = true;
         ui.keepTutorial(false);
@@ -529,6 +530,22 @@
       }
       const goal_text = level.goals.map((goal) => ui.goalText(goal)).join(', ');
       ui.announce(`Level ${level.id}, ${level.name}. ${level.time ? `${level.time} seconds` : `${level.moves} moves`}. Goals: ${goal_text}.`);
+      playOpening(Object.keys(boosters).length > 0);
+    }
+
+    /** The level opening: the candies drop into the board while the goal ribbon sweeps across, then play begins. */
+    async function playOpening(has_boosters) {
+      // A restart or a quit during the opening starts a new one (or none): only the latest may finish it.
+      opening_token += 1;
+      const token = opening_token;
+      opening = true;
+      const ribbon_ms = ui.showGoalIntro(level.goals, { timed: !!level.time });
+      const dropped = await renderer.playEntrance(playbackHooks());
+      const waited = dropped && token === opening_token ? await renderer.timeline.wait(Math.max(0, ribbon_ms - 900)) : false;
+      if (token !== opening_token) return;
+      opening = false;
+      if (!waited || machine !== STATE.PLAYING) return;
+      if (has_boosters) ui.showBanner('Boosters ready!', false, true);
       boardIdle();
     }
 
@@ -562,7 +579,7 @@
     }
 
     function showHint(source) {
-      if (machine !== STATE.PLAYING || !logic_state || armed_booster) return;
+      if (machine !== STATE.PLAYING || opening || !logic_state || armed_booster) return;
       const move = LOGIC.findHint(logic_state);
       if (!move) return;
       current_hint = move;
@@ -667,7 +684,7 @@
     }
 
     async function onBoosterButton(name) {
-      if (machine !== STATE.PLAYING || !logic_state) return;
+      if (machine !== STATE.PLAYING || opening || !logic_state) return;
       sound('tap');
       if (armed_booster === name) {
         armed_booster = null;
@@ -798,7 +815,10 @@
       const level_at_start = level;
       sound('lose');
       ui.pip('worried', 1800);
-      if (!(await renderer.timeline.wait(600)) || level !== level_at_start) return;
+      // Like the classic games: the reason pops over the board first, then the "keep going?" popup opens.
+      const reason = logic_state.loss_reason;
+      ui.showBanner(reason === 'time' ? "Time's up!" : reason === 'fuse' ? 'Boom!' : 'Out of moves!', false, true);
+      if (!(await renderer.timeline.wait(1250)) || level !== level_at_start) return;
       showLoseModal();
     }
 
@@ -810,6 +830,7 @@
       const giveUp = () => {
         STORAGE.recordResult(save(), lost_level.id, { won: false, score: logic_state.score, stars: 0 });
         META.recordOutcome(save(), { won: false }, STORAGE.totalStars(save()));
+        if (META.heartsEnabled(settings())) ui.heartBreak();
         META.spendHeart(save(), now());
         save().meta.in_progress = 0;
         persist();
@@ -1107,7 +1128,7 @@
 
     // ---------------------------------------------------------------- wiring
     const boardInput = SC.INPUT.createBoardInput(dom.game_canvas, renderer, {
-      canInteract: () => machine === STATE.PLAYING && !ui.topModal() && !invalid_swap_playing,
+      canInteract: () => machine === STATE.PLAYING && !opening && !ui.topModal() && !invalid_swap_playing,
       getSelected: () => selected_cell,
       select,
       requestSwap,
@@ -1244,7 +1265,8 @@
       },
       // Introspection used by the automated tests (the coordinate helpers live in the debug-only test hook).
       get state() {
-        return machine;
+        // While the opening plays the level is not yet accepting moves.
+        return opening && machine === STATE.PLAYING ? 'STARTING' : machine;
       },
       get level() {
         return level;

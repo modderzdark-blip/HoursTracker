@@ -479,6 +479,48 @@
       board_visible = true;
     }
 
+    /**
+     * The level opening: every candy and ingredient drops in from above the board, column by column, landing with a
+     * small bounce (blockers, caged candies and frosting are already in place). Resolves true when it finished.
+     */
+    function playEntrance(hooks) {
+      if (settings.reduced_motion || !board) return Promise.resolve(true);
+      const drops = [];
+      let landed = 0;
+      visuals.forEach((visual) => {
+        if (visual.kind !== 'candy' && visual.kind !== 'cherry' && visual.kind !== 'hazelnut') return;
+        const cell_index = Math.round(visual.y) * board.cols + Math.round(visual.x);
+        if (display_cage[cell_index]) return;
+        const target_y = visual.y;
+        const start_y = target_y - board.rows - 1.5;
+        const delay = visual.x * 38 + (board.rows - 1 - target_y) * 24;
+        visual.y = start_y;
+        drops.push(timeline.tween(440, (t) => {
+          // A gravity fall for the first 78% of the time, then a little bounce on landing.
+          if (t < 0.78) {
+            const fall = t / 0.78;
+            visual.y = start_y + (target_y - start_y) * fall * fall;
+            return;
+          }
+          const bounce = Math.sin(((t - 0.78) / 0.22) * Math.PI) * 0.12;
+          visual.y = target_y - bounce;
+          visual.scale_y = 1 - bounce * 0.9;
+          visual.scale_x = 1 + bounce * 0.7;
+          if (t >= 1) {
+            visual.y = target_y;
+            visual.scale_x = 1;
+            visual.scale_y = 1;
+          }
+          if (t > 0.78 && !visual.entrance_landed) {
+            visual.entrance_landed = true;
+            landed += 1;
+            if (hooks && landed % 9 === 1) hooks.sound('land');
+          }
+        }, delay));
+      });
+      return Promise.all(drops).then((results) => results.every(Boolean));
+    }
+
     function visualAtCell(cell_index) {
       const position = cellXY(cell_index);
       for (const visual of visuals.values()) {
@@ -1609,6 +1651,7 @@
         const visual = visualAtCell(cell_index);
         drag = visual ? { piece_id: visual.id, dx, dy } : null;
       },
+      playEntrance,
       /** The piece drawn in a cell ({ id, color, kind, special } or null): lets tests check the screen matches the logic. */
       pieceAt(cell_index) {
         const visual = visualAtCell(cell_index);

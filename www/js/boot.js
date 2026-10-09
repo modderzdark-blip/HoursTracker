@@ -79,6 +79,7 @@
       star_mark_2: by_id('star-mark-2'),
       board_slot: by_id('board-slot'),
       banner: by_id('banner'),
+      goal_ribbon: by_id('goal-ribbon'),
       tutorial_bubble: by_id('tutorial-bubble'),
       btn_pause: by_id('btn-pause'),
       btn_hint: by_id('btn-hint'),
