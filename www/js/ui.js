@@ -1,16 +1,19 @@
-// UI: DOM screens, HUD, map, modals, banners, toasts and the accessible live region.
+// UI: DOM screens, HUD, modals, banners, toasts and the accessible live region (the map lives in MAP).
+// Every image comes from the SPRITES shader (candies, blockers, hearts, Gold Drops, stars) or from PIP; icons are
+// inline SVG. All buttons are real <button> elements with labels.
 (function attachUi(root) {
   'use strict';
   const SC = root.SC || (root.SC = {});
   const CONFIG = SC.CONFIG;
-  const ART = SC.ART;
   const LOGIC = SC.LOGIC;
   const UTIL = SC.UTIL;
+  const SPRITES = SC.SPRITES;
+  const META = SC.META;
+  const PIP = SC.PIP;
 
   // ---------------------------------------------------------------- icons (inline SVG, no icon fonts)
   const ICONS = {
     pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4.5" width="4.2" height="15" rx="1.6" fill="currentColor"/><rect x="13.8" y="4.5" width="4.2" height="15" rx="1.6" fill="currentColor"/></svg>',
-    play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4.8v14.4c0 .9 1 1.4 1.7.9l10.3-7.2a1.1 1.1 0 0 0 0-1.8L9.7 3.9C9 3.4 8 3.9 8 4.8z" fill="currentColor"/></svg>',
     hint: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5a6.8 6.8 0 0 0-4 12.3c.6.5 1 1.2 1 2V18h6v-1.2c0-.8.4-1.5 1-2A6.8 6.8 0 0 0 12 2.5z" fill="currentColor"/><rect x="9" y="19" width="6" height="2.6" rx="1.2" fill="currentColor"/><path d="M10 7.5a3 3 0 0 1 3-1.5" stroke="#fff6" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>',
     sound: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.2h3.3L12 5v14l-4.7-4.2H4z" fill="currentColor"/><path d="M15.2 8.8a4.5 4.5 0 0 1 0 6.4M17.8 6.2a8.2 8.2 0 0 1 0 11.6" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>',
     mute: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.2h3.3L12 5v14l-4.7-4.2H4z" fill="currentColor"/><path d="M15.5 9.5l5 5M20.5 9.5l-5 5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>',
@@ -21,93 +24,70 @@
     lock: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5" fill="currentColor"/><path d="M8.2 10.5V8a3.8 3.8 0 0 1 7.6 0v2.5" stroke="currentColor" stroke-width="2.4" fill="none"/></svg>',
     check: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#13b874"/><path d="M7 12.4l3.2 3.2L17.2 8.6" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     star: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.8 5.9 6.4.8-4.7 4.5 1.2 6.4L12 17.1l-5.7 3.1 1.2-6.4-4.7-4.5 6.4-.8z" fill="#ffd34d" stroke="#a3205f" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.4 9.6l2.3-.3 1-2.2" stroke="#fff9" stroke-width="1.3" fill="none" stroke-linecap="round"/></svg>',
-    star_empty: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.8 5.9 6.4.8-4.7 4.5 1.2 6.4L12 17.1l-5.7 3.1 1.2-6.4-4.7-4.5 6.4-.8z" fill="rgba(106,27,90,0.16)" stroke="rgba(106,27,90,0.4)" stroke-width="1.6" stroke-linejoin="round"/></svg>',
+    star_empty: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.8 5.9 6.4.8-4.7 4.5 1.2 6.4L12 17.1l-5.7 3.1 1.2-6.4-4.7-4.5 6.4-.8z" fill="rgba(59,26,74,0.16)" stroke="rgba(59,26,74,0.4)" stroke-width="1.6" stroke-linejoin="round"/></svg>',
+    heart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.4-7.5-10A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.9c0 5.6-7.5 10-7.5 10z" fill="#ff3b6b" stroke="#a3123f" stroke-width="1.4"/></svg>',
     restart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.1-5" stroke="currentColor" stroke-width="2.8" fill="none" stroke-linecap="round"/><path d="M18.5 3.5v4.5H14" stroke="currentColor" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    hammer: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="11" height="6.5" rx="2" fill="#ff6fb5" stroke="#3b1a4a" stroke-width="1.5"/><rect x="10.5" y="9.5" width="3.4" height="11.5" rx="1.5" transform="rotate(-8 12 15)" fill="#ffd36e" stroke="#3b1a4a" stroke-width="1.5"/><path d="M5.5 5.8h4" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/></svg>',
+    swap: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9h12l-3.2-3.2M19 15H7l3.2 3.2" stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    whirl: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12m-1.5 0a1.5 1.5 0 1 0 3 0a4 4 0 1 0-8 0a6.5 6.5 0 1 0 13 0a9 9 0 1 0-18 0" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>',
+    wheel: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="#ffd36e" stroke="#ffffff" stroke-width="2"/><path d="M12 12L12 2.5A9.5 9.5 0 0 1 21.5 12z" fill="#8ee3ff"/><path d="M12 12L21.5 12A9.5 9.5 0 0 1 12 21.5z" fill="#ff9ad5"/><path d="M12 12L12 21.5A9.5 9.5 0 0 1 2.5 12z" fill="#a6f5d1"/><circle cx="12" cy="12" r="2.8" fill="#ffffff" stroke="#3b1a4a" stroke-width="1.2"/><path d="M12 0.6l2 3.2h-4z" fill="#3b1a4a"/></svg>',
+    search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6" stroke="currentColor" stroke-width="2.8" fill="none"/><path d="M15 15l5 5" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>',
+    clock: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M12 7v5l3.5 2" stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round"/></svg>',
   };
 
   function icon(name) {
     return ICONS[name] || '';
   }
 
-  // ---------------------------------------------------------------- canvas-painted images for the DOM
-  const image_cache = new Map();
-  let icon_theme = 'classic';
-  let icon_colorblind = false;
+  // ---------------------------------------------------------------- shaded images for the DOM
+  let icon_theme = 'gummy';
 
-  function paintedImage(key, size, painter) {
-    const cache_key = `${key}:${size}:${icon_theme}:${icon_colorblind}`;
-    if (image_cache.has(cache_key)) return image_cache.get(cache_key);
-    SC.ART_FORCE_DOM_CANVAS = true;
-    const canvas = ART.createCanvas(size * 2, size * 2);
-    SC.ART_FORCE_DOM_CANVAS = false;
-    const ctx = canvas.getContext('2d');
-    painter(ctx, size * 2);
-    const url = canvas.toDataURL('image/png');
-    image_cache.set(cache_key, url);
-    return url;
+  function spriteUrl(key, size) {
+    return SPRITES.iconUrl(key, (size || 48) * 2, icon_theme);
   }
 
   function candyImage(color, special, size) {
-    return paintedImage(`candy-${color}-${special || 'none'}`, size || 48, (ctx, pixels) => {
-      ART.paintSpecial(ctx, pixels / 2, pixels / 2, pixels * 0.42, color, special || 'none', { theme: icon_theme, colorblind: icon_colorblind, scale: 2 });
-    });
+    if (special === 'bomb') return spriteUrl('bomb', size);
+    if (special && special !== 'none') return spriteUrl(`${special === 'wrapped' ? 'wrapped' : special}:${color}`, size);
+    return spriteUrl(`candy:${color}`, size);
   }
 
-  function cherryImage(size) {
-    return paintedImage('cherry', size || 48, (ctx, pixels) => ART.paintCherry(ctx, pixels / 2, pixels / 2, pixels * 0.42, 2));
-  }
-
-  function jellyImage(size, layers) {
-    return paintedImage(`jelly-${layers || 1}`, size || 48, (ctx, pixels) => {
-      ctx.fillStyle = 'rgba(255,255,255,0.5)';
-      ctx.fillRect(pixels * 0.06, pixels * 0.06, pixels * 0.88, pixels * 0.88);
-      ART.paintJelly(ctx, 0, 0, pixels, layers || 1, 2);
-    });
-  }
-
-  function frostingImage(size, layers) {
-    return paintedImage(`frosting-${layers}`, size || 48, (ctx, pixels) => ART.paintFrosting(ctx, pixels / 2, pixels / 2, pixels, layers, 2));
-  }
-
-  function scoreImage(size) {
-    return paintedImage('score-star', size || 48, (ctx, pixels) => {
-      ctx.fillStyle = '#ffd34d';
-      ctx.strokeStyle = '#a3205f';
-      ctx.lineWidth = pixels * 0.05;
-      ctx.lineJoin = 'round';
-      SC.RENDER.drawStar(ctx, pixels / 2, pixels / 2 + pixels * 0.03, pixels * 0.44, -Math.PI / 2, 5);
-      ctx.stroke();
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      ctx.beginPath();
-      ctx.ellipse(pixels * 0.42, pixels * 0.38, pixels * 0.1, pixels * 0.05, -0.6, 0, Math.PI * 2);
-      ctx.fill();
-    });
-  }
+  const ORDER_ICONS = { striped: 'stripe_row:4', wrapped: 'wrapped:0', bomb: 'bomb', frosting: 'frosting:2', cocoa: 'cocoa', cage: 'cage' };
 
   function goalIcon(goal, size) {
     if (goal.type === 'collect') return candyImage(goal.color, 'none', size);
-    if (goal.type === 'jelly') return jellyImage(size, 1);
-    if (goal.type === 'ingredients') return cherryImage(size);
-    return scoreImage(size);
+    if (goal.type === 'jelly') return spriteUrl('jelly:2', size);
+    if (goal.type === 'ingredients') return spriteUrl('cherry', size);
+    if (goal.type === 'order') return spriteUrl(ORDER_ICONS[goal.item] || 'candy:0', size);
+    return SPRITES.iconUrl('star', (size || 48) * 2);
   }
 
-  function goalLabel(goal) {
-    if (goal.type === 'collect') return `${CONFIG.CANDIES[goal.color].name}s`;
-    if (goal.type === 'jelly') return 'Glaze';
-    if (goal.type === 'ingredients') return 'Cherries';
-    return 'Score';
+  const ORDER_WORDS = {
+    striped: (count) => `Fire ${count} striped`,
+    wrapped: (count) => `Fire ${count} wrapped`,
+    bomb: (count) => `Fire ${count} Color Bomb${count === 1 ? '' : 's'}`,
+    frosting: (count) => `Break ${count} frosting layers`,
+    cocoa: (count) => `Clear ${count} Cocoa`,
+    cage: (count) => `Break ${count} cage${count === 1 ? '' : 's'}`,
+  };
+
+  function goalText(goal) {
+    if (goal.type === 'score') return `Score ${goal.target.toLocaleString('en-US')}`;
+    if (goal.type === 'collect') return `Collect ${goal.count} ${CONFIG.CANDIES[goal.color].name}`;
+    if (goal.type === 'jelly') return 'Clear all the jelly';
+    if (goal.type === 'ingredients') return `Bring down ${goal.count} ingredient${goal.count === 1 ? '' : 's'}`;
+    if (goal.type === 'order') return (ORDER_WORDS[goal.item] || ((count) => `${count} ${goal.item}`))(goal.count);
+    return goal.type;
   }
 
   function element(tag, class_name, attributes) {
     const node = document.createElement(tag);
     if (class_name) node.className = class_name;
-    if (attributes) {
-      Object.keys(attributes).forEach((key) => {
-        if (key === 'text') node.textContent = attributes[key];
-        else if (key === 'html') node.innerHTML = attributes[key];
-        else node.setAttribute(key, attributes[key]);
-      });
-    }
+    Object.keys(attributes || {}).forEach((key) => {
+      if (key === 'text') node.textContent = attributes[key];
+      else if (key === 'html') node.innerHTML = attributes[key];
+      else node.setAttribute(key, attributes[key]);
+    });
     return node;
   }
 
@@ -116,8 +96,7 @@
   }
 
   function button(text, class_name, on_click, label) {
-    const node = element('button', class_name, { type: 'button' });
-    node.textContent = text;
+    const node = element('button', class_name, { type: 'button', text });
     if (label) node.setAttribute('aria-label', label);
     node.addEventListener('click', on_click);
     return node;
@@ -129,40 +108,85 @@
     return node;
   }
 
+  function formatClock(ms) {
+    const total = Math.max(0, Math.ceil(ms / 1000));
+    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+  }
+
+  /**
+   * Star marker positions on the score meter (fractions of its width). Proportional to the thresholds, but the three
+   * stars never sit closer than STAR_MARK_GAP to each other (close thresholds would stack the markers into one blob).
+   */
+  const STAR_MARK_GAP = 0.17;
+  function starMarkPositions(stars) {
+    const top = stars[2] * 1.1;
+    const positions = stars.map((threshold) => threshold / top);
+    positions[2] = Math.min(positions[2], 0.94);
+    positions[1] = Math.min(positions[1], positions[2] - STAR_MARK_GAP);
+    positions[0] = Math.min(positions[0], positions[1] - STAR_MARK_GAP);
+    return positions;
+  }
+
+  /** Meter fill for a score, piecewise linear through the markers so each star lights exactly when the fill reaches it. */
+  function starFillFraction(score, stars, positions) {
+    const points = [[0, 0], [stars[0], positions[0]], [stars[1], positions[1]], [stars[2], positions[2]], [stars[2] * 1.1, 1]];
+    for (let index = 1; index < points.length; index += 1) {
+      const [score_b, at_b] = points[index];
+      if (score <= score_b) {
+        const [score_a, at_a] = points[index - 1];
+        return at_a + ((at_b - at_a) * (score - score_a)) / Math.max(1, score_b - score_a);
+      }
+    }
+    return 1;
+  }
+
+  function pipImage(expression, size) {
+    return element('img', 'pip-image', { src: PIP.pipImageUrl(expression, size), alt: '', width: String(size), height: String(Math.round(size * 1.15)) });
+  }
+
   function createUi(dom, hooks) {
     const modal_handles = [];
     let toast_timer = null;
     let banner_timer = null;
     let hud_level = null;
-    let map_generation = 0; // bumps on every map render so an old after-win sequence stops touching the DOM
+    let star_positions = [0.5, 0.7, 0.9];
     let hud_goal_nodes = [];
     let displayed_score = 0;
     let score_target = 0;
     let score_animation = null;
     let tutorial_fade_timer = null;
     let options_keep_tutorial = false;
+    let title_pip = null;
+    let game_pip = null;
+    let game_pip_timer = null;
 
     document.querySelectorAll('[data-icon]').forEach((node) => {
       node.innerHTML = icon(node.getAttribute('data-icon'));
     });
+    const by_id = (id) => document.getElementById(id);
 
     function clickSound() {
-      hooks.sound('click');
+      hooks.sound('tap');
     }
 
     const ui = {
       icon,
       candyImage,
-      cherryImage,
+      goalIcon,
+      goalText,
+      spriteUrl,
+      formatClock,
       showScreen(screen_name) {
         ['title', 'map', 'game'].forEach((name) => dom[`screen_${name}`].classList.toggle('is-active', name === screen_name));
         dom.app.classList.toggle('is-playing', screen_name === 'game');
-      },
-      setIconStyle(theme, colorblind) {
-        if (theme !== icon_theme || colorblind !== icon_colorblind) {
-          icon_theme = theme;
-          icon_colorblind = colorblind;
+        dom.app.classList.toggle('is-map', screen_name === 'map');
+        if (title_pip) {
+          if (screen_name === 'title') title_pip.set('wave');
+          else title_pip.stop();
         }
+      },
+      setIconStyle(theme) {
+        icon_theme = SPRITES.THEMES[theme] ? theme : 'gummy';
       },
       setAccent(accent) {
         const style = dom.app.style;
@@ -182,7 +206,7 @@
       // ------------------------------------------------------------ title
       renderTitle(player_name) {
         dom.title_greeting.textContent = player_name ? `Hi, ${player_name}!` : 'Welcome, sweet tooth!';
-        dom.title_version.textContent = `v${CONFIG.VERSION} · all art & sound made by code`;
+        dom.title_version.textContent = `v${CONFIG.VERSION} · every picture and sound is made by code`;
         dom.title_candies.innerHTML = '';
         const spots = [[8, 12, -12], [78, 9, 10], [4, 72, 8], [80, 76, -8], [16, 88, 14], [70, 88, -14], [84, 56, 6], [2, 56, -6]];
         spots.forEach(([left, top, tilt], index) => {
@@ -193,174 +217,32 @@
           image.style.animationDelay = `${index * -0.7}s`;
           dom.title_candies.appendChild(image);
         });
+        if (!title_pip && by_id('title-pip')) title_pip = PIP.createPipView(by_id('title-pip'), 96);
+        if (title_pip && dom.screen_title.classList.contains('is-active')) title_pip.set('wave');
       },
 
-      // ------------------------------------------------------------ map
-      /**
-       * Draws the candy trail. options.advance = { from, to } plays the after-win sequence: the trail scrolls up,
-       * the player's marker hops from the finished level to the next one and the new level pops open.
-       * Returns a promise that resolves (true) when the sequence has finished, or false if the map was left.
-       */
-      renderMap(levels, save, on_select, options) {
-        const opts = options || {};
-        map_generation += 1;
-        dom.map_scroll.classList.remove('is-advancing');
-        const generation = map_generation;
-        const reduced = dom.app.classList.contains('reduced-motion');
-        const width = Math.min(dom.map_scroll.clientWidth || 360, 900);
-        const spacing = 150;
-        const height = (levels.length + 1) * spacing + 220;
-        dom.map_inner.style.width = `${width}px`;
-        dom.map_inner.style.height = `${height}px`;
-        const positions = [];
-        for (let index = 0; index <= levels.length; index += 1) {
-          const y = height - 140 - index * spacing;
-          const x = width / 2 + Math.sin(index * 1.15 + 0.4) * width * 0.27;
-          positions.push({ x, y });
+      // ------------------------------------------------------------ map bar (hearts, Gold Drops, wheel, chest)
+      setMapStatus(status) {
+        const hearts_chip = by_id('map-hearts');
+        by_id('map-hearts-icon').src = SPRITES.iconUrl('heart', 56);
+        by_id('map-gold-icon').src = SPRITES.iconUrl('gold', 56);
+        by_id('map-chest-icon').src = SPRITES.iconUrl('star', 56);
+        if (status.unlimited) {
+          by_id('map-hearts-count').textContent = '∞';
+          by_id('map-hearts-timer').textContent = '';
+          hearts_chip.setAttribute('aria-label', 'Unlimited hearts');
+        } else {
+          by_id('map-hearts-count').textContent = String(status.hearts);
+          by_id('map-hearts-timer').textContent = status.hearts < META.MAX_HEARTS ? formatClock(status.next_heart_ms) : 'Full';
+          hearts_chip.setAttribute('aria-label', `${status.hearts} of ${META.MAX_HEARTS} hearts${status.hearts < META.MAX_HEARTS ? `, next in ${formatClock(status.next_heart_ms)}` : ''}`);
         }
-        paintMapScenery(dom.map_canvas, width, height, positions);
-        dom.map_nodes.innerHTML = '';
-        const furthest = Math.min(save.unlocked, levels.length);
-        const advance = opts.advance && levels.some((level) => level.id === opts.advance.to) ? opts.advance : null;
-        // The marker only travels when this win opened a brand-new level; replays just scroll to the next level.
-        const hop = !!advance && advance.to === furthest && advance.from === advance.to - 1;
-        const shown_furthest = hop ? advance.from : furthest;
-        const node_elements = {};
-
-        const makeNode = (level, index, reached) => {
-          const record = save.levels[level.id];
-          const unlocked = level.id <= reached;
-          const is_current = level.id === reached;
-          const node = element('button', `map-node${unlocked ? '' : ' is-locked'}${is_current ? ' is-current' : ''}`, { type: 'button' });
-          node.style.left = `${positions[index].x}px`;
-          node.style.top = `${positions[index].y}px`;
-          const stars = record ? record.best_stars : 0;
-          node.setAttribute('aria-label', unlocked ? `Level ${level.id}, ${level.name}, ${stars} of 3 stars` : `Level ${level.id}, locked`);
-          node.innerHTML = unlocked ? `<span>${level.id}</span>` : icon('lock');
-          if (unlocked) {
-            const star_holder = element('span', 'node-stars');
-            for (let star_index = 0; star_index < 3; star_index += 1) star_holder.insertAdjacentHTML('beforeend', icon(star_index < stars ? 'star' : 'star_empty'));
-            node.appendChild(star_holder);
-          }
-          node.dataset.levelId = String(level.id);
-          node.addEventListener('click', () => {
-            clickSound();
-            if (unlocked) on_select(level.id);
-            else ui.toast('Finish the previous level to unlock this one!');
-          });
-          return node;
-        };
-
-        levels.forEach((level, index) => {
-          const node = makeNode(level, index, shown_furthest);
-          node_elements[level.id] = node;
-          dom.map_nodes.appendChild(node);
-        });
-        const soon = element('button', 'map-node is-soon', { type: 'button', 'aria-label': 'More levels coming soon' });
-        soon.innerHTML = '<span>More levels<br>coming soon</span>';
-        soon.style.left = `${positions[levels.length].x}px`;
-        soon.style.top = `${positions[levels.length].y}px`;
-        soon.addEventListener('click', () => {
-          clickSound();
-          ui.toast('New levels are on the way!');
-        });
-        dom.map_nodes.appendChild(soon);
-
-        // The player's marker sits above the furthest level reached.
-        const marker = element('div', 'map-marker', { 'aria-hidden': 'true' });
-        const initial = (save.player_name || '').trim().charAt(0).toUpperCase();
-        if (initial) marker.innerHTML = `<span>${initial}</span>`;
-        else marker.appendChild(element('img', '', { src: candyImage(0, 'none', 40), alt: '' }));
-        const markerPoint = (level_id) => {
-          const point = positions[level_id - 1];
-          return { x: point.x, y: point.y - 64 };
-        };
-        const marker_start = markerPoint(shown_furthest);
-        marker.style.left = `${marker_start.x}px`;
-        marker.style.top = `${marker_start.y}px`;
-        dom.map_nodes.appendChild(marker);
-
-        const scrollTargetFor = (level_id) => Math.max(0, positions[level_id - 1].y - dom.map_scroll.clientHeight * 0.55);
-        if (!advance) {
-          dom.map_scroll.scrollTop = scrollTargetFor(furthest);
-          return Promise.resolve(true);
-        }
-
-        const alive = () => generation === map_generation && dom.screen_map.classList.contains('is-active');
-        const pause = (ms) => new Promise((resolve) => setTimeout(resolve, reduced ? 0 : ms));
-        const scrollTo = (target, ms) => new Promise((resolve) => {
-          const from_top = dom.map_scroll.scrollTop;
-          if (reduced || Math.abs(target - from_top) < 2) {
-            dom.map_scroll.scrollTop = target;
-            resolve();
-            return;
-          }
-          const begin = performance.now();
-          const step = (time) => {
-            if (!alive()) return resolve();
-            const progress = Math.min(1, (time - begin) / ms);
-            dom.map_scroll.scrollTop = from_top + (target - from_top) * UTIL.EASE.inOutQuad(progress);
-            if (progress < 1) requestAnimationFrame(step);
-            else resolve();
-          };
-          requestAnimationFrame(step);
-        });
-
-        dom.map_scroll.classList.add('is-advancing');
-        dom.map_scroll.scrollTop = scrollTargetFor(advance.from);
-        const finished_node = node_elements[advance.from];
-        if (finished_node) finished_node.classList.add('just-finished');
-        return (async () => {
-          await pause(450);
-          if (!alive()) return false;
-          await scrollTo(scrollTargetFor(advance.to), 700);
-          if (!alive()) return false;
-          if (hop) {
-            const from_point = markerPoint(advance.from);
-            const to_point = markerPoint(advance.to);
-            const delta_x = to_point.x - from_point.x;
-            const delta_y = to_point.y - from_point.y;
-            if (!reduced && marker.animate) {
-              const frames = [];
-              for (let index = 0; index <= 12; index += 1) {
-                const t = index / 12;
-                const lift = -70 * 4 * t * (1 - t);
-                frames.push({ transform: `translate(${delta_x * t}px, ${delta_y * t + lift}px) scale(${1 + 0.12 * Math.sin(Math.PI * t)})` });
-              }
-              hooks.sound('swap');
-              await new Promise((resolve) => {
-                const flight = marker.animate(frames, { duration: 750, easing: 'ease-in-out' });
-                flight.onfinish = resolve;
-                flight.oncancel = resolve;
-              });
-              if (!alive()) return false;
-            }
-            marker.style.left = `${to_point.x}px`;
-            marker.style.top = `${to_point.y}px`;
-            const to_index = levels.findIndex((level) => level.id === advance.to);
-            const unlocked_node = makeNode(levels[to_index], to_index, advance.to);
-            unlocked_node.classList.add('is-unlocking');
-            node_elements[advance.to].replaceWith(unlocked_node);
-            node_elements[advance.to] = unlocked_node;
-            if (finished_node) finished_node.classList.remove('is-current');
-            const burst = element('div', 'map-burst', { 'aria-hidden': 'true' });
-            burst.style.left = `${positions[to_index].x}px`;
-            burst.style.top = `${positions[to_index].y}px`;
-            dom.map_nodes.appendChild(burst);
-            setTimeout(() => burst.remove(), 900);
-            hooks.sound('create');
-            hooks.haptic('medium');
-            ui.announce(`Level ${advance.to} unlocked!`);
-            await pause(650);
-            unlocked_node.classList.remove('is-unlocking');
-          } else {
-            await pause(250);
-          }
-          if (!alive()) return false;
-          dom.map_scroll.classList.remove('is-advancing');
-          if (finished_node) finished_node.classList.remove('just-finished');
-          return true;
-        })();
+        by_id('map-gold-count').textContent = String(status.gold);
+        by_id('map-gold').setAttribute('aria-label', `${status.gold} Gold Drops`);
+        by_id('btn-map-wheel').classList.toggle('is-ready', status.wheel_ready);
+        by_id('btn-map-wheel').setAttribute('aria-label', status.wheel_ready ? 'Daily Wheel: a free spin is ready' : 'Daily Wheel');
+        by_id('map-chest-progress').textContent = `${status.chest_progress}/${META.CHEST_STARS}`;
+        by_id('btn-map-chest').classList.toggle('is-ready', status.chest_progress >= META.CHEST_STARS);
+        by_id('btn-map-chest').setAttribute('aria-label', `Star Chest: ${status.chest_progress} of ${META.CHEST_STARS} stars`);
       },
 
       // ------------------------------------------------------------ HUD
@@ -368,31 +250,36 @@
         hud_level = level;
         dom.hud_level.textContent = `Level ${level.id}`;
         dom.hud_level.setAttribute('aria-label', `Level ${level.id}, ${level.name}`);
+        by_id('hud-moves-label').textContent = state.timed ? 'Time' : 'Moves';
         dom.hud_goal_list.innerHTML = '';
         hud_goal_nodes = level.goals.map((goal) => {
           const node = element('div', 'goal');
-          const goal_image = element('img', 'goal-icon', { src: goalIcon(goal, 30), alt: '' });
+          node.appendChild(element('img', 'goal-icon', { src: goalIcon(goal, 30), alt: '' }));
           const count = element('span', 'goal-count');
-          node.appendChild(goal_image);
           node.appendChild(count);
+          node.setAttribute('aria-label', goalText(goal));
           dom.hud_goal_list.appendChild(node);
           return { node, count, goal };
         });
-        const top = level.stars[2] * 1.1;
+        star_positions = starMarkPositions(level.stars);
         level.stars.forEach((threshold, index) => {
           const mark = dom[`star_mark_${index}`];
-          mark.style.left = `${Math.min(97, (threshold / top) * 100)}%`;
+          mark.style.left = `${star_positions[index] * 100}%`;
+          mark.dataset.reached = 'false';
           mark.innerHTML = icon('star_empty');
         });
         displayed_score = state.score;
         score_target = state.score;
         dom.hud_score.textContent = String(state.score);
-        ui.updateHud({ moves: state.moves_left, score: state.score, progress: LOGIC.goalProgress(state) }, true);
+        ui.updateHud({ moves: state.moves_left, time_left: state.timed ? (state.time_limit + state.time_bonus) * 1000 : undefined, score: state.score, progress: LOGIC.goalProgress(state) }, true);
       },
       updateHud(values, immediate) {
-        if (values.moves !== undefined) {
+        if (values.time_left !== undefined) {
+          dom.hud_moves.textContent = formatClock(values.time_left);
+          dom.hud_moves.classList.toggle('is-low', values.time_left <= 10000);
+        } else if (values.moves !== undefined && Number.isFinite(values.moves)) {
           dom.hud_moves.textContent = String(values.moves);
-          dom.hud_moves.classList.toggle('is-low', values.moves <= 5);
+          dom.hud_moves.classList.toggle('is-low', values.moves < 5);
         }
         if (values.score !== undefined) ui.setScore(values.score, immediate);
         if (values.progress) {
@@ -417,7 +304,7 @@
               entry.count.textContent = text;
             }
             entry.node.classList.toggle('is-done', progress.done);
-            if (progress.done && !was_done) hooks.sound('star', { index: 0 });
+            if (progress.done && !was_done && !immediate) hooks.sound('goal');
           });
         }
       },
@@ -442,8 +329,7 @@
           score_animation = requestAnimationFrame(tick);
         }
         if (hud_level) {
-          const top = hud_level.stars[2] * 1.1;
-          dom.star_fill.style.width = `${Math.min(100, (score / top) * 100)}%`;
+          dom.star_fill.style.width = `${starFillFraction(score, hud_level.stars, star_positions) * 100}%`;
           hud_level.stars.forEach((threshold, index) => {
             const mark = dom[`star_mark_${index}`];
             const reached = score >= threshold;
@@ -465,6 +351,39 @@
         dom.btn_sound.setAttribute('aria-label', sound_on ? 'Mute sound' : 'Turn sound on');
         dom.btn_sound.classList.toggle('is-off', !sound_on);
       },
+      /** Booster bar: counts (0 shows a "+" to buy with Gold Drops), the armed booster highlighted. */
+      setBoosters(counts, armed, enabled) {
+        document.querySelectorAll('.booster').forEach((booster_button) => {
+          const name = booster_button.dataset.booster;
+          const count = counts[name] || 0;
+          booster_button.querySelector('.booster-count').textContent = count > 0 ? String(count) : '+';
+          booster_button.classList.toggle('is-empty', count <= 0);
+          booster_button.classList.toggle('is-armed', armed === name);
+          booster_button.disabled = !enabled;
+          booster_button.setAttribute('aria-label', `${META.BOOSTER_NAMES[name]}, ${count > 0 ? `${count} left` : `buy for ${META.PRICES[name]} Gold Drops`}${armed === name ? ', selected' : ''}`);
+        });
+      },
+      /** Pip in the corner of the game screen: reacts to big combos, points at the hint in the first levels. */
+      pip(expression, duration_ms, angle) {
+        const canvas = by_id('game-pip');
+        if (!canvas) return;
+        if (!game_pip) game_pip = PIP.createPipView(canvas, 64);
+        clearTimeout(game_pip_timer);
+        canvas.classList.add('is-showing');
+        game_pip.set(expression, angle);
+        if (duration_ms) {
+          game_pip_timer = setTimeout(() => {
+            canvas.classList.remove('is-showing');
+            game_pip.stop();
+          }, duration_ms);
+        }
+      },
+      hidePip() {
+        clearTimeout(game_pip_timer);
+        const canvas = by_id('game-pip');
+        if (canvas) canvas.classList.remove('is-showing');
+        if (game_pip) game_pip.stop();
+      },
       tutorial(text) {
         clearTimeout(tutorial_fade_timer);
         if (!text) {
@@ -480,7 +399,7 @@
         const bubble = dom.tutorial_bubble;
         if (bubble.hidden || !board_rect) return;
         const bar_top = dom.btn_pause.getBoundingClientRect().top - 4;
-        const hud_bottom = document.getElementById('hud').getBoundingClientRect().bottom + 4;
+        const hud_bottom = by_id('hud').getBoundingClientRect().bottom + 4;
         const height = bubble.offsetHeight;
         const board_bottom = board_rect.top + board_rect.height + (has_trays ? board_rect.cell * 0.35 : 4);
         const board_top = board_rect.top - 4;
@@ -507,8 +426,7 @@
         clearTimeout(banner_timer);
         dom.banner.innerHTML = '';
         dom.banner.classList.toggle('is-small', !!small);
-        const heading = element('span', `glossy-text${rainbow ? ' rainbow' : ''}`, { 'data-text': text, text });
-        dom.banner.appendChild(heading);
+        dom.banner.appendChild(element('span', `glossy-text${rainbow ? ' rainbow' : ''}`, { 'data-text': text, text }));
         dom.banner.classList.remove('is-showing');
         void dom.banner.offsetWidth;
         dom.banner.classList.add('is-showing');
@@ -528,7 +446,7 @@
       },
 
       // ------------------------------------------------------------ modals
-      /** Opens a modal. `spec`: { id, build(container, handle), back(handle) }. Returns a handle with close(). */
+      /** Opens a modal. `spec`: { id, build(container, handle), back(handle), on_close }. Returns a handle with close(). */
       openModal(spec) {
         dom.modal_root.hidden = false;
         dom.modal_root.classList.remove('is-closing');
@@ -546,7 +464,6 @@
             modal.classList.add('is-closing');
             setTimeout(() => modal.remove(), 180);
             if (modal_handles.length === 0) {
-              // Stop catching touches immediately; only the fade-out keeps running.
               dom.modal_root.classList.add('is-closing');
               setTimeout(() => {
                 if (modal_handles.length === 0) dom.modal_root.hidden = true;
@@ -598,6 +515,7 @@
                 resolve(true);
               });
               yes.setAttribute('data-autofocus', '');
+              yes.id = `btn-${options.id || 'confirm'}-yes`;
               row.appendChild(yes);
               modal.appendChild(row);
             },
@@ -605,45 +523,84 @@
         });
       },
 
-      showIntro(level, record, actions) {
+      /**
+       * Level intro: name, role ribbon, goals, moves or time, best stars, pre-level boosters, Pip's tip for a new idea.
+       * data: { best: {stars, score}, boosters: {lucky, rainbow, head_start}, hearts_on }.
+       */
+      showIntro(level, data, actions) {
+        const chosen = { lucky: false, rainbow: false, head_start: false };
         return ui.openModal({
           id: 'intro',
           back: (handle) => handle.close(),
           on_close: actions.closed,
           build(modal, handle) {
+            modal.classList.add('intro');
             modal.appendChild(iconButton('close', 'Close', () => {
               clickSound();
               handle.close();
             }, 'round small modal-close'));
-            modal.appendChild(element('p', '', { text: `Level ${level.id}` }));
+            const role = level.role === 'hard' || level.role === 'superhard' ? level.role : null;
+            if (role) modal.appendChild(element('div', `role-ribbon is-${role}`, { text: role === 'hard' ? 'Hard level' : 'Super hard level' }));
+            modal.appendChild(element('p', 'intro-number', { text: `Level ${level.id}` }));
             modal.appendChild(glossyHeading('h2', level.name, 'modal-title'));
             const stars = element('div', 'star-row');
-            for (let index = 0; index < 3; index += 1) stars.insertAdjacentHTML('beforeend', icon(record && record.best_stars > index ? 'star' : 'star_empty'));
+            for (let index = 0; index < 3; index += 1) stars.insertAdjacentHTML('beforeend', icon(data.best.stars > index ? 'star' : 'star_empty'));
             modal.appendChild(stars);
             const goals = element('div', 'intro-goals');
             level.goals.forEach((goal) => {
               const goal_card = element('div', 'intro-goal');
               goal_card.appendChild(element('img', '', { src: goalIcon(goal, 46), alt: '' }));
-              let label;
-              if (goal.type === 'score') label = `Score ${goal.target.toLocaleString('en-US')}`;
-              else if (goal.type === 'collect') label = `Collect ${goal.count}`;
-              else if (goal.type === 'jelly') label = 'Clear all glaze';
-              else label = `Drop ${goal.count} cherries`;
-              goal_card.appendChild(element('div', '', { text: label }));
-              goal_card.setAttribute('aria-label', `${label} ${goal.type === 'collect' ? goalLabel(goal) : ''}`.trim());
+              goal_card.appendChild(element('div', '', { text: goalText(goal) }));
               goals.appendChild(goal_card);
             });
             modal.appendChild(goals);
             const meta = element('div', 'intro-meta');
-            meta.appendChild(element('span', '', { text: `${level.moves} moves` }));
-            if (record && record.best_score) meta.appendChild(element('span', '', { text: `Best ${record.best_score.toLocaleString('en-US')}` }));
+            meta.appendChild(element('span', '', { html: level.time ? `${icon('clock')} ${level.time} seconds` : `${level.moves} moves` }));
+            if (data.best.score) meta.appendChild(element('span', '', { text: `Best ${data.best.score.toLocaleString('en-US')}` }));
             modal.appendChild(meta);
+            if (level.tutorial && level.newMechanic) {
+              const tip = element('div', 'pip-tip');
+              tip.appendChild(pipImage('wow', 56));
+              tip.appendChild(element('p', '', { text: level.tutorial }));
+              modal.appendChild(tip);
+            } else if (level.tip) {
+              const tip = element('div', 'pip-tip is-small');
+              tip.appendChild(pipImage('wink', 40));
+              tip.appendChild(element('p', '', { text: level.tip }));
+              modal.appendChild(tip);
+            }
+            const booster_row = element('div', 'intro-boosters', { role: 'group', 'aria-label': 'Pre-level boosters' });
+            [['lucky', 'wrapped:3', 'Lucky Start'], ['rainbow', 'bomb', 'Rainbow Start'], ['head_start', null, level.time ? '+10 seconds' : '+3 moves']].forEach(([name, sprite_key, label]) => {
+              const count = data.boosters[name] || 0;
+              const toggle = element('button', `intro-booster${count ? '' : ' is-empty'}`, { type: 'button', role: 'switch', 'aria-checked': 'false', id: `intro-booster-${name}` });
+              toggle.innerHTML = `${sprite_key ? `<img src="${spriteUrl(sprite_key, 40)}" alt="">` : `<span class="head-start">${level.time ? '+10s' : '+3'}</span>`}<small>${label}</small><b>${count || '+'}</b>`;
+              toggle.setAttribute('aria-label', `${META.BOOSTER_NAMES[name]}, ${count ? `${count} owned` : `buy for ${META.PRICES[name]} Gold Drops`}`);
+              toggle.addEventListener('click', () => {
+                clickSound();
+                if (!(data.boosters[name] > 0)) {
+                  actions.buy(name).then((bought) => {
+                    if (!bought) return;
+                    data.boosters[name] = (data.boosters[name] || 0) + 1;
+                    toggle.classList.remove('is-empty');
+                    toggle.querySelector('b').textContent = String(data.boosters[name]);
+                  });
+                  return;
+                }
+                chosen[name] = !chosen[name];
+                toggle.setAttribute('aria-checked', String(chosen[name]));
+                toggle.classList.toggle('is-on', chosen[name]);
+              });
+              booster_row.appendChild(toggle);
+            });
+            modal.appendChild(booster_row);
             const column = element('div', 'button-column');
-            const play = button('Play', 'pill pill-big', () => {
+            const play = button(data.hearts_on ? 'Play' : 'Play', 'pill pill-big', () => {
               clickSound();
               handle.close();
-              actions.play();
+              actions.play(Object.assign({}, chosen));
             });
+            if (data.hearts_on) play.innerHTML = `Play <span class="play-cost">${icon('heart')}1</span>`;
+            play.setAttribute('aria-label', 'Play');
             play.setAttribute('data-autofocus', '');
             play.id = 'btn-intro-play';
             column.appendChild(play);
@@ -689,6 +646,7 @@
         });
       },
 
+      /** data: { score, stars, is_new_best, player_name, win_message, has_next, rewards: {gold, streak_reward, chest_ready}, streak } */
       showWin(data, actions) {
         const timers = [];
         let count_frame = 0;
@@ -700,7 +658,9 @@
             cancelAnimationFrame(count_frame);
           },
           build(modal) {
-            modal.appendChild(glossyHeading('h2', 'Level Complete!', 'modal-title'));
+            modal.classList.add('win');
+            modal.appendChild(pipImage('cheer', 70));
+            modal.appendChild(glossyHeading('h2', 'Sweet Victory!', 'modal-title'));
             modal.appendChild(element('p', '', { text: data.player_name ? `Great job, ${data.player_name}!` : 'Great job!' }));
             if (data.win_message) modal.appendChild(element('p', 'win-message', { text: data.win_message }));
             const stars = element('div', 'star-row big');
@@ -717,6 +677,12 @@
             const best = element('div', 'new-best', { text: 'New best!' });
             best.hidden = true;
             modal.appendChild(best);
+            const rewards = element('div', 'reward-row');
+            if (data.rewards.gold) rewards.appendChild(element('span', 'reward', { html: `<img src="${SPRITES.iconUrl('gold', 48)}" alt="">+${data.rewards.gold}` }));
+            if (data.rewards.streak_reward) rewards.appendChild(element('span', 'reward', { text: `Sweet Streak! +1 ${META.BOOSTER_NAMES[data.rewards.streak_reward]}` }));
+            else if (data.streak > 0) rewards.appendChild(element('span', 'reward is-quiet', { text: `Streak ${data.streak % META.STREAK_LENGTH || META.STREAK_LENGTH}/${META.STREAK_LENGTH}` }));
+            if (data.rewards.chest_ready) rewards.appendChild(element('span', 'reward', { text: 'Star Chest ready!' }));
+            modal.appendChild(rewards);
             const column = element('div', 'button-column');
             if (data.has_next) {
               const next = button('Next level', 'pill pill-big', () => {
@@ -742,7 +708,6 @@
             row.appendChild(map);
             column.appendChild(row);
             modal.appendChild(column);
-            // Count up the score, then pop the stars in with ascending pitch.
             const start = performance.now();
             const count_up = (time) => {
               const progress = Math.min(1, (time - start) / 700);
@@ -766,13 +731,17 @@
         });
       },
 
+      /** data: { progress, goals, player_name, reason, can_continue, price, gold } */
       showLose(data, actions) {
         return ui.openModal({
           id: 'lose',
           back: () => actions.map(),
           build(modal) {
-            modal.appendChild(glossyHeading('h2', 'Out of moves!', 'modal-title'));
-            modal.appendChild(element('p', '', { text: data.player_name ? `So close, ${data.player_name}! Still to go:` : 'So close! Still to go:' }));
+            modal.classList.add('lose');
+            modal.appendChild(pipImage('worried', 64));
+            const titles = { moves: 'Out of moves!', time: "Time's up!", fuse: 'A Fuse Candy went off!', no_moves: 'No more moves!' };
+            modal.appendChild(glossyHeading('h2', titles[data.reason] || 'So close!', 'modal-title'));
+            modal.appendChild(element('p', '', { text: `${data.player_name ? `So close, ${data.player_name}! ` : 'So close! '}Still to go:` }));
             const summary = element('div', 'intro-goals goal-summary');
             data.progress.forEach((progress, index) => {
               if (progress.done) return;
@@ -781,15 +750,26 @@
               card.appendChild(element('img', '', { src: goalIcon(goal, 46), alt: '' }));
               let text;
               if (progress.type === 'score') text = `${(progress.target - progress.current).toLocaleString('en-US')} points`;
-              else if (progress.type === 'jelly') text = `${progress.remaining_cells} glaze`;
-              else if (progress.type === 'ingredients') text = `${progress.target - progress.current} cherries`;
+              else if (progress.type === 'jelly') text = `${progress.remaining_cells} jelly`;
               else text = `${progress.target - progress.current} left`;
               card.appendChild(element('div', '', { text }));
               summary.appendChild(card);
             });
             modal.appendChild(summary);
+            modal.appendChild(element('p', 'pip-says', { text: 'Pip says: every try teaches the board a little better. You can do it!' }));
             const column = element('div', 'button-column');
-            const retry = button('Try again', 'pill pill-big', () => {
+            if (data.can_continue) {
+              const plus = button('', 'pill pill-big gold', () => {
+                clickSound();
+                actions.plusFive();
+              });
+              plus.innerHTML = `${data.timed ? '+15 seconds' : '+5 Moves'} <span class="price"><img src="${SPRITES.iconUrl('gold', 40)}" alt="">${data.price}</span>`;
+              plus.setAttribute('aria-label', `${data.timed ? 'Add 15 seconds' : 'Add 5 moves'} for ${data.price} Gold Drops (you have ${data.gold})`);
+              plus.id = 'btn-plus-five';
+              plus.disabled = data.gold < data.price;
+              column.appendChild(plus);
+            }
+            const retry = button('Try again', data.can_continue ? 'pill' : 'pill pill-big', () => {
               clickSound();
               actions.retry();
             });
@@ -807,6 +787,214 @@
         });
       },
 
+      /** Out of hearts: a countdown to the next heart, Pip, and a shortcut to the Unlimited hearts setting. */
+      showHeartsEmpty(data, actions) {
+        let timer = null;
+        return ui.openModal({
+          id: 'hearts',
+          back: (handle) => handle.close(),
+          on_close: () => clearInterval(timer),
+          build(modal, handle) {
+            modal.appendChild(pipImage('worried', 64));
+            modal.appendChild(glossyHeading('h2', 'Out of hearts', 'modal-title'));
+            const line = element('p', 'hearts-countdown', { text: '' });
+            line.id = 'hearts-countdown';
+            const update = () => {
+              const ms = data.nextHeartMs();
+              line.textContent = ms > 0 ? `Next heart in ${formatClock(ms)}` : 'A heart is ready!';
+              if (ms <= 0) clearInterval(timer);
+            };
+            update();
+            timer = setInterval(update, 1000);
+            modal.appendChild(line);
+            modal.appendChild(element('p', '', { text: 'Hearts refill by themselves, one every 30 minutes. Prefer to play without them? Turn on Unlimited hearts.' }));
+            const column = element('div', 'button-column');
+            const settings_button = button('Unlimited hearts', 'pill', () => {
+              clickSound();
+              handle.close();
+              actions.unlimited();
+            });
+            settings_button.id = 'btn-hearts-unlimited';
+            column.appendChild(settings_button);
+            column.appendChild(button('OK', 'pill secondary', () => {
+              clickSound();
+              handle.close();
+            }));
+            modal.appendChild(column);
+          },
+        });
+      },
+
+      /** Daily Wheel: eight prizes, one spin per local day. actions.spin() returns {index, reward} or null. */
+      showWheel(data, actions) {
+        return ui.openModal({
+          id: 'wheel',
+          back: (handle) => handle.close(),
+          build(modal, handle) {
+            modal.classList.add('wheel-modal');
+            modal.appendChild(iconButton('close', 'Close', () => {
+              clickSound();
+              handle.close();
+            }, 'round small modal-close'));
+            modal.appendChild(glossyHeading('h2', 'Daily Wheel', 'modal-title'));
+            const size = 240;
+            const canvas = element('canvas', 'wheel-canvas', { width: String(size * 2), height: String(size * 2), 'aria-hidden': 'true' });
+            canvas.style.width = `${size}px`;
+            canvas.style.height = `${size}px`;
+            const ctx = canvas.getContext('2d');
+            const segments = META.WHEEL;
+            const colors = ['#ff9ad5', '#ffd36e', '#8ee3ff', '#a6f5d1', '#ffb3c8', '#d6b3ff', '#fff2b0', '#b5dcff'];
+            const drawWheel = (rotation) => {
+              ctx.setTransform(2, 0, 0, 2, 0, 0);
+              ctx.clearRect(0, 0, size, size);
+              const center = size / 2;
+              const radius = size / 2 - 8;
+              segments.forEach((segment, index) => {
+                const start = rotation + (index / segments.length) * Math.PI * 2 - Math.PI / 2;
+                const end = start + (Math.PI * 2) / segments.length;
+                ctx.fillStyle = colors[index % colors.length];
+                ctx.beginPath();
+                ctx.moveTo(center, center);
+                ctx.arc(center, center, radius, start, end);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                ctx.save();
+                ctx.translate(center, center);
+                // Labels on the left half of the wheel (at rest) are turned half a circle so none of them read upside down.
+                const flipped = Math.cos(((index + 0.5) / segments.length) * Math.PI * 2 - Math.PI / 2) < -0.01;
+                ctx.rotate((start + end) / 2 + (flipped ? Math.PI : 0));
+                ctx.fillStyle = '#3b1a4a';
+                ctx.font = '800 11px system-ui, -apple-system, Roboto, sans-serif';
+                ctx.textAlign = flipped ? 'left' : 'right';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(segment.kind === 'gold' ? `${segment.amount} drops` : segment.kind === 'heart' ? '1 heart' : segment.label, flipped ? -(radius - 10) : radius - 10, 0);
+                ctx.restore();
+              });
+              ctx.strokeStyle = '#3b1a4a';
+              ctx.lineWidth = 4;
+              ctx.beginPath();
+              ctx.arc(center, center, radius, 0, Math.PI * 2);
+              ctx.stroke();
+              const hub = ctx.createRadialGradient(center - 6, center - 6, 2, center, center, 22);
+              hub.addColorStop(0, '#fff6d6');
+              hub.addColorStop(1, '#ff6fb5');
+              ctx.fillStyle = hub;
+              ctx.beginPath();
+              ctx.arc(center, center, 20, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.fillStyle = '#3b1a4a';
+              ctx.beginPath();
+              ctx.moveTo(center - 12, 2);
+              ctx.lineTo(center + 12, 2);
+              ctx.lineTo(center, 26);
+              ctx.closePath();
+              ctx.fill();
+            };
+            drawWheel(0);
+            modal.appendChild(canvas);
+            const result = element('p', 'wheel-result', { text: data.can_spin ? 'One free spin every day!' : 'Come back tomorrow for another spin.' });
+            modal.appendChild(result);
+            const spin = button('Spin!', 'pill pill-big', () => {
+              clickSound();
+              spin.disabled = true;
+              const outcome = actions.spin();
+              if (!outcome) {
+                result.textContent = 'Come back tomorrow for another spin.';
+                return;
+              }
+              const turns = 5;
+              const slice = (Math.PI * 2) / segments.length;
+              const final_rotation = Math.PI * 2 * turns - (outcome.index + 0.5) * slice;
+              const begin = performance.now();
+              const duration = dom.app.classList.contains('reduced-motion') ? 1 : 3200;
+              hooks.sound('wheel');
+              const animate = (time) => {
+                if (!canvas.isConnected) return;
+                const progress = Math.min(1, (time - begin) / duration);
+                drawWheel(final_rotation * UTIL.EASE.outCubic(progress));
+                if (progress < 1) requestAnimationFrame(animate);
+                else {
+                  result.textContent = `You won ${outcome.reward.label}!`;
+                  hooks.sound('reward');
+                  hooks.haptic('medium');
+                  actions.done();
+                }
+              };
+              requestAnimationFrame(animate);
+            });
+            spin.id = 'btn-wheel-spin';
+            spin.disabled = !data.can_spin;
+            modal.appendChild(spin);
+          },
+        });
+      },
+
+      showReward(title, text, expression) {
+        hooks.sound('reward');
+        return ui.openModal({
+          id: 'reward',
+          back: (handle) => handle.close(),
+          build(modal, handle) {
+            modal.appendChild(pipImage(expression || 'cheer', 64));
+            modal.appendChild(glossyHeading('h2', title, 'modal-title'));
+            modal.appendChild(element('p', 'reward-text', { text }));
+            const ok = button('Yay!', 'pill', () => {
+              clickSound();
+              handle.close();
+            });
+            ok.id = 'btn-reward-ok';
+            ok.setAttribute('data-autofocus', '');
+            modal.appendChild(ok);
+          },
+        });
+      },
+
+      /** Buy a booster (or +5 Moves) with Gold Drops. Resolves true when bought. */
+      confirmBuy(item, gold) {
+        const price = META.PRICES[item];
+        if (gold < price) {
+          ui.toast(`You need ${price} Gold Drops (you have ${gold}). Win levels and spin the Daily Wheel for more!`);
+          return Promise.resolve(false);
+        }
+        return ui.confirm({ id: 'confirm-buy', title: `Get ${META.BOOSTER_NAMES[item] || '+5 Moves'}?`, text: `${price} Gold Drops (you have ${gold}).`, yes: 'Buy', no: 'Not now' });
+      },
+
+      showGoTo(max_level, actions) {
+        return ui.openModal({
+          id: 'goto',
+          back: (handle) => handle.close(),
+          build(modal, handle) {
+            modal.appendChild(glossyHeading('h2', 'Go to level', 'modal-title'));
+            const input = element('input', 'text-input', { type: 'number', inputmode: 'numeric', min: '1', max: String(max_level), placeholder: `1 - ${max_level}`, 'aria-label': 'Level number', id: 'goto-input' });
+            modal.appendChild(input);
+            const row = element('div', 'button-row');
+            row.appendChild(button('Cancel', 'pill secondary', () => {
+              clickSound();
+              handle.close();
+            }));
+            const go = button('Go', 'pill', () => {
+              clickSound();
+              const value = parseInt(input.value, 10);
+              if (!(value >= 1 && value <= max_level)) {
+                ui.toast(`Pick a level from 1 to ${max_level}`);
+                return;
+              }
+              handle.close();
+              actions.go(value);
+            });
+            go.id = 'btn-goto-go';
+            row.appendChild(go);
+            modal.appendChild(row);
+            input.addEventListener('keydown', (event) => {
+              if (event.key === 'Enter') go.click();
+            });
+          },
+        });
+      },
+
       showNamePrompt(actions) {
         return ui.openModal({
           id: 'name',
@@ -815,8 +1003,9 @@
             actions.done('');
           },
           build(modal, handle) {
+            modal.appendChild(pipImage('wave', 64));
             modal.appendChild(glossyHeading('h2', 'Hello there!', 'modal-title'));
-            modal.appendChild(element('p', '', { text: 'What should we call you?' }));
+            modal.appendChild(element('p', '', { text: "I'm Pip! What should I call you?" }));
             const input = element('input', 'text-input', { type: 'text', maxlength: '16', placeholder: 'Your name', 'aria-label': 'Your name', autocomplete: 'off', enterkeyhint: 'done' });
             input.id = 'name-input';
             modal.appendChild(input);
@@ -843,6 +1032,35 @@
         });
       },
 
+      /** First launch: "Is this volume comfortable?" with a slider and a gentle sample. */
+      showComfort(settings, actions) {
+        return ui.openModal({
+          id: 'comfort',
+          back: (handle) => {
+            handle.close();
+            actions.done();
+          },
+          build(modal, handle) {
+            modal.appendChild(glossyHeading('h2', 'Is this volume comfortable?', 'modal-title'));
+            modal.appendChild(element('p', '', { text: 'All sounds are soft by design. Move the slider until the sample feels gentle.' }));
+            const slider = element('input', 'comfort-slider', { type: 'range', min: '0', max: '1', step: '0.05', value: String(settings.master_volume), id: 'comfort-slider', 'aria-label': 'Overall volume' });
+            slider.addEventListener('input', () => actions.change('master_volume', parseFloat(slider.value)));
+            slider.addEventListener('change', () => actions.soundCheck());
+            modal.appendChild(slider);
+            const row = element('div', 'button-row');
+            row.appendChild(button('Play sample', 'pill secondary', () => actions.soundCheck()));
+            const ok = button('Sounds good', 'pill', () => {
+              clickSound();
+              handle.close();
+              actions.done();
+            });
+            ok.id = 'btn-comfort-ok';
+            row.appendChild(ok);
+            modal.appendChild(row);
+          },
+        });
+      },
+
       showSettings(settings, player, actions) {
         return ui.openModal({
           id: 'settings',
@@ -854,8 +1072,7 @@
               clickSound();
               handle.close();
             }, 'round small modal-close'));
-            const heading = glossyHeading('h2', 'Settings', 'modal-title');
-            modal.appendChild(heading);
+            modal.appendChild(glossyHeading('h2', 'Settings', 'modal-title'));
             const section = (title) => modal.appendChild(element('h3', '', { text: title }));
             const toggleRow = (label, key, value) => {
               const row = element('div', 'setting-row');
@@ -879,24 +1096,44 @@
               row.appendChild(slider);
               modal.appendChild(row);
             };
+            const choiceRow = (label, key, value, options) => {
+              const row = element('div', 'setting-row is-choice');
+              row.appendChild(element('span', 'setting-label', { text: label }));
+              const group = element('div', 'segmented', { role: 'radiogroup', 'aria-label': label });
+              options.forEach(([option_value, option_label]) => {
+                const option = element('button', 'segment', { type: 'button', role: 'radio', 'aria-checked': String(value === option_value), id: `choice-${key}-${option_value}`, text: option_label });
+                option.addEventListener('click', () => {
+                  group.querySelectorAll('.segment').forEach((other) => other.setAttribute('aria-checked', String(other === option)));
+                  actions.change(key, option_value);
+                  clickSound();
+                });
+                group.appendChild(option);
+              });
+              row.appendChild(group);
+              modal.appendChild(row);
+            };
             section('Sound');
-            toggleRow('Sound effects', 'sfx_on', settings.sfx_on);
-            sliderRow('Effects volume', 'sfx_volume', settings.sfx_volume);
+            toggleRow('Sound effects', 'sound_on', settings.sound_on);
             toggleRow('Music', 'music_on', settings.music_on);
+            sliderRow('Overall volume', 'master_volume', settings.master_volume);
+            sliderRow('Effects volume', 'effects_volume', settings.effects_volume);
             sliderRow('Music volume', 'music_volume', settings.music_volume);
-            section('Feel');
+            toggleRow('Soft Sounds (extra gentle)', 'soft_sounds', settings.soft_sounds);
+            const check = button('Sound Check', 'pill secondary', () => actions.soundCheck());
+            check.id = 'btn-sound-check';
+            modal.appendChild(check);
+            section('Play');
+            choiceRow('Auto hint', 'auto_hint', settings.auto_hint, [['instant', 'Instant'], ['3s', '3 s'], ['8s', '8 s'], ['off', 'Off']]);
+            choiceRow('Animation speed', 'animation_speed', settings.animation_speed, [['normal', 'Normal'], ['snappy', 'Snappy'], ['fast', 'Fast']]);
+            toggleRow('Unlimited hearts', 'unlimited_hearts', settings.unlimited_hearts);
             toggleRow('Haptics (vibration)', 'haptics', settings.haptics);
             toggleRow('Reduced motion', 'reduced_motion', settings.reduced_motion);
             toggleRow('Color-blind assist', 'colorblind', settings.colorblind);
-            section('Candy art');
-            const themes = element('div', 'choice-grid', { role: 'radiogroup', 'aria-label': 'Candy art theme' });
+            section('Candy material');
+            const themes = element('div', 'choice-grid', { role: 'radiogroup', 'aria-label': 'Candy material' });
             CONFIG.THEMES.forEach((theme) => {
-              const saved_theme = icon_theme;
-              icon_theme = theme.id;
-              const preview = candyImage(0, 'none', 40);
-              icon_theme = saved_theme;
               const choice = element('button', 'choice', { type: 'button', role: 'radio', 'aria-checked': String(settings.theme === theme.id), 'aria-label': theme.name, 'data-theme': theme.id });
-              choice.innerHTML = `<img src="${preview}" alt=""><span>${theme.name}</span>`;
+              choice.innerHTML = `<img src="${SPRITES.iconUrl('candy:0', 80, theme.id)}" alt=""><span>${theme.name}</span>`;
               choice.addEventListener('click', () => {
                 themes.querySelectorAll('.choice').forEach((other) => other.setAttribute('aria-checked', String(other === choice)));
                 actions.change('theme', theme.id);
@@ -906,10 +1143,10 @@
             });
             modal.appendChild(themes);
             section('Colors');
-            const swatches = element('div', 'swatch-grid', { role: 'radiogroup', 'aria-label': 'Accent colors' });
+            const swatches = element('div', 'swatch-grid', { role: 'radiogroup', 'aria-label': 'Accent palette' });
             CONFIG.ACCENTS.forEach((accent) => {
               const swatch = element('button', 'swatch', { type: 'button', role: 'radio', 'aria-checked': String(settings.accent === accent.id), 'aria-label': accent.name, 'data-accent': accent.id });
-              swatch.style.background = `linear-gradient(135deg, ${accent.background[0]}, ${accent.background[1]} 55%, ${accent.button[1]})`;
+              swatch.style.background = `linear-gradient(135deg, ${accent.background[0]}, ${accent.background[1]} 55%, ${accent.background[2]})`;
               swatch.textContent = accent.name;
               swatch.addEventListener('click', () => {
                 swatches.querySelectorAll('.swatch').forEach((other) => other.setAttribute('aria-checked', String(other === swatch)));
@@ -920,23 +1157,21 @@
             });
             modal.appendChild(swatches);
             section('Make it mine');
-            const name_row = element('div', 'setting-row');
-            name_row.style.flexDirection = 'column';
-            name_row.style.alignItems = 'stretch';
-            name_row.appendChild(element('label', '', { text: 'Player name', for: 'settings-name' }));
+            const stackRow = (label, control) => {
+              const row = element('div', 'setting-row is-stacked');
+              row.appendChild(element('label', '', { text: label, for: control.id }));
+              row.appendChild(control);
+              modal.appendChild(row);
+            };
             const name_input = element('input', 'text-input', { type: 'text', maxlength: '16', value: player.name || '', id: 'settings-name', placeholder: 'Your name', autocomplete: 'off' });
             name_input.addEventListener('change', () => actions.change('player_name', name_input.value));
-            name_row.appendChild(name_input);
-            modal.appendChild(name_row);
-            const photo_row = element('div', 'setting-row');
-            photo_row.style.flexDirection = 'column';
-            photo_row.style.alignItems = 'stretch';
+            stackRow('Player name', name_input);
+            const photo_row = element('div', 'setting-row is-stacked');
             photo_row.appendChild(element('label', '', { text: 'Background photo (stays on this phone)' }));
             const preview = element('div', 'photo-preview', { text: player.photo ? '' : 'No photo yet' });
             if (player.photo) preview.style.backgroundImage = `url("${player.photo}")`;
             photo_row.appendChild(preview);
             const photo_buttons = element('div', 'button-row');
-            photo_buttons.style.marginTop = '4px';
             const choose = button('Choose photo', 'pill', () => {
               clickSound();
               actions.pickPhoto().then((data_url) => {
@@ -957,14 +1192,9 @@
             photo_row.appendChild(photo_buttons);
             modal.appendChild(photo_row);
             sliderRow('Photo brightness', 'photo_brightness', settings.photo_brightness, 0.2);
-            const message_row = element('div', 'setting-row');
-            message_row.style.flexDirection = 'column';
-            message_row.style.alignItems = 'stretch';
-            message_row.appendChild(element('label', '', { text: 'Level-complete message (optional)', for: 'settings-message' }));
             const message_input = element('input', 'text-input', { type: 'text', maxlength: '80', value: settings.win_message || '', id: 'settings-message', placeholder: 'e.g. You are amazing!', autocomplete: 'off' });
             message_input.addEventListener('change', () => actions.change('win_message', message_input.value));
-            message_row.appendChild(message_input);
-            modal.appendChild(message_row);
+            stackRow('Level-complete message (optional)', message_input);
             section('Extras');
             const self_test = button('Run self-test', 'pill secondary', () => {
               clickSound();
@@ -1004,42 +1234,58 @@
               node.appendChild(element('div', '', { html }));
               modal.appendChild(node);
             };
+            const table = (rows) => {
+              const node = element('table', 'help-table');
+              rows.forEach(([left, right]) => node.insertAdjacentHTML('beforeend', `<tr><td>${left}</td><td>${right}</td></tr>`));
+              modal.appendChild(node);
+            };
             modal.appendChild(element('h3', '', { text: 'Basics' }));
-            row(candyImage(0, 'none', 48), 'Swap two neighboring candies (tap one, then the other, or swipe) to line up <b>3 or more</b> of the same kind.');
-            row(candyImage(4, 'none', 48), 'Every candy has its own color <b>and</b> shape. Turn on <b>Color-blind assist</b> in Settings for letters too.');
-            row(jellyImage(48, 2), 'Glaze: match on top of it to wipe it away. Thick glaze needs two hits.');
-            row(frostingImage(48, 2), 'Frosting blocks swaps. Match next to it (or blast it) to crack it.');
-            row(cherryImage(48), 'Cherries: clear the candies below them to drop them into the trays at the bottom.');
+            row(candyImage(0, 'none', 48), 'Swap two neighboring candies (tap one, then the other, or swipe) to line up <b>3 or more</b> of the same kind. Meet every goal before your moves (or the clock) run out.');
+            row(candyImage(4, 'none', 48), 'Every candy has its own color <b>and</b> shape. Turn on <b>Color-blind assist</b> in Settings for white symbols too.');
+            row(SPRITES.iconUrl('star', 96), 'The light bulb shows the best move at once. Auto hint (Settings) can show it by itself: Instant, after 3 s, after 8 s, or Off.');
             modal.appendChild(element('h3', '', { text: 'Special candies' }));
-            row(candyImage(3, 'stripe_col', 48), '<b>Match 4 in a line</b>: Striped candy. Its stripes point the way it clears: a whole row or column.');
+            row(candyImage(3, 'stripe_col', 48), '<b>Match 4 in a line</b>: Striped candy. It clears its whole row or column.');
             row(candyImage(5, 'wrapped', 48), '<b>Match an L, T or +</b>: Wrapped candy. Explodes 3×3, then again after the board settles.');
             row(candyImage(0, 'bomb', 48), '<b>Match 5 in a line</b>: Color Bomb. Swap it with a candy to clear every candy of that color.');
             modal.appendChild(element('h3', '', { text: 'Combos (swap two specials)' }));
-            const combos = element('table', 'help-table');
-            [
+            table([
               ['Striped + Striped', 'Row and column cross'],
               ['Striped + Wrapped', '3 rows and 3 columns'],
               ['Wrapped + Wrapped', '5×5 blast, twice'],
               ['Bomb + Striped', 'That color turns striped and fires'],
               ['Bomb + Wrapped', 'That color turns wrapped and explodes'],
               ['Bomb + Bomb', 'Clears the whole board'],
-            ].forEach(([pair, effect]) => combos.insertAdjacentHTML('beforeend', `<tr><td>${pair}</td><td>${effect}</td></tr>`));
-            modal.appendChild(combos);
+            ]);
+            modal.appendChild(element('h3', '', { text: 'Board pieces' }));
+            row(spriteUrl('jelly:2', 48), '<b>Jelly</b> sits under candies. Match on top of it to wipe it away (thick jelly needs two).');
+            row(spriteUrl('frosting:3', 48), '<b>Frosting</b> (1 to 5 layers) blocks a cell. Match next to it or blast it to crack a layer.');
+            row(spriteUrl('cage', 48), '<b>Sugar Cage</b>: the candy inside cannot move. Match it or blast it to break the cage.');
+            row(spriteUrl('cocoa', 48), '<b>Cocoa Creep</b> spreads after a move that clears none of it. Match beside it to clean it up.');
+            row(candyImage(2, 'none', 48), '<b>Fuse Candy</b> shows a countdown. Clear it before it reaches zero!');
+            row(spriteUrl('cherry', 48), '<b>Ingredients</b> (cherries and hazelnuts): bring them down to the trays. Blasts never break them.');
+            row(spriteUrl('candy:4', 48), '<b>Portals</b> pass falling candies to their partner. <b>Sugar Belts</b> slide candies one step after every move.');
+            modal.appendChild(element('h3', '', { text: 'Boosters and hearts' }));
+            table([
+              ['Sweet Hammer', 'Smash one piece or one blocker layer'],
+              ['Free Swap', 'Swap any two neighbors, no move used'],
+              ['Candy Whirl', 'Shuffle the candies'],
+              ['Lucky / Rainbow / Head Start', 'Begin with specials, a Color Bomb, or +3 moves'],
+              ['Hearts', 'A loss costs one; one refills every 30 minutes (or turn on Unlimited hearts)'],
+              ['Gold Drops', 'Earned from wins, stars, the Daily Wheel and Star Chests'],
+            ]);
             modal.appendChild(element('h3', '', { text: 'Scoring' }));
-            const scoring = element('table', 'help-table');
             const points = LOGIC.SCORING;
-            [
+            table([
               ['Match of 3 / 4 / 5 / 6', `${LOGIC.matchPoints(3)} / ${LOGIC.matchPoints(4)} / ${LOGIC.matchPoints(5)} / ${LOGIC.matchPoints(6)}`],
               ['Make striped / wrapped / bomb', `${points.CREATE_STRIPE} / ${points.CREATE_WRAPPED} / ${points.CREATE_BOMB}`],
               ['Each candy cleared by a special', String(points.ACTIVATION_PER_CANDY)],
               ['Each special set off', String(points.ACTIVATION_PER_SPECIAL)],
               ['Cascades', '×1, ×1.5, ×2, ×2.5 … up to ×4'],
-              ['Cherry delivered', String(points.INGREDIENT)],
-              ['Glaze layer / frosting layer', `${points.JELLY_LAYER} / ${points.FROSTING_LAYER}`],
-              ['Each move left at the end', `${points.END_BONUS_PER_MOVE} + a striped candy`],
-            ].forEach(([what, value]) => scoring.insertAdjacentHTML('beforeend', `<tr><td>${what}</td><td>${value}</td></tr>`));
-            modal.appendChild(scoring);
-            modal.appendChild(element('p', 'help-footer', { text: 'No moves left? The board reshuffles by itself. Stuck? Tap the light bulb for a free hint. New levels are just data: append one entry to www/js/levels.js.' }));
+              ['Ingredient delivered', String(points.INGREDIENT)],
+              ['Jelly layer / frosting layer', `${points.JELLY_LAYER} / ${points.FROSTING_LAYER}`],
+              ['Sweet Finale: each move left', `${points.END_BONUS_PER_MOVE} + a striped candy that fires`],
+            ]);
+            modal.appendChild(element('p', 'help-footer', { text: 'No moves left? The board reshuffles by itself. New levels are data: the "Levels" workflow generates and calibrates them into level packs.' }));
           },
         });
       },
@@ -1104,196 +1350,5 @@
     return ui;
   }
 
-  // ---------------------------------------------------------------- map scenery (procedural)
-  function paintMapScenery(canvas, width, height, positions) {
-    const ratio = Math.min(2, root.devicePixelRatio || 1);
-    canvas.width = Math.round(width * ratio);
-    canvas.height = Math.round(height * ratio);
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-    const ctx = canvas.getContext('2d');
-    ctx.scale(ratio, ratio);
-    const random = UTIL.createRng(2024);
-
-    // The road between level nodes, sampled so scenery can keep clear of it.
-    const road = new Path2D();
-    const road_points = [];
-    positions.forEach((point, index) => {
-      if (index === 0) {
-        road.moveTo(point.x, point.y);
-        road_points.push(point);
-        return;
-      }
-      const previous = positions[index - 1];
-      const middle_y = (previous.y + point.y) / 2;
-      road.bezierCurveTo(previous.x, middle_y, point.x, middle_y, point.x, point.y);
-      for (let step = 1; step <= 12; step += 1) {
-        const t = step / 12;
-        const u = 1 - t;
-        road_points.push({
-          x: u * u * u * previous.x + 3 * u * u * t * previous.x + 3 * u * t * t * point.x + t * t * t * point.x,
-          y: u * u * u * previous.y + 3 * u * u * t * middle_y + 3 * u * t * t * middle_y + t * t * t * point.y,
-        });
-      }
-    });
-    const clearOfRoad = (x, y, margin) => road_points.every((point) => Math.hypot(point.x - x, point.y - y) > margin);
-
-    // Land: a green meadow at the bottom that turns into a pink candy meadow higher up.
-    const land = ctx.createLinearGradient(0, height, 0, 0);
-    land.addColorStop(0, '#5cc94f');
-    land.addColorStop(0.45, '#8fe06a');
-    land.addColorStop(0.55, '#ffc4e6');
-    land.addColorStop(1, '#ffd9f0');
-    ctx.fillStyle = land;
-    ctx.fillRect(0, 0, width, height);
-    // Grass and sugar texture.
-    for (let index = 0; index < 260; index += 1) {
-      const x = random() * width;
-      const y = random() * height;
-      const in_meadow = y > height * 0.5;
-      ctx.fillStyle = in_meadow ? (random() < 0.5 ? 'rgba(40,140,40,0.14)' : 'rgba(255,255,255,0.16)') : (random() < 0.5 ? 'rgba(220,90,170,0.12)' : 'rgba(255,255,255,0.3)');
-      ctx.beginPath();
-      ctx.ellipse(x, y, 10 + random() * 26, 4 + random() * 9, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // Tiny flowers and sprinkles.
-    const sprinkle_colors = ['#ff5c8a', '#ffd34d', '#4aa8ff', '#ffffff', '#a45bff'];
-    for (let index = 0; index < 140; index += 1) {
-      const x = random() * width;
-      const y = random() * height;
-      ctx.fillStyle = sprinkle_colors[index % sprinkle_colors.length];
-      ctx.beginPath();
-      ctx.arc(x, y, 2 + random() * 1.8, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // A chocolate river crossing the trail halfway up, with a bridge where the road meets it.
-    const river_y = height * 0.5;
-    const river = new Path2D();
-    river.moveTo(0, river_y - 24);
-    for (let x = 0; x <= width + 10; x += 10) river.lineTo(x, river_y - 24 + Math.sin(x / 55) * 10);
-    for (let x = width + 10; x >= 0; x -= 10) river.lineTo(x, river_y + 24 + Math.sin(x / 55 + 0.8) * 10);
-    river.closePath();
-    ctx.fillStyle = '#7a3f1d';
-    ctx.fill(river);
-    ctx.save();
-    ctx.clip(river);
-    ctx.strokeStyle = 'rgba(255,220,180,0.35)';
-    ctx.lineWidth = 3;
-    for (let index = 0; index < 18; index += 1) {
-      const x = random() * width;
-      const y = river_y - 14 + random() * 28;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.quadraticCurveTo(x + 14, y - 4, x + 28, y);
-      ctx.stroke();
-    }
-    ctx.restore();
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 4;
-    ctx.stroke(river);
-
-    // Trees and gumdrops on both sides, never on the road.
-    const lollipop = (x, y, radius, color) => {
-      ctx.strokeStyle = '#fff6fb';
-      ctx.lineWidth = 6;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(x, y + radius);
-      ctx.lineTo(x, y + radius + 48);
-      ctx.stroke();
-      for (let ring = 6; ring >= 1; ring -= 1) {
-        ctx.fillStyle = ring % 2 ? color : '#ffffff';
-        ctx.beginPath();
-        ctx.arc(x, y, (radius * ring) / 6, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.fillStyle = 'rgba(255,255,255,0.65)';
-      ctx.beginPath();
-      ctx.ellipse(x - radius * 0.35, y - radius * 0.45, radius * 0.3, radius * 0.14, -0.6, 0, Math.PI * 2);
-      ctx.fill();
-    };
-    const cotton = (x, y, size, color) => {
-      ctx.fillStyle = '#a8673d';
-      ctx.fillRect(x - size * 0.09, y, size * 0.18, size * 0.9);
-      [[-0.45, 0.05, 0.5], [0.45, 0.05, 0.5], [0, -0.3, 0.6], [0, 0.12, 0.55]].forEach(([dx, dy, scale]) => {
-        const blob = ctx.createRadialGradient(x + dx * size - size * 0.2, y + dy * size - size * 0.25, 0, x + dx * size, y + dy * size, scale * size);
-        blob.addColorStop(0, '#ffffff');
-        blob.addColorStop(0.4, color);
-        blob.addColorStop(1, mixHex(color, '#5a1a6e', 0.25));
-        ctx.fillStyle = blob;
-        ctx.beginPath();
-        ctx.arc(x + dx * size, y + dy * size, scale * size, 0, Math.PI * 2);
-        ctx.fill();
-      });
-    };
-    const gumdrop = (x, y, radius, candy) => {
-      const dome = ctx.createRadialGradient(x - radius * 0.3, y - radius * 0.5, radius * 0.1, x, y, radius * 1.2);
-      dome.addColorStop(0, candy.highlight);
-      dome.addColorStop(0.6, candy.base);
-      dome.addColorStop(1, candy.shadow);
-      ctx.fillStyle = dome;
-      ctx.beginPath();
-      ctx.arc(x, y, radius, Math.PI, 0);
-      ctx.quadraticCurveTo(x + radius, y + radius * 0.25, x, y + radius * 0.22);
-      ctx.quadraticCurveTo(x - radius, y + radius * 0.25, x - radius, y);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.8)';
-      for (let sugar = 0; sugar < 7; sugar += 1) ctx.fillRect(x - radius * 0.7 + random() * radius * 1.4, y - radius * 0.8 + random() * radius * 0.7, 2.5, 2.5);
-    };
-    for (let y = 60; y < height - 40; y += 64) {
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        const x = random() * width;
-        if (Math.abs(y - river_y) < 60 || !clearOfRoad(x, y, 70)) continue;
-        const pick = random();
-        if (pick < 0.35) lollipop(x, y, 18 + random() * 10, CONFIG.CANDIES[Math.floor(random() * 6)].base);
-        else if (pick < 0.65) cotton(x, y, 26 + random() * 12, ['#ff9ad5', '#b9a1ff', '#8ee3ff'][Math.floor(random() * 3)]);
-        else gumdrop(x, y, 22 + random() * 16, CONFIG.CANDIES[Math.floor(random() * 6)]);
-        break;
-      }
-    }
-
-    // The road: a soft shadow, a caramel edge and a cream-colored cobbled surface.
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.save();
-    ctx.translate(0, 5);
-    ctx.strokeStyle = 'rgba(40,60,20,0.25)';
-    ctx.lineWidth = 46;
-    ctx.stroke(road);
-    ctx.restore();
-    ctx.strokeStyle = '#c98b4a';
-    ctx.lineWidth = 44;
-    ctx.stroke(road);
-    ctx.strokeStyle = '#fff1d2';
-    ctx.lineWidth = 36;
-    ctx.stroke(road);
-    ctx.strokeStyle = 'rgba(214,160,100,0.45)';
-    ctx.lineWidth = 8;
-    ctx.setLineDash([2, 16]);
-    ctx.stroke(road);
-    ctx.setLineDash([]);
-    // Bridge planks where the road crosses the river.
-    road_points.forEach((point, index) => {
-      if (index % 2 || Math.abs(point.y - river_y) > 30) return;
-      ctx.fillStyle = index % 4 ? '#ff7fbf' : '#ffffff';
-      ctx.fillRect(point.x - 24, point.y - 3, 48, 6);
-    });
-    // Mist over the not-yet-built part of the trail.
-    const mist = ctx.createLinearGradient(0, 0, 0, 200);
-    mist.addColorStop(0, 'rgba(255,255,255,0.85)');
-    mist.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = mist;
-    ctx.fillRect(0, 0, width, 200);
-  }
-
-  function mixHex(first_hex, second_hex, amount) {
-    const parse = (hex) => [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16));
-    const first = parse(first_hex);
-    const second = parse(second_hex);
-    return '#' + first.map((channel, index) => Math.round(channel + (second[index] - channel) * amount).toString(16).padStart(2, '0')).join('');
-  }
-
-
-  SC.UI = { createUi, ICONS, icon };
+  SC.UI = { createUi, icon };
 })(typeof window !== 'undefined' ? window : globalThis);

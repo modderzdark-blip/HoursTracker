@@ -43,6 +43,9 @@ async function bootGame(page, options) {
     } else {
       await page.click('#btn-name-skip');
     }
+    // First launch also asks "Is this volume comfortable?" before Level 1 starts.
+    await expect(page.locator('[data-modal="comfort"]')).toBeVisible();
+    await page.click('#btn-comfort-ok');
     await waitState(page, 'PLAYING');
   }
 }
@@ -114,4 +117,30 @@ async function playLevel(page, options) {
   return { made, used_swipe, used_tap };
 }
 
-module.exports = { HOOK_SOURCE, guardPage, expectClean, bootGame, reloadGame, snapshot, waitState, waitForModal, swipeMove, tapTapMove, playLevel };
+/** Seeds a save (in the page) and reloads: { unlocked, stars_upto, name, meta }. */
+async function seedSave(page, seed) {
+  await page.evaluate((spec) => {
+    const STORAGE = window.SC.STORAGE;
+    const save = STORAGE.defaultSave();
+    save.player_name = spec.name || 'Tester';
+    save.name_asked = true;
+    save.settings.comfort_done = true;
+    for (let level = 1; level <= (spec.stars_upto || 0); level += 1) STORAGE.recordResult(save, level, { won: true, score: 12000 + (level % 7) * 1500, stars: 1 + (level % 3) });
+    save.unlocked = Math.max(save.unlocked, spec.unlocked || 1);
+    Object.assign(save.meta, spec.meta || {});
+    Object.assign(save.settings, spec.settings || {});
+    // Replace the running game's save too: on unload the page persists what it holds in memory.
+    const live = window.SC.game.store.save;
+    Object.keys(live).forEach((key) => delete live[key]);
+    Object.assign(live, STORAGE.normalizeSave(save));
+    localStorage.setItem(STORAGE.SAVE_KEY, STORAGE.serializeSave(save));
+  }, seed);
+  await reloadGame(page);
+}
+
+/** Level n's move or time budget from its record. */
+function levelMoves(page, level_id) {
+  return page.evaluate((id) => window.SC.LEVELS.getLevel(id).moves, level_id);
+}
+
+module.exports = { seedSave, levelMoves, HOOK_SOURCE, guardPage, expectClean, bootGame, reloadGame, snapshot, waitState, waitForModal, swipeMove, tapTapMove, playLevel };

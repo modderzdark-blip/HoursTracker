@@ -15,7 +15,7 @@
   const THEMES = ['gummy', 'hard', 'sprinkle'];
   const ACCENTS = ['bubblegum', 'sunset', 'ocean', 'mint', 'grape', 'cherry', 'gold', 'midnight'];
   const AUTO_HINT = ['instant', '3s', '8s', 'off'];
-  const ANIMATION_SPEEDS = ['relaxed', 'normal', 'fast'];
+  const ANIMATION_SPEEDS = ['normal', 'snappy', 'fast'];
   const IN_LEVEL_BOOSTERS = ['hammer', 'free_swap', 'whirl'];
   const PRE_LEVEL_BOOSTERS = ['lucky', 'rainbow', 'head_start'];
   const BOOSTERS = IN_LEVEL_BOOSTERS.concat(PRE_LEVEL_BOOSTERS);
@@ -34,7 +34,7 @@
       comfort_done: false, // the first-launch comfort slider has been shown
       haptics: true,
       reduced_motion: false,
-      animation_speed: 'normal',
+      animation_speed: 'snappy',
       auto_hint: 'instant',
       unlimited_hearts: false,
       colorblind: false,

@@ -22,6 +22,7 @@
         <span class="glossy-text logo-line" id="logo-line-1" data-text="Sweet">Sweet</span>
         <span class="glossy-text logo-line logo-line-2" id="logo-line-2" data-text="Cascade">Cascade</span>
       </h1>
+      <canvas id="title-pip" class="title-pip" aria-hidden="true"></canvas>
       <p id="title-greeting" class="greeting"></p>
       <button id="btn-play" class="pill pill-big" type="button" aria-label="Play">Play</button>
       <div class="title-row">
@@ -33,23 +34,30 @@
   </section>
 
   <section id="screen-map" class="screen screen-map" aria-label="Level map">
-    <header class="top-bar">
-      <button id="btn-map-back" class="round small" type="button" aria-label="Back to title" data-icon="back"></button>
-      <h2 class="glossy-text bar-title" data-text="Candy Trail">Candy Trail</h2>
-      <button id="btn-map-settings" class="round small" type="button" aria-label="Settings" data-icon="gear"></button>
-    </header>
+    <canvas id="map-canvas" class="map-canvas" aria-hidden="true"></canvas>
     <div id="map-scroll" class="map-scroll">
       <div id="map-inner" class="map-inner">
-        <canvas id="map-canvas" class="map-canvas" aria-hidden="true"></canvas>
         <div id="map-nodes" class="map-nodes"></div>
       </div>
+    </div>
+    <header class="top-bar map-bar">
+      <button id="btn-map-back" class="round small" type="button" aria-label="Back to title" data-icon="back"></button>
+      <button id="map-hearts" class="chip chip-hearts" type="button" aria-label="Hearts"><img id="map-hearts-icon" alt=""><span id="map-hearts-count">5</span><small id="map-hearts-timer"></small></button>
+      <button id="map-gold" class="chip chip-gold" type="button" aria-label="Gold Drops"><img id="map-gold-icon" alt=""><span id="map-gold-count">0</span></button>
+      <button id="btn-map-wheel" class="round small has-badge" type="button" aria-label="Daily Wheel" data-icon="wheel"></button>
+      <button id="btn-map-settings" class="round small" type="button" aria-label="Settings" data-icon="gear"></button>
+    </header>
+    <div class="map-actions">
+      <button id="btn-map-chest" class="chip chip-chest" type="button" aria-label="Star Chest"><img id="map-chest-icon" alt=""><span id="map-chest-progress">0/25</span></button>
+      <button id="btn-map-mine" class="pill small" type="button">Jump to my level</button>
+      <button id="btn-map-goto" class="round small" type="button" aria-label="Go to level number" data-icon="search"></button>
     </div>
   </section>
 
   <section id="screen-game" class="screen screen-game" aria-label="Game">
     <header id="hud" class="hud">
       <div class="hud-card hud-moves" aria-label="Moves left">
-        <span class="hud-label">Moves</span>
+        <span id="hud-moves-label" class="hud-label">Moves</span>
         <span id="hud-moves" class="hud-number">0</span>
       </div>
       <div class="hud-card hud-goals">
@@ -70,9 +78,15 @@
     <div id="board-slot" class="board-slot"></div>
     <div id="banner" class="banner" aria-hidden="true"></div>
     <div id="tutorial-bubble" class="tutorial-bubble" hidden></div>
+    <canvas id="game-pip" class="game-pip" aria-hidden="true"></canvas>
     <footer class="game-bar">
       <button id="btn-pause" class="round" type="button" aria-label="Pause" data-icon="pause"></button>
-      <button id="btn-hint" class="round" type="button" aria-label="Show a hint" data-icon="hint"></button>
+      <button id="btn-hint" class="round hint-button" type="button" aria-label="Show a hint" data-icon="hint"></button>
+      <div class="booster-bar" role="group" aria-label="Boosters">
+        <button id="btn-booster-hammer" class="booster" type="button" aria-label="Sweet Hammer" data-booster="hammer"><span class="booster-icon" data-icon="hammer"></span><span class="booster-count">3</span></button>
+        <button id="btn-booster-free_swap" class="booster" type="button" aria-label="Free Swap" data-booster="free_swap"><span class="booster-icon" data-icon="swap"></span><span class="booster-count">3</span></button>
+        <button id="btn-booster-whirl" class="booster" type="button" aria-label="Candy Whirl" data-booster="whirl"><span class="booster-icon" data-icon="whirl"></span><span class="booster-count">3</span></button>
+      </div>
       <button id="btn-sound" class="round" type="button" aria-label="Mute sound" data-icon="sound"></button>
     </footer>
   </section>
@@ -90,13 +104,18 @@
 <script src="js/config.js"></script>
 <script src="js/util.js"></script>
 <script src="js/logic.js"></script>
+<script src="levels/manifest.js"></script>
 <script src="js/levels.js"></script>
 <script src="js/audio.js"></script>
-<script src="js/art.js"></script>
+<script src="js/sprites.js"></script>
+<script src="js/scenery.js"></script>
+<script src="js/pip.js"></script>
 <script src="js/render.js"></script>
 <script src="js/storage.js"></script>
+<script src="js/meta.js"></script>
 <script src="js/selftest.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/map.js"></script>
 <script src="js/input.js"></script>
 <script src="js/game.js"></script>
 <script src="js/boot.js"></script>

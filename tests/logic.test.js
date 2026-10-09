@@ -1,9 +1,11 @@
 // Headless logic tests (CI job "logic"): runs the shared suite from www/js/selftest.js with node:assert.
 const assert = require('node:assert');
+require('../www/js/config.js');
 require('../www/js/util.js');
 require('../www/js/logic.js');
 require('../www/js/levels.js');
 require('../www/js/storage.js');
+require('../www/js/meta.js');
 const SELFTEST = require('../www/js/selftest.js');
 
 (async function runAllTests() {

@@ -5,7 +5,7 @@
   const SC = root.SC || (root.SC = {});
   const CONFIG = SC.CONFIG;
   const UTIL = SC.UTIL;
-  const ART = SC.ART;
+  const SPRITES = SC.SPRITES;
   const EASE = UTIL.EASE;
   const TIMING = CONFIG.TIMING;
 
@@ -166,7 +166,7 @@
     const ctx = game_canvas.getContext('2d');
     const timeline = createTimeline();
     const particles = createParticlePool(CONFIG.MAX_PARTICLES);
-    const sprites = ART.createSpriteCache();
+    const sprites = SPRITES.createSpriteCache();
     const visuals = new Map(); // piece id -> visual
     const effects = []; // beams, rings, arcs
     const popups = [];
@@ -174,7 +174,9 @@
     let display_jelly = null;
     let layout = { cell: 48, origin_x: 0, origin_y: 0, width: 0, height: 0, dpr: 1, view_w: 0, view_h: 0 };
     let static_layer = null;
-    let settings = { theme: 'classic', colorblind: false, reduced_motion: false };
+    let settings = { theme: 'gummy', colorblind: false, reduced_motion: false };
+    let display_cage = null;
+    let level_sprite_keys = { now: [], later: [] };
     let quality = 2; // 2 high, 1 medium, 0 low (adaptive)
     let selected_cell = -1;
     let hint_move = null;
@@ -208,13 +210,16 @@
 
     function placeBoard(slot) {
       if (!board) return;
-      const cell = Math.max(20, Math.floor(Math.min(slot.width / board.cols, slot.height / board.rows, CONFIG.MAX_CELL_PX)));
+      // Leave room for the frosted frame around the cells (about 0.2 of a cell on each side).
+      const cell = Math.max(20, Math.floor(Math.min(slot.width / (board.cols + 0.4), slot.height / (board.rows + 0.4), CONFIG.MAX_CELL_PX)));
       layout.cell = cell;
       layout.width = cell * board.cols;
       layout.height = cell * board.rows;
       layout.origin_x = Math.round(slot.left + (slot.width - layout.width) / 2);
       layout.origin_y = Math.round(slot.top + (slot.height - layout.height) / 2);
       sprites.configure(cell, settings.theme, settings.colorblind, layout.dpr);
+      sprites.prepare(level_sprite_keys.now);
+      sprites.warm(level_sprite_keys.later);
       buildStaticLayer();
     }
 
@@ -222,14 +227,17 @@
       return row >= 0 && col >= 0 && row < board.rows && col < board.cols && !board.holes[row * board.cols + col];
     }
 
-    /** Frosted-glass frame following the board shape, alternating translucent cells with an inner bevel, exit trays. */
+    /**
+     * Frosted-glass board following the board shape: soft drop shadow, bright rim, a translucent plum pane with an
+     * inner highlight, alternating translucent cells with a subtle bevel, then exit trays, portal rings and belt tracks.
+     */
     function buildStaticLayer() {
       const cell = layout.cell;
-      const pad = Math.round(cell * 0.16);
+      const pad = Math.round(cell * 0.18);
       const width = layout.width + pad * 2;
       const height = layout.height + pad * 2 + Math.round(cell * 0.3);
       const ratio = layout.dpr;
-      static_layer = ART.createCanvas(Math.round(width * ratio), Math.round(height * ratio));
+      static_layer = SPRITES.createCanvas(Math.round(width * ratio), Math.round(height * ratio));
       const layer = static_layer.getContext('2d');
       layer.scale(ratio, ratio);
       layer.translate(pad, pad);
@@ -238,81 +246,178 @@
       for (let row = 0; row < board.rows; row += 1) {
         for (let col = 0; col < board.cols; col += 1) {
           if (!isActive(row, col)) continue;
-          ART.roundedRectPath(frame, col * cell - pad, row * cell - pad, cell + pad * 2, cell + pad * 2, pad * 1.6);
-          ART.roundedRectPath(frame_rim, col * cell - pad - 2, row * cell - pad - 2, cell + pad * 2 + 4, cell + pad * 2 + 4, pad * 1.8);
+          SPRITES.roundedRectPath(frame, col * cell - pad, row * cell - pad, cell + pad * 2, cell + pad * 2, pad * 1.6);
+          SPRITES.roundedRectPath(frame_rim, col * cell - pad - 2.5, row * cell - pad - 2.5, cell + pad * 2 + 5, cell + pad * 2 + 5, pad * 1.8);
         }
       }
-      // Deep-blue glass board: soft drop shadow, a pale rim, then a see-through navy pane (filled unions never
-      // show seams) with a checkerboard of lighter tiles, so the bright candies pop.
       layer.save();
-      layer.shadowColor = 'rgba(20,10,60,0.45)';
-      layer.shadowBlur = cell * 0.4;
-      layer.shadowOffsetY = cell * 0.1;
-      layer.fillStyle = 'rgba(225,235,255,0.85)';
+      layer.shadowColor = 'rgba(59,26,74,0.38)';
+      layer.shadowBlur = cell * 0.45;
+      layer.shadowOffsetY = cell * 0.12;
+      layer.fillStyle = 'rgba(255,255,255,0.78)';
       layer.fill(frame_rim, 'nonzero');
       layer.restore();
       const pane = layer.createLinearGradient(0, -pad, 0, board.rows * cell + pad);
-      pane.addColorStop(0, 'rgba(36,58,150,0.86)');
-      pane.addColorStop(1, 'rgba(22,34,105,0.9)');
+      pane.addColorStop(0, 'rgba(98,52,140,0.62)');
+      pane.addColorStop(1, 'rgba(70,32,110,0.72)');
       layer.fillStyle = pane;
       layer.fill(frame, 'nonzero');
-      // Faint highlight along the top of the pane.
       layer.save();
       layer.clip(frame, 'nonzero');
-      const sheen = layer.createLinearGradient(0, -pad, 0, cell * 0.9);
-      sheen.addColorStop(0, 'rgba(255,255,255,0.18)');
+      // Frosted inner highlight along the top and a soft glow at the bottom edge.
+      const sheen = layer.createLinearGradient(0, -pad, 0, cell * 1.2);
+      sheen.addColorStop(0, 'rgba(255,255,255,0.32)');
       sheen.addColorStop(1, 'rgba(255,255,255,0)');
       layer.fillStyle = sheen;
-      layer.fillRect(-pad, -pad, board.cols * cell + pad * 2, cell * 0.9 + pad);
+      layer.fillRect(-pad, -pad, board.cols * cell + pad * 2, cell * 1.2 + pad);
       layer.restore();
       for (let row = 0; row < board.rows; row += 1) {
         for (let col = 0; col < board.cols; col += 1) {
           if (!isActive(row, col)) continue;
           const x = col * cell;
           const y = row * cell;
-          const tile = ART.roundedRectPath(new Path2D(), x + 1.5, y + 1.5, cell - 3, cell - 3, cell * 0.1);
-          layer.fillStyle = (row + col) % 2 === 0 ? 'rgba(130,165,255,0.3)' : 'rgba(95,125,230,0.18)';
+          const tile = SPRITES.roundedRectPath(new Path2D(), x + 1.5, y + 1.5, cell - 3, cell - 3, cell * 0.14);
+          layer.fillStyle = (row + col) % 2 === 0 ? 'rgba(255,240,255,0.24)' : 'rgba(255,230,250,0.12)';
           layer.fill(tile);
-          // Soft inner light at the top of each tile.
           layer.save();
           layer.clip(tile);
-          const glow = layer.createLinearGradient(x, y, x, y + cell);
-          glow.addColorStop(0, 'rgba(255,255,255,0.12)');
-          glow.addColorStop(0.5, 'rgba(255,255,255,0)');
-          glow.addColorStop(1, 'rgba(10,15,60,0.12)');
-          layer.fillStyle = glow;
+          const bevel = layer.createLinearGradient(x, y, x, y + cell);
+          bevel.addColorStop(0, 'rgba(255,255,255,0.22)');
+          bevel.addColorStop(0.18, 'rgba(255,255,255,0.04)');
+          bevel.addColorStop(0.85, 'rgba(40,10,60,0.04)');
+          bevel.addColorStop(1, 'rgba(40,10,60,0.2)');
+          layer.fillStyle = bevel;
           layer.fillRect(x, y, cell, cell);
           layer.restore();
-          if (board.exits[row * board.cols + col]) {
-            // Exit tray: a small glossy basket hanging under the cell with a down arrow.
-            const tray_y = y + cell + pad * 0.2;
-            const tray = new Path2D();
-            tray.moveTo(x + cell * 0.18, tray_y);
-            tray.lineTo(x + cell * 0.82, tray_y);
-            tray.lineTo(x + cell * 0.72, tray_y + cell * 0.24);
-            tray.lineTo(x + cell * 0.28, tray_y + cell * 0.24);
-            tray.closePath();
-            const tray_fill = layer.createLinearGradient(0, tray_y, 0, tray_y + cell * 0.24);
-            tray_fill.addColorStop(0, '#ffe08a');
-            tray_fill.addColorStop(1, '#e09a2a');
-            layer.fillStyle = tray_fill;
-            layer.fill(tray);
-            layer.strokeStyle = 'rgba(120,60,0,0.7)';
-            layer.lineWidth = 1.5;
-            layer.stroke(tray);
-            layer.fillStyle = 'rgba(120,60,0,0.85)';
-            layer.beginPath();
-            layer.moveTo(x + cell * 0.42, tray_y + cell * 0.06);
-            layer.lineTo(x + cell * 0.58, tray_y + cell * 0.06);
-            layer.lineTo(x + cell * 0.5, tray_y + cell * 0.18);
-            layer.closePath();
-            layer.fill();
-          }
+          if (board.exits[row * board.cols + col]) drawExitTray(layer, x, y, cell, pad);
         }
+      }
+      board.belts.forEach((belt) => drawBeltTrack(layer, belt, cell));
+      for (let cell_index = 0; cell_index < board.portal_to.length; cell_index += 1) {
+        const exit = board.portal_to[cell_index];
+        if (exit < 0) continue;
+        drawPortalRing(layer, cell_index, cell, '#b06cff', true);
+        drawPortalRing(layer, exit, cell, '#3fd0ff', false);
       }
       static_layer.pad = pad;
       static_layer.css_w = width;
       static_layer.css_h = height;
+    }
+
+    function drawExitTray(layer, x, y, cell, pad) {
+      // A small glossy candy-dish under the cell with a down arrow.
+      const tray_y = y + cell + pad * 0.15;
+      const tray = new Path2D();
+      tray.moveTo(x + cell * 0.16, tray_y);
+      tray.lineTo(x + cell * 0.84, tray_y);
+      tray.quadraticCurveTo(x + cell * 0.78, tray_y + cell * 0.26, x + cell * 0.5, tray_y + cell * 0.26);
+      tray.quadraticCurveTo(x + cell * 0.22, tray_y + cell * 0.26, x + cell * 0.16, tray_y);
+      tray.closePath();
+      const tray_fill = layer.createLinearGradient(0, tray_y, 0, tray_y + cell * 0.26);
+      tray_fill.addColorStop(0, '#fff2b0');
+      tray_fill.addColorStop(1, '#f0a630');
+      layer.fillStyle = tray_fill;
+      layer.fill(tray);
+      layer.strokeStyle = 'rgba(122,62,0,0.75)';
+      layer.lineWidth = 1.5;
+      layer.stroke(tray);
+      layer.fillStyle = 'rgba(122,62,0,0.9)';
+      layer.beginPath();
+      layer.moveTo(x + cell * 0.41, tray_y + cell * 0.05);
+      layer.lineTo(x + cell * 0.59, tray_y + cell * 0.05);
+      layer.lineTo(x + cell * 0.5, tray_y + cell * 0.18);
+      layer.closePath();
+      layer.fill();
+    }
+
+    function drawBeltTrack(layer, belt, cell) {
+      const horizontal = belt.direction === 1 || belt.direction === 2;
+      belt.cells.forEach((cell_index) => {
+        const position = cellXY(cell_index);
+        const x = position.col * cell;
+        const y = position.row * cell;
+        const track = SPRITES.roundedRectPath(new Path2D(), x + cell * 0.04, y + cell * 0.04, cell * 0.92, cell * 0.92, cell * 0.18);
+        const fill = horizontal ? layer.createLinearGradient(0, y, 0, y + cell) : layer.createLinearGradient(x, 0, x + cell, 0);
+        fill.addColorStop(0, 'rgba(255,214,110,0.55)');
+        fill.addColorStop(0.5, 'rgba(255,170,60,0.35)');
+        fill.addColorStop(1, 'rgba(200,110,20,0.55)');
+        layer.fillStyle = fill;
+        layer.fill(track);
+        layer.strokeStyle = 'rgba(255,240,200,0.7)';
+        layer.lineWidth = 1.5;
+        layer.stroke(track);
+      });
+    }
+
+    function drawPortalRing(layer, cell_index, cell, color, entrance) {
+      const position = cellXY(cell_index);
+      const cx = (position.col + 0.5) * cell;
+      const cy = entrance ? (position.row + 0.94) * cell : (position.row + 0.06) * cell;
+      layer.save();
+      layer.lineWidth = Math.max(2, cell * 0.08);
+      layer.strokeStyle = color;
+      layer.shadowColor = color;
+      layer.shadowBlur = cell * 0.25;
+      layer.beginPath();
+      layer.ellipse(cx, cy, cell * 0.4, cell * 0.11, 0, 0, Math.PI * 2);
+      layer.stroke();
+      layer.restore();
+    }
+
+    /** Animated board features drawn every frame: swirling portals and chevrons moving along the belts. */
+    function drawBoardFeatures(now) {
+      const cell = layout.cell;
+      if (board.belts.length) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        const phase = settings.reduced_motion ? 0 : (now / 900) % 1;
+        board.belts.forEach((belt) => {
+          const step = { 1: [1, 0], 2: [-1, 0], 3: [0, -1], 4: [0, 1] }[belt.direction];
+          belt.cells.forEach((cell_index) => {
+            const center = cellCenter(cell_index);
+            for (let chevron = -1; chevron <= 1; chevron += 1) {
+              const offset = (chevron + phase) * cell * 0.33;
+              const x = center.x + step[0] * offset;
+              const y = center.y + step[1] * offset;
+              ctx.save();
+              ctx.translate(x, y);
+              ctx.rotate(Math.atan2(step[1], step[0]));
+              ctx.beginPath();
+              ctx.moveTo(-cell * 0.05, -cell * 0.12);
+              ctx.lineTo(cell * 0.07, 0);
+              ctx.lineTo(-cell * 0.05, cell * 0.12);
+              ctx.lineTo(-cell * 0.01, 0);
+              ctx.closePath();
+              ctx.globalAlpha = 0.35 + 0.25 * (1 - Math.abs(chevron + phase - 0.5) / 1.5);
+              ctx.fill();
+              ctx.restore();
+            }
+          });
+        });
+        ctx.restore();
+      }
+      if (quality > 0 && !settings.reduced_motion) {
+        for (let cell_index = 0; cell_index < board.portal_to.length; cell_index += 1) {
+          const exit = board.portal_to[cell_index];
+          if (exit < 0) continue;
+          [[cell_index, 0.94, '#e0b8ff'], [exit, 0.06, '#c4f2ff']].forEach(([portal_cell, offset_y, color]) => {
+            const position = cellXY(portal_cell);
+            const cx = layout.origin_x + (position.col + 0.5) * cell;
+            const cy = layout.origin_y + (position.row + offset_y) * cell;
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.globalAlpha = 0.8;
+            ctx.lineWidth = Math.max(1, cell * 0.03);
+            const spin = now / 400;
+            for (let arc = 0; arc < 3; arc += 1) {
+              ctx.beginPath();
+              ctx.ellipse(cx, cy, cell * 0.32, cell * 0.08, 0, spin + arc * 2.1, spin + arc * 2.1 + 1.1);
+              ctx.stroke();
+            }
+            ctx.restore();
+          });
+        }
+      }
     }
 
     // ---------------------------------------------------------------- visuals
@@ -323,7 +428,7 @@
     function makeVisual(piece, cell_index) {
       const position = cellXY(cell_index);
       return {
-        id: piece.id, kind: piece.kind, color: piece.color, special: piece.special, layers: piece.layers,
+        id: piece.id, kind: piece.kind, color: piece.color, special: piece.special, layers: piece.layers, max_layers: piece.layers, fuse: piece.fuse,
         x: position.col, y: position.row, scale_x: 1, scale_y: 1, scale: 1, alpha: 1, rotation: 0, flash: 0, lift: 0,
         wobble_seed: (piece.id * 0.618) % 1,
       };
@@ -341,12 +446,13 @@
           visual = makeVisual(piece, cell_index);
           visuals.set(piece.id, visual);
         }
-        Object.assign(visual, { kind: piece.kind, color: piece.color, special: piece.special, layers: piece.layers, x: position.col, y: position.row, scale_x: 1, scale_y: 1, scale: 1, alpha: 1, rotation: 0, flash: 0, lift: 0 });
+        Object.assign(visual, { kind: piece.kind, color: piece.color, special: piece.special, layers: piece.layers, max_layers: Math.max(visual.max_layers || 0, piece.layers), fuse: piece.fuse, x: position.col, y: position.row, scale_x: 1, scale_y: 1, scale: 1, alpha: 1, rotation: 0, flash: 0, lift: 0 });
       });
       Array.from(visuals.keys()).forEach((piece_id) => {
         if (!seen.has(piece_id)) visuals.delete(piece_id);
       });
       display_jelly = Uint8Array.from(state.jelly);
+      display_cage = Uint8Array.from(state.cage);
     }
 
     function setLevel(state) {
@@ -356,7 +462,16 @@
       popups.length = 0;
       particles.clear();
       const spawn_rows = state.spawn_cells.map((spawn_cell) => (spawn_cell < 0 ? 0 : Math.floor(spawn_cell / state.cols)));
-      board = { rows: state.rows, cols: state.cols, holes: state.holes, exits: state.exits, spawn_rows };
+      board = { rows: state.rows, cols: state.cols, holes: state.holes, exits: state.exits, spawn_rows, belts: state.belts || [], portal_to: state.portal_to, palette: state.palette };
+      const kinds = new Set();
+      state.cells.forEach((piece) => {
+        if (!piece) return;
+        if (piece.kind === 'frosting') kinds.add(`frosting:${piece.layers}`);
+        else if (piece.kind !== 'candy') kinds.add(piece.kind);
+      });
+      if (Array.prototype.some.call(state.cage, (value) => value)) kinds.add('cage');
+      if (Array.prototype.some.call(state.jelly, (value) => value)) kinds.add('jelly:1').add('jelly:2');
+      level_sprite_keys = SPRITES.keysForLevel(state.palette, Array.from(kinds));
       selected_cell = -1;
       hint_move = null;
       drag = null;
@@ -385,7 +500,7 @@
     function burst(cell_index, color_hex, count, power) {
       const center = cellCenter(cell_index);
       const total = Math.max(1, Math.round(count * particleScale()));
-      const palette = color_hex ? [color_hex, '#ffffff', ART.mix(color_hex, '#ffffff', 0.5)] : ['#ffffff', '#ffe58a', '#ff9ad5'];
+      const palette = color_hex ? [color_hex, '#ffffff', SPRITES.mixHex(color_hex, '#ffffff', 0.5)] : ['#ffffff', '#ffe58a', '#ff9ad5'];
       for (let index = 0; index < total; index += 1) {
         const angle = Math.random() * Math.PI * 2;
         const speed = (120 + Math.random() * 260) * (power || 1);
@@ -404,6 +519,11 @@
       popups.push({ x: center.x, y: center.y, text: `+${points}`, size, born: timeline.now, life: 900 });
     }
 
+    function addTextPopup(cell_index, text, color) {
+      const center = cell_index >= 0 ? cellCenter(cell_index) : { x: layout.origin_x + layout.width / 2, y: layout.origin_y + layout.height / 2 };
+      popups.push({ x: center.x, y: center.y - layout.cell * 0.3, text, size: layout.cell * 0.42, born: timeline.now, life: 1000, color });
+    }
+
     function addShake(amplitude, duration_ms) {
       if (settings.reduced_motion) return;
       shake.amplitude = Math.max(shake.amplitude, amplitude);
@@ -418,10 +538,8 @@
     // ---------------------------------------------------------------- drawing
     function drawPiece(visual, now) {
       const cell = layout.cell;
-      let sprite;
-      if (visual.kind === 'candy') sprite = sprites.get('candy', visual.color, visual.special, 0);
-      else if (visual.kind === 'frosting') sprite = sprites.get('frosting', -1, 'none', visual.layers);
-      else sprite = sprites.get('cherry', -1, 'none', 0);
+      const sprite = sprites.get(visual.kind, visual.color, visual.special, visual.layers);
+      if (!sprite) return;
       const center = screenOf(visual.x, visual.y);
       let alpha = visual.alpha;
       const spawn_row = board.spawn_rows[Math.round(visual.x)] || 0;
@@ -463,8 +581,8 @@
         const pulse = 0.5 + 0.5 * Math.sin(now / (armed ? 90 : 320) + visual.wobble_seed * 6);
         const glow = ctx.createRadialGradient(draw_x, draw_y, cell * 0.1, draw_x, draw_y, cell * (armed ? 0.75 : 0.62));
         const glow_color = CONFIG.CANDIES[visual.color] ? CONFIG.CANDIES[visual.color].highlight : '#ffffff';
-        glow.addColorStop(0, ART.rgba(armed ? '#ffffff' : glow_color, (armed ? 0.7 : 0.45) * pulse * alpha));
-        glow.addColorStop(1, ART.rgba(glow_color, 0));
+        glow.addColorStop(0, SPRITES.rgba(armed ? '#ffffff' : glow_color, (armed ? 0.7 : 0.45) * pulse * alpha));
+        glow.addColorStop(1, SPRITES.rgba(glow_color, 0));
         ctx.fillStyle = glow;
         ctx.fillRect(draw_x - cell, draw_y - cell, cell * 2, cell * 2);
       }
@@ -488,7 +606,9 @@
         ctx.fill();
         ctx.globalCompositeOperation = 'source-over';
       }
+      if (visual.kind === 'frosting' && visual.max_layers > visual.layers) drawCracks(visual, cell);
       ctx.restore();
+      if (visual.fuse !== undefined) drawFuse(visual, draw_x, draw_y, alpha, now);
       if (visual.special === 'bomb' && quality > 0) {
         for (let index = 0; index < 3; index += 1) {
           const angle = now / 600 + index * ((Math.PI * 2) / 3);
@@ -521,11 +641,72 @@
       }
     }
 
+    /** Hairline cracks on frosting that has lost layers (seeded by the piece, so they stay put). */
+    function drawCracks(visual, cell) {
+      const rng = UTIL.createRng(visual.id * 977 + visual.layers);
+      const lost = visual.max_layers - visual.layers;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(150,70,110,0.55)';
+      ctx.lineWidth = Math.max(1, cell * 0.025);
+      ctx.lineCap = 'round';
+      for (let crack = 0; crack < Math.min(4, lost + 1); crack += 1) {
+        let x = (rng() - 0.5) * cell * 0.5;
+        let y = (rng() - 0.5) * cell * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        for (let segment = 0; segment < 4; segment += 1) {
+          x += (rng() - 0.5) * cell * 0.28;
+          y += (rng() - 0.5) * cell * 0.28;
+          ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    /** Fuse Candy countdown: a ring that drains as the fuse burns, the number of moves left, red and pulsing at 3 or less. */
+    function drawFuse(visual, x, y, alpha, now) {
+      const cell = layout.cell;
+      const urgent = visual.fuse <= 3;
+      const pulse = urgent && !settings.reduced_motion ? 0.5 + 0.5 * Math.sin(now / 120) : 0;
+      const radius = cell * 0.17;
+      const badge_x = x + cell * 0.27;
+      const badge_y = y - cell * 0.27;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = urgent ? `rgba(${200 + 55 * pulse},40,60,0.95)` : 'rgba(59,26,74,0.9)';
+      ctx.beginPath();
+      ctx.arc(badge_x, badge_y, radius * (1 + 0.15 * pulse), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffe9a8';
+      ctx.lineWidth = Math.max(1.5, cell * 0.035);
+      ctx.beginPath();
+      ctx.arc(badge_x, badge_y, radius * 1.05, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, visual.fuse / 10));
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `900 ${Math.round(radius * 1.25)}px system-ui, -apple-system, Roboto, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(visual.fuse), badge_x, badge_y + radius * 0.05);
+      ctx.restore();
+    }
+
+    /** Sugar Cages over caged candies (cages belong to cells, so they are drawn per cell). */
+    function drawCages() {
+      if (!display_cage) return;
+      const cell = layout.cell;
+      for (let cell_index = 0; cell_index < display_cage.length; cell_index += 1) {
+        if (!display_cage[cell_index]) continue;
+        const position = cellXY(cell_index);
+        ctx.drawImage(sprites.get('cage'), layout.origin_x + position.col * cell, layout.origin_y + position.row * cell, cell, cell);
+      }
+    }
+
     /** Diagonal white sheen sweeping across a sprite (source-atop on a small scratch canvas). */
     function drawSheen(sprite, x, y, scale_x, scale_y, progress, alpha) {
       const cell = layout.cell;
       const size = Math.ceil(cell * layout.dpr);
-      if (!sheen_canvas || sheen_canvas.width !== size) sheen_canvas = ART.createCanvas(size, size);
+      if (!sheen_canvas || sheen_canvas.width !== size) sheen_canvas = SPRITES.createCanvas(size, size);
       const sheen_ctx = sheen_canvas.getContext('2d');
       sheen_ctx.globalCompositeOperation = 'source-over';
       sheen_ctx.clearRect(0, 0, size, size);
@@ -568,18 +749,18 @@
             const left = UTIL.lerp(center.x, layout.origin_x - cell * 0.3, reach);
             const right = UTIL.lerp(center.x, layout.origin_x + layout.width + cell * 0.3, reach);
             const beam = ctx.createLinearGradient(0, center.y - thickness, 0, center.y + thickness);
-            beam.addColorStop(0, ART.rgba(tint, 0));
+            beam.addColorStop(0, SPRITES.rgba(tint, 0));
             beam.addColorStop(0.5, `rgba(255,255,255,${0.95 * fade})`);
-            beam.addColorStop(1, ART.rgba(tint, 0));
+            beam.addColorStop(1, SPRITES.rgba(tint, 0));
             ctx.fillStyle = beam;
             ctx.fillRect(left, center.y - thickness, right - left, thickness * 2);
           } else {
             const top = UTIL.lerp(center.y, layout.origin_y - cell * 0.3, reach);
             const bottom = UTIL.lerp(center.y, layout.origin_y + layout.height + cell * 0.3, reach);
             const beam = ctx.createLinearGradient(center.x - thickness, 0, center.x + thickness, 0);
-            beam.addColorStop(0, ART.rgba(tint, 0));
+            beam.addColorStop(0, SPRITES.rgba(tint, 0));
             beam.addColorStop(0.5, `rgba(255,255,255,${0.95 * fade})`);
-            beam.addColorStop(1, ART.rgba(tint, 0));
+            beam.addColorStop(1, SPRITES.rgba(tint, 0));
             ctx.fillStyle = beam;
             ctx.fillRect(center.x - thickness, top, thickness * 2, bottom - top);
           }
@@ -665,7 +846,7 @@
         ctx.strokeText(popup.text, 0, 0);
         const fill = ctx.createLinearGradient(0, -popup.size / 2, 0, popup.size / 2);
         fill.addColorStop(0, '#ffffff');
-        fill.addColorStop(1, '#ffe27a');
+        fill.addColorStop(1, popup.color || '#ffe27a');
         ctx.fillStyle = fill;
         ctx.fillText(popup.text, 0, 0);
         ctx.restore();
@@ -696,9 +877,49 @@
         ctx.shadowColor = 'rgba(255,120,200,0.9)';
         ctx.shadowBlur = 10;
         const half = cell * 0.47;
-        ctx.stroke(ART.roundedRectPath(new Path2D(), center.x - half, center.y - half, half * 2, half * 2, cell * 0.2));
+        ctx.stroke(SPRITES.roundedRectPath(new Path2D(), center.x - half, center.y - half, half * 2, half * 2, cell * 0.2));
         ctx.restore();
       }
+    }
+
+    /** The hint arrow: a bobbing glossy arrow over the two candies, pointing the way the hinted candy moves. */
+    function drawHintArrow(now) {
+      if (!hint_move || timeline.busy) return;
+      const cell = layout.cell;
+      const from = cellCenter(hint_move.from);
+      const to = cellCenter(hint_move.to);
+      const angle = Math.atan2(to.y - from.y, to.x - from.x);
+      const bob = settings.reduced_motion ? 0 : Math.sin(now / 160) * cell * 0.08;
+      const mid_x = (from.x + to.x) / 2 + Math.cos(angle) * bob;
+      const mid_y = (from.y + to.y) / 2 + Math.sin(angle) * bob;
+      ctx.save();
+      ctx.translate(mid_x, mid_y);
+      ctx.rotate(angle);
+      const length = cell * 0.5;
+      const head = cell * 0.24;
+      const shaft = cell * 0.1;
+      const arrow = new Path2D();
+      arrow.moveTo(-length / 2, -shaft);
+      arrow.lineTo(length / 2 - head, -shaft);
+      arrow.lineTo(length / 2 - head, -head);
+      arrow.lineTo(length / 2, 0);
+      arrow.lineTo(length / 2 - head, head);
+      arrow.lineTo(length / 2 - head, shaft);
+      arrow.lineTo(-length / 2, shaft);
+      arrow.closePath();
+      ctx.shadowColor = 'rgba(59,26,74,0.55)';
+      ctx.shadowBlur = cell * 0.12;
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = Math.max(2, cell * 0.06);
+      ctx.strokeStyle = '#3b1a4a';
+      ctx.stroke(arrow);
+      ctx.shadowBlur = 0;
+      const fill = ctx.createLinearGradient(0, -head, 0, head);
+      fill.addColorStop(0, '#fffbe0');
+      fill.addColorStop(1, '#ffc93c');
+      ctx.fillStyle = fill;
+      ctx.fill(arrow);
+      ctx.restore();
     }
 
     function draw(now) {
@@ -728,6 +949,7 @@
         const position = cellXY(cell_index);
         ctx.drawImage(sprites.get('jelly', -1, 'none', layers), layout.origin_x + position.col * cell, layout.origin_y + position.row * cell, cell, cell);
       }
+      drawBoardFeatures(now);
       drawHintAndSelection(now);
       ctx.save();
       ctx.beginPath();
@@ -735,7 +957,9 @@
       ctx.clip();
       const ordered = Array.from(visuals.values()).sort((first, second) => first.y - second.y || (first.lift || 0) - (second.lift || 0));
       ordered.forEach((visual) => drawPiece(visual, now));
+      drawCages();
       ctx.restore();
+      drawHintArrow(now);
       drawEffects(now);
       ctx.restore();
       particles.draw(ctx);
@@ -956,12 +1180,26 @@
             display_jelly[event.cell] = event.layers;
             hooks.sound('jelly');
             burst(event.cell, '#ff7fd0', 6, 0.6);
-          } else if (event.type === 'frosting') {
-            hooks.sound('frosting');
-            burst(event.cell, '#fff0f8', 12, 0.8);
+          } else if (event.type === 'cage') {
+            display_cage[event.cell] = 0;
+            hooks.sound('cage');
+            burst(event.cell, '#ffd36e', 10, 0.8);
+            addEffect({ type: 'transform_glow', cell: event.cell, duration: 300 });
+          } else if (event.type === 'time_bonus') {
+            hooks.timeBonus(event);
+            addTextPopup(event.cell, `+${event.seconds}s`, '#bff3ff');
+          } else if (event.type === 'booster') {
+            if (event.cell >= 0) addEffect({ type: 'ring', cell: event.cell, radius: 0.9, duration: 320 });
+            hooks.sound('hammer');
+            hooks.haptic('medium');
+            addShake(layout.cell * 0.1, 200);
+          } else if (event.type === 'frosting' || event.type === 'cocoa') {
+            const is_cocoa = event.type === 'cocoa';
+            hooks.sound(is_cocoa ? 'cocoa' : 'frosting');
+            burst(event.cell, is_cocoa ? '#8a4a25' : '#fff0f8', 12, 0.8);
             const visual = visuals.get(event.piece_id);
             if (visual) {
-              if (event.layers <= 0) pending.push(popVisual(visual, '#ffd1e8', 0, 12));
+              if (event.layers <= 0) pending.push(popVisual(visual, is_cocoa ? '#b0683a' : '#ffd1e8', 0, 12));
               else {
                 visual.layers = event.layers;
                 pending.push(timeline.tween(200, (t) => {
@@ -1129,8 +1367,8 @@
 
     async function playShufflePhase(phase, hooks) {
       const generation = timeline.generation;
-      hooks.shuffle();
-      await timeline.wait(650);
+      hooks.shuffle(phase.header.reason || 'no_moves');
+      await timeline.wait(phase.header.reason === 'whirl' ? 250 : 650);
       if (generation !== timeline.generation) return false;
       const moves = [];
       phase.events.forEach((event) => {
@@ -1185,9 +1423,99 @@
       return generation === timeline.generation;
     }
 
+    /** Sugar Belts: every piece on a belt slides one cell; the piece at the end fades out and in at the start. */
+    async function playBeltPhase(phase, hooks) {
+      const generation = timeline.generation;
+      const moves = [];
+      phase.events.forEach((event) => {
+        hooks.event(event);
+        if (event.type !== 'belt') return;
+        event.moves.forEach((move) => {
+          const visual = visuals.get(move.piece_id);
+          if (!visual) return;
+          const from = cellXY(move.from);
+          const to = cellXY(move.to);
+          moves.push({ visual, from, to, wrap: Math.abs(from.col - to.col) + Math.abs(from.row - to.row) > 1 });
+        });
+      });
+      if (!moves.length) return true;
+      hooks.sound('belt');
+      await timeline.tween(260, (t) => {
+        const eased = EASE.inOutQuad(t);
+        moves.forEach((move) => {
+          if (move.wrap) {
+            const showing_target = t >= 0.5;
+            move.visual.x = showing_target ? move.to.col : move.from.col;
+            move.visual.y = showing_target ? move.to.row : move.from.row;
+            move.visual.alpha = showing_target ? (t - 0.5) * 2 : 1 - t * 2;
+            move.visual.scale = 0.6 + 0.4 * Math.abs(t - 0.5) * 2;
+          } else {
+            move.visual.x = UTIL.lerp(move.from.col, move.to.col, eased);
+            move.visual.y = UTIL.lerp(move.from.row, move.to.row, eased);
+          }
+        });
+      });
+      moves.forEach((move) => Object.assign(move.visual, { x: move.to.col, y: move.to.row, alpha: 1, scale: 1 }));
+      return generation === timeline.generation;
+    }
+
+    /** Fuse Candies tick down after a move; one that reaches zero goes off. */
+    async function playFusePhase(phase, hooks) {
+      const generation = timeline.generation;
+      const pending = [];
+      let urgent = false;
+      phase.events.forEach((event) => {
+        hooks.event(event);
+        const visual = visuals.get(event.piece_id);
+        if (event.type === 'fuse' && visual) {
+          visual.fuse = event.fuse;
+          if (event.fuse <= 3) urgent = true;
+          pending.push(timeline.tween(220, (t) => {
+            visual.scale = 1 + Math.sin(t * Math.PI) * 0.12;
+          }));
+        } else if (event.type === 'fuse_out') {
+          addEffect({ type: 'flash', duration: 420 });
+          addEffect({ type: 'ring', cell: event.cell, radius: 2.4, duration: 520 });
+          addShake(layout.cell * 0.2, 420);
+          hooks.sound('fuse_out');
+          hooks.haptic('heavy');
+          hooks.fuseOut(event);
+        }
+      });
+      if (urgent) hooks.sound('fuse_tick');
+      await Promise.all(pending);
+      return generation === timeline.generation;
+    }
+
+    /** Cocoa Creep grows into a neighboring candy. */
+    async function playCocoaPhase(phase, hooks) {
+      const generation = timeline.generation;
+      const pending = [];
+      phase.events.forEach((event) => {
+        hooks.event(event);
+        if (event.type !== 'cocoa_spread') return;
+        const old_visual = visuals.get(event.old_piece_id);
+        if (old_visual) {
+          pending.push(timeline.tween(240, (t) => {
+            old_visual.scale = 1 - t;
+            old_visual.alpha = 1 - t;
+          }).then(() => visuals.delete(old_visual.id)));
+        }
+        const visual = makeVisual(event.piece, event.cell);
+        visual.scale = 0;
+        visuals.set(visual.id, visual);
+        pending.push(timeline.tween(320, (t) => {
+          visual.scale = EASE.outBack(t);
+        }));
+        hooks.sound('cocoa_spread');
+      });
+      await Promise.all(pending);
+      return generation === timeline.generation;
+    }
+
     /** Plays an event list from LOGIC. Resolves true when finished, false if cancelled (restart/quit). */
     async function playEvents(events, hook_overrides) {
-      const hooks = Object.assign({ sound: noop, haptic: noop, event: noop, cascade: noop, collect: noop, shuffle: noop, bonusTick: noop }, hook_overrides || {});
+      const hooks = Object.assign({ sound: noop, haptic: noop, event: noop, cascade: noop, collect: noop, shuffle: noop, bonusTick: noop, timeBonus: noop, fuseOut: noop }, hook_overrides || {});
       const generation = timeline.generation;
       selected_cell = -1;
       hint_move = null;
@@ -1221,6 +1549,12 @@
           completed = await playShufflePhase(phase, hooks);
         } else if (phase.header.kind === 'bonus') {
           completed = await playBonusPhase(phase, hooks);
+        } else if (phase.header.kind === 'belt') {
+          completed = await playBeltPhase(phase, hooks);
+        } else if (phase.header.kind === 'fuse') {
+          completed = await playFusePhase(phase, hooks);
+        } else if (phase.header.kind === 'cocoa') {
+          completed = await playCocoaPhase(phase, hooks);
         } else {
           phase.events.forEach((event) => hooks.event(event));
         }
@@ -1343,230 +1677,94 @@
   }
 
   // ================================================================ BACKGROUND
-  /** Diagonal candy gradient with drifting bokeh and floating sparkles (static when motion is reduced). */
   /**
-   * Painted candy-land backdrop (drawn once per size): sky from the accent palette, sun glow, clouds, two ranges of
-   * rolling hills with lollipop and cotton-candy trees, and a grassy foreground with gumdrops and candy canes.
+   * Episode scenery behind the board (and the title screen): a sky plus far, mid and near layers painted once per size
+   * and episode by SCENERY, drawn with gentle parallax drift and floating sugar sparkles (static when motion is reduced).
    */
-  function paintCandyLand(ctx, width, height, palette) {
-    if (!(width >= 1 && height >= 1)) return; // not laid out yet
-    const random = UTIL.createRng(9091);
-    const unit = Math.min(width, height * 0.6);
-    const sky = ctx.createLinearGradient(0, 0, 0, height);
-    sky.addColorStop(0, palette[0]);
-    sky.addColorStop(0.45, palette[1]);
-    sky.addColorStop(0.72, palette[2]);
-    sky.addColorStop(1, palette[2]);
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, width, height);
-    const sun = ctx.createRadialGradient(width * 0.82, height * 0.1, 0, width * 0.82, height * 0.1, unit * 0.55);
-    sun.addColorStop(0, 'rgba(255,255,235,0.75)');
-    sun.addColorStop(0.35, 'rgba(255,250,210,0.3)');
-    sun.addColorStop(1, 'rgba(255,250,210,0)');
-    ctx.fillStyle = sun;
-    ctx.fillRect(0, 0, width, height);
-
-    const cloud = (cx, cy, size) => {
-      const puffs = [[-0.9, 0.15, 0.55], [-0.35, -0.2, 0.75], [0.3, -0.1, 0.7], [0.85, 0.15, 0.5], [0, 0.25, 0.6]];
-      ctx.fillStyle = 'rgba(190,170,230,0.35)';
-      puffs.forEach(([px, py, pr]) => {
-        ctx.beginPath();
-        ctx.arc(cx + px * size, cy + py * size + size * 0.12, pr * size, 0, Math.PI * 2);
-        ctx.fill();
-      });
-      puffs.forEach(([px, py, pr]) => {
-        const puff = ctx.createRadialGradient(cx + px * size - pr * size * 0.3, cy + py * size - pr * size * 0.4, 0, cx + px * size, cy + py * size, pr * size);
-        puff.addColorStop(0, '#ffffff');
-        puff.addColorStop(1, 'rgba(248,244,255,0.96)');
-        ctx.fillStyle = puff;
-        ctx.beginPath();
-        ctx.arc(cx + px * size, cy + py * size, pr * size, 0, Math.PI * 2);
-        ctx.fill();
-      });
-    };
-    cloud(width * 0.17, height * 0.13, unit * 0.09);
-    cloud(width * 0.72, height * 0.22, unit * 0.075);
-    cloud(width * 0.48, height * 0.06, unit * 0.055);
-    cloud(width * 0.92, height * 0.4, unit * 0.06);
-    cloud(width * 0.06, height * 0.44, unit * 0.055);
-
-    const hill = (base_y, amplitude, waves, phase, top_color, bottom_color) => {
-      const path = new Path2D();
-      path.moveTo(0, height);
-      for (let x = 0; x <= width + 8; x += 8) {
-        const y = base_y - amplitude * (0.55 + 0.45 * Math.sin((x / width) * Math.PI * waves + phase));
-        path.lineTo(x, y);
-      }
-      path.lineTo(width, height);
-      path.closePath();
-      const fill = ctx.createLinearGradient(0, base_y - amplitude, 0, base_y + height * 0.12);
-      fill.addColorStop(0, top_color);
-      fill.addColorStop(1, bottom_color);
-      ctx.fillStyle = fill;
-      ctx.fill(path);
-      ctx.save();
-      ctx.strokeStyle = 'rgba(255,255,255,0.45)';
-      ctx.lineWidth = Math.max(2, unit * 0.008);
-      ctx.translate(0, Math.max(1.5, unit * 0.004));
-      ctx.stroke(path);
-      ctx.restore();
-      return (x) => base_y - amplitude * (0.55 + 0.45 * Math.sin((x / width) * Math.PI * waves + phase));
-    };
-
-    const lollipopTree = (x, ground_y, size, colors) => {
-      ctx.fillStyle = '#fff8f0';
-      ctx.fillRect(x - size * 0.07, ground_y - size * 1.5, size * 0.14, size * 1.5);
-      ctx.fillStyle = 'rgba(120,60,80,0.18)';
-      ctx.fillRect(x + size * 0.02, ground_y - size * 1.5, size * 0.05, size * 1.5);
-      const top_y = ground_y - size * 1.5 - size * 0.45;
-      const disc = ctx.createRadialGradient(x - size * 0.2, top_y - size * 0.2, 0, x, top_y, size * 0.6);
-      disc.addColorStop(0, '#ffffff');
-      disc.addColorStop(0.3, colors[0]);
-      disc.addColorStop(1, colors[1]);
-      ctx.fillStyle = disc;
-      ctx.beginPath();
-      ctx.arc(x, top_y, size * 0.58, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
-      ctx.lineWidth = size * 0.09;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      for (let step = 0; step <= 40; step += 1) {
-        const angle = step * 0.32;
-        const radius = step * size * 0.0125;
-        const px = x + Math.cos(angle) * radius;
-        const py = top_y + Math.sin(angle) * radius;
-        if (step === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.stroke();
-    };
-    const cottonTree = (x, ground_y, size, color) => {
-      ctx.fillStyle = '#a8673d';
-      ctx.fillRect(x - size * 0.08, ground_y - size * 1.1, size * 0.16, size * 1.1);
-      const top_y = ground_y - size * 1.35;
-      [[-0.45, 0.1, 0.5], [0.45, 0.1, 0.5], [0, -0.25, 0.62], [0, 0.18, 0.55]].forEach(([px, py, pr]) => {
-        const blob = ctx.createRadialGradient(x + px * size - pr * size * 0.3, top_y + py * size - pr * size * 0.35, 0, x + px * size, top_y + py * size, pr * size);
-        blob.addColorStop(0, '#ffffff');
-        blob.addColorStop(0.35, color);
-        blob.addColorStop(1, mixColor(color, '#7a2e6e', 0.25));
-        ctx.fillStyle = blob;
-        ctx.beginPath();
-        ctx.arc(x + px * size, top_y + py * size, pr * size, 0, Math.PI * 2);
-        ctx.fill();
-      });
-    };
-
-    // Far hills: candy-pink and lavender, with a few trees.
-    const far = hill(height * 0.66, height * 0.06, 3.2, 0.6, '#f7c3ea', '#d993d9');
-    [[0.08, 0.5, ['#ffd3ef', '#ff6fb5']], [0.42, 0.42, ['#d8f7ff', '#4aa8ff']], [0.78, 0.48, ['#fff1b8', '#ffb020']]].forEach(([fx, fs, colors]) => {
-      lollipopTree(width * fx, far(width * fx) + unit * 0.01, unit * 0.07 * fs * 2, colors);
-    });
-    // Mid hills: mint green with lollipop and cotton-candy trees.
-    const mid = hill(height * 0.76, height * 0.05, 2.4, 2.2, '#a7ef8f', '#58c25a');
-    cottonTree(width * 0.2, mid(width * 0.2) + unit * 0.01, unit * 0.075, '#ff9ad5');
-    lollipopTree(width * 0.55, mid(width * 0.55) + unit * 0.01, unit * 0.07, ['#ffd0d8', '#ff3b6b']);
-    cottonTree(width * 0.88, mid(width * 0.88) + unit * 0.01, unit * 0.065, '#b9a1ff');
-    // Foreground grass with gumdrops and candy canes.
-    hill(height * 0.86, height * 0.03, 1.6, 4.0, '#7bdc5f', '#38a33a');
-    const gumdrop = (x, y, size, color) => {
-      const dome = ctx.createRadialGradient(x - size * 0.3, y - size * 0.6, 0, x, y - size * 0.3, size * 1.1);
-      dome.addColorStop(0, '#ffffff');
-      dome.addColorStop(0.3, color);
-      dome.addColorStop(1, mixColor(color, '#000000', 0.3));
-      ctx.fillStyle = dome;
-      ctx.beginPath();
-      ctx.ellipse(x, y, size, size * 0.85, 0, Math.PI, 0);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.85)';
-      for (let index = 0; index < 6; index += 1) {
-        ctx.beginPath();
-        ctx.arc(x + (random() - 0.5) * size * 1.3, y - random() * size * 0.7, size * 0.05, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    };
-    const cane = (x, y, size) => {
-      ctx.save();
-      ctx.lineCap = 'round';
-      ctx.lineWidth = size * 0.28;
-      const path = new Path2D();
-      path.moveTo(x, y);
-      path.lineTo(x, y - size * 1.6);
-      path.arc(x - size * 0.35, y - size * 1.6, size * 0.35, 0, Math.PI, true);
-      ctx.strokeStyle = '#ffffff';
-      ctx.stroke(path);
-      ctx.setLineDash([size * 0.22, size * 0.22]);
-      ctx.strokeStyle = '#ff3b5c';
-      ctx.stroke(path);
-      ctx.restore();
-    };
-    gumdrop(width * 0.08, height * 0.95, unit * 0.06, '#ff5c8a');
-    gumdrop(width * 0.3, height * 0.985, unit * 0.05, '#ffcf3a');
-    cane(width * 0.66, height * 0.97, unit * 0.06);
-    gumdrop(width * 0.9, height * 0.96, unit * 0.065, '#4aa8ff');
-    gumdrop(width * 0.5, height * 0.93, unit * 0.035, '#a45bff');
-  }
-
-  function mixColor(first_hex, second_hex, amount) {
-    const parse = (hex) => [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16));
-    const first = parse(first_hex);
-    const second = parse(second_hex);
-    return '#' + first.map((channel, index) => Math.round(channel + (second[index] - channel) * amount).toString(16).padStart(2, '0')).join('');
-  }
-
   function createBackgroundRenderer(bg_canvas) {
+    const SCENERY = SC.SCENERY;
     const ctx = bg_canvas.getContext('2d');
     let view = { width: 0, height: 0, dpr: 1 };
-    let palette = CONFIG.ACCENTS[0].background;
-    let gradient_layer = null;
+    let accent_sky = CONFIG.ACCENTS[0].background;
+    let scenery = null; // null = the title backdrop (accent sky over a gumdrop meadow)
+    let layers = null;
     let animate = true;
     let dirty = true;
-    const bokeh = [];
+    const PARALLAX = { far: 0.25, mid: 0.55, near: 1 };
     const sparkles = [];
     const random = UTIL.createRng(4711);
-    for (let index = 0; index < 18; index += 1) {
-      bokeh.push({ x: random(), y: random(), r: 0.04 + random() * 0.11, vx: (random() - 0.5) * 0.008, vy: -0.004 - random() * 0.01, alpha: 0.1 + random() * 0.18, hue: index % 3 });
-    }
-    for (let index = 0; index < 14; index += 1) sparkles.push({ x: random(), y: random(), size: 3 + random() * 5, phase: random() * 10, speed: 0.6 + random() * 1.2 });
+    for (let index = 0; index < 16; index += 1) sparkles.push({ x: random(), y: random(), size: 2.5 + random() * 4.5, phase: random() * 10, speed: 0.6 + random() * 1.2 });
 
-    function rebuildGradient() {
-      gradient_layer = ART.createCanvas(Math.max(1, Math.round(view.width * view.dpr)), Math.max(1, Math.round(view.height * view.dpr)));
-      const layer = gradient_layer.getContext('2d');
-      layer.scale(view.dpr, view.dpr);
-      paintCandyLand(layer, view.width, view.height, palette);
+    function margin() {
+      return Math.round(Math.min(40, view.width * 0.06));
+    }
+
+    function rebuild() {
+      if (!(view.width >= 1 && view.height >= 1)) return;
+      const colors = scenery ? SCENERY.colorsFor(scenery, null) : SCENERY.colorsFor({ family: 'gumdrop_meadow', hue_shift: 0 }, accent_sky);
+      const seed = scenery ? scenery.seed : 1;
+      const extra = margin() * 2;
+      const make = (width) => {
+        const canvas = SPRITES.createCanvas(Math.max(1, Math.round(width * view.dpr)), Math.max(1, Math.round(view.height * view.dpr)));
+        const layer_ctx = canvas.getContext('2d');
+        layer_ctx.scale(view.dpr, view.dpr);
+        return { canvas, ctx: layer_ctx };
+      };
+      const sky = make(view.width);
+      SCENERY.paintSky(sky.ctx, view.width, view.height, colors, seed);
+      layers = { sky: sky.canvas };
+      ['far', 'mid', 'near'].forEach((name) => {
+        const layer = make(view.width + extra);
+        SCENERY.paintLayer(layer.ctx, view.width + extra, view.height, colors, name, seed);
+        layers[name] = layer.canvas;
+      });
       dirty = true;
     }
 
-    function draw(time_ms, delta_ms) {
-      if (!gradient_layer) return;
+    function draw(time_ms) {
+      if (!layers) return;
       if (!animate && !dirty) return;
       dirty = false;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.drawImage(gradient_layer, 0, 0);
+      ctx.drawImage(layers.sky, 0, 0);
+      const drift = animate ? Math.sin((time_ms / 14000) * Math.PI * 2) : 0;
+      const extra = margin();
+      ['far', 'mid', 'near'].forEach((name) => {
+        const offset = Math.round((-extra + drift * extra * PARALLAX[name]) * view.dpr);
+        ctx.drawImage(layers[name], offset, 0);
+      });
       ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-      const size = Math.max(view.width, view.height);
       sparkles.forEach((sparkle) => {
-        const twinkle = animate ? 0.5 + 0.5 * Math.sin(time_ms / 1000 * sparkle.speed * 3 + sparkle.phase) : 0.7;
-        ctx.globalAlpha = 0.25 + twinkle * 0.6;
+        const twinkle = animate ? 0.5 + 0.5 * Math.sin((time_ms / 1000) * sparkle.speed * 3 + sparkle.phase) : 0.7;
+        ctx.globalAlpha = 0.2 + twinkle * 0.55;
         ctx.fillStyle = '#ffffff';
-        drawStar(ctx, sparkle.x * view.width, ((sparkle.y - (animate ? time_ms / 60000 * sparkle.speed : 0)) % 1 + 1) % 1 * view.height, sparkle.size * (0.6 + twinkle * 0.5), 0, 4);
+        const y = (((sparkle.y - (animate ? (time_ms / 60000) * sparkle.speed : 0)) % 1) + 1) % 1;
+        drawStar(ctx, sparkle.x * view.width, y * view.height, sparkle.size * (0.6 + twinkle * 0.5), 0, 4);
       });
       ctx.globalAlpha = 1;
     }
 
     return {
       resize(width, height, device_ratio) {
-        view = { width, height, dpr: Math.min(2, device_ratio || 1) };
+        const next = { width, height, dpr: Math.min(2, device_ratio || 1) };
+        if (next.width === view.width && next.height === view.height && next.dpr === view.dpr && layers) return;
+        view = next;
         bg_canvas.width = Math.round(width * view.dpr);
         bg_canvas.height = Math.round(height * view.dpr);
         bg_canvas.style.width = `${width}px`;
         bg_canvas.style.height = `${height}px`;
-        rebuildGradient();
+        rebuild();
       },
       setPalette(next_palette) {
-        palette = next_palette;
-        rebuildGradient();
+        accent_sky = next_palette;
+        if (!scenery) rebuild();
+      },
+      /** The episode scenery to show ({family, hue_shift, seed} from LEVELS.sceneryOf), or null for the title backdrop. */
+      setScenery(next_scenery) {
+        const same = (next_scenery && scenery && next_scenery.seed === scenery.seed && next_scenery.family === scenery.family) || (!next_scenery && !scenery);
+        if (same && layers) return;
+        scenery = next_scenery || null;
+        rebuild();
       },
       setAnimated(next_animate) {
         animate = next_animate;

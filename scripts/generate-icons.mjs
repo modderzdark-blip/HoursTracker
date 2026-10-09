@@ -1,5 +1,5 @@
 // Generates the Android launcher icons, the Android 13+ monochrome layer, the 512 px store icon and the
-// Android 12+ splash icon from the game's own procedural candy art (www/js/art.js), rendered in Chromium.
+// Android 12+ splash icon from the game's own per-pixel candy sprites (www/js/sprites.js), rendered in Chromium.
 // Usage: node scripts/generate-icons.mjs   (needs the @playwright/test dev dependency and a Chromium build)
 import { chromium } from '@playwright/test';
 import fs from 'node:fs';
@@ -12,124 +12,134 @@ const DENSITIES = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
 const browser = await chromium.launch();
 const page = await browser.newPage();
 await page.setContent('<!doctype html><html><body></body></html>');
-for (const file of ['config.js', 'util.js', 'art.js', 'render.js']) {
-  await page.addScriptTag({ content: fs.readFileSync(path.join(ROOT, 'www', 'js', file), 'utf8') });
-}
+await page.addScriptTag({ content: fs.readFileSync(path.join(ROOT, 'www', 'js', 'sprites.js'), 'utf8') });
 
 /** Paints one icon variant in the page and returns PNG bytes. */
 async function render(kind, size) {
   const data_url = await page.evaluate(({ kind, size }) => {
-    window.SC.ART_FORCE_DOM_CANVAS = true;
-    const ART = window.SC.ART;
+    const SPRITES = window.SC.SPRITES;
     const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
     const ctx = canvas.getContext('2d');
-    const unit = size / 108; // adaptive icons are designed on a 108 dp grid
+    const recipes = SPRITES.recipes('gummy', false);
+    const heart = recipes['candy:0'];
+    const star = recipes['candy:5'];
 
-    function paintBackground(shape) {
-      ctx.save();
+    function paintBackground(context, extent, shape) {
+      context.save();
       if (shape === 'circle') {
-        ctx.beginPath();
-        ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
-        ctx.clip();
+        context.beginPath();
+        context.arc(extent / 2, extent / 2, extent / 2, 0, Math.PI * 2);
+        context.clip();
       } else if (shape === 'rounded') {
-        ctx.clip(ART.roundedRectPath(new Path2D(), 0, 0, size, size, size * 0.22));
+        context.clip(SPRITES.roundedRectPath(new Path2D(), 0, 0, extent, extent, extent * 0.22));
       }
-      const gradient = ctx.createLinearGradient(0, 0, size, size);
+      const gradient = context.createLinearGradient(0, 0, extent, extent);
       gradient.addColorStop(0, '#ff8fcf');
       gradient.addColorStop(0.5, '#ffd36e');
       gradient.addColorStop(1, '#7fdcff');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, size, size);
-      const glow = ctx.createRadialGradient(size * 0.45, size * 0.38, 0, size * 0.45, size * 0.38, size * 0.62);
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, extent, extent);
+      const glow = context.createRadialGradient(extent * 0.45, extent * 0.38, 0, extent * 0.45, extent * 0.38, extent * 0.62);
       glow.addColorStop(0, 'rgba(255,255,255,0.55)');
       glow.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = glow;
-      ctx.fillRect(0, 0, size, size);
+      context.fillStyle = glow;
+      context.fillRect(0, 0, extent, extent);
       [[0.18, 0.2, 0.09], [0.84, 0.18, 0.06], [0.8, 0.82, 0.1], [0.14, 0.8, 0.05]].forEach(([x, y, r]) => {
-        const dot = ctx.createRadialGradient(x * size, y * size, 0, x * size, y * size, r * size);
+        const dot = context.createRadialGradient(x * extent, y * extent, 0, x * extent, y * extent, r * extent);
         dot.addColorStop(0, 'rgba(255,255,255,0.5)');
         dot.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = dot;
-        ctx.fillRect(0, 0, size, size);
+        context.fillStyle = dot;
+        context.fillRect(0, 0, extent, extent);
       });
+      context.restore();
+    }
+
+    function sparkle(context, x, y, radius) {
+      context.beginPath();
+      for (let index = 0; index < 8; index += 1) {
+        const angle = (index / 8) * Math.PI * 2 - Math.PI / 2;
+        const reach = index % 2 === 0 ? radius : radius * 0.32;
+        const px = x + Math.cos(angle) * reach;
+        const py = y + Math.sin(angle) * reach;
+        if (index === 0) context.moveTo(px, py);
+        else context.lineTo(px, py);
+      }
+      context.closePath();
+      context.fill();
+    }
+
+    /** A shaded sprite of `spec` drawn centered at (x, y) with the given diameter and rotation. */
+    function sprite(spec, x, y, diameter, rotation) {
+      const pixels = Math.max(16, Math.round(diameter));
+      const image = SPRITES.spriteToCanvas(spec, pixels);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rotation);
+      ctx.drawImage(image, -diameter / 2, -diameter / 2, diameter, diameter);
       ctx.restore();
     }
 
-    function paintCandies(scale) {
-      // A plump cherry jelly bean with a grape gem and a sparkle, inside the 66 dp safe zone.
-      const center_x = size / 2;
-      const center_y = size / 2;
-      const bean = window.SC.CONFIG.CANDIES[0];
-      const gem = window.SC.CONFIG.CANDIES[5];
-      ctx.save();
-      ctx.translate(center_x - 3 * unit * scale, center_y + 3 * unit * scale);
-      ctx.rotate(-0.12);
-      ART.paintCandy(ctx, 0, 0, 25 * unit * scale, bean, { theme: 'classic', scale: unit * 1.15 * scale });
-      ctx.restore();
-      ART.paintCandy(ctx, center_x + 17 * unit * scale, center_y - 15 * unit * scale, 10 * unit * scale, gem, { theme: 'classic', scale: unit * 0.7 * scale, skip_shadow: true });
+    /** A plump Strawberry Heart with a Grape Star and a sparkle, inside the 66 dp safe zone (unit = 1 dp). */
+    function paintCandies(unit, center_x, center_y) {
+      sprite(heart, center_x - 3 * unit, center_y + 4 * unit, 58 * unit, -0.12);
+      sprite(star, center_x + 18 * unit, center_y - 16 * unit, 26 * unit, 0.18);
       ctx.fillStyle = '#ffffff';
-      window.SC.RENDER.drawStar(ctx, center_x - 19 * unit * scale, center_y - 18 * unit * scale, 5 * unit * scale, 0, 4);
+      sparkle(ctx, center_x - 20 * unit, center_y - 18 * unit, 6 * unit);
     }
 
-    function paintMonochrome() {
+    /** The same composition as a flat white silhouette, straight from the candy shape distance fields. */
+    function paintMonochrome(unit, center_x, center_y) {
+      const image = ctx.createImageData(size, size);
+      const shapes = [
+        { sdf: SPRITES.SHAPE_SDF.heart, x: center_x - 3 * unit, y: center_y + 4 * unit, half: 29 * unit, rotation: -0.12 },
+        { sdf: SPRITES.SHAPE_SDF.star, x: center_x + 18 * unit, y: center_y - 16 * unit, half: 13 * unit, rotation: 0.18 },
+      ];
+      for (let py = 0; py < size; py += 1) {
+        for (let px = 0; px < size; px += 1) {
+          let coverage = 0;
+          shapes.forEach((shape) => {
+            const dx = px + 0.5 - shape.x;
+            const dy = py + 0.5 - shape.y;
+            const cos = Math.cos(-shape.rotation);
+            const sin = Math.sin(-shape.rotation);
+            const local_x = (dx * cos - dy * sin) / shape.half;
+            const local_y = (dx * sin + dy * cos) / shape.half;
+            const distance = shape.sdf(local_x, local_y) * shape.half;
+            coverage = Math.max(coverage, Math.min(1, Math.max(0, 0.5 - distance)));
+          });
+          const offset = (py * size + px) * 4;
+          image.data[offset] = 255;
+          image.data[offset + 1] = 255;
+          image.data[offset + 2] = 255;
+          image.data[offset + 3] = Math.round(coverage * 255);
+        }
+      }
+      ctx.putImageData(image, 0, 0);
       ctx.fillStyle = '#ffffff';
-      ctx.save();
-      ctx.translate(size / 2 - 3 * unit, size / 2 + 3 * unit);
-      ctx.rotate(-0.12);
-      ctx.fill(ART.SHAPES.bean(25 * unit));
-      ctx.restore();
-      ctx.save();
-      ctx.translate(size / 2 + 17 * unit, size / 2 - 15 * unit);
-      ctx.fill(ART.SHAPES.cluster(10 * unit));
-      ctx.restore();
-      window.SC.RENDER.drawStar(ctx, size / 2 - 19 * unit, size / 2 - 18 * unit, 5 * unit, 0, 4);
+      sparkle(ctx, center_x - 20 * unit, center_y - 18 * unit, 6 * unit);
     }
 
-    if (kind === 'foreground') paintCandies(1);
-    else if (kind === 'background') paintBackground('square');
-    else if (kind === 'monochrome') paintMonochrome();
-    else if (kind === 'legacy') {
-      paintBackground('rounded');
-      paintCandies(1.32);
-    } else if (kind === 'round') {
-      paintBackground('circle');
-      paintCandies(1.32);
+    const unit = size / 108; // adaptive icons are designed on a 108 dp grid
+    if (kind === 'foreground') paintCandies(unit, size / 2, size / 2);
+    else if (kind === 'background') paintBackground(ctx, size, 'square');
+    else if (kind === 'monochrome') paintMonochrome(unit, size / 2, size / 2);
+    else if (kind === 'legacy' || kind === 'round') {
+      // Legacy icons are drawn on a 48 dp grid with no system mask: scale the 66 dp safe zone up to fill it.
+      paintBackground(ctx, size, kind === 'round' ? 'circle' : 'rounded');
+      paintCandies((size / 48) * (48 / 66) * 0.92, size / 2, size / 2);
     } else if (kind === 'store') {
-      paintBackground('square');
-      paintCandies(1.45);
+      paintBackground(ctx, size, 'square');
+      paintCandies((size / 66) * 0.9, size / 2, size / 2);
     } else if (kind === 'splash') {
-      // 288 dp splash canvas: a 192 dp gradient disc with the candy (Android 12+ splash, no icon background).
+      // 288 dp splash canvas: a 192 dp gradient disc with the candies (Android 12+ splash, no icon background).
       const disc = size * (192 / 288);
       ctx.save();
       ctx.translate((size - disc) / 2, (size - disc) / 2);
-      const saved = size;
-      ctx.beginPath();
-      ctx.arc(disc / 2, disc / 2, disc / 2, 0, Math.PI * 2);
-      ctx.clip();
-      const gradient = ctx.createLinearGradient(0, 0, disc, disc);
-      gradient.addColorStop(0, '#ff8fcf');
-      gradient.addColorStop(0.5, '#ffd36e');
-      gradient.addColorStop(1, '#7fdcff');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, disc, disc);
-      const glow = ctx.createRadialGradient(disc * 0.45, disc * 0.38, 0, disc * 0.45, disc * 0.38, disc * 0.6);
-      glow.addColorStop(0, 'rgba(255,255,255,0.55)');
-      glow.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = glow;
-      ctx.fillRect(0, 0, disc, disc);
+      paintBackground(ctx, disc, 'circle');
       ctx.restore();
-      const splash_unit = disc / 108;
-      const center = saved / 2;
-      ctx.save();
-      ctx.translate(center - 3 * splash_unit, center + 3 * splash_unit);
-      ctx.rotate(-0.12);
-      ART.paintCandy(ctx, 0, 0, 34 * splash_unit, window.SC.CONFIG.CANDIES[0], { theme: 'classic', scale: splash_unit * 1.5 });
-      ctx.restore();
-      ART.paintCandy(ctx, center + 24 * splash_unit, center - 21 * splash_unit, 13 * splash_unit, window.SC.CONFIG.CANDIES[5], { theme: 'classic', scale: splash_unit * 0.9, skip_shadow: true });
-      ctx.fillStyle = '#ffffff';
-      window.SC.RENDER.drawStar(ctx, center - 26 * splash_unit, center - 25 * splash_unit, 7 * splash_unit, 0, 4);
+      paintCandies((disc / 108) * 1.3, size / 2, size / 2);
     }
     return canvas.toDataURL('image/png');
   }, { kind, size });

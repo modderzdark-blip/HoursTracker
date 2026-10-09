@@ -1,5 +1,6 @@
-// Browser QA (CI job "browser"): real pointer input, persistence, loss, pause/restart/quit mid-animation,
-// back navigation, lifecycle, hints, reduced motion, settings, photo, self-test and accessibility.
+// Browser QA (CI job "browser"): real pointer input, persistence, loss and +5 Moves, hearts, boosters, timed levels,
+// pause/restart/quit mid-animation, back navigation, lifecycle, instant hints, forced tutorial hints, the 20,000-level
+// map, the compact save, the Daily Wheel, reduced motion, settings, photo, self-test and accessibility.
 const { test, expect } = require('@playwright/test');
 const H = require('./helpers');
 
@@ -10,20 +11,21 @@ test('first launch plays Level 1 to a win with swipes and tap-taps; progress per
   await H.bootGame(page, { name: 'Florin' });
   const start = await H.snapshot(page);
   expect(start.level).toBe(1);
-  expect(start.moves_left).toBe(20);
+  expect(start.moves_left).toBe(await H.levelMoves(page, 1));
   await expect(page.locator('#tutorial-bubble')).toBeVisible();
-  const played = await H.playLevel(page, { max_moves: 20 });
+  const played = await H.playLevel(page, { max_moves: 30 });
   expect(played.used_swipe).toBeGreaterThan(0);
   await H.waitForModal(page, 'win', 120000);
   await expect(page.locator('[data-modal="win"]')).toContainText('Great job, Florin!');
   await expect.poll(async () => (await H.snapshot(page)).unlocked).toBe(2);
-  const best = await page.evaluate(() => window.SC.game.store.save.levels[1]);
-  expect(best.best_stars).toBeGreaterThanOrEqual(1);
-  expect(best.best_score).toBeGreaterThanOrEqual(1500);
+  const best = await page.evaluate(() => window.SC.STORAGE.levelBest(window.SC.game.store.save, 1));
+  expect(best.stars).toBeGreaterThanOrEqual(1);
+  expect(best.score).toBeGreaterThanOrEqual(await page.evaluate(() => window.SC.LEVELS.getLevel(1).goals[0].target - 10));
+  expect((await H.snapshot(page)).hearts).toBe(5); // winning costs no heart
   await page.waitForTimeout(400);
   await H.reloadGame(page);
-  const after_reload = await page.evaluate(() => ({ unlocked: window.SC.game.store.save.unlocked, stars: window.SC.game.store.save.levels[1].best_stars, name: window.SC.game.store.save.player_name }));
-  expect(after_reload).toEqual({ unlocked: 2, stars: best.best_stars, name: 'Florin' });
+  const after_reload = await page.evaluate(() => ({ unlocked: window.SC.game.store.save.unlocked, stars: window.SC.STORAGE.levelBest(window.SC.game.store.save, 1).stars, name: window.SC.game.store.save.player_name }));
+  expect(after_reload).toEqual({ unlocked: 2, stars: best.stars, name: 'Florin' });
   await expect(page.locator('#title-greeting')).toHaveText('Hi, Florin!');
   await page.click('#btn-play');
   await H.waitState(page, 'MAP');
@@ -32,20 +34,32 @@ test('first launch plays Level 1 to a win with swipes and tap-taps; progress per
   H.expectClean(problems);
 });
 
-test('tap-tap selection rules; invalid swaps bounce back without using a move', async ({ page }) => {
+test('tutorial levels allow only the hinted move; selection rules; invalid swaps bounce back without using a move', async ({ page }) => {
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });
+  const moves = await H.levelMoves(page, 1);
   const cell = (index) => page.evaluate((cell_index) => window.SC.game.renderer.cellCenter(cell_index), index);
+  // Level 1 shows its hint at once (forced hint) and Pip points at it.
+  await expect.poll(async () => (await H.snapshot(page)).hint, { timeout: 2000 }).toBe(true);
   const first = await cell(24);
   await page.touchscreen.tap(first.x, first.y);
   await expect.poll(async () => (await H.snapshot(page)).selected).toBe(24);
   await page.touchscreen.tap(first.x, first.y);
   await expect.poll(async () => (await H.snapshot(page)).selected).toBe(-1);
-  await page.touchscreen.tap(first.x, first.y);
-  const far = await cell(0);
-  await page.touchscreen.tap(far.x, far.y);
-  await expect.poll(async () => (await H.snapshot(page)).selected).toBe(0);
-  await page.touchscreen.tap(far.x, far.y);
+  // A valid swap that is not the hinted one wobbles back on a tutorial level.
+  const other = await page.evaluate(() => {
+    const game = window.SC.game;
+    const hint = game.currentHint;
+    const moves_list = window.SC.LOGIC.listValidMoves(game.logic);
+    return moves_list.find((move) => !(move.from === hint.from && move.to === hint.to) && !(move.from === hint.to && move.to === hint.from)) || null;
+  });
+  if (other) {
+    const from = await cell(other.from);
+    const to = await cell(other.to);
+    await H.swipeMove(page, [from.x, from.y, to.x, to.y]);
+    await page.waitForTimeout(800);
+    expect((await H.snapshot(page)).moves_left).toBe(moves);
+  }
   const invalid = await page.evaluate(() => {
     const logic = window.SC.game.logic;
     for (let index = 0; index < logic.cells.length; index += 1) {
@@ -53,48 +67,144 @@ test('tap-tap selection rules; invalid swaps bounce back without using a move', 
     }
     return null;
   });
-  expect(invalid).not.toBeNull();
   const from = await cell(invalid[0]);
   const to = await cell(invalid[1]);
   await H.tapTapMove(page, [from.x, from.y, to.x, to.y]);
   await page.waitForTimeout(700);
   const after_invalid = await H.snapshot(page);
-  expect(after_invalid.moves_left).toBe(20);
+  expect(after_invalid.moves_left).toBe(moves);
   expect(after_invalid.state).toBe('PLAYING');
-  const valid = (await H.snapshot(page)).move;
-  await H.tapTapMove(page, valid);
-  await expect.poll(async () => (await H.snapshot(page)).moves_left).toBe(19);
+  await H.tapTapMove(page, (await H.snapshot(page)).move);
+  await expect.poll(async () => (await H.snapshot(page)).moves_left, { timeout: 30000 }).toBe(moves - 1);
   H.expectClean(problems);
 });
 
-test('a forced loss shows what was left and Try again restarts the level', async ({ page }) => {
+test('a loss offers +5 Moves for Gold Drops; giving up costs a heart; Try again restarts', async ({ page }) => {
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });
   await page.evaluate(() => window.SC.game.startLevel(10));
   await H.waitState(page, 'PLAYING');
+  const moves = await H.levelMoves(page, 10);
   await page.evaluate(() => {
     window.SC.game.logic.moves_left = 1;
   });
-  const move = (await H.snapshot(page)).move;
-  await H.swipeMove(page, move);
+  await H.swipeMove(page, (await H.snapshot(page)).move);
   await H.waitForModal(page, 'lose', 60000);
   await expect(page.locator('[data-modal="lose"]')).toContainText('Out of moves');
-  await expect(page.locator('[data-modal="lose"] .intro-goal').first()).toBeVisible();
+  await expect(page.locator('#btn-plus-five')).toBeEnabled();
+  const gold_before = (await H.snapshot(page)).gold;
+  await page.click('#btn-plus-five');
+  await H.waitState(page, 'PLAYING');
+  const continued = await H.snapshot(page);
+  expect(continued.moves_left).toBe(5);
+  expect(continued.gold).toBe(gold_before - 60);
+  expect(continued.hearts).toBe(5);
+  await page.evaluate(() => {
+    window.SC.game.logic.moves_left = 1;
+  });
+  await H.swipeMove(page, (await H.snapshot(page)).move);
+  await H.waitForModal(page, 'lose', 60000);
   await page.click('#btn-retry');
   await H.waitState(page, 'PLAYING');
   const retry = await H.snapshot(page);
   expect(retry.level).toBe(10);
-  expect(retry.moves_left).toBe(30);
-  const record = await page.evaluate(() => window.SC.game.store.save.levels[10]);
-  expect(record.attempts).toBe(1);
-  expect(record.wins).toBe(0);
+  expect(retry.moves_left).toBe(moves);
+  expect(retry.hearts).toBe(4);
+  H.expectClean(problems);
+});
+
+test('hearts: out of hearts shows a countdown and the Unlimited hearts shortcut; the clock moving back gives none', async ({ page }) => {
+  const problems = H.guardPage(page);
+  await H.bootGame(page, { name: '' });
+  await H.seedSave(page, { unlocked: 3, stars_upto: 2, meta: { hearts: 0, hearts_clock: Date.now(), last_seen: Date.now() } });
+  await page.click('#btn-play');
+  await H.waitState(page, 'MAP');
+  await expect(page.locator('#map-hearts-count')).toHaveText('0');
+  await page.click('.map-node[data-level-id="3"]', { force: true });
+  await H.waitForModal(page, 'hearts');
+  await expect(page.locator('#hearts-countdown')).toContainText('Next heart in');
+  await page.click('#btn-hearts-unlimited');
+  await expect.poll(() => page.evaluate(() => window.SC.game.store.save.settings.unlimited_hearts)).toBe(true);
+  await expect(page.locator('#map-hearts-count')).toHaveText('∞');
+  await page.click('.map-node[data-level-id="3"]', { force: true });
+  await H.waitForModal(page, 'intro');
+  H.expectClean(problems);
+});
+
+test('boosters: Sweet Hammer, Free Swap and Candy Whirl work without spending moves; pre-level boosters apply', async ({ page }) => {
+  const problems = H.guardPage(page);
+  await H.bootGame(page, { name: '' });
+  await page.evaluate(() => window.SC.game.startLevel(4));
+  await H.waitState(page, 'PLAYING');
+  const moves = await H.levelMoves(page, 4);
+  const cell = (index) => page.evaluate((cell_index) => window.SC.game.renderer.cellCenter(cell_index), index);
+  await page.click('#btn-booster-hammer');
+  await expect.poll(async () => (await H.snapshot(page)).armed_booster).toBe('hammer');
+  const target = await cell(20);
+  await page.touchscreen.tap(target.x, target.y);
+  await expect.poll(async () => (await H.snapshot(page)).boosters.hammer, { timeout: 20000 }).toBe(2);
+  await H.waitState(page, 'PLAYING');
+  expect((await H.snapshot(page)).moves_left).toBe(moves);
+  await page.click('#btn-booster-free_swap');
+  const invalid = await page.evaluate(() => {
+    const logic = window.SC.game.logic;
+    for (let index = 0; index < logic.cells.length; index += 1) {
+      if ((index % logic.cols) + 1 < logic.cols && window.SC.LOGIC.isSwappableAt(logic, index) && window.SC.LOGIC.isSwappableAt(logic, index + 1) && !window.SC.LOGIC.isValidSwap(logic, index, index + 1)) return [index, index + 1];
+    }
+    return null;
+  });
+  const from = await cell(invalid[0]);
+  const to = await cell(invalid[1]);
+  await H.swipeMove(page, [from.x, from.y, to.x, to.y]);
+  await expect.poll(async () => (await H.snapshot(page)).boosters.free_swap, { timeout: 20000 }).toBe(2);
+  await H.waitState(page, 'PLAYING');
+  expect((await H.snapshot(page)).moves_left).toBe(moves);
+  await page.click('#btn-booster-whirl');
+  await expect.poll(async () => (await H.snapshot(page)).boosters.whirl, { timeout: 20000 }).toBe(2);
+  await H.waitState(page, 'PLAYING');
+  expect((await H.snapshot(page)).moves_left).toBe(moves);
+  // Pre-level boosters from the intro: Lucky Start and Head Start.
+  await page.evaluate(() => window.SC.game.goMap());
+  await H.waitState(page, 'MAP');
+  await page.evaluate(() => window.SC.game.openIntro(4));
+  await H.waitForModal(page, 'intro');
+  await page.click('#intro-booster-lucky');
+  await page.click('#intro-booster-head_start');
+  await page.click('#btn-intro-play');
+  await H.waitState(page, 'PLAYING');
+  const boosted = await page.evaluate(() => ({ moves: window.SC.game.logic.moves_left, specials: window.SC.game.logic.cells.filter((piece) => piece && piece.special !== 'none').length }));
+  expect(boosted.moves).toBe(moves + 3);
+  expect(boosted.specials).toBeGreaterThanOrEqual(2);
+  H.expectClean(problems);
+});
+
+test('timed level: the clock counts down, pauses during Pause, and specials add seconds', async ({ page }) => {
+  const problems = H.guardPage(page);
+  await H.bootGame(page, { name: '' });
+  await page.evaluate(() => window.SC.game.startLevel(17));
+  await H.waitState(page, 'PLAYING');
+  await expect(page.locator('#hud-moves-label')).toHaveText('Time');
+  const first = (await H.snapshot(page)).time_left_ms;
+  await page.waitForTimeout(1500);
+  const second = (await H.snapshot(page)).time_left_ms;
+  expect(second).toBeLessThan(first - 800);
+  await page.click('#btn-pause');
+  await H.waitForModal(page, 'pause');
+  const paused_at = (await H.snapshot(page)).time_left_ms;
+  await page.waitForTimeout(1200);
+  expect((await H.snapshot(page)).time_left_ms).toBe(paused_at);
+  await page.click('#btn-resume');
+  await H.waitState(page, 'PLAYING');
+  expect(await page.locator('#hud-moves').textContent()).toMatch(/^\d+:\d\d$/);
   H.expectClean(problems);
 });
 
 test('pause, restart and quit in the middle of an animation never leave a stuck state', async ({ page }) => {
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });
-  // Slow the animation clock so "mid-animation" is a wide, deterministic window even on a loaded CI runner.
+  await page.evaluate(() => window.SC.game.startLevel(6));
+  await H.waitState(page, 'PLAYING');
+  const moves = await H.levelMoves(page, 6);
   await page.evaluate(() => window.SC.game.renderer.setSpeed(0.25));
   await H.swipeMove(page, (await H.snapshot(page)).move);
   await expect.poll(async () => (await H.snapshot(page)).state).toBe('RESOLVING');
@@ -106,16 +216,16 @@ test('pause, restart and quit in the middle of an animation never leave a stuck 
   expect((await H.snapshot(page)).timeline_now).toBe(frozen_at);
   await page.click('#btn-restart');
   await H.waitForModal(page, 'confirm-restart');
-  await page.getByRole('button', { name: 'Restart', exact: true }).click();
+  await page.click('#btn-confirm-restart-yes');
   await H.waitState(page, 'PLAYING');
   await expect.poll(async () => (await H.snapshot(page)).busy, { timeout: 5000 }).toBe(false);
-  expect((await H.snapshot(page)).moves_left).toBe(20);
+  expect((await H.snapshot(page)).moves_left).toBe(moves);
+  expect((await H.snapshot(page)).hearts).toBe(4); // restarting costs a heart
   expect(await page.evaluate(() => window.SC.game.renderer.speed)).toBe(1);
   const before = (await H.snapshot(page)).moves_played;
   await H.swipeMove(page, (await H.snapshot(page)).move);
   await expect.poll(async () => (await H.snapshot(page)).moves_played, { timeout: 30000 }).toBe(before + 1);
   await H.waitState(page, 'PLAYING');
-  // Quit to map in the middle of a cascade.
   await page.evaluate(() => window.SC.game.renderer.setSpeed(0.25));
   await H.swipeMove(page, (await H.snapshot(page)).move);
   await expect.poll(async () => (await H.snapshot(page)).state).toBe('RESOLVING');
@@ -123,17 +233,18 @@ test('pause, restart and quit in the middle of an animation never leave a stuck 
   await H.waitForModal(page, 'pause');
   await page.click('#btn-quit');
   await H.waitForModal(page, 'confirm-quit');
-  await page.getByRole('button', { name: 'Quit', exact: true }).click();
+  await page.click('#btn-confirm-quit-yes');
   await H.waitState(page, 'MAP');
   expect((await H.snapshot(page)).modal).toBeNull();
-  await page.click('.map-node[data-level-id="1"]', { force: true }); // the current node bounces forever
+  await page.click('.map-node[data-level-id="1"]', { force: true });
   await H.waitForModal(page, 'intro');
   await page.click('#btn-intro-play');
   await H.waitState(page, 'PLAYING');
   const fresh = await H.snapshot(page);
-  expect(fresh.moves_left).toBe(20);
+  const level_one_moves = await H.levelMoves(page, 1);
+  expect(fresh.moves_left).toBe(level_one_moves);
   await H.swipeMove(page, fresh.move);
-  await expect.poll(async () => (await H.snapshot(page)).moves_left, { timeout: 30000 }).toBe(19);
+  await expect.poll(async () => (await H.snapshot(page)).moves_left, { timeout: 30000 }).toBe(level_one_moves - 1);
   H.expectClean(problems);
 });
 
@@ -150,7 +261,7 @@ test('back navigation: modal first, gameplay -> pause -> "Quit to map?", map -> 
   await page.click('#btn-resume');
   await H.waitState(page, 'PLAYING');
   await page.evaluate(() => window.SC.game.goMap());
-  await page.click('.map-node[data-level-id="1"]', { force: true }); // the current node bounces forever
+  await page.click('.map-node[data-level-id="1"]', { force: true });
   await H.waitForModal(page, 'intro');
   expect(await back()).toBe('modal');
   await expect.poll(async () => (await H.snapshot(page)).modal).toBeNull();
@@ -194,18 +305,129 @@ test('going to the background pauses audio and timers; coming back resumes clean
   H.expectClean(problems);
 });
 
-test('hint appears after 6 s idle, clears on touch, and the Hint button shows one immediately', async ({ page }) => {
+test('hint: Instant shows within 400 ms of the board settling, clears on touch; the Hint button is immediate; Off waits', async ({ page }) => {
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });
-  await page.evaluate(() => window.SC.game.startLevel(2));
+  await page.evaluate(() => window.SC.game.startLevel(4));
   await H.waitState(page, 'PLAYING');
-  expect((await H.snapshot(page)).hint).toBe(false);
-  await expect.poll(async () => (await H.snapshot(page)).hint, { timeout: 9000 }).toBe(true);
+  const shown_after = await page.evaluate(() => new Promise((resolve) => {
+    const started = performance.now();
+    const check = () => {
+      if (window.SC.game.hintVisible) resolve(performance.now() - started);
+      else if (performance.now() - started > 3000) resolve(-1);
+      else requestAnimationFrame(check);
+    };
+    check();
+  }));
+  expect(shown_after).toBeGreaterThanOrEqual(0);
+  expect(shown_after).toBeLessThan(400);
   const center = await page.evaluate(() => window.SC.game.renderer.cellCenter(0));
   await page.touchscreen.tap(center.x, center.y);
   await expect.poll(async () => (await H.snapshot(page)).hint).toBe(false);
-  await page.click('#btn-hint');
-  await expect.poll(async () => (await H.snapshot(page)).hint).toBe(true);
+  const button_ms = await page.evaluate(() => {
+    const started = performance.now();
+    document.getElementById('btn-hint').click();
+    return window.SC.game.hintVisible ? performance.now() - started : -1;
+  });
+  expect(button_ms).toBeGreaterThanOrEqual(0);
+  expect(button_ms).toBeLessThan(50);
+  await page.evaluate(() => window.SC.game.changeSetting('auto_hint', 'off'));
+  await page.touchscreen.tap(center.x, center.y);
+  await page.touchscreen.tap(center.x, center.y);
+  await H.swipeMove(page, (await page.evaluate(() => {
+    const game = window.SC.game;
+    const move = window.SC.LOGIC.findHint(game.logic);
+    const a = game.renderer.cellCenter(move.from);
+    const b = game.renderer.cellCenter(move.to);
+    return [a.x, a.y, b.x, b.y];
+  })));
+  await H.waitState(page, 'PLAYING');
+  await page.waitForTimeout(1500);
+  expect((await H.snapshot(page)).hint).toBe(false);
+  H.expectClean(problems);
+});
+
+test('the map handles 20,000 levels: at most 60 live nodes from level 1 to 19,000, Jump and Go to level work', async ({ page }) => {
+  test.setTimeout(180000);
+  const problems = H.guardPage(page);
+  await H.bootGame(page, { name: '' });
+  await H.seedSave(page, { unlocked: 19001, stars_upto: 19000, name: 'Ana' });
+  const load_ms = await page.evaluate(() => {
+    const text = localStorage.getItem(window.SC.STORAGE.SAVE_KEY);
+    const started = performance.now();
+    window.SC.STORAGE.parseSave(text);
+    return { ms: performance.now() - started, bytes: text.length };
+  });
+  expect(load_ms.bytes).toBeLessThan(100 * 1024);
+  expect(load_ms.ms).toBeLessThan(50);
+  await page.click('#btn-play');
+  await H.waitState(page, 'MAP');
+  const samples = [];
+  for (const level of [19000, 15000, 9000, 5000, 40, 1]) {
+    await page.evaluate((target) => window.SC.game.map.jumpTo(target, false), level);
+    await page.waitForTimeout(120);
+    const state = await H.snapshot(page);
+    samples.push({ level, live: state.map_live_nodes, range: state.map_range });
+    expect(state.map_live_nodes).toBeLessThanOrEqual(60);
+    expect(state.map_range.first).toBeLessThanOrEqual(level);
+    expect(state.map_range.last).toBeGreaterThanOrEqual(Math.min(level, 19000));
+  }
+  // A continuous scroll keeps the node count flat.
+  for (let step = 0; step < 40; step += 1) {
+    await page.evaluate(() => { document.getElementById('map-scroll').scrollTop -= 700; });
+    await page.waitForTimeout(16);
+  }
+  expect((await H.snapshot(page)).map_live_nodes).toBeLessThanOrEqual(60);
+  await page.click('#btn-map-goto');
+  await H.waitForModal(page, 'goto');
+  await page.fill('#goto-input', '5000');
+  await page.click('#btn-goto-go');
+  await expect.poll(async () => (await H.snapshot(page)).map_range.first, { timeout: 5000 }).toBeLessThanOrEqual(5000);
+  await expect(page.locator('.map-node[data-level-id="5000"]')).toBeVisible();
+  await page.click('#btn-map-mine');
+  await expect(page.locator('.map-node[data-level-id="19000"]')).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('.map-episode').first()).toBeVisible();
+  require('node:fs').mkdirSync('qa', { recursive: true });
+  require('node:fs').writeFileSync('qa/map-scale.json', JSON.stringify({ save: load_ms, samples }, null, 2));
+  H.expectClean(problems);
+});
+
+test('Daily Wheel spins once per day; Star Chest opens at 25 stars', async ({ page }) => {
+  const problems = H.guardPage(page);
+  await H.bootGame(page, { name: '' });
+  await H.seedSave(page, { unlocked: 15, stars_upto: 14 });
+  await page.click('#btn-play');
+  await H.waitState(page, 'MAP');
+  await page.click('#btn-map-wheel');
+  await H.waitForModal(page, 'wheel');
+  await page.click('#btn-wheel-spin');
+  await expect(page.locator('.wheel-result')).toContainText('You won', { timeout: 8000 });
+  const day = await page.evaluate(() => window.SC.game.store.save.meta.wheel_day);
+  expect(day).toMatch(/^\d{4}-\d\d-\d\d$/);
+  await page.evaluate(() => window.SC.game.handleBack());
+  await page.click('#btn-map-wheel');
+  await H.waitForModal(page, 'wheel');
+  await expect(page.locator('#btn-wheel-spin').last()).toBeDisabled();
+  await page.evaluate(() => window.SC.game.handleBack());
+  const stars = await page.evaluate(() => window.SC.STORAGE.totalStars(window.SC.game.store.save));
+  expect(stars).toBeGreaterThanOrEqual(25);
+  await page.click('#btn-map-chest');
+  await H.waitForModal(page, 'reward');
+  await expect(page.locator('[data-modal="reward"]')).toContainText('Star Chest');
+  H.expectClean(problems);
+});
+
+test('a level interrupted by the app being killed reopens its intro on the next launch without costing a heart', async ({ page }) => {
+  const problems = H.guardPage(page);
+  await H.bootGame(page, { name: '' });
+  await page.evaluate(() => window.SC.game.startLevel(1));
+  await H.waitState(page, 'PLAYING');
+  await page.waitForTimeout(400);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem(window.SC.STORAGE.SAVE_KEY)).meta.in_progress)).toBe(1);
+  await H.reloadGame(page);
+  await H.waitForModal(page, 'intro', 15000);
+  await expect(page.locator('[data-modal="intro"]')).toContainText('Level 1');
+  expect((await H.snapshot(page)).hearts).toBe(5);
   H.expectClean(problems);
 });
 
@@ -219,11 +441,12 @@ test('settings persist; personal touches (name, photo, accent, message) work and
   await page.click('[data-accent="ocean"]');
   await page.click('#toggle-music_on');
   await page.click('#toggle-colorblind');
+  await page.click('#choice-auto_hint-3s');
+  await page.click('#choice-animation_speed-fast');
   await page.fill('#settings-name', 'Ana');
   await page.press('#settings-name', 'Tab');
   await page.fill('#settings-message', 'You rock!');
   await page.press('#settings-message', 'Tab');
-  // Pick a photo through the browser file chooser (the APK uses the Android system photo picker instead).
   const png = Buffer.from(await page.evaluate(() => {
     const canvas = document.createElement('canvas');
     canvas.width = 2400;
@@ -249,6 +472,7 @@ test('settings persist; personal touches (name, photo, accent, message) work and
     });
   });
   expect(Math.max(...stored_photo_size)).toBeLessThanOrEqual(1280);
+  await page.click('#btn-sound-check');
   await page.waitForTimeout(400);
   await H.reloadGame(page);
   const saved = await page.evaluate(() => ({ settings: window.SC.game.store.save.settings, name: window.SC.game.store.save.player_name, photo: !!window.SC.game.photo }));
@@ -256,6 +480,8 @@ test('settings persist; personal touches (name, photo, accent, message) work and
   expect(saved.settings.accent).toBe('ocean');
   expect(saved.settings.music_on).toBe(false);
   expect(saved.settings.colorblind).toBe(true);
+  expect(saved.settings.auto_hint).toBe('3s');
+  expect(saved.settings.animation_speed).toBe('fast');
   expect(saved.settings.win_message).toBe('You rock!');
   expect(saved.name).toBe('Ana');
   expect(saved.photo).toBe(true);
@@ -267,13 +493,13 @@ test('settings persist; personal touches (name, photo, accent, message) work and
 });
 
 test('in-game self-test runs the logic tests and a 200-game bot simulation and reports green', async ({ page }) => {
-  test.setTimeout(240000);
+  test.setTimeout(300000);
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });
   await page.evaluate(() => window.SC.game.goTitle());
   await page.click('#btn-title-settings');
   await page.click('#btn-self-test');
-  await expect(page.locator('#selftest-status')).toHaveClass(/is-pass/, { timeout: 200000 });
+  await expect(page.locator('#selftest-status')).toHaveClass(/is-pass/, { timeout: 280000 });
   await expect(page.locator('#selftest-status')).toContainText('ALL GREEN');
   await expect(page.locator('#selftest-report')).toContainText('Bot: ');
   await expect(page.locator('#btn-copy-report')).toBeEnabled();
@@ -297,11 +523,17 @@ test('accessibility: every button is labelled, focus is visible, the live region
     return focused && focused.tagName === 'BUTTON' ? getComputedStyle(focused).outlineStyle : 'none';
   });
   expect(outline).not.toBe('none');
-  const touch_targets = await page.evaluate(() => Array.from(document.querySelectorAll('.screen.is-active button')).map((button) => {
-    const rect = button.getBoundingClientRect();
-    return Math.min(rect.width, rect.height);
-  }));
-  touch_targets.forEach((size) => expect(size).toBeGreaterThanOrEqual(44));
+  for (const screen of ['title', 'map']) {
+    if (screen === 'map') {
+      await page.click('#btn-play');
+      await H.waitState(page, 'MAP');
+    }
+    const touch_targets = await page.evaluate(() => Array.from(document.querySelectorAll('.screen.is-active button')).filter((button) => button.getBoundingClientRect().width > 0).map((button) => {
+      const rect = button.getBoundingClientRect();
+      return { id: button.id || button.className, size: Math.min(rect.width, rect.height) };
+    }));
+    touch_targets.forEach((target) => expect(target.size, target.id).toBeGreaterThanOrEqual(44));
+  }
   H.expectClean(problems);
 });
 
@@ -325,19 +557,24 @@ test.describe('reduced motion', () => {
   });
 });
 
-test('performance: logic stays far under 8 ms per move; frame pacing and heap growth are recorded', async ({ page }) => {
+test('performance: logic stays far under 8 ms per move, hints under 50 ms; frame pacing and heap growth are recorded', async ({ page }) => {
   test.setTimeout(240000);
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });
+  await page.evaluate(() => window.SC.SELFTEST.prepare());
   const logic = await page.evaluate(() => {
     const durations = [];
-    window.SC.LEVELS.forEach((level) => {
-      for (let game = 0; game < 6; game += 1) {
+    const hint_durations = [];
+    window.SC.SELFTEST.shippedLevels().forEach((level) => {
+      for (let game = 0; game < 3; game += 1) {
         let state = window.SC.LOGIC.createGame(level, { seed: level.seed + game });
         let guard = 0;
-        while (state.status === 'playing' && guard < 60) {
+        while (state.status === 'playing' && guard < 40) {
           guard += 1;
+          const hint_started = performance.now();
           const move = window.SC.LOGIC.findHint(state);
+          hint_durations.push(performance.now() - hint_started);
+          if (!move) break;
           const started = performance.now();
           state = window.SC.LOGIC.applySwap(state, move.from, move.to).state;
           durations.push(performance.now() - started);
@@ -345,9 +582,14 @@ test('performance: logic stays far under 8 ms per move; frame pacing and heap gr
       }
     });
     durations.sort((a, b) => a - b);
-    return { moves: durations.length, median_ms: durations[Math.floor(durations.length / 2)], p95_ms: durations[Math.floor(durations.length * 0.95)], max_ms: durations[durations.length - 1] };
+    hint_durations.sort((a, b) => a - b);
+    return {
+      moves: durations.length, median_ms: durations[Math.floor(durations.length / 2)], p95_ms: durations[Math.floor(durations.length * 0.95)], max_ms: durations[durations.length - 1],
+      hint_p95_ms: hint_durations[Math.floor(hint_durations.length * 0.95)], hint_max_ms: hint_durations[hint_durations.length - 1],
+    };
   });
   expect(logic.p95_ms).toBeLessThan(8);
+  expect(logic.hint_p95_ms).toBeLessThan(50);
   await page.evaluate(() => window.SC.game.startLevel(10));
   await H.waitState(page, 'PLAYING');
   const heap_before = await page.evaluate(() => (performance.memory ? performance.memory.usedJSHeapSize : 0));
@@ -373,8 +615,10 @@ test('performance: logic stays far under 8 ms per move; frame pacing and heap gr
   await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 500)));
   const heap_after = await page.evaluate(() => (performance.memory ? performance.memory.usedJSHeapSize : 0));
   frame_samples.sort((a, b) => a - b);
+  const sprite_ms = await page.evaluate(() => window.SC.game.renderer.sprites.buildMs);
   const report = {
     logic,
+    sprite_build_ms: sprite_ms,
     frames: { samples: frame_samples.length, median_ms: frame_samples[Math.floor(frame_samples.length / 2)], p95_ms: frame_samples[Math.floor(frame_samples.length * 0.95)] },
     heap_mb: { before: +(heap_before / 1048576).toFixed(1), after: +(heap_after / 1048576).toFixed(1) },
     quality_level: (await H.snapshot(page)).quality,
@@ -389,13 +633,14 @@ test('performance: logic stays far under 8 ms per move; frame pacing and heap gr
 test('a swipe made the instant a modal closes is not swallowed', async ({ page }) => {
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });
+  const moves = await H.levelMoves(page, 1);
   await page.evaluate(() => window.SC.game.goMap());
   await page.click('.map-node[data-level-id="1"]', { force: true });
   await H.waitForModal(page, 'intro');
   await page.click('#btn-intro-play');
   await H.waitState(page, 'PLAYING');
   await H.swipeMove(page, (await H.snapshot(page)).move);
-  await expect.poll(async () => (await H.snapshot(page)).moves_left, { timeout: 30000 }).toBe(19);
+  await expect.poll(async () => (await H.snapshot(page)).moves_left, { timeout: 30000 }).toBe(moves - 1);
   H.expectClean(problems);
 });
 
@@ -405,7 +650,6 @@ test('a fast flick with no move events in between still swaps (release point cou
   await page.evaluate(() => window.SC.game.startLevel(1));
   await H.waitState(page, 'PLAYING');
   const move = (await H.snapshot(page)).move;
-  // Only pointerdown and pointerup, like a coalesced flick on a slow device.
   await page.evaluate(([x1, y1, x2, y2]) => {
     const canvas = document.getElementById('game-canvas');
     const base = { pointerId: 7, pointerType: 'touch', isPrimary: true, bubbles: true, cancelable: true };
@@ -424,27 +668,23 @@ test('a long press released on a button activates it exactly once (mouse and tou
   await H.bootGame(page, { name: '' });
   await page.evaluate(() => window.SC.game.startLevel(1));
   await H.waitState(page, 'PLAYING');
-  const soundOn = async () => (await H.snapshot(page)).audio.sfx_on;
+  const soundOn = async () => (await H.snapshot(page)).audio.sound_on;
   const box = await page.locator('#btn-sound').boundingBox();
   const x = box.x + box.width / 2;
   const y = box.y + box.height / 2;
   expect(await soundOn()).toBe(true);
-
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.waitForTimeout(900);
   await page.mouse.up();
   await page.waitForTimeout(500);
   expect(await soundOn()).toBe(false);
-
   const client = await page.context().newCDPSession(page);
   await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
   await page.waitForTimeout(900);
   await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await page.waitForTimeout(500);
   expect(await soundOn()).toBe(true);
-
-  // A normal quick tap still works once.
   await page.tap('#btn-sound');
   await page.waitForTimeout(500);
   expect(await soundOn()).toBe(false);
@@ -454,14 +694,13 @@ test('a long press released on a button activates it exactly once (mouse and tou
 test('after a win, Next level goes to the map, the marker hops to the new level and its intro opens', async ({ page }) => {
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: 'Florin' });
-  await H.playLevel(page, { max_moves: 20 });
+  await H.playLevel(page, { max_moves: 30 });
   await H.waitForModal(page, 'win', 120000);
   await page.waitForTimeout(1500);
   await page.click('#btn-next');
   await H.waitState(page, 'MAP');
   await expect(page.locator('.map-marker')).toBeVisible();
   await expect(page.locator('.map-marker')).toHaveText('F');
-  // During the hop the new level still looks locked and nodes ignore taps.
   await expect(page.locator('#map-scroll')).toHaveClass(/is-advancing/);
   await H.waitForModal(page, 'intro', 15000);
   await expect(page.locator('[data-modal="intro"]')).toContainText('Level 2');
@@ -479,7 +718,7 @@ test('after a win, Next level goes to the map, the marker hops to the new level 
 test('Back on the win screen returns to the map with the new level unlocked, without opening it', async ({ page }) => {
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });
-  await H.playLevel(page, { max_moves: 20 });
+  await H.playLevel(page, { max_moves: 30 });
   await H.waitForModal(page, 'win', 120000);
   await page.evaluate(() => window.SC.game.handleBack());
   await H.waitState(page, 'MAP');

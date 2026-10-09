@@ -7,6 +7,8 @@
   const LOGIC = SC.LOGIC || require('./logic.js');
   const LEVELS = SC.LEVELS || require('./levels.js');
   const STORAGE = SC.STORAGE || require('./storage.js');
+  const META = SC.META || require('./meta.js');
+  const CONFIG = SC.CONFIG || require('./config.js');
   const { SPECIAL, KIND } = LOGIC;
 
   // ---------------------------------------------------------------- test board builder
@@ -1046,7 +1048,134 @@
     assert.ok(/^[A-Z][a-z]+ [A-Z][a-z]+$/.test(LEVELS.episodeName(1234)));
   });
 
-  // 19. Storage
+  // 19. Meta game
+  test('meta', 'hearts: one refills every 30 minutes, at most 5, a loss costs one, the clock moving back awards nothing', (assert) => {
+    const save = STORAGE.defaultSave();
+    const start = Date.UTC(2026, 0, 1, 12, 0, 0);
+    const minutes = (count) => count * 60 * 1000;
+    META.refreshHearts(save.meta, start);
+    assert.strictEqual(save.meta.hearts, 5);
+    assert.ok(META.spendHeart(save, start), 'a loss costs a heart');
+    assert.ok(META.spendHeart(save, start + minutes(1)));
+    assert.strictEqual(save.meta.hearts, 3);
+    assert.strictEqual(META.nextHeartIn(save.meta, start + minutes(10)), minutes(20));
+    META.refreshHearts(save.meta, start + minutes(29));
+    assert.strictEqual(save.meta.hearts, 3, 'not yet');
+    META.refreshHearts(save.meta, start + minutes(30));
+    assert.strictEqual(save.meta.hearts, 4, 'one heart after 30 minutes');
+    META.refreshHearts(save.meta, start + minutes(500));
+    assert.strictEqual(save.meta.hearts, 5, 'never above 5');
+    // Clock tampering: spend down, move the clock back a day, then forward to the old time: nothing extra.
+    for (let spent = 0; spent < 5; spent += 1) META.spendHeart(save, start + minutes(600));
+    assert.strictEqual(save.meta.hearts, 0);
+    assert.ok(!META.canPlay(save, start + minutes(601)), 'no hearts, no play');
+    META.refreshHearts(save.meta, start + minutes(600) - minutes(24 * 60));
+    assert.strictEqual(save.meta.hearts, 0, 'moving the clock back awards nothing');
+    META.refreshHearts(save.meta, start + minutes(600) - minutes(24 * 60) + minutes(31));
+    assert.strictEqual(save.meta.hearts, 1, 'refilling restarts from the new time');
+    save.settings.unlimited_hearts = true;
+    assert.ok(META.canPlay(save, start), 'Unlimited hearts lets you always play');
+    assert.strictEqual(META.spendHeart(save, start), false, 'and never costs one');
+  });
+
+  test('meta', 'Gold Drops, boosters, the Daily Wheel once per local day, Sweet Streak and the Star Chest', (assert) => {
+    const save = STORAGE.defaultSave();
+    const now = new Date(2026, 4, 3, 10, 0, 0).getTime();
+    assert.strictEqual(save.meta.gold, 100);
+    assert.ok(META.useBooster(save.meta, 'hammer'));
+    assert.strictEqual(save.meta.boosters.hammer, 2);
+    assert.ok(META.buy(save.meta, 'hammer'), 'buy a hammer for 60 drops');
+    assert.strictEqual(save.meta.gold, 40);
+    assert.strictEqual(save.meta.boosters.hammer, 3);
+    assert.ok(!META.buy(save.meta, 'rainbow'), 'not enough drops');
+    save.meta.boosters.whirl = 0;
+    assert.ok(!META.useBooster(save.meta, 'whirl'), 'none left');
+    const spin = META.spinWheel(save.meta, now);
+    assert.ok(spin && META.WHEEL[spin.index] === spin.reward);
+    assert.strictEqual(META.spinWheel(save.meta, now + 3600 * 1000), null, 'one spin per day');
+    assert.ok(!META.canSpin(save.meta, now + 3600 * 1000));
+    assert.ok(META.canSpin(save.meta, new Date(2026, 4, 4, 0, 5, 0).getTime()), 'again after local midnight');
+    save.meta.streak = 0;
+    const lucky_before = save.meta.boosters.lucky;
+    META.recordOutcome(save, { won: true, new_stars: 3 }, 3);
+    META.recordOutcome(save, { won: true, new_stars: 0 }, 3);
+    const third = META.recordOutcome(save, { won: true, new_stars: 1 }, 4);
+    assert.strictEqual(third.streak_reward, 'lucky', 'every third win in a row grants a pre-level booster');
+    assert.strictEqual(save.meta.boosters.lucky, lucky_before + 1);
+    assert.strictEqual(third.gold, 15, '5 drops per win plus 10 per new star');
+    META.recordOutcome(save, { won: false }, 4);
+    assert.strictEqual(save.meta.streak, 0, 'a loss resets the streak');
+    assert.ok(!META.chestReady(save.meta, 24));
+    assert.ok(META.chestReady(save.meta, 25));
+    const prize = META.openChest(save.meta, 26, now);
+    assert.ok(prize && META.CHEST.indexOf(prize) >= 0);
+    assert.strictEqual(META.openChest(save.meta, 26, now), null, 'the next chest needs 25 more stars');
+    assert.strictEqual(META.chestProgress(save.meta, 40), 15);
+  });
+
+  test('hint', 'auto hint: Instant shows within 400 ms of idle, 3 s and 8 s wait, Off never; the button is immediate (fake timers)', (assert) => {
+    let clock = 0;
+    let queue = [];
+    let next_handle = 1;
+    const timers = {
+      set(run, ms) {
+        const handle = next_handle;
+        next_handle += 1;
+        queue.push({ handle, at: clock + ms, run });
+        return handle;
+      },
+      clear(handle) {
+        queue = queue.filter((entry) => entry.handle !== handle);
+      },
+    };
+    const advance = (ms) => {
+      const until = clock + ms;
+      queue.sort((a, b) => a.at - b.at);
+      while (queue.length && queue[0].at <= until) {
+        const entry = queue.shift();
+        clock = entry.at;
+        entry.run();
+      }
+      clock = until;
+    };
+    const shown = [];
+    const scheduler = META.createHintScheduler(timers, CONFIG.AUTO_HINT_DELAYS, (source) => shown.push({ source, at: clock }));
+    scheduler.setMode('instant');
+    scheduler.idle();
+    advance(399);
+    assert.strictEqual(shown.length, 1, 'Instant: shown within 400 ms of the board settling');
+    assert.strictEqual(shown[0].source, 'auto');
+    scheduler.setMode('3s');
+    scheduler.idle();
+    advance(2999);
+    assert.strictEqual(shown.length, 1);
+    advance(1);
+    assert.strictEqual(shown.length, 2, 'after 3 s');
+    scheduler.setMode('8s');
+    scheduler.idle();
+    advance(5000);
+    scheduler.touch();
+    advance(10000);
+    assert.strictEqual(shown.length, 2, 'touching the board drops the pending hint');
+    scheduler.setMode('off');
+    scheduler.idle();
+    advance(60000);
+    assert.strictEqual(shown.length, 2, 'Off never shows by itself');
+    scheduler.button();
+    assert.strictEqual(shown.length, 3, 'the Hint button shows at once');
+    assert.strictEqual(shown[2].source, 'button');
+    // The button's work (finding the move) is well under 50 ms on every shipped level's opening board.
+    shippedLevels().forEach((level) => {
+      const state = LOGIC.createGame(level);
+      const started = Date.now();
+      const hint = LOGIC.findHint(state);
+      LOGIC.hintFor(state, hint);
+      assert.ok(Date.now() - started < 50, `level ${level.id} hint took ${Date.now() - started} ms`);
+    });
+    assert.strictEqual(LOGIC.findHint(makeTestState(['o o o', 'o 0 o', 'o o o'])), null, 'no hint when no move exists');
+  });
+
+  // 20. Storage
   test('storage', 'round-trip, corrupted JSON fallback, v1-v3 migration, defaults for missing keys', (assert) => {
     const save = STORAGE.defaultSave();
     save.player_name = 'Florin';

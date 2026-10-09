@@ -86,9 +86,31 @@ jobs:
       shard_size: 10
       publish: false
 
+  audio:
+    name: audio
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Ear-safety checks (every sound, stress mix and music rendered offline at maximum settings)
+        run: node tests/audio/run-audio-tests.mjs audio-report
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: audio-report
+          path: audio-report/
+          if-no-files-found: ignore
+
   browser:
     name: browser
-    needs: [logic, levels]
+    needs: [logic, levels, audio]
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:

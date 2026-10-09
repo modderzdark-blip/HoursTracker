@@ -1,0 +1,940 @@
+// SPRITES: the per-pixel candy shader and the sprite atlas.
+// Every candy, special, blocker and icon is shaded pixel by pixel in plain JavaScript (no libraries), once per theme:
+//   signed-distance shape -> plump "pillow" height field -> normals -> warm key + tinted fill light with wrap-around
+//   diffuse -> two Blinn-Phong lobes (tight ~60, wide ~8) -> studio-panorama reflection with Fresnel -> subsurface
+//   glow -> theme detail (gummy bubbles, hard-candy swirl, sugar glitter) -> contact shadow, inset outline, tone map,
+//   gamma and saturation.
+// shadeSprite() is pure (works in Node for tests and for the icon generator); createSpriteCache() wraps it in canvases.
+(function attachSprites(root) {
+  'use strict';
+  const SC = root.SC || (root.SC = {});
+
+  // ---------------------------------------------------------------- palette (spec table, Section 4.1)
+  const CANDIES = Object.freeze([
+    { id: 0, name: 'Strawberry Heart', shape: 'heart', base: '#ff3b6b', highlight: '#ff9db5', shadow: '#b3123f', symbol: 'heart' },
+    { id: 1, name: 'Orange Wedge', shape: 'wedge', base: '#ff9a1f', highlight: '#ffd08a', shadow: '#c4620a', symbol: 'wedge' },
+    { id: 2, name: 'Lemon Drop', shape: 'diamond', base: '#ffe14d', highlight: '#fff7b0', shadow: '#c9a800', symbol: 'diamond' },
+    { id: 3, name: 'Mint Cube', shape: 'cube', base: '#3ddc97', highlight: '#a6f5d1', shadow: '#14935c', symbol: 'square' },
+    { id: 4, name: 'Blueberry Orb', shape: 'orb', base: '#4aa8ff', highlight: '#b5dcff', shadow: '#1c63b8', symbol: 'circle' },
+    { id: 5, name: 'Grape Star', shape: 'star', base: '#a45bff', highlight: '#d6b3ff', shadow: '#5f22b0', symbol: 'star' },
+  ]);
+
+  // Material themes: same shapes and colors, different shader parameters (Section 4.2).
+  const THEMES = Object.freeze({
+    gummy: { id: 'gummy', name: 'Gummy', spec_power: 60, spec_tight: 1.3, spec_wide: 0.18, env: 0.6, fresnel0: 0.05, subsurface: 1.0, translucency: 0.55, saturation: 1.22, detail: 'bubbles', height: 0.95 },
+    hard: { id: 'hard', name: 'Hard Candy', spec_power: 110, spec_tight: 1.8, spec_wide: 0.1, env: 1.0, fresnel0: 0.08, subsurface: 0.55, translucency: 0.35, saturation: 1.26, detail: 'swirl', height: 0.85 },
+    sprinkle: { id: 'sprinkle', name: 'Sugar Sprinkle', spec_power: 22, spec_tight: 0.38, spec_wide: 0.12, env: 0.16, fresnel0: 0.03, subsurface: 0.35, translucency: 0.15, saturation: 1.14, detail: 'sugar', height: 1.0 },
+  });
+  const THEME_IDS = Object.freeze(['gummy', 'hard', 'sprinkle']);
+
+  // ---------------------------------------------------------------- small math helpers
+  const clamp = (value, low, high) => (value < low ? low : value > high ? high : value);
+  const mix = (a, b, t) => a + (b - a) * t;
+  const smoothstep = (edge0, edge1, value) => {
+    const t = clamp((value - edge0) / (edge1 - edge0), 0, 1);
+    return t * t * (3 - 2 * t);
+  };
+
+  function hexToLinear(hex) {
+    const value = parseInt(hex.slice(1), 16);
+    return [(value >> 16) & 255, (value >> 8) & 255, value & 255].map((channel) => Math.pow(channel / 255, 2.2));
+  }
+
+  function hash2(x, y, seed) {
+    let h = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263) ^ Math.imul(seed | 0, 1442695041);
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  }
+
+  function seededRandom(seed) {
+    let state = seed >>> 0 || 1;
+    return () => {
+      state = (state + 0x6d2b79f5) >>> 0;
+      let t = state;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // ---------------------------------------------------------------- signed distance shapes (negative inside, y down)
+  function sdCircle(x, y, radius) {
+    return Math.sqrt(x * x + y * y) - radius;
+  }
+
+  function sdRoundBox(x, y, half_w, half_h, radius) {
+    const qx = Math.abs(x) - half_w + radius;
+    const qy = Math.abs(y) - half_h + radius;
+    const ox = Math.max(qx, 0);
+    const oy = Math.max(qy, 0);
+    return Math.sqrt(ox * ox + oy * oy) + Math.min(Math.max(qx, qy), 0) - radius;
+  }
+
+  function sdRhombus(x, y, half_w, half_h) {
+    const px = Math.abs(x);
+    const py = Math.abs(y);
+    const ndot = (half_w - 2 * px) * half_w - (half_h - 2 * py) * half_h;
+    const h = clamp(ndot / (half_w * half_w + half_h * half_h), -1, 1);
+    const dx = px - 0.5 * half_w * (1 - h);
+    const dy = py - 0.5 * half_h * (1 + h);
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    return distance * Math.sign(px * half_h + py * half_w - half_w * half_h);
+  }
+
+  // Heart (Inigo Quilez's exact heart), in a space with y up and the point at the origin.
+  function sdHeartRaw(x, y) {
+    const px = Math.abs(x);
+    if (y + px > 1) {
+      const dx = px - 0.25;
+      const dy = y - 0.75;
+      return Math.sqrt(dx * dx + dy * dy) - Math.SQRT2 / 4;
+    }
+    const ax = px;
+    const ay = y - 1;
+    const m = 0.5 * Math.max(px + y, 0);
+    const bx = px - m;
+    const by = y - m;
+    return Math.sqrt(Math.min(ax * ax + ay * ay, bx * bx + by * by)) * Math.sign(px - y);
+  }
+
+  function sdStar5(x, y, radius, inner) {
+    const k1x = 0.809016994375;
+    const k1y = -0.587785252292;
+    const k2x = -k1x;
+    const k2y = k1y;
+    let px = Math.abs(x);
+    let py = y;
+    let dot = Math.max(k1x * px + k1y * py, 0);
+    px -= 2 * dot * k1x;
+    py -= 2 * dot * k1y;
+    dot = Math.max(k2x * px + k2y * py, 0);
+    px -= 2 * dot * k2x;
+    py -= 2 * dot * k2y;
+    px = Math.abs(px);
+    py -= radius;
+    const bax = inner * -k1y - 0;
+    const bay = inner * k1x - 1;
+    const h = clamp((px * bax + py * bay) / (bax * bax + bay * bay), 0, radius);
+    const dx = px - bax * h;
+    const dy = py - bay * h;
+    return Math.sqrt(dx * dx + dy * dy) * Math.sign(py * bax - px * bay);
+  }
+
+  function sdCapsule(x, y, ax, ay, bx, by, radius) {
+    const pax = x - ax;
+    const pay = y - ay;
+    const bax = bx - ax;
+    const bay = by - ay;
+    const h = clamp((pax * bax + pay * bay) / (bax * bax + bay * bay), 0, 1);
+    const dx = pax - bax * h;
+    const dy = pay - bay * h;
+    return Math.sqrt(dx * dx + dy * dy) - radius;
+  }
+
+  function smoothUnion(a, b, k) {
+    const h = clamp(0.5 + (0.5 * (b - a)) / k, 0, 1);
+    return mix(b, a, h) - k * h * (1 - h);
+  }
+
+  function smoothSubtract(a, b, k) {
+    // removes b from a
+    const h = clamp(0.5 - (0.5 * (a + b)) / k, 0, 1);
+    return mix(a, -b, h) + k * h * (1 - h);
+  }
+
+  /** Rounded intersection of two distance fields (used by the wedge). */
+  function roundIntersect(a, b, radius) {
+    const ux = Math.max(a + radius, 0);
+    const uy = Math.max(b + radius, 0);
+    return Math.sqrt(ux * ux + uy * uy) + Math.min(Math.max(a + radius, b + radius), 0) - radius;
+  }
+
+  const SHAPE_SDF = {
+    heart(x, y) {
+      const scale = 1.16;
+      return sdHeartRaw(x * scale, (-y + 0.74) * scale) / scale - 0.08;
+    },
+    wedge(x, y) {
+      const circle = sdCircle(x, y - 0.3, 0.82);
+      const flat = y - 0.3;
+      return roundIntersect(circle, flat, 0.14) - 0.02;
+    },
+    diamond(x, y) {
+      return sdRhombus(x, y, 0.76, 0.86) - 0.1;
+    },
+    cube(x, y) {
+      return sdRoundBox(x, y, 0.72, 0.72, 0.24);
+    },
+    orb(x, y) {
+      const body = sdCircle(x, y + 0.02, 0.78);
+      return smoothSubtract(body, sdCircle(x, y + 0.86, 0.17), 0.09);
+    },
+    star(x, y) {
+      return sdStar5(x, -y + 0.06, 0.8, 0.58) - 0.1;
+    },
+    bomb(x, y) {
+      return sdCircle(x, y, 0.78);
+    },
+    square(x, y) {
+      return sdRoundBox(x, y, 0.84, 0.84, 0.2);
+    },
+    tile(x, y) {
+      return sdRoundBox(x, y, 0.94, 0.94, 0.2);
+    },
+    drop(x, y) {
+      // Gold Drop icon: a teardrop with the point at the top.
+      const body = sdCircle(x, y - 0.2, 0.62);
+      const tip = Math.max(Math.abs(x) * 0.84 + (y + 0.05) * 0.54, -y - 0.86);
+      return smoothUnion(body, tip, 0.12);
+    },
+    nut(x, y) {
+      return smoothUnion(sdCircle(x, y - 0.12, 0.66), sdCircle(x, y + 0.58, 0.16), 0.42);
+    },
+    gumdrop(x, y) {
+      const dome = sdCircle(x / 0.86, (y - 0.12) / 0.92, 0.82) * 0.86;
+      return roundIntersect(dome, y - 0.6, 0.12);
+    },
+  };
+
+  // ---------------------------------------------------------------- the studio panorama (reflections)
+  function environment(rx, ry, rz) {
+    // Stereographic coordinates of the reflected ray; y is down.
+    const denominator = 1 + Math.max(rz, -0.95);
+    const u = rx / denominator;
+    const v = ry / denominator;
+    let light = 0.04 + 0.16 * clamp(-ry, 0, 1);
+    // Big softbox window up-left, with four panes (the crisp "window" highlight).
+    const window_x = smoothstep(-0.78, -0.7, u) * (1 - smoothstep(-0.12, -0.05, u));
+    const window_y = smoothstep(-0.8, -0.72, v) * (1 - smoothstep(-0.16, -0.09, v));
+    const bar = 1 - 0.8 * ((1 - smoothstep(0.0, 0.022, Math.abs(u + 0.41))) + (1 - smoothstep(0.0, 0.022, Math.abs(v + 0.44))));
+    light += 4.6 * window_x * window_y * clamp(bar, 0, 1);
+    // A dim strip light on the right for a second, softer rim.
+    light += 0.9 * smoothstep(0.55, 0.7, u) * (1 - smoothstep(0.85, 0.98, u)) * smoothstep(-0.6, -0.4, v) * (1 - smoothstep(0.3, 0.5, v));
+    return light;
+  }
+
+  // ---------------------------------------------------------------- the shader
+
+  /**
+   * Shades one sprite. spec: { shape, base, highlight, shadow, theme, special?, colorblind?, seed?, kind? }.
+   * Returns { width, height, data: Uint8ClampedArray (RGBA, not premultiplied) }.
+   */
+  function shadeSprite(spec, size) {
+    const theme = THEMES[spec.theme] || THEMES.gummy;
+    const width = size;
+    const height = size;
+    const pixel = 2 / size;
+    const data = new Uint8ClampedArray(width * height * 4);
+    const sdf = typeof spec.shape === 'function' ? spec.shape : SHAPE_SDF[spec.shape];
+    const base = hexToLinear(spec.base);
+    const high = hexToLinear(spec.highlight || spec.base);
+    const deep = hexToLinear(spec.shadow || spec.base);
+    const seed = spec.seed || 7;
+    const detail = spec.detail || theme.detail;
+    const material = Object.assign({}, theme, spec.material || {});
+    const bevel = spec.bevel || 0.42;
+    const height_scale = (spec.height_scale || 0.62) * material.height;
+    const distances = new Float32Array(width * height);
+    const heights = new Float32Array(width * height);
+
+    // Pass 1: distance and pillow height.
+    for (let row = 0; row < height; row += 1) {
+      const y = -1 + (row + 0.5) * pixel;
+      for (let col = 0; col < width; col += 1) {
+        const x = -1 + (col + 0.5) * pixel;
+        const index = row * width + col;
+        const distance = sdf(x, y);
+        distances[index] = distance;
+        if (distance < 0) {
+          const t = Math.min(-distance / bevel, 1);
+          let h = Math.sqrt(1 - (1 - t) * (1 - t));
+          h = h * 0.84 + 0.16 * Math.max(0, 1 - (x * x + y * y) * 0.9);
+          if (spec.height_detail) h += spec.height_detail(x, y, -distance);
+          heights[index] = h;
+        }
+      }
+    }
+
+    // Soften the height field (removes creases along the shape's medial axis, so a diamond stays a rounded diamond).
+    const blur_radius = Math.max(1, Math.round(size * (spec.smooth === undefined ? 0.035 : spec.smooth)));
+    if (spec.smooth !== 0) {
+      for (let iteration = 0; iteration < 2; iteration += 1) boxBlur(heights, width, height, blur_radius, distances);
+    }
+
+    // Studio lights (y down): warm key from upper-left, colored fill from lower-right.
+    const key = normalize3(-0.55, -0.7, 0.75);
+    const fill = normalize3(0.6, 0.55, 0.45);
+    const half_key = normalize3(key[0], key[1], key[2] + 1);
+    const glitter = seededRandom(seed * 31 + 5);
+    const bubbles = [];
+    if (detail === 'bubbles') {
+      for (let index = 0; index < 7; index += 1) bubbles.push({ x: (glitter() - 0.5) * 1.0, y: (glitter() - 0.3) * 0.9, r: 0.035 + glitter() * 0.05 });
+    }
+
+    // Pass 2: lighting.
+    for (let row = 0; row < height; row += 1) {
+      const y = -1 + (row + 0.5) * pixel;
+      for (let col = 0; col < width; col += 1) {
+        const x = -1 + (col + 0.5) * pixel;
+        const index = row * width + col;
+        const out = index * 4;
+        const distance = distances[index];
+        const coverage = clamp(0.5 - distance / pixel, 0, 1);
+        if (coverage <= 0) {
+          // Contact shadow: the shape's distance field, offset down and blurred.
+          if (!spec.no_shadow) {
+            const shadow_distance = sdf(x * 0.97, (y - 0.09) * 0.97);
+            const shadow = 0.34 * Math.exp(-Math.max(0, shadow_distance) / 0.07) * smoothstep(-0.2, 0.5, y);
+            if (shadow > 0.004) {
+              data[out] = 46;
+              data[out + 1] = 14;
+              data[out + 2] = 52;
+              data[out + 3] = Math.round(shadow * 255);
+            }
+          }
+          continue;
+        }
+        const left = heights[row * width + Math.max(0, col - 1)];
+        const right = heights[row * width + Math.min(width - 1, col + 1)];
+        const up = heights[Math.max(0, row - 1) * width + col];
+        const down = heights[Math.min(height - 1, row + 1) * width + col];
+        const h = heights[index];
+        let nx = (-(right - left) / (2 * pixel)) * height_scale;
+        let ny = (-(down - up) / (2 * pixel)) * height_scale;
+        let nz = 1;
+        const normal_length = Math.sqrt(nx * nx + ny * ny + nz * nz);
+        nx /= normal_length;
+        ny /= normal_length;
+        nz /= normal_length;
+
+        // Albedo: thin (edge) regions lighter and more saturated, thick regions deeper (subsurface look).
+        const thickness = h;
+        const thick = smoothstep(0.1, 0.95, thickness);
+        let ar = mix(mix(base[0], high[0], 0.28), mix(base[0], deep[0], 0.38), thick);
+        let ag = mix(mix(base[1], high[1], 0.28), mix(base[1], deep[1], 0.38), thick);
+        let ab = mix(mix(base[2], high[2], 0.28), mix(base[2], deep[2], 0.38), thick);
+        let spec_scale = 1;
+        let paint = null;
+        if (spec.albedo) {
+          paint = spec.albedo(x, y, -distance, h);
+          if (paint) {
+            ar = mix(ar, paint[0], paint[3]);
+            ag = mix(ag, paint[1], paint[3]);
+            ab = mix(ab, paint[2], paint[3]);
+            if (paint.length > 4) spec_scale = paint[4];
+          }
+        }
+        // Theme surface detail.
+        if (detail === 'swirl') {
+          const angle = Math.atan2(y, x);
+          const radius = Math.sqrt(x * x + y * y);
+          const swirl = 0.5 + 0.5 * Math.sin(angle * 3 + radius * 9 + seed);
+          const amount = 0.16 * smoothstep(0.55, 1, swirl) * smoothstep(0.05, 0.4, -distance);
+          ar = mix(ar, high[0], amount);
+          ag = mix(ag, high[1], amount);
+          ab = mix(ab, high[2], amount);
+        } else if (detail === 'sugar') {
+          const grain = hash2(col, row, seed);
+          const sugar = 0.1 + 0.12 * grain;
+          ar = mix(ar, 1, sugar * 0.6);
+          ag = mix(ag, 1, sugar * 0.6);
+          ab = mix(ab, 1, sugar * 0.6);
+        } else if (detail === 'bubbles') {
+          for (let bubble_index = 0; bubble_index < bubbles.length; bubble_index += 1) {
+            const bubble = bubbles[bubble_index];
+            const bx = x - bubble.x;
+            const by = y - bubble.y;
+            const bubble_distance = Math.sqrt(bx * bx + by * by);
+            if (bubble_distance < bubble.r && -distance > 0.12) {
+              const ring = smoothstep(bubble.r * 0.55, bubble.r, bubble_distance);
+              ar = mix(ar, high[0], 0.35 * ring);
+              ag = mix(ag, high[1], 0.35 * ring);
+              ab = mix(ab, high[2], 0.35 * ring);
+              if (bx < -bubble.r * 0.2 && by < -bubble.r * 0.2) {
+                ar += 0.25;
+                ag += 0.25;
+                ab += 0.25;
+              }
+            }
+          }
+        }
+
+        // Diffuse: wrap-around key, tinted fill, ambient.
+        const key_dot = nx * key[0] + ny * key[1] + nz * key[2];
+        const fill_dot = nx * fill[0] + ny * fill[1] + nz * fill[2];
+        const key_light = clamp((key_dot + 0.4) / 1.4, 0, 1);
+        const fill_light = clamp((fill_dot + 0.6) / 1.6, 0, 1) * 0.3;
+        const ambient = 0.1 + 0.06 * (1 - clamp(ny, -1, 1));
+        let r = ar * (key_light * 1.0 + ambient) + fill_light * mix(ar, high[0], 0.35);
+        let g = ag * (key_light * 0.96 + ambient) + fill_light * mix(ag, high[1], 0.35);
+        let b = ab * (key_light * 0.9 + ambient) + fill_light * mix(ab, high[2], 0.35);
+
+        // Subsurface glow in the lower third and through thin edges.
+        const glow = material.subsurface * (0.3 * smoothstep(0.05, 0.8, y) * (1 - 0.55 * thickness) + material.translucency * 0.22 * (1 - thickness));
+        r += mix(base[0], high[0], 0.5) * glow;
+        g += mix(base[1], high[1], 0.5) * glow * 0.9;
+        b += mix(base[2], high[2], 0.5) * glow * 0.78;
+
+        // Specular: tight wet highlight and a wide sheen, then the studio reflection with Fresnel.
+        const half_dot = Math.max(0, nx * half_key[0] + ny * half_key[1] + nz * half_key[2]);
+        const tight = Math.pow(half_dot, material.spec_power) * material.spec_tight * spec_scale;
+        const wide = Math.pow(half_dot, 8) * material.spec_wide * spec_scale;
+        const fresnel = material.fresnel0 + (1 - material.fresnel0) * Math.pow(1 - clamp(nz, 0, 1), 5);
+        const rx = 2 * nz * nx;
+        const ry = 2 * nz * ny;
+        const rz = 2 * nz * nz - 1;
+        const reflection = environment(rx, ry, rz) * (material.env * 0.4 + fresnel * 1.1) * spec_scale;
+        r += tight + wide + reflection;
+        g += tight + wide + reflection * 0.98;
+        b += tight * 0.97 + wide + reflection * 0.95;
+
+        // Sugar glitter specks catch the light.
+        if (detail === 'sugar' && hash2(col * 3 + 1, row * 7 + 2, seed) > 0.985 && -distance > 0.05) {
+          const sparkle = 0.6 + 1.4 * half_dot;
+          r += sparkle;
+          g += sparkle;
+          b += sparkle * 0.95;
+        }
+
+        // Ambient occlusion near the rim and an inset darker outline.
+        const outline_width = spec.colorblind ? 0.11 : 0.055;
+        const rim = smoothstep(0, outline_width, -distance);
+        const darken = (spec.colorblind ? 0.55 : 0.7) + (spec.colorblind ? 0.45 : 0.3) * rim;
+        r *= darken;
+        g *= darken;
+        b *= darken;
+
+        // Tone map (soft shoulder), saturation and gamma.
+        r = 1 - Math.exp(-r * 1.25);
+        g = 1 - Math.exp(-g * 1.25);
+        b = 1 - Math.exp(-b * 1.25);
+        const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        r = luma + (r - luma) * material.saturation;
+        g = luma + (g - luma) * material.saturation;
+        b = luma + (b - luma) * material.saturation;
+        let alpha = coverage * (spec.opacity === undefined ? 1 : spec.opacity(x, y, -distance, h));
+        // Blend the anti-aliased edge over the contact shadow.
+        data[out] = Math.round(255 * Math.pow(clamp(r, 0, 1), 1 / 2.2));
+        data[out + 1] = Math.round(255 * Math.pow(clamp(g, 0, 1), 1 / 2.2));
+        data[out + 2] = Math.round(255 * Math.pow(clamp(b, 0, 1), 1 / 2.2));
+        if (alpha < 1 && !spec.no_shadow) {
+          const shadow_distance = sdf(x * 0.97, (y - 0.09) * 0.97);
+          const shadow = 0.34 * Math.exp(-Math.max(0, shadow_distance) / 0.07) * smoothstep(-0.2, 0.5, y);
+          alpha = alpha + shadow * (1 - alpha);
+        }
+        data[out + 3] = Math.round(255 * clamp(alpha, 0, 1));
+      }
+    }
+    return { width, height, data };
+  }
+
+  /** Separable box blur of the interior heights (pixels outside the shape keep height 0). */
+  function boxBlur(values, width, height, radius, distances) {
+    const scratch = new Float32Array(values.length);
+    const window_size = radius * 2 + 1;
+    for (let row = 0; row < height; row += 1) {
+      let sum = 0;
+      const offset = row * width;
+      for (let col = -radius; col <= radius; col += 1) sum += values[offset + Math.min(width - 1, Math.max(0, col))];
+      for (let col = 0; col < width; col += 1) {
+        scratch[offset + col] = sum / window_size;
+        sum += values[offset + Math.min(width - 1, col + radius + 1)] - values[offset + Math.max(0, col - radius)];
+      }
+    }
+    for (let col = 0; col < width; col += 1) {
+      let sum = 0;
+      for (let row = -radius; row <= radius; row += 1) sum += scratch[Math.min(height - 1, Math.max(0, row)) * width + col];
+      for (let row = 0; row < height; row += 1) {
+        const index = row * width + col;
+        values[index] = distances[index] < 0 ? sum / window_size : 0;
+        sum += scratch[Math.min(height - 1, row + radius + 1) * width + col] - scratch[Math.max(0, row - radius) * width + col];
+      }
+    }
+  }
+
+  function normalize3(x, y, z) {
+    const length = Math.sqrt(x * x + y * y + z * z);
+    return [x / length, y / length, z / length];
+  }
+
+  // ---------------------------------------------------------------- sprite recipes
+
+  function lin(hex) {
+    return hexToLinear(hex);
+  }
+
+  function paintOf(hex, amount, spec_scale) {
+    const color = lin(hex);
+    return spec_scale === undefined ? [color[0], color[1], color[2], amount] : [color[0], color[1], color[2], amount, spec_scale];
+  }
+
+  /** Shape details painted into the albedo: the wedge's rind and segments, the orb's calyx and leaf. */
+  function candyAlbedo(candy) {
+    if (candy.shape === 'wedge') {
+      const rind = lin('#f07a00');
+      const pith = lin('#fff1d6');
+      return (x, y, depth) => {
+        const cx = x;
+        const cy = y - 0.3;
+        const radius = Math.sqrt(cx * cx + cy * cy);
+        if (cy < 0.02 && radius > 0.58 && depth < 0.22) return [rind[0], rind[1], rind[2], 0.55 * smoothstep(0.58, 0.66, radius)];
+        if (cy < 0.02 && radius > 0.5 && radius < 0.58) return [pith[0], pith[1], pith[2], 0.55];
+        const angle = Math.atan2(-cy, cx);
+        for (const line_angle of [0.55, 1.15, 1.98, 2.6]) {
+          const angular = Math.abs(angle - line_angle) * radius;
+          if (cy < -0.05 && radius > 0.1 && radius < 0.5 && angular < 0.022) return [pith[0], pith[1], pith[2], 0.6 * (1 - angular / 0.022)];
+        }
+        return null;
+      };
+    }
+    if (candy.shape === 'orb') {
+      const calyx = lin('#163d82');
+      const leaf = lin('#4fcf6a');
+      return (x, y) => {
+        const lx = x - 0.16;
+        const ly = y + 0.76;
+        const leaf_distance = Math.abs(lx * 0.8 - ly * 0.6) * 2.2 + Math.abs(lx * 0.6 + ly * 0.8) * 0.9;
+        if (leaf_distance < 0.2) return [leaf[0], leaf[1], leaf[2], 0.92, 0.7];
+        const crown = sdStar5(x, -(y + 0.6), 0.13, 0.5);
+        if (crown < 0) return [calyx[0], calyx[1], calyx[2], 0.65];
+        return null;
+      };
+    }
+    if (candy.shape === 'cube') {
+      const high = lin(candy.highlight);
+      return (x, y) => {
+        // A bevelled top face: a slightly lighter inset square.
+        const face = sdRoundBox(x, y, 0.42, 0.42, 0.16);
+        return face < 0 ? [high[0], high[1], high[2], 0.14 * smoothstep(0, 0.06, -face)] : null;
+      };
+    }
+    return null;
+  }
+
+  function candyHeightDetail(candy) {
+    if (candy.shape === 'wedge') {
+      return (x, y) => {
+        const cy = y - 0.3;
+        const radius = Math.sqrt(x * x + cy * cy);
+        const angle = Math.atan2(-cy, x);
+        let dip = 0;
+        for (const line_angle of [0.55, 1.15, 1.98, 2.6]) dip = Math.max(dip, 0.05 * (1 - smoothstep(0, 0.03, Math.abs(angle - line_angle) * radius)));
+        return radius < 0.5 ? -dip : 0;
+      };
+    }
+    if (candy.shape === 'cube') {
+      return (x, y) => {
+        const face = sdRoundBox(x, y, 0.44, 0.44, 0.16);
+        return 0.06 * smoothstep(0.02, -0.06, face);
+      };
+    }
+    return null;
+  }
+
+  function stripeAlbedo(direction, inner) {
+    const white = [1, 1, 1];
+    return (x, y, depth, h) => {
+      const inherited = inner ? inner(x, y, depth, h) : null;
+      const along = direction === 'row' ? y : x;
+      const band = Math.abs(((along * 3.1 + 10.5) % 1) - 0.5);
+      const stripe = 1 - smoothstep(0.17, 0.24, band);
+      if (stripe > 0.01 && depth > 0.02) return [white[0], white[1], white[2], 0.82 * stripe, 1.15];
+      return inherited;
+    };
+  }
+
+  function stripeHeight(direction, inner) {
+    return (x, y, depth) => {
+      const base = inner ? inner(x, y, depth) : 0;
+      const along = direction === 'row' ? y : x;
+      const band = Math.abs(((along * 3.1 + 10.5) % 1) - 0.5);
+      return base + 0.05 * (1 - smoothstep(0.15, 0.26, band)) * smoothstep(0, 0.12, depth);
+    };
+  }
+
+  /** Every sprite recipe for a theme: { key: spec } (all keys used by the renderer and the UI). */
+  function recipes(theme_id, colorblind) {
+    const list = {};
+    CANDIES.forEach((candy) => {
+      const albedo = candyAlbedo(candy);
+      const height_detail = candyHeightDetail(candy);
+      const common = { shape: candy.shape, base: candy.base, highlight: candy.highlight, shadow: candy.shadow, theme: theme_id, seed: 11 + candy.id * 17, colorblind, symbol: colorblind ? candy.symbol : null };
+      list[`candy:${candy.id}`] = Object.assign({}, common, { albedo, height_detail });
+      list[`stripe_row:${candy.id}`] = Object.assign({}, common, { albedo: stripeAlbedo('row', albedo), height_detail: stripeHeight('row', height_detail) });
+      list[`stripe_col:${candy.id}`] = Object.assign({}, common, { albedo: stripeAlbedo('col', albedo), height_detail: stripeHeight('col', height_detail) });
+      list[`wrapped:${candy.id}`] = wrappedRecipe(candy, theme_id, colorblind);
+    });
+    list.bomb = bombRecipe(theme_id);
+    for (let layers = 1; layers <= 5; layers += 1) list[`frosting:${layers}`] = frostingRecipe(layers, theme_id);
+    list.cocoa = cocoaRecipe(theme_id);
+    list.cherry = cherryRecipe(theme_id);
+    list.hazelnut = hazelnutRecipe(theme_id);
+    list.cage = cageRecipe();
+    list['jelly:1'] = jellyRecipe(1);
+    list['jelly:2'] = jellyRecipe(2);
+    return list;
+  }
+
+  function wrappedRecipe(candy, theme_id, colorblind) {
+    const film_base = lin(candy.base);
+    const film_high = lin(candy.highlight);
+    const film = [mix(film_base[0], film_high[0], 0.6), mix(film_base[1], film_high[1], 0.6), mix(film_base[2], film_high[2], 0.6)];
+    const inner = SHAPE_SDF[candy.shape];
+    const wrapper = (x, y) => {
+      const body = sdRoundBox(x, y, 0.64, 0.6, 0.22);
+      // Twisted ends: a bow-tie fan on each side.
+      const ex = Math.abs(x) - 0.62;
+      const fan = Math.max(Math.abs(y) - 0.08 - ex * 0.9, ex - 0.32);
+      return smoothUnion(body, Math.max(fan, -ex), 0.05);
+    };
+    return {
+      shape: wrapper, base: candy.base, highlight: candy.highlight, shadow: candy.shadow, theme: theme_id, seed: 41 + candy.id, colorblind, symbol: colorblind ? candy.symbol : null,
+      bevel: 0.3,
+      height_detail: (x, y) => {
+        const inside = inner(x / 0.74, y / 0.74);
+        const crinkle = 0.035 * Math.sin(x * 23 + Math.sin(y * 9) * 2) * Math.sin(y * 19 + x * 5);
+        return (inside < 0 ? 0.18 * smoothstep(0, 0.2, -inside) : 0) + crinkle;
+      },
+      albedo: (x, y) => {
+        const inside = inner(x / 0.74, y / 0.74);
+        if (inside < 0) return null;
+        const tie = Math.abs(x) > 0.58 ? 0.25 : 0;
+        return [film[0], film[1], film[2], 0.72 + tie, 1.3];
+      },
+      opacity: (x, y) => (inner(x / 0.74, y / 0.74) < 0 ? 1 : 0.82),
+    };
+  }
+
+  function bombRecipe(theme_id) {
+    const sprinkle_colors = CANDIES.map((candy) => lin(candy.highlight)).concat([lin('#ffffff')]);
+    const random = seededRandom(909);
+    const sprinkles = [];
+    for (let index = 0; index < 30; index += 1) {
+      const angle = random() * Math.PI * 2;
+      const radius = Math.sqrt(random()) * 0.66;
+      sprinkles.push({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius, angle: random() * Math.PI, color: sprinkle_colors[index % sprinkle_colors.length] });
+    }
+    const hit = (x, y) => {
+      for (let index = 0; index < sprinkles.length; index += 1) {
+        const sprinkle = sprinkles[index];
+        const ca = Math.cos(sprinkle.angle);
+        const sa = Math.sin(sprinkle.angle);
+        const ax = sprinkle.x - ca * 0.06;
+        const ay = sprinkle.y - sa * 0.06;
+        if (sdCapsule(x, y, ax, ay, sprinkle.x + ca * 0.06, sprinkle.y + sa * 0.06, 0.028) < 0) return sprinkle;
+      }
+      return null;
+    };
+    return {
+      shape: 'bomb', base: '#5b2d18', highlight: '#9a5532', shadow: '#2a1008', theme: theme_id, seed: 13, material: { subsurface: 0.15, translucency: 0.05, spec_tight: 1.6, env: 0.6, detail: 'none' }, detail: 'none',
+      height_detail: (x, y) => (hit(x, y) ? 0.06 : 0),
+      albedo: (x, y) => {
+        const sprinkle = hit(x, y);
+        return sprinkle ? [sprinkle.color[0], sprinkle.color[1], sprinkle.color[2], 1, 0.8] : null;
+      },
+    };
+  }
+
+  const FROSTING_COLORS = ['#fff6fa', '#ffe0ee', '#ffc6e0', '#f7add3', '#ea93c4'];
+
+  function frostingRecipe(layers, theme_id) {
+    const icing = FROSTING_COLORS[layers - 1];
+    const ring_color = lin('#ffffff');
+    return {
+      shape: 'square', base: icing, highlight: '#ffffff', shadow: FROSTING_COLORS[Math.min(4, layers)], theme: theme_id, seed: 70 + layers,
+      material: { subsurface: 0.3, translucency: 0.1, spec_power: 30, spec_tight: 0.6, env: 0.2, saturation: 1.05 }, detail: 'sugar', bevel: 0.36, smooth: 0.012,
+      height_detail: (x, y) => {
+        // One raised tier per layer, plus a scalloped drip at the top.
+        let tiers = 0;
+        for (let tier = 1; tier < layers; tier += 1) {
+          const size = 0.84 - tier * 0.13;
+          tiers += 0.07 * smoothstep(0.02, -0.03, sdRoundBox(x, y, size, size, 0.16));
+        }
+        const drip = 0.04 * smoothstep(0.02, -0.02, y + 0.5 - 0.08 * Math.cos(x * 9));
+        return tiers + drip;
+      },
+      albedo: (x, y) => {
+        for (let tier = 1; tier < layers; tier += 1) {
+          const size = 0.84 - tier * 0.13;
+          const edge = Math.abs(sdRoundBox(x, y, size, size, 0.16));
+          if (edge < 0.018) return [ring_color[0], ring_color[1], ring_color[2], 0.45];
+        }
+        return null;
+      },
+    };
+  }
+
+  function cocoaRecipe(theme_id) {
+    return {
+      shape: 'square', base: '#7a4021', highlight: '#b0683a', shadow: '#3a1a0a', theme: theme_id, seed: 91,
+      material: { subsurface: 0.1, translucency: 0.02, spec_power: 70, spec_tight: 1.3, env: 0.5, detail: 'none' }, detail: 'none', bevel: 0.32,
+      height_detail: (x, y) => {
+        const angle = Math.atan2(y, x);
+        const radius = Math.sqrt(x * x + y * y);
+        return 0.07 * Math.sin(angle * 2 + radius * 13) * smoothstep(0.75, 0.2, radius);
+      },
+    };
+  }
+
+  function cherryRecipe(theme_id) {
+    const stem = lin('#5b8a2b');
+    const shape = (x, y) => {
+      const fruit = Math.min(sdCircle(x + 0.3, y - 0.28, 0.38), sdCircle(x - 0.3, y - 0.36, 0.38));
+      const stems = Math.min(sdCapsule(x, y, -0.3, -0.06, 0.12, -0.72, 0.045), sdCapsule(x, y, 0.3, 0.02, 0.12, -0.72, 0.045));
+      const leaf = sdCircle((x - 0.36) / 1.7, (y + 0.66) / 0.8, 0.13);
+      return Math.min(fruit, stems, leaf);
+    };
+    return {
+      shape, base: '#e8173e', highlight: '#ff7c93', shadow: '#8c0620', theme: theme_id, seed: 55, bevel: 0.3,
+      albedo: (x, y) => {
+        const fruit = Math.min(sdCircle(x + 0.3, y - 0.28, 0.38), sdCircle(x - 0.3, y - 0.36, 0.38));
+        return fruit > 0 ? [stem[0], stem[1], stem[2], 1, 0.5] : null;
+      },
+    };
+  }
+
+  function hazelnutRecipe(theme_id) {
+    const cap = lin('#d9a76a');
+    return {
+      shape: 'nut', base: '#9c5a2a', highlight: '#d08a4c', shadow: '#55280d', theme: theme_id, seed: 66,
+      material: { subsurface: 0.15, translucency: 0.05, spec_power: 40, spec_tight: 0.8, detail: 'none' }, detail: 'none',
+      albedo: (x, y) => {
+        // The rough, paler scar at the base of the nut.
+        const scar = smoothstep(0.42, 0.52, y + 0.06 * Math.sin(x * 11));
+        if (scar <= 0) return null;
+        const grain = hash2(Math.round(x * 60), Math.round(y * 60), 66);
+        return [cap[0] * (0.85 + 0.3 * grain), cap[1] * (0.85 + 0.3 * grain), cap[2] * (0.85 + 0.3 * grain), scar * 0.9, 0.3];
+      },
+      height_detail: (x, y) => 0.025 * Math.sin(x * 7 + y * 2) * Math.sin(y * 16),
+    };
+  }
+
+  function cageRecipe() {
+    const bars = (x, y) => {
+      let distance = Infinity;
+      for (const offset of [-0.42, 0.42]) {
+        distance = Math.min(distance, sdCapsule(x, y, offset, -0.86, offset, 0.86, 0.07));
+        distance = Math.min(distance, sdCapsule(x, y, -0.86, offset, 0.86, offset, 0.07));
+      }
+      return distance;
+    };
+    return { shape: bars, base: '#f3b23a', highlight: '#ffe7a3', shadow: '#a8670b', theme: 'hard', seed: 3, bevel: 0.07, height_scale: 0.4, smooth: 0, material: { env: 0.9, spec_tight: 1.6 } };
+  }
+
+  function jellyRecipe(layers) {
+    const deep = layers === 2;
+    return {
+      shape: 'tile', base: deep ? '#ff4fa3' : '#ff8fc8', highlight: '#ffd0e8', shadow: deep ? '#c4206f' : '#e0569e', theme: 'gummy', seed: 21 + layers, no_shadow: true,
+      bevel: 0.25, height_scale: 0.3, detail: 'none', material: { spec_tight: 0.7, env: 0.3 },
+      opacity: () => (deep ? 0.78 : 0.55),
+    };
+  }
+
+  /** UI icons rendered by the same shader: heart (lives), Gold Drop, star. */
+  function iconRecipe(kind) {
+    if (kind === 'heart') return { shape: 'heart', base: '#ff3b6b', highlight: '#ff9db5', shadow: '#b3123f', theme: 'gummy', seed: 5 };
+    if (kind === 'gold') return { shape: 'drop', base: '#ffc12e', highlight: '#fff0a6', shadow: '#c27a00', theme: 'hard', seed: 8, material: { env: 1.0, spec_tight: 1.8, subsurface: 0.3 } };
+    if (kind === 'star') return { shape: 'star', base: '#ffd23f', highlight: '#fff3a8', shadow: '#d08a00', theme: 'hard', seed: 9, material: { env: 0.9, spec_tight: 1.6 } };
+    if (kind === 'star_empty') return { shape: 'star', base: '#c9b8d6', highlight: '#efe6f5', shadow: '#8e7aa0', theme: 'sprinkle', seed: 10 };
+    if (kind === 'pip') return { shape: 'gumdrop', base: '#46d6b4', highlight: '#b8f7e6', shadow: '#169378', theme: 'sprinkle', seed: 12, bevel: 0.5 };
+    return null;
+  }
+
+  // ---------------------------------------------------------------- colour-blind symbols (white, drawn with canvas)
+  function drawSymbol(context, symbol, cx, cy, radius) {
+    context.save();
+    context.fillStyle = 'rgba(255,255,255,0.95)';
+    context.strokeStyle = 'rgba(40,10,50,0.55)';
+    context.lineWidth = Math.max(1, radius * 0.18);
+    context.beginPath();
+    if (symbol === 'circle') context.arc(cx, cy, radius * 0.7, 0, Math.PI * 2);
+    else if (symbol === 'square') context.rect(cx - radius * 0.6, cy - radius * 0.6, radius * 1.2, radius * 1.2);
+    else if (symbol === 'diamond') {
+      context.moveTo(cx, cy - radius);
+      context.lineTo(cx + radius * 0.75, cy);
+      context.lineTo(cx, cy + radius);
+      context.lineTo(cx - radius * 0.75, cy);
+    } else if (symbol === 'wedge') {
+      context.moveTo(cx - radius, cy + radius * 0.45);
+      context.arc(cx, cy + radius * 0.45, radius, Math.PI, 0);
+    } else if (symbol === 'star') {
+      for (let point = 0; point < 10; point += 1) {
+        const angle = -Math.PI / 2 + (point * Math.PI) / 5;
+        const reach = point % 2 === 0 ? radius : radius * 0.45;
+        context.lineTo(cx + Math.cos(angle) * reach, cy + Math.sin(angle) * reach);
+      }
+    } else {
+      context.moveTo(cx, cy + radius * 0.85);
+      context.bezierCurveTo(cx - radius * 1.4, cy - radius * 0.2, cx - radius * 0.5, cy - radius * 1.1, cx, cy - radius * 0.35);
+      context.bezierCurveTo(cx + radius * 0.5, cy - radius * 1.1, cx + radius * 1.4, cy - radius * 0.2, cx, cy + radius * 0.85);
+    }
+    context.closePath();
+    context.stroke();
+    context.fill();
+    context.restore();
+  }
+
+  // ---------------------------------------------------------------- canvas side
+
+  function createCanvas(width, height) {
+    if (typeof OffscreenCanvas !== 'undefined' && typeof document === 'undefined') return new OffscreenCanvas(width, height);
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    return canvas;
+  }
+
+  function spriteToCanvas(spec, size) {
+    const shaded = shadeSprite(spec, size);
+    const canvas = createCanvas(size, size);
+    const context = canvas.getContext('2d');
+    const image = context.createImageData(size, size);
+    image.data.set(shaded.data);
+    context.putImageData(image, 0, 0);
+    if (spec.symbol) drawSymbol(context, spec.symbol, size * 0.5, size * 0.52, size * 0.13);
+    return canvas;
+  }
+
+  /**
+   * The renderer's sprite cache. configure(cell_px, theme, colorblind, dpr) sets the resolution (at most 256 px) and the
+   * material; sprites are shaded on first use, prepare(keys) shades a list now, and warm(keys) shades a list in small
+   * background slices (a few milliseconds per frame) so the first special candy of a level never stalls an animation.
+   */
+  function createSpriteCache() {
+    let sprites = {};
+    let specs = {};
+    let size = 0;
+    let signature = '';
+    let build_ms = 0;
+    let queue = [];
+    let warm_timer = 0;
+    function configure(cell_px, theme_id, colorblind, device_ratio) {
+      const next_size = Math.min(256, Math.max(48, Math.ceil((cell_px * (device_ratio || 1)) / 16) * 16));
+      const theme = THEMES[theme_id] ? theme_id : 'gummy';
+      const next_signature = `${next_size}|${theme}|${colorblind ? 1 : 0}`;
+      if (next_signature === signature) return false;
+      signature = next_signature;
+      size = next_size;
+      sprites = {};
+      specs = recipes(theme, !!colorblind);
+      queue = [];
+      build_ms = 0;
+      return true;
+    }
+    function build(key) {
+      if (!sprites[key] && specs[key]) {
+        const started = Date.now();
+        sprites[key] = spriteToCanvas(specs[key], size);
+        build_ms += Date.now() - started;
+      }
+      return sprites[key];
+    }
+    function keyFor(kind, color, special, layers) {
+      if (kind === 'candy') {
+        if (special === 'bomb') return 'bomb';
+        if (special === 'stripe_row' || special === 'stripe_col') return `${special}:${color}`;
+        if (special === 'wrapped' || special === 'wrapped_armed' || special === 'wrapped_big_armed') return `wrapped:${color}`;
+        return `candy:${color}`;
+      }
+      if (kind === 'frosting') return `frosting:${Math.max(1, Math.min(5, layers || 1))}`;
+      if (kind === 'jelly') return `jelly:${layers >= 2 ? 2 : 1}`;
+      return specs[kind] ? kind : 'candy:0';
+    }
+    function get(kind, color, special, layers) {
+      return build(keyFor(kind, color, special, layers));
+    }
+    function prepare(keys) {
+      keys.forEach(build);
+    }
+    function warm(keys) {
+      keys.forEach((key) => {
+        if (!sprites[key] && specs[key] && queue.indexOf(key) < 0) queue.push(key);
+      });
+      if (warm_timer || !queue.length) return;
+      const slice = () => {
+        warm_timer = 0;
+        const started = Date.now();
+        while (queue.length && Date.now() - started < 10) build(queue.shift());
+        if (queue.length) warm_timer = setTimeout(slice, 24);
+      };
+      warm_timer = setTimeout(slice, 24);
+    }
+    return {
+      configure,
+      get,
+      keyFor,
+      prepare,
+      warm,
+      byKey: build,
+      get buildMs() {
+        return build_ms;
+      },
+      get size() {
+        return size;
+      },
+      get pending() {
+        return queue.length;
+      },
+    };
+  }
+
+  /** Atlas keys a level needs: every candy variant of its palette, plus the blockers on its board. */
+  function keysForLevel(palette, kinds) {
+    const keys = [];
+    palette.forEach((color) => keys.push(`candy:${color}`));
+    const extras = [];
+    palette.forEach((color) => extras.push(`stripe_row:${color}`, `stripe_col:${color}`, `wrapped:${color}`));
+    extras.push('bomb');
+    (kinds || []).forEach((kind) => keys.push(kind));
+    return { now: keys, later: extras };
+  }
+
+  // ---------------------------------------------------------------- small canvas helpers shared by RENDER and UI
+  function hexToRgb(hex) {
+    const value = parseInt(hex.slice(1), 16);
+    return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+  }
+
+  function rgba(hex, alpha) {
+    const rgb = hexToRgb(hex);
+    return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
+  }
+
+  function mixHex(first_hex, second_hex, amount) {
+    const first = hexToRgb(first_hex);
+    const second = hexToRgb(second_hex);
+    const channel = (index) => Math.round(first[index] + (second[index] - first[index]) * amount).toString(16).padStart(2, '0');
+    return `#${channel(0)}${channel(1)}${channel(2)}`;
+  }
+
+  function roundedRectPath(path, x, y, width, height, radius) {
+    const r = Math.min(radius, width / 2, height / 2);
+    path.moveTo(x + r, y);
+    path.lineTo(x + width - r, y);
+    path.arcTo(x + width, y, x + width, y + r, r);
+    path.lineTo(x + width, y + height - r);
+    path.arcTo(x + width, y + height, x + width - r, y + height, r);
+    path.lineTo(x + r, y + height);
+    path.arcTo(x, y + height, x, y + height - r, r);
+    path.lineTo(x, y + r);
+    path.arcTo(x, y, x + r, y, r);
+    path.closePath();
+    return path;
+  }
+
+  const icon_cache = {};
+  /** A data URL of a shaded icon (heart, gold, star, star_empty, pip, or any atlas key such as 'candy:3'). */
+  function iconUrl(kind, size, theme_id) {
+    const cache_key = `${kind}|${size}|${theme_id || 'gummy'}`;
+    if (icon_cache[cache_key]) return icon_cache[cache_key];
+    const spec = iconRecipe(kind) || recipes(theme_id || 'gummy', false)[kind];
+    if (!spec) return '';
+    const canvas = spriteToCanvas(spec, size);
+    icon_cache[cache_key] = canvas.toDataURL ? canvas.toDataURL('image/png') : '';
+    return icon_cache[cache_key];
+  }
+
+  const SPRITES = { CANDIES, THEMES, THEME_IDS, SHAPE_SDF, shadeSprite, recipes, iconRecipe, drawSymbol, createSpriteCache, keysForLevel, spriteToCanvas, iconUrl, createCanvas, hexToLinear, hexToRgb, rgba, mixHex, roundedRectPath };
+  SC.SPRITES = SPRITES;
+  if (typeof module === 'object' && module.exports) module.exports = SPRITES;
+})(typeof window !== 'undefined' ? window : globalThis);

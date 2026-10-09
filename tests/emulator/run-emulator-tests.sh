@@ -112,6 +112,29 @@ make_move() { # one real swipe from the hook's suggested move; waits until it ha
   wait_for "s.moves_played > $before || s.state === 'WON' || s.state === 'LOST'" 60 "the move to resolve"
   return 0
 }
+play_step() { # one step of "keep playing" from whatever screen is showing (used by the offline and 3-minute loops)
+  case "$(q 's.modal || s.state')" in
+    PLAYING) make_move && return 0 ;;
+    win) tap_button "btn-next"; sleep 2 ;;
+    intro) tap_button "btn-intro-play"; sleep 1.5 ;;
+    lose) tap_button "btn-retry"; sleep 2 ;;
+    pause) tap_button "btn-resume"; sleep 1 ;;
+    hearts) tap_button "btn-hearts-unlimited"; sleep 1.5 ;;
+    MAP) tap_map_node "$(q 's.unlocked')"; sleep 1.5 ;;
+    *) sleep 1 ;;
+  esac
+  return 1
+}
+scroll_to_button() { # scrolls the open modal until button $1 sits in the middle 60% of the screen
+  local attempt
+  for attempt in $(seq 1 10); do
+    [ "$(q "!!s.buttons['$1'] && s.buttons['$1'][1] > s.viewport[1] * 0.2 && s.buttons['$1'][1] < s.viewport[1] * 0.8")" = "true" ] && return 0
+    ensure_app_focused
+    adb shell input swipe 540 1700 540 900 300
+    sleep 0.9
+  done
+  fail "button '$1' never scrolled into view"
+}
 play_until_end() { # plays real swipes until a win/lose modal shows; $1 = max seconds
   local deadline=$((SECONDS + $1))
   while [ $SECONDS -lt $deadline ]; do
@@ -161,6 +184,10 @@ check_no_crash "launch"
 
 # --- Play Level 1 to a win with real swipes
 tap_button "btn-name-skip"
+wait_for "s.modal === 'comfort'" 20 "the first-launch 'Is this volume comfortable?' check"
+shot "02b-comfort-check"
+tap_button "btn-comfort-ok"
+pass "first launch asks for a comfortable volume before Level 1"
 wait_for "s.state === 'PLAYING' && s.level === 1" 30 "Level 1 to start"
 sleep 1.5
 shot "03-gameplay-level1"
@@ -273,14 +300,13 @@ back
 wait_for "s.modal === 'pause'" 15 "Pause"
 back
 wait_for "s.modal === 'confirm-quit'" 15 "'Quit to map?'"
-tap_button "Quit"
+tap_button "btn-confirm-quit-yes"
 wait_for "s.state === 'MAP' && !s.modal" 15 "the map after quitting"
 back
 wait_for "s.state === 'TITLE' && !s.modal" 15 "the title"
 tap_button "btn-title-settings"
 wait_for "s.modal === 'settings'" 15 "settings"
-for scroll in 1 2 3; do adb shell input swipe 540 1900 540 700 300; sleep 0.8; done
-wait_for "s.buttons['btn-choose-photo'] !== undefined" 15 "the Choose photo button"
+scroll_to_button "btn-choose-photo"
 shot "11a-settings-photo"
 tap_button "btn-choose-photo"
 sleep 4
@@ -297,8 +323,7 @@ pass "Choose photo opens the system photo picker ($(head -c 160 "$OUT/photo-pick
 # --- In-game self-test on the device (logic tests + 200 bot games, chunked so the UI stays responsive)
 tap_button "btn-title-settings"
 wait_for "s.modal === 'settings'" 15 "settings"
-for scroll in 1 2 3 4; do adb shell input swipe 540 1900 540 700 300; sleep 0.8; done
-wait_for "s.buttons['btn-self-test'] !== undefined" 15 "the Run self-test button"
+scroll_to_button "btn-self-test"
 tap_button "btn-self-test"
 wait_for "s.selftest !== null && (s.selftest.passed || s.selftest.failed)" 240 "the self-test to finish"
 sleep 1
@@ -332,15 +357,7 @@ offline_moves=0
 offline_deadline=$((SECONDS + 420))
 while [ "$offline_moves" -lt 10 ]; do
   [ $SECONDS -lt $offline_deadline ] || fail "only $offline_moves offline moves in 7 minutes (stuck at '$(q 's.modal || s.state')')"
-  state="$(q 's.modal || s.state')"
-  case "$state" in
-    PLAYING) make_move && offline_moves=$((offline_moves + 1)) ;;
-    win) tap_button "btn-next"; sleep 2 ;;
-    intro) tap_button "btn-intro-play"; sleep 1.5 ;;
-    lose) tap_button "btn-retry"; sleep 2 ;;
-    pause) tap_button "btn-resume"; sleep 1 ;;
-    *) sleep 1 ;;
-  esac
+  play_step && offline_moves=$((offline_moves + 1))
 done
 shot "11e-airplane-mode-play"
 [ "$(q 's.errors')" = "0" ] || fail "script errors while offline"
@@ -354,14 +371,7 @@ adb shell dumpsys meminfo "$PKG" > "$OUT/meminfo-start.txt"
 play_deadline=$((SECONDS + 180))
 played=0
 while [ $SECONDS -lt $play_deadline ]; do
-  case "$(q 's.modal || s.state')" in
-    PLAYING) make_move && played=$((played + 1)) ;;
-    win) tap_button "btn-next"; sleep 2 ;;
-    intro) tap_button "btn-intro-play"; sleep 1.5 ;;
-    lose) tap_button "btn-retry"; sleep 2 ;;
-    pause) tap_button "btn-resume"; sleep 1 ;;
-    *) sleep 1 ;;
-  esac
+  play_step && played=$((played + 1))
 done
 adb shell dumpsys gfxinfo "$PKG" > "$OUT/gfxinfo.txt"
 adb shell dumpsys meminfo "$PKG" > "$OUT/meminfo-after-3min.txt"
@@ -375,13 +385,78 @@ metric render_quality_level "$(q 's.quality')"
 check_no_crash "3 minutes of play"
 pass "3 minutes of play: $played moves, metrics recorded"
 
+# --- The map at a seeded level-19,000 save: live nodes, frame pacing while flinging, memory, save size and parse time.
+# The save is written through the game's own store over the debug WebView's DevTools socket (debug builds only).
+for attempt in $(seq 1 12); do
+  case "$(q 's.modal || s.state')" in
+    TITLE) break ;;
+    confirm-quit) tap_button "btn-confirm-quit-yes"; sleep 1.5 ;;
+    *) back ;;
+  esac
+done
+wait_for "s.state === 'TITLE' && !s.modal" 20 "the title screen before seeding"
+app_pid=$(adb shell pidof "$PKG" | tr -d '\r')
+devtools_socket=$(adb shell cat /proc/net/unix | grep -o "webview_devtools_remote_$app_pid" | head -1)
+[ -n "$devtools_socket" ] || fail "the debug build's WebView DevTools socket was not found"
+adb forward tcp:9333 "localabstract:$devtools_socket" > /dev/null
+before_seed=$(fresh)
+node tests/emulator/cdp-eval.mjs 9333 tests/emulator/seed-level-19000.js > "$OUT/seed-19000.json" || fail "seeding the level-19,000 save failed"
+adb forward --remove tcp:9333 > /dev/null 2>&1
+log "seeded: $(cat "$OUT/seed-19000.json")"
+metric save_19000_bytes "$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).save_bytes)' "$OUT/seed-19000.json")"
+metric save_19000_parse_ms "$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).parse_ms)' "$OUT/seed-19000.json")"
+sleep 3
+wait_fresh "$before_seed"
+wait_for "s.ready && s.state === 'TITLE' && s.unlocked === 19000" 60 "the game to reload with the level-19,000 save"
+tap_button "btn-play"
+wait_for "s.state === 'MAP' && s.map_nodes['18999'] !== undefined" 30 "the map at level 19,000"
+sleep 2
+shot "12b-map-level-19000"
+metric map_19000_live_nodes "$(q 's.map_live_nodes')"
+metric map_19000_rendered_range "$(q 'JSON.stringify(s.map_range)')"
+adb shell dumpsys gfxinfo "$PKG" reset > /dev/null
+adb shell dumpsys meminfo "$PKG" > "$OUT/meminfo-map-19000-start.txt"
+max_live=0
+for fling in $(seq 1 12); do
+  ensure_app_focused
+  if [ $((fling % 4)) -lt 2 ]; then adb shell input swipe 540 700 540 1900 120; else adb shell input swipe 540 1900 540 700 120; fi
+  sleep 1.2
+  live=$(q 's.map_live_nodes')
+  [ "$live" -gt "$max_live" ] && max_live=$live
+done
+adb shell dumpsys gfxinfo "$PKG" > "$OUT/gfxinfo-map-19000.txt"
+adb shell dumpsys meminfo "$PKG" > "$OUT/meminfo-map-19000.txt"
+shot "12c-map-level-19000-after-flings"
+metric map_19000_max_live_nodes_while_flinging "$max_live"
+metric map_19000_total_frames "$(grep -m1 'Total frames rendered' "$OUT/gfxinfo-map-19000.txt" | awk -F': ' '{print $2}' | tr -d '\r')"
+metric map_19000_janky_frames "$(grep -m1 'Janky frames:' "$OUT/gfxinfo-map-19000.txt" | awk -F': ' '{print $2}' | tr -d '\r')"
+metric map_19000_pss_kb "$(grep -m1 'TOTAL PSS:' "$OUT/meminfo-map-19000.txt" | awk '{print $3}')"
+[ "$max_live" -le 60 ] || fail "the map kept $max_live live nodes at level 19,000 (limit 60)"
+tap_button "btn-map-mine"
+wait_for "s.map_nodes['18999'] !== undefined" 20 "'Jump to my level' to return to level 19,000"
+check_no_crash "level-19,000 map"
+pass "map at a seeded level-19,000 save: at most $max_live live nodes while flinging; metrics recorded"
+# Put the real save back so the release build and the monkey run start from normal, playable progress.
+back
+wait_for "s.state === 'TITLE' && !s.modal" 15 "the title before restoring the save"
+app_pid=$(adb shell pidof "$PKG" | tr -d '\r')
+devtools_socket=$(adb shell cat /proc/net/unix | grep -o "webview_devtools_remote_$app_pid" | head -1)
+adb forward tcp:9333 "localabstract:$devtools_socket" > /dev/null
+before_restore=$(fresh)
+node tests/emulator/cdp-eval.mjs 9333 tests/emulator/restore-save.js > "$OUT/restore-save.json" || fail "restoring the player's save failed"
+adb forward --remove tcp:9333 > /dev/null 2>&1
+sleep 3
+wait_fresh "$before_restore"
+wait_for "s.ready && s.state === 'TITLE' && s.unlocked < 19000" 60 "the game to reload with the player's own save"
+
 # --- "Exit game?" -> Exit really closes the app
 for attempt in $(seq 1 12); do
   case "$(q 's.modal || s.state')" in
     TITLE) break ;;
     win|lose) back ;;
     pause) back ;;
-    confirm-quit) tap_button "Quit"; sleep 1.5 ;;
+    confirm-quit) tap_button "btn-confirm-quit-yes"; sleep 1.5 ;;
+    intro|hearts|settings|goto) back ;;
     PLAYING|RESOLVING|MAP) back ;;
     *) sleep 1 ;;
   esac
@@ -389,7 +464,7 @@ done
 wait_for "s.state === 'TITLE' && !s.modal" 20 "the title screen"
 back
 wait_for "s.modal === 'confirm-exit'" 15 "'Exit game?'"
-tap_button "Exit"
+tap_button "btn-confirm-exit-yes"
 sleep 3
 adb shell dumpsys activity activities | grep -E "mResumedActivity|topResumedActivity" | head -2 > "$OUT/after-exit.txt"
 grep -q "$PKG" "$OUT/after-exit.txt" && fail "'Exit' did not close the app"

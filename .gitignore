@@ -9,3 +9,4 @@ release.keystore
 *.log
 .DS_Store
 sim-report.json
+audio-report/
