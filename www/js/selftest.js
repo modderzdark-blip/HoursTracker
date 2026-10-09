@@ -1245,9 +1245,11 @@
     }
     const text = STORAGE.serializeSave(save);
     assert.ok(text.length < 100 * 1024, `save is ${text.length} bytes`);
-    const started = Date.now();
-    const loaded = STORAGE.parseSave(text).save;
-    const elapsed = Date.now() - started;
+    // Building that save leaves a lot of garbage behind, so time the load as a median of three (see medianMs).
+    let loaded = null;
+    const elapsed = medianMs(() => {
+      loaded = STORAGE.parseSave(text).save;
+    });
     assert.ok(elapsed < 50, `load took ${elapsed} ms`);
     assert.strictEqual(loaded.unlocked, 20001);
     assert.strictEqual(STORAGE.totalStars(loaded), STORAGE.totalStars(save));
