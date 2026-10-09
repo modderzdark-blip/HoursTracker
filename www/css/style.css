@@ -194,6 +194,9 @@ button:focus-visible, input:focus-visible, .map-node:focus-visible {
 .screen-map { flex-direction: column; padding: 0; }
 .top-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: calc(var(--safe-top) + 10px) 12px 6px; position: absolute; left: 0; right: 0; top: 0; z-index: 3; pointer-events: none; }
 .top-bar > * { pointer-events: auto; }
+/* Round buttons keep their full touch target; the chips give way first when a phone's font runs wide. */
+.top-bar > .round { flex: none; }
+.top-bar > .chip { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; }
 .bar-title { font-size: 30px; margin: 0; }
 .map-scroll { position: absolute; inset: 0; z-index: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; scrollbar-width: none; touch-action: pan-y; }
 .map-scroll::-webkit-scrollbar { display: none; }
