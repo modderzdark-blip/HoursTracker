@@ -32,7 +32,7 @@ Newer builds install over older ones and keep your progress, because every build
 
 ## What's in the game
 
-* 6 candies in classic candy-shop shapes, each with its own color **and** shape: Cherry Bean (jelly bean), Orange Lozenge, Lemon Drop, Mint Square, Blueberry Ball and Grape Gem (hexagon). All art is drawn by the game's own code; each candy uses an 8-layer gloss recipe (ground shadow, base body, rim light, inner glow, subsurface tint, main specular, secondary glint, outline). The board is a see-through deep-blue checkerboard so the candies pop.
+* 6 candies in classic candy-shop shapes, each with its own color **and** shape: Cherry Bean (jelly bean), Orange Lozenge, Lemon Drop, Mint Square, Blueberry Ball (lollipop head) and Grape Cluster (jujube cluster). All art is drawn by the game's own code; each candy uses an 8-layer gloss recipe (ground shadow, base body, rim light, inner glow, subsurface tint, main specular, secondary glint, outline). The board is a see-through deep-blue checkerboard so the candies pop.
 * 4 switchable materials: **Classic** (solid, shiny 3D hard candy, the default), **Gummy**, **Hard Candy** and **Sugar Sprinkle**.
 * A painted candy-land backdrop (sky, clouds, candy hills, lollipop and cotton-candy trees) behind deep-blue glass panels, light-blue popups with ribbon titles and green action buttons.
 * The level map is a candy land with a cobbled road, a chocolate river and candy trees; your marker sits on the furthest level reached.

@@ -26,7 +26,7 @@
   }
 
   // ---------------------------------------------------------------- shapes (centered on 0,0, radius r)
-  // Classic candy-shop silhouettes: jelly bean, lozenge, lemon drop, square chew, ball and hexagon gem.
+  // Classic candy-shop silhouettes: jelly bean, lozenge, lemon drop, gum square, lollipop head and jujube cluster.
   function rotatedPath(path, degrees) {
     const rotated = new Path2D();
     rotated.addPath(path, new DOMMatrix().rotateSelf(degrees));
@@ -134,7 +134,23 @@
     return path;
   }
 
-  const SHAPES = { bean: beanPath, lozenge: lozengePath, drop: dropPath, square: squarePath, ball: ballPath, hexagon: hexagonPath };
+  function clusterPath(r) {
+    // Jujube cluster: six round gummies huddled around a seventh, giving a soft bumpy outline.
+    const path = new Path2D();
+    const steps = 144;
+    for (let index = 0; index <= steps; index += 1) {
+      const angle = (index / steps) * Math.PI * 2;
+      const radius = r * (0.84 + 0.12 * Math.pow(Math.abs(Math.cos(3 * angle)), 0.7));
+      const x = Math.sin(angle) * radius;
+      const y = -Math.cos(angle) * radius;
+      if (index === 0) path.moveTo(x, y);
+      else path.lineTo(x, y);
+    }
+    path.closePath();
+    return path;
+  }
+
+  const SHAPES = { bean: beanPath, lozenge: lozengePath, drop: dropPath, square: squarePath, ball: ballPath, hexagon: hexagonPath, cluster: clusterPath };
 
   // ---------------------------------------------------------------- materials
   const MATERIALS = {
@@ -299,6 +315,41 @@
       ctx.strokeStyle = rgba(candy.shadow, 0.28);
       ctx.translate(r * 0.02, r * 0.03);
       ctx.stroke(superellipsePath(r * 0.76, r * 0.56, 2.7));
+      ctx.restore();
+    } else if (candy.shape === 'cluster') {
+      // Each gummy of the cluster: a soft seam between neighbours and a little dome of light on every bump.
+      ctx.save();
+      for (let index = 0; index < 6; index += 1) {
+        const bump = (index * Math.PI) / 3;
+        const seam = bump + Math.PI / 6;
+        ctx.strokeStyle = rgba(candy.shadow, 0.4);
+        ctx.lineWidth = Math.max(1.4 * pixel, r * 0.04);
+        ctx.beginPath();
+        ctx.moveTo(Math.sin(seam) * r * 0.36, -Math.cos(seam) * r * 0.36);
+        ctx.lineTo(Math.sin(seam) * r * 0.8, -Math.cos(seam) * r * 0.8);
+        ctx.stroke();
+        const bx = Math.sin(bump) * r * 0.62;
+        const by = -Math.cos(bump) * r * 0.62;
+        const dome = ctx.createRadialGradient(bx - r * 0.08, by - r * 0.1, 0, bx, by, r * 0.3);
+        dome.addColorStop(0, rgba(mix(candy.highlight, '#ffffff', 0.3), 0.55));
+        dome.addColorStop(1, rgba(candy.highlight, 0));
+        ctx.fillStyle = dome;
+        ctx.fillRect(bx - r * 0.3, by - r * 0.3, r * 0.6, r * 0.6);
+      }
+      // The centre gummy sits a little higher.
+      const centre = ctx.createRadialGradient(-r * 0.08, -r * 0.1, 0, 0, 0, r * 0.38);
+      centre.addColorStop(0, rgba(mix(candy.highlight, '#ffffff', 0.35), 0.75));
+      centre.addColorStop(0.7, rgba(candy.highlight, 0.3));
+      centre.addColorStop(1, rgba(candy.base, 0));
+      ctx.fillStyle = centre;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.38, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = rgba(candy.shadow, 0.45);
+      ctx.lineWidth = Math.max(1.4 * pixel, r * 0.04);
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.36, 0, Math.PI * 2);
+      ctx.stroke();
       ctx.restore();
     } else if (candy.shape === 'hexagon') {
       // Cut facets: a flat table in the middle with spokes to every corner.

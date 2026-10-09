@@ -14,7 +14,7 @@
       { id: 2, name: 'Lemon Drop', shape: 'drop', base: '#ffd92e', highlight: '#fff6a8', shadow: '#c49a00', warm: '#ffec6e' },
       { id: 3, name: 'Mint Square', shape: 'square', base: '#2fd36b', highlight: '#a3f5bd', shadow: '#0f8a3c', warm: '#8ef09a' },
       { id: 4, name: 'Blueberry Ball', shape: 'ball', base: '#2f8cff', highlight: '#a8d4ff', shadow: '#1450b8', warm: '#7cc4ff' },
-      { id: 5, name: 'Grape Gem', shape: 'hexagon', base: '#a64dff', highlight: '#dcb5ff', shadow: '#5a1aa8', warm: '#d48bff' },
+      { id: 5, name: 'Grape Cluster', shape: 'cluster', base: '#a64dff', highlight: '#dcb5ff', shadow: '#5a1aa8', warm: '#d48bff' },
     ],
 
     THEMES: [

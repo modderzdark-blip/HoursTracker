@@ -82,7 +82,7 @@ async function render(kind, size) {
       ctx.restore();
       ctx.save();
       ctx.translate(size / 2 + 17 * unit, size / 2 - 15 * unit);
-      ctx.fill(ART.SHAPES.hexagon(10 * unit));
+      ctx.fill(ART.SHAPES.cluster(10 * unit));
       ctx.restore();
       window.SC.RENDER.drawStar(ctx, size / 2 - 19 * unit, size / 2 - 18 * unit, 5 * unit, 0, 4);
     }

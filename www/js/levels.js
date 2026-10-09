@@ -1,7 +1,7 @@
 // LEVELS: data only. Adding level 11+ means appending one more object to this array (see README "Adding levels").
 // Layout legend: '.' normal  '#' hole  'j' single jelly  'J' double jelly  'f' frosting (1)  'F' frosting (2)
 //                'c' cherry start  'x' exit tray (cherries reaching it are collected)
-// Colors: 0 Cherry Bean, 1 Orange Lozenge, 2 Lemon Drop, 3 Mint Square, 4 Blueberry Ball, 5 Grape Gem.
+// Colors: 0 Cherry Bean, 1 Orange Lozenge, 2 Lemon Drop, 3 Mint Square, 4 Blueberry Ball, 5 Grape Cluster.
 // Goals are always candy goals (collect, glaze, cherries): a level is never won by points alone.
 // `palette` (optional) picks which candies appear; by default the first `colors` candies are used.
 // Finishing the goals always earns at least 1 star. Star thresholds come from tests/simulate.js and are set for a
@@ -187,7 +187,7 @@
       ],
       goals: [{ type: 'jelly' }, { type: 'collect', color: 5, count: 30 }],
       stars: [3000, 8000, 9500],
-      tutorial: 'The grand finale! Clear every bit of glaze and collect the purple gems. Combine specials for huge blasts.',
+      tutorial: 'The grand finale! Clear every bit of glaze and collect the purple clusters. Combine specials for huge blasts.',
     },
   ];
 
