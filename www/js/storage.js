@@ -1,31 +1,66 @@
 // STORAGE: versioned save schema with defensive parsing, corruption fallback and migration.
 // Backends (picked at runtime): Capacitor Preferences on Android, localStorage in a browser, in-memory as a last resort.
 // Everything stays on the device; nothing is ever uploaded.
+//
+// Save v4 is built for 20,000+ levels: per-level progress is packed (2-bit stars, varint best score / 10) into one
+// base64 string, so a save with 20,000 completed levels stays well under 100 KB and parses in a few milliseconds.
 (function attachStorage(root) {
   'use strict';
   const SC = root.SC || (root.SC = {});
 
   const SAVE_KEY = 'sweet_cascade_save';
   const PHOTO_KEY = 'sweet_cascade_photo';
-  const SAVE_VERSION = 3;
-  const THEMES = ['classic', 'gummy', 'hard', 'sprinkle'];
+  const SAVE_VERSION = 4;
+  const MAX_LEVEL = 99999;
+  const THEMES = ['gummy', 'hard', 'sprinkle'];
   const ACCENTS = ['bubblegum', 'sunset', 'ocean', 'mint', 'grape', 'cherry', 'gold', 'midnight'];
+  const AUTO_HINT = ['instant', '3s', '8s', 'off'];
+  const ANIMATION_SPEEDS = ['relaxed', 'normal', 'fast'];
+  const IN_LEVEL_BOOSTERS = ['hammer', 'free_swap', 'whirl'];
+  const PRE_LEVEL_BOOSTERS = ['lucky', 'rainbow', 'head_start'];
+  const BOOSTERS = IN_LEVEL_BOOSTERS.concat(PRE_LEVEL_BOOSTERS);
+  const MAX_HEARTS = 5;
   const MAX_NAME_LENGTH = 16;
   const MAX_MESSAGE_LENGTH = 80;
 
   function defaultSettings() {
     return {
-      sfx_on: true,
-      sfx_volume: 0.8,
+      sound_on: true,
       music_on: true,
-      music_volume: 0.45,
+      master_volume: 0.7,
+      effects_volume: 0.6,
+      music_volume: 0.35,
+      soft_sounds: true,
+      comfort_done: false, // the first-launch comfort slider has been shown
       haptics: true,
       reduced_motion: false,
+      animation_speed: 'normal',
+      auto_hint: 'instant',
+      unlimited_hearts: false,
       colorblind: false,
-      theme: 'classic',
+      theme: 'gummy',
       accent: 'bubblegum',
       photo_brightness: 0.75,
       win_message: '',
+    };
+  }
+
+  function defaultMeta() {
+    const boosters = {};
+    IN_LEVEL_BOOSTERS.forEach((booster) => { boosters[booster] = 3; });
+    PRE_LEVEL_BOOSTERS.forEach((booster) => { boosters[booster] = 1; });
+    return {
+      hearts: MAX_HEARTS,
+      hearts_clock: 0, // when the oldest missing heart started refilling (ms since epoch)
+      last_seen: 0, // the latest clock reading ever seen (clock-tamper guard)
+      gold: 100,
+      boosters,
+      wheel_day: '', // local date of the last Daily Wheel spin (YYYY-MM-DD)
+      streak: 0, // wins in a row toward the next Sweet Streak reward
+      chest_claimed: 0, // total stars when the Star Chest was last opened
+      in_progress: 0, // the level being played (restarted for free after the app was killed)
+      total_attempts: 0,
+      total_wins: 0,
     };
   }
 
@@ -35,9 +70,10 @@
       player_name: '',
       name_asked: false,
       unlocked: 1,
-      levels: {},
+      progress: { stars: [], scores: [] }, // index = level - 1; scores are best scores rounded down to tens
       tutorials_seen: {},
       settings: defaultSettings(),
+      meta: defaultMeta(),
     };
   }
 
@@ -46,74 +82,243 @@
     return Math.min(maximum, Math.max(minimum, number));
   }
 
+  function clampInteger(value, minimum, maximum, fallback) {
+    return Math.floor(clampNumber(value, minimum, maximum, fallback));
+  }
+
   function cleanText(value, max_length) {
     if (typeof value !== 'string') return '';
     return value.replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, max_length);
   }
 
+  function pickOne(value, options, fallback) {
+    return options.indexOf(value) >= 0 ? value : fallback;
+  }
+
   function sanitizeSettings(raw_settings) {
     const defaults = defaultSettings();
     const raw = raw_settings && typeof raw_settings === 'object' ? raw_settings : {};
+    const flag = (key) => (typeof raw[key] === 'boolean' ? raw[key] : defaults[key]);
     return {
-      sfx_on: typeof raw.sfx_on === 'boolean' ? raw.sfx_on : defaults.sfx_on,
-      sfx_volume: clampNumber(raw.sfx_volume, 0, 1, defaults.sfx_volume),
-      music_on: typeof raw.music_on === 'boolean' ? raw.music_on : defaults.music_on,
+      sound_on: flag('sound_on'),
+      music_on: flag('music_on'),
+      master_volume: clampNumber(raw.master_volume, 0, 1, defaults.master_volume),
+      effects_volume: clampNumber(raw.effects_volume, 0, 1, defaults.effects_volume),
       music_volume: clampNumber(raw.music_volume, 0, 1, defaults.music_volume),
-      haptics: typeof raw.haptics === 'boolean' ? raw.haptics : defaults.haptics,
-      reduced_motion: typeof raw.reduced_motion === 'boolean' ? raw.reduced_motion : defaults.reduced_motion,
-      colorblind: typeof raw.colorblind === 'boolean' ? raw.colorblind : defaults.colorblind,
-      theme: THEMES.indexOf(raw.theme) >= 0 ? raw.theme : defaults.theme,
-      accent: ACCENTS.indexOf(raw.accent) >= 0 ? raw.accent : defaults.accent,
+      soft_sounds: flag('soft_sounds'),
+      comfort_done: flag('comfort_done'),
+      haptics: flag('haptics'),
+      reduced_motion: flag('reduced_motion'),
+      animation_speed: pickOne(raw.animation_speed, ANIMATION_SPEEDS, defaults.animation_speed),
+      auto_hint: pickOne(raw.auto_hint, AUTO_HINT, defaults.auto_hint),
+      unlimited_hearts: flag('unlimited_hearts'),
+      colorblind: flag('colorblind'),
+      theme: pickOne(raw.theme, THEMES, defaults.theme),
+      accent: pickOne(raw.accent, ACCENTS, defaults.accent),
       photo_brightness: clampNumber(raw.photo_brightness, 0.2, 1, defaults.photo_brightness),
       win_message: cleanText(raw.win_message, MAX_MESSAGE_LENGTH),
     };
   }
 
-  function sanitizeLevels(raw_levels) {
-    const levels = {};
-    if (!raw_levels || typeof raw_levels !== 'object') return levels;
+  function sanitizeMeta(raw_meta) {
+    const defaults = defaultMeta();
+    const raw = raw_meta && typeof raw_meta === 'object' ? raw_meta : {};
+    const raw_boosters = raw.boosters && typeof raw.boosters === 'object' ? raw.boosters : {};
+    const boosters = {};
+    BOOSTERS.forEach((booster) => { boosters[booster] = clampInteger(raw_boosters[booster], 0, 999, defaults.boosters[booster]); });
+    return {
+      hearts: clampInteger(raw.hearts, 0, MAX_HEARTS, defaults.hearts),
+      hearts_clock: clampNumber(raw.hearts_clock, 0, 1e15, 0),
+      last_seen: clampNumber(raw.last_seen, 0, 1e15, 0),
+      gold: clampInteger(raw.gold, 0, 1e9, defaults.gold),
+      boosters,
+      wheel_day: typeof raw.wheel_day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.wheel_day) ? raw.wheel_day : '',
+      streak: clampInteger(raw.streak, 0, 1e6, 0),
+      chest_claimed: clampInteger(raw.chest_claimed, 0, 3 * MAX_LEVEL, 0),
+      in_progress: clampInteger(raw.in_progress, 0, MAX_LEVEL, 0),
+      total_attempts: clampInteger(raw.total_attempts, 0, 1e9, 0),
+      total_wins: clampInteger(raw.total_wins, 0, 1e9, 0),
+    };
+  }
+
+  // ------------------------------------------------------------------ packed progress
+
+  const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const BASE64_INDEX = (() => {
+    const table = new Int16Array(128).fill(-1);
+    for (let index = 0; index < BASE64.length; index += 1) table[BASE64.charCodeAt(index)] = index;
+    return table;
+  })();
+
+  function bytesToBase64(bytes) {
+    const parts = [];
+    let chunk = '';
+    for (let index = 0; index < bytes.length; index += 3) {
+      const first = bytes[index];
+      const second = index + 1 < bytes.length ? bytes[index + 1] : 0;
+      const third = index + 2 < bytes.length ? bytes[index + 2] : 0;
+      const triple = (first << 16) | (second << 8) | third;
+      chunk += BASE64[(triple >> 18) & 63] + BASE64[(triple >> 12) & 63] +
+        (index + 1 < bytes.length ? BASE64[(triple >> 6) & 63] : '=') + (index + 2 < bytes.length ? BASE64[triple & 63] : '=');
+      if (chunk.length >= 4096) {
+        parts.push(chunk);
+        chunk = '';
+      }
+    }
+    parts.push(chunk);
+    return parts.join('');
+  }
+
+  function base64ToBytes(text) {
+    const clean = text.replace(/=+$/, '');
+    if (/[^A-Za-z0-9+/]/.test(clean)) throw new Error('bad base64');
+    const bytes = new Uint8Array(Math.floor((clean.length * 3) / 4));
+    let output = 0;
+    for (let index = 0; index < clean.length; index += 4) {
+      const values = [0, 1, 2, 3].map((offset) => (index + offset < clean.length ? BASE64_INDEX[clean.charCodeAt(index + offset)] : 0));
+      const triple = (values[0] << 18) | (values[1] << 12) | (values[2] << 6) | values[3];
+      if (output < bytes.length) bytes[output++] = (triple >> 16) & 255;
+      if (output < bytes.length) bytes[output++] = (triple >> 8) & 255;
+      if (output < bytes.length) bytes[output++] = triple & 255;
+    }
+    return bytes;
+  }
+
+  /** Packs progress: varint(count), 2-bit stars (4 levels per byte), then varint(best score / 10) per level. */
+  function encodeProgress(progress) {
+    const count = progress.stars.length;
+    const bytes = [];
+    const pushVarint = (value) => {
+      let rest = Math.max(0, Math.floor(value));
+      while (rest >= 128) {
+        bytes.push((rest % 128) | 128);
+        rest = Math.floor(rest / 128);
+      }
+      bytes.push(rest);
+    };
+    pushVarint(count);
+    for (let index = 0; index < count; index += 4) {
+      let packed = 0;
+      for (let offset = 0; offset < 4; offset += 1) packed |= ((progress.stars[index + offset] || 0) & 3) << (offset * 2);
+      bytes.push(packed);
+    }
+    for (let index = 0; index < count; index += 1) pushVarint((progress.scores[index] || 0) / 10);
+    return bytesToBase64(bytes);
+  }
+
+  function decodeProgress(text) {
+    const bytes = base64ToBytes(text);
+    let cursor = 0;
+    const readVarint = () => {
+      let value = 0;
+      let scale = 1;
+      for (let guard = 0; guard < 6; guard += 1) {
+        if (cursor >= bytes.length) throw new Error('truncated progress');
+        const byte = bytes[cursor++];
+        value += (byte & 127) * scale;
+        if (byte < 128) return value;
+        scale *= 128;
+      }
+      throw new Error('bad varint');
+    };
+    const count = readVarint();
+    if (count > MAX_LEVEL) throw new Error('too many levels');
+    const stars = new Array(count);
+    for (let index = 0; index < count; index += 4) {
+      if (cursor >= bytes.length) throw new Error('truncated stars');
+      const packed = bytes[cursor++];
+      for (let offset = 0; offset < 4 && index + offset < count; offset += 1) stars[index + offset] = (packed >> (offset * 2)) & 3;
+    }
+    const scores = new Array(count);
+    for (let index = 0; index < count; index += 1) scores[index] = readVarint() * 10;
+    return { stars, scores };
+  }
+
+  function sanitizeProgress(raw_progress) {
+    const progress = { stars: [], scores: [] };
+    if (!raw_progress || !Array.isArray(raw_progress.stars)) return progress;
+    const count = Math.min(MAX_LEVEL, raw_progress.stars.length);
+    for (let index = 0; index < count; index += 1) {
+      progress.stars.push(clampInteger(raw_progress.stars[index], 0, 3, 0));
+      progress.scores.push(Math.floor(clampNumber(Array.isArray(raw_progress.scores) ? raw_progress.scores[index] : 0, 0, 1e9, 0) / 10) * 10);
+    }
+    return progress;
+  }
+
+  /** v1-v3 kept a {levelId: {best_score, best_stars, attempts, wins}} map. */
+  function progressFromLevelMap(raw_levels) {
+    const progress = { stars: [], scores: [] };
+    if (!raw_levels || typeof raw_levels !== 'object') return progress;
     Object.keys(raw_levels).forEach((level_key) => {
       const level_id = parseInt(level_key, 10);
       const record = raw_levels[level_key];
-      if (!Number.isInteger(level_id) || level_id < 1 || level_id > 9999 || !record || typeof record !== 'object') return;
-      levels[level_id] = {
-        best_score: Math.floor(clampNumber(record.best_score, 0, 1e9, 0)),
-        best_stars: Math.floor(clampNumber(record.best_stars, 0, 3, 0)),
-        attempts: Math.floor(clampNumber(record.attempts, 0, 1e6, 0)),
-        wins: Math.floor(clampNumber(record.wins, 0, 1e6, 0)),
-      };
+      if (!Number.isInteger(level_id) || level_id < 1 || level_id > MAX_LEVEL || !record || typeof record !== 'object') return;
+      while (progress.stars.length < level_id) {
+        progress.stars.push(0);
+        progress.scores.push(0);
+      }
+      progress.stars[level_id - 1] = clampInteger(record.best_stars, 0, 3, 0);
+      progress.scores[level_id - 1] = Math.floor(clampNumber(record.best_score, 0, 1e9, 0) / 10) * 10;
     });
-    return levels;
+    return progress;
   }
 
   /** v1 (development builds) stored {version:1, sound, music, unlocked, best:{id:{score,stars}}, name}. */
   function migrateV1(raw_save) {
-    const migrated = defaultSave();
-    migrated.player_name = cleanText(raw_save.name, MAX_NAME_LENGTH);
-    migrated.name_asked = migrated.player_name.length > 0;
-    migrated.unlocked = raw_save.unlocked;
-    migrated.settings.sfx_on = raw_save.sound !== false;
-    migrated.settings.music_on = raw_save.music !== false;
     const best = raw_save.best && typeof raw_save.best === 'object' ? raw_save.best : {};
+    const levels = {};
     Object.keys(best).forEach((level_key) => {
       const entry = best[level_key] || {};
-      migrated.levels[level_key] = { best_score: entry.score, best_stars: entry.stars, attempts: 0, wins: entry.stars > 0 ? 1 : 0 };
+      levels[level_key] = { best_score: entry.score, best_stars: entry.stars };
     });
-    return migrated;
+    const name = cleanText(raw_save.name, MAX_NAME_LENGTH);
+    return { version: 1, player_name: name, name_asked: name.length > 0, unlocked: raw_save.unlocked, levels, settings: { sfx_on: raw_save.sound !== false, music_on: raw_save.music !== false } };
   }
 
-  /** Normalizes any stored object into a valid current-version save. Unknown or missing keys fall back to defaults. */
+  /** Normalizes any stored object (v1-v4) into a valid current-version save. Unknown or missing keys fall back to defaults. */
   function normalizeSave(raw_save) {
     let source = raw_save && typeof raw_save === 'object' && !Array.isArray(raw_save) ? raw_save : {};
     if (source.version === 1) source = migrateV1(source);
+    const legacy = source.version === undefined || source.version < 4;
     const save = defaultSave();
     save.player_name = cleanText(source.player_name, MAX_NAME_LENGTH);
     save.name_asked = typeof source.name_asked === 'boolean' ? source.name_asked : save.player_name.length > 0;
-    save.levels = sanitizeLevels(source.levels);
-    save.unlocked = Math.floor(clampNumber(source.unlocked, 1, 9999, 1));
-    save.settings = sanitizeSettings(source.settings);
-    // v3 made the solid Classic candies the default; v1/v2 saves still on the old default (Gummy) move to it.
-    if ((source.version === undefined || source.version <= 2) && save.settings.theme === 'gummy') save.settings.theme = 'classic';
+    if (legacy) {
+      save.progress = progressFromLevelMap(source.levels);
+      const old_settings = source.settings && typeof source.settings === 'object' ? source.settings : {};
+      // The old sounds were too sharp: v4 keeps the on/off choices but starts everyone on the new gentle volumes.
+      save.settings = sanitizeSettings({
+        sound_on: old_settings.sfx_on,
+        music_on: old_settings.music_on,
+        haptics: old_settings.haptics,
+        reduced_motion: old_settings.reduced_motion,
+        colorblind: old_settings.colorblind,
+        theme: old_settings.theme === 'classic' ? 'gummy' : old_settings.theme,
+        accent: old_settings.accent,
+        photo_brightness: old_settings.photo_brightness,
+        win_message: old_settings.win_message,
+      });
+    } else {
+      let progress = source.progress;
+      if (typeof progress === 'string') {
+        try {
+          progress = decodeProgress(progress);
+        } catch (decode_error) {
+          progress = null;
+        }
+      }
+      save.progress = sanitizeProgress(progress);
+      save.settings = sanitizeSettings(source.settings);
+      save.meta = sanitizeMeta(source.meta);
+    }
+    save.unlocked = clampInteger(source.unlocked, 1, MAX_LEVEL, 1);
+    // A level beaten but never unlocked past (older saves) still unlocks the next one.
+    for (let index = save.progress.stars.length - 1; index >= 0; index -= 1) {
+      if (save.progress.stars[index] > 0) {
+        save.unlocked = Math.max(save.unlocked, Math.min(MAX_LEVEL, index + 2));
+        break;
+      }
+    }
     if (source.tutorials_seen && typeof source.tutorials_seen === 'object') {
       Object.keys(source.tutorials_seen).forEach((level_key) => {
         if (source.tutorials_seen[level_key] === true && /^\d+$/.test(level_key)) save.tutorials_seen[level_key] = true;
@@ -135,22 +340,41 @@
   }
 
   function serializeSave(save) {
-    return JSON.stringify(normalizeSave(save));
+    const normal = normalizeSave(Object.assign({}, save, { version: SAVE_VERSION }));
+    return JSON.stringify(Object.assign({}, normal, { progress: encodeProgress(normal.progress) }));
+  }
+
+  // ------------------------------------------------------------------ progress helpers
+
+  function levelBest(save, level_id) {
+    const index = level_id - 1;
+    return { stars: save.progress.stars[index] || 0, score: save.progress.scores[index] || 0 };
+  }
+
+  function totalStars(save) {
+    let total = 0;
+    const stars = save.progress.stars;
+    for (let index = 0; index < stars.length; index += 1) total += stars[index];
+    return total;
   }
 
   /** Records a finished attempt; returns {is_new_best, unlocked_next}. */
   function recordResult(save, level_id, result) {
-    const record = save.levels[level_id] || { best_score: 0, best_stars: 0, attempts: 0, wins: 0 };
-    record.attempts += 1;
-    const is_new_best = result.won && result.score > record.best_score;
-    if (result.won) {
-      record.wins += 1;
-      record.best_score = Math.max(record.best_score, result.score);
-      record.best_stars = Math.max(record.best_stars, result.stars);
+    save.meta.total_attempts += 1;
+    const index = level_id - 1;
+    while (save.progress.stars.length <= index) {
+      save.progress.stars.push(0);
+      save.progress.scores.push(0);
     }
-    save.levels[level_id] = record;
+    const stored_score = Math.floor(Math.max(0, result.score || 0) / 10) * 10;
+    const is_new_best = !!result.won && stored_score > save.progress.scores[index];
+    if (result.won) {
+      save.meta.total_wins += 1;
+      save.progress.scores[index] = Math.max(save.progress.scores[index], stored_score);
+      save.progress.stars[index] = Math.max(save.progress.stars[index], Math.min(3, Math.max(1, result.stars || 1)));
+    }
     let unlocked_next = false;
-    if (result.won && save.unlocked < level_id + 1) {
+    if (result.won && save.unlocked < level_id + 1 && level_id < MAX_LEVEL) {
       save.unlocked = level_id + 1;
       unlocked_next = true;
     }
@@ -277,15 +501,27 @@
     SAVE_KEY,
     PHOTO_KEY,
     SAVE_VERSION,
+    MAX_LEVEL,
     THEMES,
     ACCENTS,
+    AUTO_HINT,
+    ANIMATION_SPEEDS,
+    IN_LEVEL_BOOSTERS,
+    PRE_LEVEL_BOOSTERS,
+    BOOSTERS,
+    MAX_HEARTS,
     MAX_NAME_LENGTH,
     MAX_MESSAGE_LENGTH,
     defaultSave,
     defaultSettings,
+    defaultMeta,
     normalizeSave,
     parseSave,
     serializeSave,
+    encodeProgress,
+    decodeProgress,
+    levelBest,
+    totalStars,
     recordResult,
     cleanText,
     createStore,

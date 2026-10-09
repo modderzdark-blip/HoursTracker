@@ -805,6 +805,15 @@
     sealed.cells[at(sealed, 1, 1)] = null;
     LOGIC.internals.settleBoard(LOGIC.internals.createContext(sealed));
     assert.ok(sealed.cells[at(sealed, 2, 1)] && sealed.cells[at(sealed, 1, 1)], 'clearing the cocoa above lets candies fall in');
+    const half = makeTestState(['o o o o', 'o o o o', '. . 0 .', '0 0 1 .']);
+    const capped = LOGIC.applySwap(half, at(half, 2, 2), at(half, 3, 2));
+    assert.ok(capped.valid && !capped.events.some((event) => event.type === 'cocoa_spread'), 'cocoa stops spreading at half of the board');
+    const smothered = makeTestState(['o o o', 'o 0 o', 'o o o']);
+    const smothered_ctx = LOGIC.internals.createContext(smothered);
+    LOGIC.internals.finishMove(smothered_ctx);
+    assert.strictEqual(smothered.status, 'lost', 'a board with no possible move at all ends the level');
+    assert.strictEqual(smothered.loss_reason, 'no_moves');
+    assert.strictEqual(LOGIC.addMoves(smothered, 5).status, 'lost', '+5 Moves cannot revive it');
     const cleaning = makeTestState(['. . . . .', 'o . 0 . .', '0 0 1 . .', '. . . . .']);
     const cleaned = LOGIC.applySwap(cleaning, at(cleaning, 1, 2), at(cleaning, 2, 2));
     assert.ok(!cleaned.events.some((event) => event.type === 'cocoa_spread'), 'no spread after a move that cleared cocoa');
@@ -1038,38 +1047,70 @@
   });
 
   // 19. Storage
-  test('storage', 'round-trip, corrupted JSON fallback, v1 migration, defaults for missing keys', (assert) => {
+  test('storage', 'round-trip, corrupted JSON fallback, v1-v3 migration, defaults for missing keys', (assert) => {
     const save = STORAGE.defaultSave();
     save.player_name = 'Florin';
     save.settings.theme = 'hard';
-    STORAGE.recordResult(save, 1, { won: true, score: 4000, stars: 2 });
+    save.meta.boosters.hammer = 7;
+    STORAGE.recordResult(save, 1, { won: true, score: 4005, stars: 2 });
+    STORAGE.recordResult(save, 2, { won: false, score: 900, stars: 0 });
     const round_trip = STORAGE.parseSave(STORAGE.serializeSave(save));
     assert.strictEqual(round_trip.recovered, false);
     assert.deepStrictEqual(round_trip.save, STORAGE.normalizeSave(save));
     assert.strictEqual(round_trip.save.unlocked, 2);
-    assert.strictEqual(round_trip.save.levels[1].best_score, 4000);
+    assert.deepStrictEqual(STORAGE.levelBest(round_trip.save, 1), { stars: 2, score: 4000 }, 'best scores are kept to the ten');
+    assert.deepStrictEqual(STORAGE.levelBest(round_trip.save, 2), { stars: 0, score: 0 }, 'a loss records nothing');
+    assert.strictEqual(round_trip.save.meta.boosters.hammer, 7);
+    assert.strictEqual(round_trip.save.meta.total_attempts, 2);
     ['{not json', '[1,2,3]', 'null', '"text"'].forEach((corrupt_text) => {
       const parsed = STORAGE.parseSave(corrupt_text);
       assert.strictEqual(parsed.recovered, true, corrupt_text);
       assert.deepStrictEqual(parsed.save, STORAGE.defaultSave());
     });
+    const bad_progress = STORAGE.parseSave(JSON.stringify({ version: 4, unlocked: 3, progress: '!!not base64!!' }));
+    assert.deepStrictEqual(bad_progress.save.progress, { stars: [], scores: [] }, 'a damaged progress string falls back to empty');
+    assert.strictEqual(bad_progress.save.unlocked, 3);
     const migrated = STORAGE.parseSave(JSON.stringify({ version: 1, sound: false, music: true, unlocked: 4, name: 'Ana', best: { 1: { score: 2000, stars: 3 }, 3: { score: 9000, stars: 1 } } })).save;
     assert.strictEqual(migrated.version, STORAGE.SAVE_VERSION);
     assert.strictEqual(migrated.unlocked, 4);
     assert.strictEqual(migrated.player_name, 'Ana');
-    assert.strictEqual(migrated.settings.sfx_on, false);
-    assert.strictEqual(migrated.levels[3].best_score, 9000);
-    // v2 -> v3: the old default theme (Gummy) becomes the new default (Classic); a deliberate other choice is kept.
-    assert.strictEqual(STORAGE.parseSave(JSON.stringify({ version: 2, settings: { theme: 'gummy' } })).save.settings.theme, 'classic');
-    assert.strictEqual(STORAGE.parseSave(JSON.stringify({ version: 3, settings: { theme: 'gummy' } })).save.settings.theme, 'gummy');
-    assert.strictEqual(STORAGE.defaultSave().settings.theme, 'classic');
-    const partial = STORAGE.parseSave(JSON.stringify({ version: 2, settings: { theme: 'sprinkle', sfx_volume: 7, accent: 'neon' }, levels: { 2: { best_score: -5, best_stars: 9 }, banana: {} } })).save;
+    assert.strictEqual(migrated.settings.sound_on, false);
+    assert.deepStrictEqual(STORAGE.levelBest(migrated, 3), { stars: 1, score: 9000 });
+    const v3 = STORAGE.parseSave(JSON.stringify({ version: 3, unlocked: 3, settings: { theme: 'classic', sfx_on: true, sfx_volume: 1, music_volume: 1 }, levels: { 2: { best_score: 5000, best_stars: 3, attempts: 4, wins: 1 } } })).save;
+    assert.strictEqual(v3.settings.theme, 'gummy', 'the retired Classic theme maps to Gummy');
+    assert.strictEqual(v3.settings.master_volume, 0.7, 'old loud volumes reset to the gentle defaults');
+    assert.strictEqual(v3.settings.effects_volume, 0.6);
+    assert.strictEqual(v3.settings.music_volume, 0.35);
+    assert.deepStrictEqual(STORAGE.levelBest(v3, 2), { stars: 3, score: 5000 });
+    assert.strictEqual(STORAGE.defaultSave().settings.theme, 'gummy');
+    assert.strictEqual(STORAGE.defaultSave().settings.auto_hint, 'instant');
+    assert.strictEqual(STORAGE.defaultSave().settings.soft_sounds, true);
+    assert.deepStrictEqual(STORAGE.IN_LEVEL_BOOSTERS.map((booster) => STORAGE.defaultSave().meta.boosters[booster]), [3, 3, 3], 'three of each in-level booster to start');
+    const partial = STORAGE.parseSave(JSON.stringify({ version: 4, settings: { theme: 'sprinkle', effects_volume: 7, accent: 'neon', auto_hint: 'sometimes' }, meta: { hearts: 99, gold: -5 } })).save;
     assert.strictEqual(partial.settings.theme, 'sprinkle');
-    assert.strictEqual(partial.settings.sfx_volume, 1, 'clamped');
+    assert.strictEqual(partial.settings.effects_volume, 1, 'clamped');
     assert.strictEqual(partial.settings.accent, 'bubblegum', 'unknown accent falls back');
+    assert.strictEqual(partial.settings.auto_hint, 'instant', 'unknown hint mode falls back');
     assert.strictEqual(partial.settings.music_on, true, 'missing key gets its default');
-    assert.deepStrictEqual(partial.levels, { 2: { best_score: 0, best_stars: 3, attempts: 0, wins: 0 } });
+    assert.strictEqual(partial.meta.hearts, STORAGE.MAX_HEARTS);
+    assert.strictEqual(partial.meta.gold, 0);
     assert.strictEqual(STORAGE.cleanText('<b>Hi</b>\n', 16), 'bHi/b');
+  });
+
+  test('storage', 'a save with 20,000 completed levels is under 100 KB and loads in under 50 ms', (assert) => {
+    const save = STORAGE.defaultSave();
+    for (let level_number = 1; level_number <= 20000; level_number += 1) {
+      STORAGE.recordResult(save, level_number, { won: true, score: 18000 + ((level_number * 7919) % 60000), stars: 1 + (level_number % 3) });
+    }
+    const text = STORAGE.serializeSave(save);
+    assert.ok(text.length < 100 * 1024, `save is ${text.length} bytes`);
+    const started = Date.now();
+    const loaded = STORAGE.parseSave(text).save;
+    const elapsed = Date.now() - started;
+    assert.ok(elapsed < 50, `load took ${elapsed} ms`);
+    assert.strictEqual(loaded.unlocked, 20001);
+    assert.strictEqual(STORAGE.totalStars(loaded), STORAGE.totalStars(save));
+    assert.deepStrictEqual(STORAGE.levelBest(loaded, 12345), STORAGE.levelBest(save, 12345));
   });
 
   test('storage', 'store falls back to memory when the backend fails', (assert, done) => {

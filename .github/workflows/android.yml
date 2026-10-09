@@ -51,9 +51,44 @@ jobs:
             sim-report.json
           if-no-files-found: ignore
 
+  levels:
+    name: levels
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Level tests (shipped levels, generator rules, difficulty curve, 300-level scale test)
+        run: node tests/levels.test.js | tee levels-tests.txt
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: levels-reports
+          path: |
+            levels-tests.txt
+            docs/difficulty/
+          if-no-files-found: ignore
+
+  levels-pipeline:
+    name: levels pipeline (61-100, end to end)
+    needs: levels
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: ./.github/workflows/levels.yml
+    with:
+      from: 61
+      to: 100
+      games: 60
+      random_games: 20
+      shard_size: 10
+      publish: false
+
   browser:
     name: browser
-    needs: logic
+    needs: [logic, levels]
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -277,7 +312,7 @@ jobs:
 
   release:
     name: release
-    needs: [build, apk-verify, emulator]
+    needs: [build, apk-verify, emulator, levels-pipeline]
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15

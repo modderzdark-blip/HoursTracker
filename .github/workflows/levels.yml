@@ -1,0 +1,164 @@
+name: Levels - generate and calibrate
+
+# Grows the game: generates levels FROM..TO, calibrates them with bots in parallel shards, merges them into the level
+# packs (www/levels/pack-NNNN.js), validates everything, writes the difficulty report (docs/difficulty), and pushes the
+# result to a new branch (and opens a pull request when asked). Also called by android.yml on every push as an
+# end-to-end check on levels 61-100 with fewer games and nothing published.
+
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: First level to generate (at most one past the last shipped level)
+        type: number
+        default: 61
+      to:
+        description: Last level to generate
+        type: number
+        default: 100
+      games:
+        description: Greedy-bot games per calibration step
+        type: number
+        default: 300
+      random_games:
+        description: Random-bot games per level
+        type: number
+        default: 100
+      shard_size:
+        description: Levels per parallel shard
+        type: number
+        default: 10
+      open_pr:
+        description: Open a pull request (otherwise only push a branch)
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      from:
+        type: number
+        default: 61
+      to:
+        type: number
+        default: 100
+      games:
+        type: number
+        default: 60
+      random_games:
+        type: number
+        default: 20
+      shard_size:
+        type: number
+        default: 10
+      publish:
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      shards: ${{ steps.plan.outputs.shards }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Plan the shards
+        id: plan
+        env:
+          FROM: ${{ inputs.from }}
+          TO: ${{ inputs.to }}
+          SHARD_SIZE: ${{ inputs.shard_size }}
+        run: |
+          SHIPPED=$(node -p "require('./www/levels/manifest.js').count")
+          if [ "$FROM" -lt 26 ] || [ "$FROM" -gt $((SHIPPED + 1)) ] || [ "$TO" -lt "$FROM" ] || [ "$TO" -gt 99999 ]; then
+            echo "::error::from must be 26..$((SHIPPED + 1)) (levels 1-25 are hand-authored; packs must stay contiguous) and to must be from..99999"
+            exit 1
+          fi
+          SHARDS=$(node -e "const [from,to,size]=process.argv.slice(1).map(Number);const s=[];for(let a=from;a<=to;a+=size)s.push({from:a,to:Math.min(to,a+size-1)});console.log(JSON.stringify(s))" "$FROM" "$TO" "$SHARD_SIZE")
+          echo "shards=$SHARDS" >> "$GITHUB_OUTPUT"
+          echo "Shipped: $SHIPPED. Calibrating $FROM-$TO in shards: $SHARDS"
+
+  calibrate:
+    name: calibrate ${{ matrix.shard.from }}-${{ matrix.shard.to }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: true
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Generate and calibrate
+        run: node scripts/calibrate.js --from ${{ matrix.shard.from }} --to ${{ matrix.shard.to }} --games ${{ inputs.games }} --random-games ${{ inputs.random_games }} --emit shards/shard-${{ matrix.shard.from }}.json
+      - uses: actions/upload-artifact@v6
+        with:
+          name: level-shard-${{ matrix.shard.from }}
+          path: shards/
+          retention-days: 7
+
+  merge:
+    name: merge and validate
+    needs: calibrate
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: level-shard-*
+          path: shards
+          merge-multiple: true
+      - name: Merge the shards into the level packs and the difficulty report
+        run: node scripts/calibrate.js --merge shards/*.json
+      - name: Validate (level tests and the logic suite over every shipped level)
+        run: |
+          node tests/levels.test.js | tee levels-tests.txt
+          node tests/logic.test.js | tee logic-tests.txt
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: levels-${{ inputs.from }}-${{ inputs.to }}
+          path: |
+            www/levels/
+            docs/difficulty/
+            levels-tests.txt
+            logic-tests.txt
+      - name: Push a branch (and open a pull request when asked)
+        if: github.event_name == 'workflow_dispatch' || inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPEN_PR: ${{ inputs.open_pr }}
+          BASE: ${{ github.ref_name }}
+        run: |
+          BRANCH="levels/${{ inputs.from }}-${{ inputs.to }}-run${{ github.run_number }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add www/levels docs/difficulty
+          COUNT=$(node -p "require('./www/levels/manifest.js').count")
+          git commit -m "Levels ${{ inputs.from }}-${{ inputs.to }}: generated and calibrated ($COUNT levels ship)"
+          git push origin "$BRANCH"
+          echo "Pushed $BRANCH: https://github.com/${{ github.repository }}/compare/$BASE...$BRANCH" | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$OPEN_PR" = "true" ]; then
+            gh pr create --base "$BASE" --head "$BRANCH" --title "Levels ${{ inputs.from }}-${{ inputs.to }}" \
+              --body "Generated and calibrated by the levels workflow (run ${{ github.run_number }}). Difficulty report: docs/difficulty/difficulty.svg" \
+              || echo "::warning::Could not open a pull request (the repository may not allow Actions to create them); the branch is pushed."
+          fi

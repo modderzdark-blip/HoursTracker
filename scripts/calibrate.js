@@ -297,6 +297,8 @@ function mergeAndWrite(results, options) {
   const all_levels = loadExistingLevels(options.out);
   results.forEach((result) => all_levels.set(result.level.id, result.level));
   const written = writePacks(options.out, all_levels);
+  const orphans = results.filter((result) => result.level.id > written.count).map((result) => result.level.id);
+  if (orphans.length) throw new Error(`levels ${orphans[0]}-${orphans[orphans.length - 1]} do not follow on from the shipped levels (1-${written.count}); calibrate the gap first`);
   const report_path = path.join(options.report, 'difficulty.csv');
   const report_rows = new Map();
   if (fs.existsSync(report_path)) {
@@ -331,8 +333,9 @@ function parseArgs(argv) {
     else if (name === '--report') options.report = path.resolve(value);
     else if (name === '--emit') options.emit = path.resolve(value);
     else if (name === '--merge') {
-      options.merge = argv.slice(index + 1).map((file) => path.resolve(file));
-      break;
+      options.merge = [];
+      while (index + 1 < argv.length && !argv[index + 1].startsWith('--')) options.merge.push(path.resolve(argv[++index]));
+      continue;
     } else continue;
     index += 1;
   }

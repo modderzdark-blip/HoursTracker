@@ -26,6 +26,7 @@
   const SETTLE_STEP_CAP = 4000;
   const RESOLVE_LOOP_CAP = 400;
   const BELT_DIRECTIONS = Object.freeze({ '>': 1, '<': 2, '^': 3, v: 4 });
+  const COCOA_MAX_SHARE = 0.5; // Cocoa Creep stops spreading at half of the board's cells
 
   // Exact scoring table (also shown in How to Play).
   const SCORING = Object.freeze({
@@ -202,10 +203,21 @@
       const piece = ctx.state.cells[cell];
       if (piece && piece.kind === KIND.COCOA) damageBlocker(ctx, stage, cell, 'cocoa', SCORING.COCOA, 'cocoa');
     },
-    /** After a move in which no Cocoa was cleared, one Cocoa cell converts one adjacent regular candy (seeded choice). */
+    /**
+     * After a move in which no Cocoa was cleared, one Cocoa cell converts one adjacent regular candy (seeded choice).
+     * It stops growing once it covers half of the board, so it can never smother every candy.
+     */
     onMoveEnd(ctx) {
       const state = ctx.state;
       if (ctx.cocoa_cleared > 0) return;
+      let cocoa_cells = 0;
+      let active_cells = 0;
+      state.cells.forEach((piece, cell) => {
+        if (state.holes[cell]) return;
+        active_cells += 1;
+        if (piece && piece.kind === KIND.COCOA) cocoa_cells += 1;
+      });
+      if (cocoa_cells >= Math.floor(active_cells * COCOA_MAX_SHARE)) return;
       const options = [];
       state.cells.forEach((piece, cell) => {
         if (!piece || piece.kind !== KIND.COCOA) return;
@@ -1548,7 +1560,14 @@
       state.status = 'lost';
       state.loss_reason = 'moves';
     }
-    if (state.status === 'playing' && !hasValidMove(state)) shuffleBoard(ctx, 'no_moves');
+    if (state.status === 'playing' && !hasValidMove(state)) {
+      shuffleBoard(ctx, 'no_moves');
+      // Only a board with almost nothing left to swap (blockers everywhere) gets here: the level ends instead of hanging.
+      if (!hasValidMove(state)) {
+        state.status = 'lost';
+        state.loss_reason = 'no_moves';
+      }
+    }
     emit(ctx, { type: 'end', status: state.status, score: state.score, moves_left: state.moves_left, reason: state.loss_reason });
   }
 
