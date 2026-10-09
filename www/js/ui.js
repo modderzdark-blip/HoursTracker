@@ -117,7 +117,7 @@
    * Star marker positions on the score meter (fractions of its width). Proportional to the thresholds, but the three
    * stars never sit closer than STAR_MARK_GAP to each other (close thresholds would stack the markers into one blob).
    */
-  const STAR_MARK_GAP = 0.17;
+  const STAR_MARK_GAP = 0.22;
   function starMarkPositions(stars) {
     const top = stars[2] * 1.1;
     const positions = stars.map((threshold) => threshold / top);
