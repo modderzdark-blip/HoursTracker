@@ -702,7 +702,7 @@ test('after a win, Next level goes to the map, the marker hops to the new level 
   await page.click('#btn-next');
   await H.waitState(page, 'MAP');
   await expect(page.locator('.map-marker')).toBeVisible();
-  await expect(page.locator('.map-marker')).toHaveText('F');
+  await expect(page.locator('.map-marker')).toHaveText('S');
   await expect(page.locator('#map-scroll')).toHaveClass(/is-advancing/);
   await H.waitForModal(page, 'intro', 15000);
   await expect(page.locator('[data-modal="intro"]')).toContainText('Level 2');
