@@ -11,7 +11,7 @@
 
   // First level that uses each idea (1-25 are hand-authored; 31, 36 and 41 are generated introductions).
   const UNLOCKS = Object.freeze({
-    collect: 2, jelly: 5, ingredients: 9, order: 12, frosting: 13, jelly2: 15, timed: 17, cage: 19,
+    collect: 1, jelly: 5, ingredients: 9, order: 12, frosting: 13, jelly2: 15, timed: 17, cage: 19,
     portals: 21, cocoa: 22, fuse: 24, mixed: 25, belt: 31, frosting3: 36, hazelnut: 41,
   });
   const GENERATED_INTROS = Object.freeze({ 31: 'belt', 36: 'frosting3', 41: 'hazelnut' });
@@ -93,10 +93,6 @@
     return low + Math.floor(rng() * (high - low + 1));
   }
 
-  function round500(value) {
-    return Math.max(500, Math.round(value / 500) * 500);
-  }
-
   /** Colors used by level n: 4 early, 5 in about half of levels from 20 (dominant from 80), 6 from 150 (dominant from 400). */
   function colorsFor(level_number, rng) {
     if (level_number < 20) return 4;
@@ -132,13 +128,15 @@
   }
 
   // ---------------------------------------------------------------- goal modes (no mode more than 3 times in a row)
+  // Every level is won by candy goals, never by points alone (owner's rule): there is no score mode, and timed levels
+  // ask for candies before the clock runs out.
 
   const MODE_CACHE = new Map();
 
   function rawMode(level_number) {
     const rng = createRng(level_number, 9999);
     const mixed_weight = level_number >= 40 ? 0.2 : 0; // mixed goals from level 40
-    const table = [['score', 0.14], ['collect', 0.2], ['jelly', 0.24], ['ingredients', 0.14], ['order', 0.1], ['timed', 0.06], ['mixed', mixed_weight]];
+    const table = [['collect', 0.26], ['jelly', 0.28], ['ingredients', 0.16], ['order', 0.12], ['timed', 0.06], ['mixed', mixed_weight]];
     const total = table.reduce((sum, entry) => sum + entry[1], 0);
     let roll = rng() * total;
     for (const [mode, weight] of table) {
@@ -151,8 +149,8 @@
   function baseModeFor(level_number) {
     const intro = introAt(level_number) || practiceOf(level_number);
     if (intro === 'hazelnut') return 'ingredients';
-    if (intro === 'frosting3') return level_number === 36 ? 'order' : 'score';
-    if (intro === 'belt') return level_number === 31 ? 'score' : 'collect';
+    if (intro === 'frosting3') return level_number === 36 ? 'order' : 'collect';
+    if (intro === 'belt') return 'collect';
     return rawMode(level_number);
   }
 
@@ -168,7 +166,7 @@
       let mode = baseModeFor(current);
       const previous = [1, 2, 3].map((offset) => window_modes.get(current - offset) || null);
       if (previous.every((earlier) => earlier === mode)) {
-        const alternatives = ['jelly', 'collect', 'score', 'ingredients'].filter((option) => option !== mode);
+        const alternatives = ['jelly', 'collect', 'order', 'ingredients'].filter((option) => option !== mode);
         mode = alternatives[current % alternatives.length];
       }
       window_modes.set(current, mode);
@@ -378,7 +376,7 @@
       if (placed < 2) return null;
       goals.push({ type: 'ingredients', count: placed });
     }
-    if (mode === 'collect' || (mode === 'mixed' && goals.length < 2)) {
+    if (mode === 'collect' || mode === 'timed' || (mode === 'mixed' && goals.length < 2)) {
       const color_count = chance(rng, 0.5) ? 2 : 1;
       const picked = palette.slice().sort(() => rng() - 0.5).slice(0, color_count);
       picked.forEach((color) => goals.push({ type: 'collect', color, count: Math.min(45, Math.round(active_cells * 0.22 + level_number / 60 + between(rng, 0, 6))) }));
@@ -392,10 +390,7 @@
       const item = intro === 'frosting3' ? 'frosting' : pick(rng, items);
       goals.push({ type: 'order', item, count: orderCount(item, grid, rng) });
     }
-    if (mode === 'score' || mode === 'timed') {
-      goals.push({ type: 'score', target: round500(active_cells * (150 + Math.min(150, level_number / 6))) });
-    }
-    if (goals.length === 0) goals.push({ type: 'score', target: round500(active_cells * 150) });
+    if (goals.length === 0) goals.push({ type: 'collect', color: palette[0], count: Math.min(45, Math.round(active_cells * 0.22)) });
 
     const level = {
       id: level_number,

@@ -228,8 +228,8 @@
     }
 
     /**
-     * Frosted-glass board following the board shape: soft drop shadow, bright rim, a translucent plum pane with an
-     * inner highlight, alternating translucent cells with a subtle bevel, then exit trays, portal rings and belt tracks.
+     * The classic board following the board shape: soft drop shadow, a bright rim, a translucent deep-blue pane with an
+     * inner highlight, a light/dark blue checkerboard of cells with a subtle bevel, then exit trays, portals and belts.
      */
     function buildStaticLayer() {
       const cell = layout.cell;
@@ -251,15 +251,15 @@
         }
       }
       layer.save();
-      layer.shadowColor = 'rgba(59,26,74,0.38)';
+      layer.shadowColor = 'rgba(8,20,70,0.45)';
       layer.shadowBlur = cell * 0.45;
       layer.shadowOffsetY = cell * 0.12;
-      layer.fillStyle = 'rgba(255,255,255,0.78)';
+      layer.fillStyle = 'rgba(214,232,255,0.9)';
       layer.fill(frame_rim, 'nonzero');
       layer.restore();
       const pane = layer.createLinearGradient(0, -pad, 0, board.rows * cell + pad);
-      pane.addColorStop(0, 'rgba(98,52,140,0.62)');
-      pane.addColorStop(1, 'rgba(70,32,110,0.72)');
+      pane.addColorStop(0, 'rgba(34,62,150,0.8)');
+      pane.addColorStop(1, 'rgba(20,38,110,0.86)');
       layer.fillStyle = pane;
       layer.fill(frame, 'nonzero');
       layer.save();
@@ -277,15 +277,15 @@
           const x = col * cell;
           const y = row * cell;
           const tile = SPRITES.roundedRectPath(new Path2D(), x + 1.5, y + 1.5, cell - 3, cell - 3, cell * 0.14);
-          layer.fillStyle = (row + col) % 2 === 0 ? 'rgba(255,240,255,0.24)' : 'rgba(255,230,250,0.12)';
+          layer.fillStyle = (row + col) % 2 === 0 ? 'rgba(130,175,255,0.34)' : 'rgba(80,125,225,0.2)';
           layer.fill(tile);
           layer.save();
           layer.clip(tile);
           const bevel = layer.createLinearGradient(x, y, x, y + cell);
           bevel.addColorStop(0, 'rgba(255,255,255,0.22)');
           bevel.addColorStop(0.18, 'rgba(255,255,255,0.04)');
-          bevel.addColorStop(0.85, 'rgba(40,10,60,0.04)');
-          bevel.addColorStop(1, 'rgba(40,10,60,0.2)');
+          bevel.addColorStop(0.85, 'rgba(5,15,60,0.05)');
+          bevel.addColorStop(1, 'rgba(5,15,60,0.24)');
           layer.fillStyle = bevel;
           layer.fillRect(x, y, cell, cell);
           layer.restore();
@@ -564,8 +564,8 @@
           scale_y *= 1 + 0.1 * pulse;
           if (cell_index === hint_move.from) {
             const target = cellXY(hint_move.to);
-            offset_x += (target.col - Math.round(visual.x)) * cell * 0.14 * pulse;
-            offset_y += (target.row - Math.round(visual.y)) * cell * 0.14 * pulse;
+            offset_x += (target.col - Math.round(visual.x)) * cell * 0.18 * pulse;
+            offset_y += (target.row - Math.round(visual.y)) * cell * 0.18 * pulse;
           }
         }
       }
@@ -882,45 +882,6 @@
       }
     }
 
-    /** The hint arrow: a bobbing glossy arrow over the two candies, pointing the way the hinted candy moves. */
-    function drawHintArrow(now) {
-      if (!hint_move || timeline.busy) return;
-      const cell = layout.cell;
-      const from = cellCenter(hint_move.from);
-      const to = cellCenter(hint_move.to);
-      const angle = Math.atan2(to.y - from.y, to.x - from.x);
-      const bob = settings.reduced_motion ? 0 : Math.sin(now / 160) * cell * 0.08;
-      const mid_x = (from.x + to.x) / 2 + Math.cos(angle) * bob;
-      const mid_y = (from.y + to.y) / 2 + Math.sin(angle) * bob;
-      ctx.save();
-      ctx.translate(mid_x, mid_y);
-      ctx.rotate(angle);
-      const length = cell * 0.5;
-      const head = cell * 0.24;
-      const shaft = cell * 0.1;
-      const arrow = new Path2D();
-      arrow.moveTo(-length / 2, -shaft);
-      arrow.lineTo(length / 2 - head, -shaft);
-      arrow.lineTo(length / 2 - head, -head);
-      arrow.lineTo(length / 2, 0);
-      arrow.lineTo(length / 2 - head, head);
-      arrow.lineTo(length / 2 - head, shaft);
-      arrow.lineTo(-length / 2, shaft);
-      arrow.closePath();
-      ctx.shadowColor = 'rgba(59,26,74,0.55)';
-      ctx.shadowBlur = cell * 0.12;
-      ctx.lineJoin = 'round';
-      ctx.lineWidth = Math.max(2, cell * 0.06);
-      ctx.strokeStyle = '#3b1a4a';
-      ctx.stroke(arrow);
-      ctx.shadowBlur = 0;
-      const fill = ctx.createLinearGradient(0, -head, 0, head);
-      fill.addColorStop(0, '#fffbe0');
-      fill.addColorStop(1, '#ffc93c');
-      ctx.fillStyle = fill;
-      ctx.fill(arrow);
-      ctx.restore();
-    }
 
     function draw(now) {
       const ratio = layout.dpr;
@@ -959,7 +920,6 @@
       ordered.forEach((visual) => drawPiece(visual, now));
       drawCages();
       ctx.restore();
-      drawHintArrow(now);
       drawEffects(now);
       ctx.restore();
       particles.draw(ctx);

@@ -36,7 +36,7 @@ The repository is public, so you don't need to sign in to download.
 
 ## What's in the game
 
-* **Candies:** Strawberry Heart, Orange Wedge, Lemon Drop, Mint Cube, Blueberry Orb and Grape Star, each with its own
+* **Candies:** the classic candy-shop six: Cherry Bean (jelly bean), Orange Lozenge, Lemon Drop, Mint Square, Blueberry Ball and Grape Cluster, each with its own
   color and silhouette. Specials: striped (match 4, row or column), wrapped (L, T or + shape, explodes twice) and the
   Rainbow Drop (match 5). All special + special combos work.
 * **Graphics:** a per-pixel candy shader (`www/js/sprites.js`): signed distance field → pillow height → normals,
@@ -49,7 +49,7 @@ The repository is public, so you don't need to sign in to download.
   19,000 as at level 1.
 * **Mechanics (Tier 1):** jelly (1–2 layers), frosting (1–5 layers), Sugar Cage, Cocoa Creep, Fuse Candy, portals,
   Sugar Belts, cherries and hazelnuts with exit trays.
-* **Modes:** score, jelly, ingredients, Candy Order (colors, specials, blockers), timed (each special adds 2 seconds)
+* **Modes:** collect candies, jelly, ingredients, Candy Order (specials, blockers), timed (collect candies before the clock runs out; each special adds 2 seconds)
   and mixed goals, with a goal tracker that pops when a goal completes.
 * **Hints:** the suggested move glows and its candy nudges toward its spot. Settings → Auto hint: **Instant** (default),
   3 s, 8 s or Off; the bulb button shows it any time. Hints prefer the move that wins, then goal progress, then specials.
@@ -136,7 +136,8 @@ signed with a different key), which resets local progress.
 * **JDK 21 instead of 17:** Capacitor 8's Android library is compiled for Java 21, so CI uses Temurin 21.
 * **Native shell plugin:** keep-awake, the system photo picker (`PickVisualMedia`, no storage permission), display-cutout insets and app info come from one small app plugin (`NativeShellPlugin.java`) instead of extra third-party dependencies. Immersive fullscreen is applied natively in `MainActivity`; Capacitor 8's core `SystemBars` replaces the status-bar plugin.
 * **Save format v4:** per-level stars as 2-bit values plus best scores (stored as score/10 in varints), base64-encoded. A save with 20,000 cleared levels is about 58 KB and parses in a few milliseconds. Older saves migrate automatically.
-* **Star thresholds:** 1 star is the goal itself. 2 and 3 stars start from 1.6× and 2.4× of it but are capped by the bot calibration (3 stars at most the 20th-percentile greedy-bot winning score and the 10th-percentile random-bot score), so an ordinary win usually earns 3 stars.
+* **No points-only levels:** every level is won by candy goals (collect, jelly, ingredients, orders); points only decide 2 and 3 stars. `tests/levels.test.js` fails if a score goal ever appears, in the shipped levels or anywhere the generator reaches.
+* **Star thresholds:** 1 star is winning the level. 2 and 3 stars start from 1.6× and 2.4× of a near-minimum winning score but are capped by the bot calibration (3 stars at most the 20th-percentile greedy-bot winning score and the 10th-percentile random-bot score), so an ordinary win usually earns 3 stars.
 * **Packs:** v1.0 ships levels 1–60 (25 hand-authored, the rest generated and calibrated) in `www/levels/pack-0001.js`. `getLevel(n)` accepts 1–99,999; after the last shipped level the map shows "More levels coming soon!".
 * **Cocoa cap and no-move loss:** Cocoa Creep never covers more than half the board; if a board ever has no possible move even after a reshuffle, the level ends with "No more moves!" instead of soft-locking.
 * **Timed levels:** the clock pauses during every popup and while the app is in the background; each special candy created adds 2 seconds.
@@ -173,7 +174,7 @@ Hand-authored levels live in `scripts/levels/authored.js` (levels 1–25). A lev
   id: 21, name: 'Portal Parlor', role: 'normal', moves: 24, colors: 5, seed: 21021, rows: 9, cols: 9,
   layout: ['.........', /* one string per row, see the legend below */],
   meta: { portals: [{ in: [3, 0], out: [5, 2] }], fuse: 16 },   // portal pairs [row, col]; Fuse Candy countdown
-  goals: [{ type: 'collect', color: 2, count: 30 }],             // score | collect | jelly | ingredients | order
+  goals: [{ type: 'collect', color: 2, count: 30 }],             // collect | jelly | ingredients | order (never score)
   newMechanic: 'portals',
   tutorial: 'Optional one-line intro.', tip: 'Optional tip from Pip.',
 }

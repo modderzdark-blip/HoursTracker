@@ -20,7 +20,9 @@ test('first launch plays Level 1 to a win with swipes and tap-taps; progress per
   await expect.poll(async () => (await H.snapshot(page)).unlocked).toBe(2);
   const best = await page.evaluate(() => window.SC.STORAGE.levelBest(window.SC.game.store.save, 1));
   expect(best.stars).toBeGreaterThanOrEqual(1);
-  expect(best.score).toBeGreaterThanOrEqual(await page.evaluate(() => window.SC.LEVELS.getLevel(1).goals[0].target - 10));
+  expect(best.score).toBeGreaterThan(0);
+  // Level 1 is won by its candy goal, never by points alone.
+  expect(await page.evaluate(() => window.SC.LEVELS.getLevel(1).goals.map((goal) => goal.type))).toEqual(['collect']);
   expect((await H.snapshot(page)).hearts).toBe(5); // winning costs no heart
   await page.waitForTimeout(400);
   await H.reloadGame(page);

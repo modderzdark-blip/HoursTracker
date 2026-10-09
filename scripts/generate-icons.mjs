@@ -23,8 +23,8 @@ async function render(kind, size) {
     canvas.height = size;
     const ctx = canvas.getContext('2d');
     const recipes = SPRITES.recipes('gummy', false);
-    const heart = recipes['candy:0'];
-    const star = recipes['candy:5'];
+    const bean = recipes['candy:0'];
+    const lemon = recipes['candy:2'];
 
     function paintBackground(context, extent, shape) {
       context.save();
@@ -73,18 +73,22 @@ async function render(kind, size) {
     /** A shaded sprite of `spec` drawn centered at (x, y) with the given diameter and rotation. */
     function sprite(spec, x, y, diameter, rotation) {
       const pixels = Math.max(16, Math.round(diameter));
-      const image = SPRITES.spriteToCanvas(spec, pixels);
+      // The shader's own contact shadow would be cut at the sprite's square edge; a canvas drop shadow fades out freely.
+      const image = SPRITES.spriteToCanvas(Object.assign({}, spec, { no_shadow: true }), pixels);
       ctx.save();
+      ctx.shadowColor = 'rgba(90, 20, 60, 0.35)';
+      ctx.shadowBlur = diameter * 0.1;
+      ctx.shadowOffsetY = diameter * 0.05;
       ctx.translate(x, y);
       ctx.rotate(rotation);
       ctx.drawImage(image, -diameter / 2, -diameter / 2, diameter, diameter);
       ctx.restore();
     }
 
-    /** A plump Strawberry Heart with a Grape Star and a sparkle, inside the 66 dp safe zone (unit = 1 dp). */
+    /** A plump Cherry Bean with a Lemon Drop and a sparkle, inside the 66 dp safe zone (unit = 1 dp). */
     function paintCandies(unit, center_x, center_y) {
-      sprite(heart, center_x - 3 * unit, center_y + 4 * unit, 58 * unit, -0.12);
-      sprite(star, center_x + 18 * unit, center_y - 16 * unit, 26 * unit, 0.18);
+      sprite(bean, center_x - 5 * unit, center_y + 8 * unit, 46 * unit, 0);
+      sprite(lemon, center_x + 19 * unit, center_y - 19 * unit, 22 * unit, 0.18);
       ctx.fillStyle = '#ffffff';
       sparkle(ctx, center_x - 20 * unit, center_y - 18 * unit, 6 * unit);
     }
@@ -93,8 +97,8 @@ async function render(kind, size) {
     function paintMonochrome(unit, center_x, center_y) {
       const image = ctx.createImageData(size, size);
       const shapes = [
-        { sdf: SPRITES.SHAPE_SDF.heart, x: center_x - 3 * unit, y: center_y + 4 * unit, half: 29 * unit, rotation: -0.12 },
-        { sdf: SPRITES.SHAPE_SDF.star, x: center_x + 18 * unit, y: center_y - 16 * unit, half: 13 * unit, rotation: 0.18 },
+        { sdf: SPRITES.SHAPE_SDF.bean, x: center_x - 5 * unit, y: center_y + 8 * unit, half: 23 * unit, rotation: 0 },
+        { sdf: SPRITES.SHAPE_SDF.lemon, x: center_x + 19 * unit, y: center_y - 19 * unit, half: 11 * unit, rotation: 0.18 },
       ];
       for (let py = 0; py < size; py += 1) {
         for (let px = 0; px < size; px += 1) {

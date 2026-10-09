@@ -258,29 +258,29 @@ button:focus-visible, input:focus-visible, .map-node:focus-visible {
 .hud-card {
   position: relative;
   border-radius: 18px;
-  /* Frosted plum glass like the board, with a white rim and golden numbers. */
-  background: linear-gradient(180deg, rgba(120, 62, 160, 0.9), rgba(70, 30, 104, 0.92));
-  box-shadow: 0 0 0 2.5px rgba(255, 255, 255, 0.9), inset 0 3px 0 rgba(255, 255, 255, 0.3), inset 0 -4px 0 rgba(40, 10, 60, 0.25), 0 6px 14px rgba(59, 26, 74, 0.35);
+  /* Deep-blue glass like the board, with a light rim and golden numbers. */
+  background: linear-gradient(180deg, rgba(56, 98, 206, 0.93), rgba(24, 44, 126, 0.95));
+  box-shadow: 0 0 0 2.5px rgba(214, 232, 255, 0.95), inset 0 3px 0 rgba(255, 255, 255, 0.3), inset 0 -4px 0 rgba(8, 20, 70, 0.3), 0 6px 14px rgba(8, 20, 70, 0.4);
   color: #ffffff;
   padding: 6px 8px;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   min-height: 74px;
 }
-.hud-label { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; color: #ffd9f0; }
-.hud-number { font-size: 32px; font-weight: 900; line-height: 1.05; color: #fff3b0; font-variant-numeric: tabular-nums; text-shadow: 0 2px 0 #3b1a4a, 0 -1px 0 #3b1a4a, 2px 0 0 #3b1a4a, -2px 0 0 #3b1a4a; }
+.hud-label { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; color: #d4e6ff; }
+.hud-number { font-size: 32px; font-weight: 900; line-height: 1.05; color: #fff3b0; font-variant-numeric: tabular-nums; text-shadow: 0 2px 0 #10225e, 0 -1px 0 #10225e, 2px 0 0 #10225e, -2px 0 0 #10225e; }
 .hud-score-number { font-size: 22px; }
 .hud-moves .hud-number.is-low { color: #ff6b8a; }
 .app:not(.reduced-motion) .hud-moves .hud-number.is-low { animation: pulse-low 0.9s ease-in-out infinite; }
 @keyframes pulse-low { 50% { transform: scale(1.15); } }
-.hud-level { font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; color: #ffd9f0; }
+.hud-level { font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; color: #d4e6ff; }
 .goal-list { display: flex; flex-wrap: wrap; gap: 4px 10px; justify-content: center; align-items: center; margin-top: 2px; }
-.goal { display: flex; align-items: center; gap: 4px; font-size: 18px; font-weight: 900; color: #ffffff; font-variant-numeric: tabular-nums; text-shadow: 0 2px 0 #3b1a4a; }
+.goal { display: flex; align-items: center; gap: 4px; font-size: 18px; font-weight: 900; color: #ffffff; font-variant-numeric: tabular-nums; text-shadow: 0 2px 0 #10225e; }
 .goal img, .goal .goal-icon { width: 30px; height: 30px; display: block; }
 .goal.is-done { color: #8dff9c; }
 .goal .goal-check { width: 18px; height: 18px; }
 .app:not(.reduced-motion) .goal.is-bumped { animation: goal-bump 0.35s var(--spring); }
 @keyframes goal-bump { 50% { transform: scale(1.25); } }
-.star-bar { position: relative; width: 100%; height: 10px; margin-top: 6px; border-radius: 6px; background: rgba(40, 10, 60, 0.5); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35); }
+.star-bar { position: relative; width: 100%; height: 10px; margin-top: 6px; border-radius: 6px; background: rgba(8, 20, 70, 0.5); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35); }
 .star-fill { height: 100%; width: 0; border-radius: 6px; background: linear-gradient(90deg, #ffd34d, #ff9a1f); transition: width 0.35s ease; }
 .star-mark { position: absolute; top: -5px; width: 18px; height: 18px; margin-left: -9px; }
 .star-mark svg { width: 18px; height: 18px; }

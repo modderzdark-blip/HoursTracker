@@ -7,14 +7,14 @@
     GAME_TITLE: 'Sweet Cascade',
     VERSION: '1.0.0',
 
-    // Candy set (Section 4.1): each candy has a distinct color AND shape. SPRITES shades them; the same table lives there.
+    // Candy set: the classic candy-shop six, each with a distinct color AND shape. SPRITES shades them (same table there).
     CANDIES: [
-      { id: 0, name: 'Strawberry Heart', shape: 'heart', base: '#ff3b6b', highlight: '#ff9db5', shadow: '#b3123f' },
-      { id: 1, name: 'Orange Wedge', shape: 'wedge', base: '#ff9a1f', highlight: '#ffd08a', shadow: '#c4620a' },
-      { id: 2, name: 'Lemon Drop', shape: 'diamond', base: '#ffe14d', highlight: '#fff7b0', shadow: '#c9a800' },
-      { id: 3, name: 'Mint Cube', shape: 'cube', base: '#3ddc97', highlight: '#a6f5d1', shadow: '#14935c' },
-      { id: 4, name: 'Blueberry Orb', shape: 'orb', base: '#4aa8ff', highlight: '#b5dcff', shadow: '#1c63b8' },
-      { id: 5, name: 'Grape Star', shape: 'star', base: '#a45bff', highlight: '#d6b3ff', shadow: '#5f22b0' },
+      { id: 0, name: 'Cherry Bean', shape: 'bean', base: '#ff2e4f', highlight: '#ff9aa8', shadow: '#a80d2c' },
+      { id: 1, name: 'Orange Lozenge', shape: 'lozenge', base: '#ff8a12', highlight: '#ffc77a', shadow: '#c25300' },
+      { id: 2, name: 'Lemon Drop', shape: 'lemon', base: '#ffd92e', highlight: '#fff6a8', shadow: '#c49a00' },
+      { id: 3, name: 'Mint Square', shape: 'chiclet', base: '#2fd36b', highlight: '#a3f5bd', shadow: '#0f8a3c' },
+      { id: 4, name: 'Blueberry Ball', shape: 'ball', base: '#2f8cff', highlight: '#a8d4ff', shadow: '#1450b8' },
+      { id: 5, name: 'Grape Cluster', shape: 'cluster', base: '#a64dff', highlight: '#dcb5ff', shadow: '#5a1aa8' },
     ],
 
     THEMES: [

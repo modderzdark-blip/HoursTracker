@@ -88,6 +88,17 @@ test(`one new idea per level and none before its unlock (levels 1-${SCALE_LAST})
   ['belt', 'frosting3', 'hazelnut'].forEach((idea) => assert.strictEqual(first_seen[idea], GENERATOR.UNLOCKS[idea], `${idea} is introduced exactly at its unlock level`));
 });
 
+test('no level is won by points alone: no score goals in the shipped levels or anywhere the generator reaches', () => {
+  const scoreGoal = (level) => level.goals.some((goal) => goal.type === 'score');
+  for (let level_number = 1; level_number <= LEVELS.shippedCount(); level_number += 1) {
+    assert.ok(!scoreGoal(LEVELS.getLevel(level_number)), `shipped level ${level_number} has a score goal`);
+  }
+  AUTHORED.forEach((level) => assert.ok(!scoreGoal(level), `authored level ${level.id} has a score goal`));
+  for (let level_number = 26; level_number <= 20000; level_number += level_number < 600 ? 1 : 97) {
+    assert.ok(!scoreGoal(GENERATOR.generateLevel(level_number)), `generated level ${level_number} has a score goal`);
+  }
+});
+
 test('generator schedule: colours, mixed goals, complexity budget and the 30% blocker cap', () => {
   const colourShare = (first, last, minimum) => {
     let count = 0;

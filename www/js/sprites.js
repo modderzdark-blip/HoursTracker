@@ -9,15 +9,21 @@
   'use strict';
   const SC = root.SC || (root.SC = {});
 
-  // ---------------------------------------------------------------- palette (spec table, Section 4.1)
+  // ---------------------------------------------------------------- palette: the classic candy-shop set
+  // Jelly bean, lozenge, lemon drop, gum square, gumball and jujube cluster: each with its own color AND silhouette.
   const CANDIES = Object.freeze([
-    { id: 0, name: 'Strawberry Heart', shape: 'heart', base: '#ff3b6b', highlight: '#ff9db5', shadow: '#b3123f', symbol: 'heart' },
-    { id: 1, name: 'Orange Wedge', shape: 'wedge', base: '#ff9a1f', highlight: '#ffd08a', shadow: '#c4620a', symbol: 'wedge' },
-    { id: 2, name: 'Lemon Drop', shape: 'diamond', base: '#ffe14d', highlight: '#fff7b0', shadow: '#c9a800', symbol: 'diamond' },
-    { id: 3, name: 'Mint Cube', shape: 'cube', base: '#3ddc97', highlight: '#a6f5d1', shadow: '#14935c', symbol: 'square' },
-    { id: 4, name: 'Blueberry Orb', shape: 'orb', base: '#4aa8ff', highlight: '#b5dcff', shadow: '#1c63b8', symbol: 'circle' },
-    { id: 5, name: 'Grape Star', shape: 'star', base: '#a45bff', highlight: '#d6b3ff', shadow: '#5f22b0', symbol: 'star' },
+    { id: 0, name: 'Cherry Bean', shape: 'bean', base: '#ff2e4f', highlight: '#ff9aa8', shadow: '#a80d2c', symbol: 'heart' },
+    { id: 1, name: 'Orange Lozenge', shape: 'lozenge', base: '#ff8a12', highlight: '#ffc77a', shadow: '#c25300', symbol: 'wedge' },
+    { id: 2, name: 'Lemon Drop', shape: 'lemon', base: '#ffd92e', highlight: '#fff6a8', shadow: '#c49a00', symbol: 'diamond' },
+    { id: 3, name: 'Mint Square', shape: 'chiclet', base: '#2fd36b', highlight: '#a3f5bd', shadow: '#0f8a3c', symbol: 'square' },
+    { id: 4, name: 'Blueberry Ball', shape: 'ball', base: '#2f8cff', highlight: '#a8d4ff', shadow: '#1450b8', symbol: 'circle' },
+    { id: 5, name: 'Grape Cluster', shape: 'cluster', base: '#a64dff', highlight: '#dcb5ff', shadow: '#5a1aa8', symbol: 'star' },
   ]);
+  // The jujube cluster: a centre gummy and six around it (x, y, radius), shared by its shape and its height detail.
+  const CLUSTER_GUMMIES = Object.freeze([[0, 0, 0.44]].concat([0, 1, 2, 3, 4, 5].map((index) => {
+    const angle = (index * Math.PI) / 3 + Math.PI / 6;
+    return [Math.cos(angle) * 0.5, Math.sin(angle) * 0.5, 0.35];
+  })));
 
   // Material themes: same shapes and colors, different shader parameters (Section 4.2).
   const THEMES = Object.freeze({
@@ -149,7 +155,50 @@
     return Math.sqrt(ux * ux + uy * uy) + Math.min(Math.max(a + radius, b + radius), 0) - radius;
   }
 
+  /** A capsule between a circle of radius r1 at the origin and one of radius r2 at height h (y pointing up). */
+  function sdUnevenCapsule(x, y, r1, r2, h) {
+    const px = Math.abs(x);
+    const b = (r1 - r2) / h;
+    const a = Math.sqrt(1 - b * b);
+    const k = -b * px + a * y;
+    if (k < 0) return Math.sqrt(px * px + y * y) - r1;
+    if (k > a * h) return Math.sqrt(px * px + (y - h) * (y - h)) - r2;
+    return px * a + y * b - r1;
+  }
+
+  const BEAN_TILT = (24 * Math.PI) / 180;
+
   const SHAPE_SDF = {
+    // ---- the six candies
+    bean(x, y) {
+      // Kidney-shaped jelly bean, tilted as if tossed onto the board: a fat capsule with a soft dent along its back.
+      const lx = x * Math.cos(BEAN_TILT) - y * Math.sin(BEAN_TILT);
+      const ly = x * Math.sin(BEAN_TILT) + y * Math.cos(BEAN_TILT);
+      const body = sdCapsule(lx, ly, -0.4, 0.05, 0.4, 0.05, 0.6);
+      return smoothSubtract(body, sdCircle(lx, ly + 0.98, 0.56), 0.22);
+    },
+    lozenge(x, y) {
+      // Cushion lozenge: wider than tall with softly squared sides.
+      return sdRoundBox(x, y, 0.9, 0.7, 0.4);
+    },
+    lemon(x, y) {
+      // Lemon drop: a plump round bottom rising to a soft point.
+      return sdUnevenCapsule(x, -(y - 0.22), 0.69, 0.12, 1.0) - 0.04;
+    },
+    chiclet(x, y) {
+      return sdRoundBox(x, y, 0.78, 0.78, 0.22);
+    },
+    ball(x, y) {
+      return sdCircle(x, y, 0.84);
+    },
+    cluster(x, y) {
+      let distance = Infinity;
+      CLUSTER_GUMMIES.forEach(([cx, cy, radius]) => {
+        distance = smoothUnion(distance === Infinity ? sdCircle(x - cx, y - cy, radius) : distance, sdCircle(x - cx, y - cy, radius), 0.08);
+      });
+      return distance;
+    },
+    // ---- icons, specials and blockers
     heart(x, y) {
       const scale = 1.16;
       return sdHeartRaw(x * scale, (-y + 0.74) * scale) / scale - 0.08;
@@ -468,65 +517,25 @@
     return spec_scale === undefined ? [color[0], color[1], color[2], amount] : [color[0], color[1], color[2], amount, spec_scale];
   }
 
-  /** Shape details painted into the albedo: the wedge's rind and segments, the orb's calyx and leaf. */
+  /** Shape details painted into the albedo: the gum square's bevelled top face. */
   function candyAlbedo(candy) {
-    if (candy.shape === 'wedge') {
-      const rind = lin('#f07a00');
-      const pith = lin('#fff1d6');
-      return (x, y, depth) => {
-        const cx = x;
-        const cy = y - 0.3;
-        const radius = Math.sqrt(cx * cx + cy * cy);
-        if (cy < 0.02 && radius > 0.58 && depth < 0.22) return [rind[0], rind[1], rind[2], 0.55 * smoothstep(0.58, 0.66, radius)];
-        if (cy < 0.02 && radius > 0.5 && radius < 0.58) return [pith[0], pith[1], pith[2], 0.55];
-        const angle = Math.atan2(-cy, cx);
-        for (const line_angle of [0.55, 1.15, 1.98, 2.6]) {
-          const angular = Math.abs(angle - line_angle) * radius;
-          if (cy < -0.05 && radius > 0.1 && radius < 0.5 && angular < 0.022) return [pith[0], pith[1], pith[2], 0.6 * (1 - angular / 0.022)];
-        }
-        return null;
-      };
-    }
-    if (candy.shape === 'orb') {
-      const calyx = lin('#163d82');
-      const leaf = lin('#4fcf6a');
-      return (x, y) => {
-        const lx = x - 0.16;
-        const ly = y + 0.76;
-        const leaf_distance = Math.abs(lx * 0.8 - ly * 0.6) * 2.2 + Math.abs(lx * 0.6 + ly * 0.8) * 0.9;
-        if (leaf_distance < 0.2) return [leaf[0], leaf[1], leaf[2], 0.92, 0.7];
-        const crown = sdStar5(x, -(y + 0.6), 0.13, 0.5);
-        if (crown < 0) return [calyx[0], calyx[1], calyx[2], 0.65];
-        return null;
-      };
-    }
-    if (candy.shape === 'cube') {
+    if (candy.shape === 'chiclet') {
       const high = lin(candy.highlight);
       return (x, y) => {
-        // A bevelled top face: a slightly lighter inset square.
-        const face = sdRoundBox(x, y, 0.42, 0.42, 0.16);
+        const face = sdRoundBox(x, y, 0.5, 0.5, 0.16);
         return face < 0 ? [high[0], high[1], high[2], 0.14 * smoothstep(0, 0.06, -face)] : null;
       };
     }
     return null;
   }
 
+  /** Shape details in the height field: the square's raised face and the gumball's pressed seam. */
   function candyHeightDetail(candy) {
-    if (candy.shape === 'wedge') {
-      return (x, y) => {
-        const cy = y - 0.3;
-        const radius = Math.sqrt(x * x + cy * cy);
-        const angle = Math.atan2(-cy, x);
-        let dip = 0;
-        for (const line_angle of [0.55, 1.15, 1.98, 2.6]) dip = Math.max(dip, 0.05 * (1 - smoothstep(0, 0.03, Math.abs(angle - line_angle) * radius)));
-        return radius < 0.5 ? -dip : 0;
-      };
+    if (candy.shape === 'chiclet') {
+      return (x, y) => 0.06 * smoothstep(0.02, -0.06, sdRoundBox(x, y, 0.52, 0.52, 0.16));
     }
-    if (candy.shape === 'cube') {
-      return (x, y) => {
-        const face = sdRoundBox(x, y, 0.44, 0.44, 0.16);
-        return 0.06 * smoothstep(0.02, -0.06, face);
-      };
+    if (candy.shape === 'ball') {
+      return (x, y) => -0.025 * (1 - smoothstep(0, 0.035, Math.abs(y + 0.02))) * smoothstep(0.75, 0.55, Math.abs(x));
     }
     return null;
   }
@@ -559,6 +568,8 @@
       const albedo = candyAlbedo(candy);
       const height_detail = candyHeightDetail(candy);
       const common = { shape: candy.shape, base: candy.base, highlight: candy.highlight, shadow: candy.shadow, theme: theme_id, seed: 11 + candy.id * 17, colorblind, symbol: colorblind ? candy.symbol : null };
+      // The cluster's lobes would each catch the studio window as a separate glint; a smoother surface gives one shine.
+      if (candy.shape === 'cluster') common.smooth = 0.09;
       list[`candy:${candy.id}`] = Object.assign({}, common, { albedo, height_detail });
       list[`stripe_row:${candy.id}`] = Object.assign({}, common, { albedo: stripeAlbedo('row', albedo), height_detail: stripeHeight('row', height_detail) });
       list[`stripe_col:${candy.id}`] = Object.assign({}, common, { albedo: stripeAlbedo('col', albedo), height_detail: stripeHeight('col', height_detail) });
