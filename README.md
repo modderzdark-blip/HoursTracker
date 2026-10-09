@@ -115,7 +115,7 @@ Levels are data only. Append an object to the array in `www/js/levels.js`:
 }
 ```
 
-The map, intro, HUD and tests pick it up automatically. `node tests/logic.test.js` checks that every cell is reachable and that cherries can reach an exit. `node tests/simulate.js` shows the bot win rate and suggests star thresholds (3 stars = the median winning score of a random-move player, 2 stars = its 20th percentile, so an ordinary win earns 3 stars). Score-only goals are rejected by the tests: levels are always won with candy goals.
+The map, intro, HUD and tests pick it up automatically. `node tests/logic.test.js` checks that every cell is reachable and that cherries can reach an exit. `node tests/simulate.js` shows the bot win rate and suggests star thresholds (3 stars = the 10th-percentile winning score of a random-move player, 2 stars = its 2nd percentile, so nearly every win earns 3 stars). Score-only goals are rejected by the tests: levels are always won with candy goals.
 
 ## Running the tests yourself (optional)
 

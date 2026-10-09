@@ -2,8 +2,8 @@
 //  - Fuzz: 2,000 random-valid-move games per level; board invariants checked after every move; iteration caps.
 //  - Greedy bot: 300 games per level (specials first, then the largest match, with goal-relevance weighting).
 // Prints win rate, median score and suggested star thresholds per level (1 star = 40% of the 2-star score, only a mark on
-// the HUD meter because a win always earns 1 star; 3 stars = the random-move player's median winning score and 2 stars
-// its 20th percentile, end bonus included, so an ordinary win earns 3 stars; see the fallback below).
+// the HUD meter because a win always earns 1 star; 3 stars = the random-move player's 10th-percentile winning score and
+// 2 stars its 2nd percentile, end bonus included, so nearly every win earns 3 stars; see the fallback below).
 // Fails if any level is never won, if Level 1 is not near-certain, if Level 10 leaves the 30-60% target band,
 // or on any exception / invariant break.
 // Usage: node tests/simulate.js [--fuzz 2000] [--bot 300] [--report sim-report.json]
@@ -135,13 +135,14 @@ if (!isMainThread) {
       const bot = merged.get(`${level.id}:bot`);
       const win_rate = bot.games ? (100 * bot.wins) / bot.games : 0;
       const score_goal = level.goals.find((goal) => goal.type === 'score');
-      // Stars are set for a casual player: 3 stars = a typical win by the random-move player, 2 stars = its 20th
-      // percentile. Where random play rarely wins, fall back to 80% of the bot's 8th and 25th percentiles.
+      // Stars are generous: 3 stars = the 10th percentile of the random-move player's winning scores, so 9 in 10 of
+      // even random wins earn 3 stars; 2 stars = its 2nd percentile. Where random play rarely wins, fall back to half
+      // of the bot's 5th and 15th percentiles.
       const casual = fuzz.wins >= 40;
       const suggested = [
         0,
-        floor500(casual ? percentile(fuzz.win_final_scores, 0.2) : 0.8 * percentile(bot.win_final_scores, 0.08)),
-        floor500(casual ? percentile(fuzz.win_final_scores, 0.5) : 0.8 * percentile(bot.win_final_scores, 0.25)),
+        floor500(casual ? percentile(fuzz.win_final_scores, 0.02) : 0.5 * percentile(bot.win_final_scores, 0.05)),
+        floor500(casual ? percentile(fuzz.win_final_scores, 0.1) : 0.5 * percentile(bot.win_final_scores, 0.15)),
       ];
       suggested[0] = score_goal ? score_goal.target : floor500(0.4 * suggested[1]);
       if (suggested[1] <= suggested[0]) suggested[1] = suggested[0] + 500;

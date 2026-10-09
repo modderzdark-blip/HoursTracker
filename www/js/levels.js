@@ -5,8 +5,8 @@
 // Goals are always candy goals (collect, glaze, cherries): a level is never won by points alone.
 // `palette` (optional) picks which candies appear; by default the first `colors` candies are used.
 // Finishing the goals always earns at least 1 star. Star thresholds come from tests/simulate.js and are set for a
-// casual player: 3 stars = the median winning score of a player making random valid moves (end bonus included),
-// 2 stars = its 20th percentile, so an ordinary win earns 3 stars; see README for the numbers.
+// casual player: 3 stars = the 10th-percentile winning score of a player making random valid moves (end bonus
+// included), 2 stars = its 2nd percentile, so nearly every win earns 3 stars; see README for the numbers.
 (function attachLevels(root) {
   'use strict';
   const SC = root.SC || (root.SC = {});
@@ -25,7 +25,7 @@
         '.......',
       ],
       goals: [{ type: 'collect', color: 0, count: 25 }],
-      stars: [6500, 16500, 24000],
+      stars: [3000, 8000, 13000],
       tutorial: 'Swap two neighboring candies to make a row of three! Collect the red jelly beans shown at the top.',
     },
     {
@@ -42,7 +42,7 @@
         '........',
       ],
       goals: [{ type: 'collect', color: 0, count: 30 }, { type: 'collect', color: 4, count: 30 }],
-      stars: [8000, 20500, 33500],
+      stars: [3500, 9000, 15500],
       tutorial: 'Collect the candies shown at the top. Every bean and ball you clear counts!',
     },
     {
@@ -60,7 +60,7 @@
         '.........',
       ],
       goals: [{ type: 'collect', color: 1, count: 30 }, { type: 'collect', color: 3, count: 30 }],
-      stars: [4500, 11500, 18000],
+      stars: [2500, 6500, 9500],
       tutorial: 'Match 4 in a line to make a Striped candy. Match it again to clear a whole row or column!',
     },
     {
@@ -78,7 +78,7 @@
         '.........',
       ],
       goals: [{ type: 'jelly' }],
-      stars: [6000, 15500, 22500],
+      stars: [3500, 9500, 13000],
       tutorial: 'Glaze sits under some candies. Make matches on top of it to wipe it all away!',
     },
     {
@@ -96,7 +96,7 @@
         '##.....##',
       ],
       goals: [{ type: 'collect', color: 3, count: 25 }],
-      stars: [3500, 9000, 14500],
+      stars: [1500, 4500, 7000],
       tutorial: 'Make an L or T shape to create a Wrapped candy. It explodes twice!',
     },
     {
@@ -114,7 +114,7 @@
         'xxxxxxxxx',
       ],
       goals: [{ type: 'ingredients', count: 2 }],
-      stars: [5500, 14500, 19000],
+      stars: [3000, 8500, 12000],
       tutorial: 'Clear the candies under the cherries to drop them into the trays at the bottom.',
     },
     {
@@ -132,7 +132,7 @@
         '.........',
       ],
       goals: [{ type: 'jelly' }],
-      stars: [9500, 24000, 30500],
+      stars: [7000, 17500, 21500],
       tutorial: 'Frosting blocks swaps. Match next to it to crack it. Thick glaze needs two hits!',
     },
     {
@@ -150,7 +150,7 @@
         '.........',
       ],
       goals: [{ type: 'collect', color: 2, count: 30 }, { type: 'collect', color: 5, count: 30 }],
-      stars: [3000, 8000, 11500],
+      stars: [2000, 5500, 7000],
       tutorial: 'Match 5 in a line to make a Color Bomb. Swap it with a candy to clear every candy of that color!',
     },
     {
@@ -168,7 +168,7 @@
         'xxxxxxxxx',
       ],
       goals: [{ type: 'jelly' }, { type: 'ingredients', count: 3 }],
-      stars: [5000, 13000, 15500],
+      stars: [3500, 9500, 12500],
       tutorial: 'Two goals at once: wipe the glaze and bring all three cherries down through the orchard.',
     },
     {
@@ -186,7 +186,7 @@
         '.........',
       ],
       goals: [{ type: 'jelly' }, { type: 'collect', color: 5, count: 30 }],
-      stars: [5500, 14000, 17500],
+      stars: [3000, 8000, 9500],
       tutorial: 'The grand finale! Clear every bit of glaze and collect the purple gems. Combine specials for huge blasts.',
     },
   ];
