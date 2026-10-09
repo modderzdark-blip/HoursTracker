@@ -31,10 +31,11 @@ app_alive() { adb shell pidof "$PKG" >/dev/null 2>&1; }
 ensure_app_focused() {
   local attempt focus
   for attempt in $(seq 1 12); do
-    focus=$(adb shell dumpsys window 2>/dev/null | grep -m1 'mCurrentFocus' | tr -d '\r')
+    # Every display reports its own mCurrentFocus (the launcher's comes first on API 34): look at all of them.
+    focus=$(adb shell dumpsys window 2>/dev/null | grep 'mCurrentFocus' | tr -d '\r' | tr '\n' ' ')
     case "$focus" in
-      *"Splash Screen"*) sleep 1 ;;
       *"$PKG/"*MainActivity*) return 0 ;;
+      *"Splash Screen"*) sleep 1 ;;
       *"Not Responding"*|*"isn't responding"*|*"Application Error"*|*"has stopped"*)
         log "dismissing a system dialog over the game: $focus"
         echo "$focus" >> "$OUT/system-dialogs.txt"
@@ -235,10 +236,12 @@ shot "07-intro"
 back
 wait_for "s.state === 'MAP' && !s.modal" 15 "Back to close the intro"
 pass "Back on a modal closes it first"
-tap_map_node 1
-wait_for "s.modal === 'intro'" 15 "the level intro"
+# The rest of this block plays Level 2: Level 1 is a tutorial that one good move can win, which would end the level
+# in the middle of the background/foreground checks below.
+tap_map_node 2
+wait_for "s.modal === 'intro'" 15 "the Level 2 intro"
 tap_button "btn-intro-play"
-wait_for "s.state === 'PLAYING'" 15 "gameplay"
+wait_for "s.state === 'PLAYING' && s.level === 2" 15 "Level 2 gameplay"
 sleep 1
 back
 wait_for "s.state === 'PAUSED' && s.modal === 'pause'" 15 "Back during gameplay to open Pause"
