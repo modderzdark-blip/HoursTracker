@@ -36,6 +36,8 @@
   };
 
   ICONS.crown = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 8.5l4.2 3.6L12 5l4.3 7.1 4.2-3.6-1.6 9.5H5.1z" fill="#ffcf3f" stroke="#a5620a" stroke-width="1.4" stroke-linejoin="round"/><rect x="5" y="18.2" width="14" height="2.6" rx="1.1" fill="#ffb21f" stroke="#a5620a" stroke-width="1.2"/><circle cx="12" cy="13.6" r="1.5" fill="#ff5d8f"/></svg>';
+  ICONS.brush = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="10.2" y="2.5" width="3.6" height="10" rx="1.6" fill="#ffd36e" stroke="#3b1a4a" stroke-width="1.4"/><rect x="9.4" y="11.2" width="5.2" height="2.8" rx="0.8" fill="#c9c2d6" stroke="#3b1a4a" stroke-width="1.3"/><path d="M8.6 14h6.8c.4 3.4-.6 6.2-3.4 7.5C9.2 20.2 8.2 17.4 8.6 14z" fill="#ff5d8f" stroke="#3b1a4a" stroke-width="1.4" stroke-linejoin="round"/><path d="M9.6 16.4l4.8-1.2M10 18.8l4-1" stroke="#fff" stroke-width="1.3" stroke-linecap="round"/></svg>';
+  ICONS.party = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20.5l4.6-12.4 7.8 7.8z" fill="#ffb21f" stroke="#3b1a4a" stroke-width="1.5" stroke-linejoin="round"/><path d="M6 15.2l3.2 3.2M7.4 11.4l5.2 5.2" stroke="#ff5d8f" stroke-width="1.6" stroke-linecap="round"/><circle cx="16.5" cy="5" r="1.4" fill="#4cc3ff"/><circle cx="20" cy="9.5" r="1.3" fill="#ff5d8f"/><circle cx="12.6" cy="3.6" r="1.1" fill="#7be07b"/><path d="M14.5 9.5c1-2.2 3-3 5-2.6M12.5 7.8c.2-1.4.9-2.5 2-3.2" stroke="#a64dff" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>';
   ICONS.hand = '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M17.5 7.5c2.1 0 3.6 1.6 3.6 3.6v13.2l1.4-.3V20c0-2 1.6-3.5 3.5-3.5S29.5 18 29.5 20v3.6l1.2-.2c.3-1.8 1.8-3 3.5-3 2 0 3.5 1.6 3.5 3.6v.6c1.7.2 3 1.6 3 3.4v6.4c0 6.6-5.3 11.6-11.9 11.6h-3.5c-4 0-7.5-1.9-9.8-5.1L9.2 31.7c-1-1.5-.7-3.5.7-4.6 1.4-1.1 3.5-.9 4.6.5l-.5-.6V11.1c0-2 1.5-3.6 3.5-3.6z" fill="#fff" stroke="#3b1a4a" stroke-width="2.4" stroke-linejoin="round"/><path d="M21.1 24.3v6M29.5 23.6v6.4M37.7 24.6v5.6" stroke="#3b1a4a" stroke-width="2" stroke-linecap="round" opacity="0.35"/></svg>';
 
   function icon(name) {
@@ -47,6 +49,8 @@
     if (id === 'hammer') return `<span class="unlock-glyph">${ICONS.hammer}</span>`;
     if (id === 'free_swap') return `<span class="unlock-glyph is-ink">${ICONS.swap}</span>`;
     if (id === 'whirl') return `<span class="unlock-glyph is-ink">${ICONS.whirl}</span>`;
+    if (id === 'brush') return `<span class="unlock-glyph">${ICONS.brush}</span>`;
+    if (id === 'party') return `<span class="unlock-glyph">${ICONS.party}</span>`;
     if (id === 'lucky') return `<img src="${spriteUrl('wrapped:3', 72)}" alt="">`;
     if (id === 'rainbow') return `<img src="${spriteUrl('bomb', 72)}" alt="">`;
     if (id === 'head_start') return '<span class="head-start big">+3</span>';
@@ -93,7 +97,7 @@
     return spriteUrl(`candy:${color}`, size);
   }
 
-  const ORDER_ICONS = { striped: 'stripe_row:4', wrapped: 'wrapped:0', bomb: 'bomb', frosting: 'frosting:2', cocoa: 'cocoa', cage: 'cage' };
+  const ORDER_ICONS = { striped: 'stripe_row:4', wrapped: 'wrapped:0', bomb: 'bomb', frosting: 'frosting:2', cocoa: 'cocoa', cage: 'cage', swirl: 'swirl', gift: 'gift' };
 
   function goalIcon(goal, size) {
     if (goal.type === 'collect') return candyImage(goal.color, 'none', size);
@@ -110,6 +114,8 @@
     frosting: (count) => `Break ${count} frosting layers`,
     cocoa: (count) => `Clear ${count} Cocoa`,
     cage: (count) => `Break ${count} cage${count === 1 ? '' : 's'}`,
+    swirl: (count) => `Break ${count} Taffy Swirl${count === 1 ? '' : 's'}`,
+    gift: (count) => `Open ${count} Gift Box${count === 1 ? '' : 'es'}`,
   };
 
   function goalText(goal) {
@@ -418,8 +424,12 @@
         dom.btn_sound.classList.toggle('is-off', !sound_on);
       },
       /** Booster bar: counts (0 shows a "+" to buy with Gold Drops), the armed booster highlighted. */
-      /** locks: { booster: unlock level } for the boosters not unlocked yet (they show a lock). */
+      /**
+       * locks: { booster: unlock level } for the boosters not unlocked yet (hidden from the bar). Returns true when the
+       * bar switched between one row and two (the board then needs a new layout).
+       */
       setBoosters(counts, armed, enabled, locks) {
+        let visible = 0;
         document.querySelectorAll('.booster').forEach((booster_button) => {
           const name = booster_button.dataset.booster;
           const count = counts[name] || 0;
@@ -428,12 +438,20 @@
           if (locked_at) badge.innerHTML = icon('lock');
           else badge.textContent = count > 0 ? String(count) : '+';
           booster_button.classList.toggle('is-locked', !!locked_at);
+          // Like the original, the level's booster bar only shows the boosters unlocked so far.
+          booster_button.hidden = !!locked_at;
+          if (!locked_at) visible += 1;
           booster_button.classList.toggle('is-empty', !locked_at && count <= 0);
           booster_button.classList.toggle('is-armed', armed === name);
           booster_button.disabled = !enabled;
           booster_button.setAttribute('aria-label', locked_at ? `${META.BOOSTER_NAMES[name]}, unlocks at level ${locked_at}`
             : `${META.BOOSTER_NAMES[name]}, ${count > 0 ? `${count} left` : `buy for ${META.PRICES[name]} Gold Drops`}${armed === name ? ', selected' : ''}`);
         });
+        const bar = document.querySelector('.game-bar');
+        const many = visible > 3;
+        if (!bar || bar.classList.contains('has-many-boosters') === many) return false;
+        bar.classList.toggle('has-many-boosters', many);
+        return true;
       },
       /**
        * The tap pointer: a hand that taps on `target` (an element, or a {x, y} point in page pixels) with an optional
@@ -1521,6 +1539,8 @@
             row(spriteUrl('cage', 48), '<b>Sugar Cage</b>: the candy inside cannot move. Match it or blast it to break the cage.');
             row(spriteUrl('cocoa', 48), '<b>Cocoa Creep</b> spreads after a move that clears none of it. Match beside it to clean it up.');
             row(candyImage(2, 'none', 48), '<b>Fuse Candy</b> shows a countdown. Clear it before it reaches zero!');
+            row(spriteUrl('swirl', 48), '<b>Taffy Swirl</b> falls like a candy but never matches. Match beside it or blast it to break it. It stops a striped beam.');
+            row(spriteUrl('gift', 48), '<b>Gift Box</b> falls like a candy. Match beside it or blast it to open it: a special candy is inside!');
             row(spriteUrl('cherry', 48), '<b>Ingredients</b> (cherries and hazelnuts): bring them down to the trays. Blasts never break them.');
             row(spriteUrl('candy:4', 48), '<b>Portals</b> pass falling candies to their partner. <b>Sugar Belts</b> slide candies one step after every move.');
             modal.appendChild(element('h3', '', { text: 'Boosters and hearts' }));
@@ -1528,6 +1548,8 @@
               ['Sweet Hammer', 'Smash one piece or one blocker layer'],
               ['Free Swap', 'Swap any two neighbors, no move used'],
               ['Candy Whirl', 'Shuffle the candies'],
+              ['Candy Brush', 'Paint a candy into a striped candy'],
+              ['Sugar Party', 'One blast over the whole board'],
               ['Lucky / Rainbow / Head Start', 'Begin with specials, a Color Bomb, or +3 moves'],
               ['Hearts', 'A loss costs one; one refills every 30 minutes (or turn on Unlimited hearts)'],
               ['Gold Drops', 'Earned from wins, stars, the Daily Wheel and Star Chests'],

@@ -18,7 +18,7 @@
   const ACCENTS = ['bubblegum', 'sunset', 'ocean', 'mint', 'grape', 'cherry', 'gold', 'midnight'];
   const AUTO_HINT = ['instant', '3s', '8s', 'off'];
   const ANIMATION_SPEEDS = ['normal', 'snappy', 'fast'];
-  const IN_LEVEL_BOOSTERS = ['hammer', 'free_swap', 'whirl'];
+  const IN_LEVEL_BOOSTERS = ['hammer', 'free_swap', 'whirl', 'brush', 'party'];
   const PRE_LEVEL_BOOSTERS = ['lucky', 'rainbow', 'head_start'];
   const BOOSTERS = IN_LEVEL_BOOSTERS.concat(PRE_LEVEL_BOOSTERS);
   const MAX_HEARTS = 5;
@@ -26,7 +26,7 @@
   const MAX_MESSAGE_LENGTH = 80;
   // Everything a v4 (or older) save already had from the start: those players keep it unlocked without a new popup.
   const LEGACY_UNLOCKS = Object.freeze(['hammer', 'free_swap', 'whirl', 'lucky', 'rainbow', 'head_start', 'wheel', 'chest']);
-  const UNLOCK_IDS = Object.freeze(LEGACY_UNLOCKS.concat(['streak']));
+  const UNLOCK_IDS = Object.freeze(LEGACY_UNLOCKS.concat(['streak', 'brush', 'party']));
 
   function defaultSettings() {
     return {

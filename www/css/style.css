@@ -524,7 +524,18 @@ input[type="range"] { width: 130px; height: 36px; accent-color: var(--btn2); }
 
 .game-bar { align-items: center; gap: 12px; padding: 4px 10px calc(var(--safe-bottom) + 10px); }
 .hint-button { background: radial-gradient(circle at 35% 30%, #ffffff 0 8%, transparent 9%), linear-gradient(180deg, #ffe27a, #ffad2f); box-shadow: 0 4px 0 #b36a00, 0 6px 14px rgba(80, 40, 0, 0.3); color: #4a2c00; }
-.booster-bar { display: flex; gap: 6px; }
+.booster-bar { display: flex; gap: 6px; min-width: 0; overflow-x: auto; overflow-y: visible; scrollbar-width: none; scroll-snap-type: x proximity; padding: 8px 6px; margin: -8px -6px; }
+.booster-bar::-webkit-scrollbar { display: none; }
+.booster-bar .booster { flex: none; scroll-snap-align: center; }
+/* More than three boosters unlocked: they get their own row above pause, hint and sound (portrait). */
+.game-bar.has-many-boosters { flex-wrap: wrap; row-gap: 10px; }
+.game-bar.has-many-boosters .booster-bar { order: -1; flex: 1 0 100%; justify-content: center; margin: 0; padding: 4px 0 0; overflow: visible; }
+@media (orientation: landscape) and (min-aspect-ratio: 5/4) {
+  .game-bar.has-many-boosters { flex-wrap: nowrap; gap: 10px; }
+  .game-bar.has-many-boosters .booster-bar { order: 0; flex: none; display: grid; grid-template-columns: repeat(2, 48px); gap: 8px; padding: 6px 0 0; }
+  .game-bar.has-many-boosters .booster { width: 48px; height: 48px; }
+  .game-bar.has-many-boosters .round { width: 48px; height: 48px; }
+}
 .booster {
   position: relative; width: 52px; height: 52px; border: 0; border-radius: 16px; cursor: pointer;
   background: linear-gradient(180deg, #ffffff, #ffe6f3); box-shadow: 0 3px 0 #d79ac0, 0 6px 12px rgba(59, 26, 74, 0.22), inset 0 2px 0 #fff;

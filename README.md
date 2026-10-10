@@ -47,8 +47,11 @@ The repository is public, so you don't need to sign in to download.
   shifts, a marker that hops to the next level after a win (and then opens its intro by itself), **Jump to my level**
   and a **Go to level** box. Only the nodes near the screen exist (at most about 60), so the map is as light at level
   19,000 as at level 1.
-* **Mechanics (Tier 1):** jelly (1–2 layers), frosting (1–5 layers), Sugar Cage, Cocoa Creep, Fuse Candy, portals,
-  Sugar Belts, cherries and hazelnuts with exit trays.
+* **Mechanics:** jelly (1–2 layers), frosting (1–5 layers), Sugar Cage, Cocoa Creep, Fuse Candy, portals,
+  Sugar Belts, cherries and hazelnuts with exit trays, and from Tier 2: **Taffy Swirl** (falls like a candy but never
+  matches; a match beside it or a blast breaks it, and it stops a striped candy's beam) and **Gift Box** (falls; a match
+  beside it or a blast opens it into a striped, wrapped or Rainbow candy). Like the original, from episode 4 a new piece
+  arrives at an episode's first level (Taffy Swirl at 46, Gift Box at 61).
 * **Modes:** collect candies, jelly, ingredients, Candy Order (specials, blockers), timed (collect candies before the clock runs out; each special adds 2 seconds)
   and mixed goals, with a goal tracker that pops when a goal completes.
 * **Difficulty:** matched to Candy Crush Saga player data (attempt logs for one 15-level episode: openers passed on
@@ -67,7 +70,9 @@ The repository is public, so you don't need to sign in to download.
 * **Progression** (paced on the original's first episodes, `META.UNLOCKS`): boosters and features unlock one at a time
   as you advance, with a popup, free boosters and a hand pointer that shows how to use each new booster in the next
   level: Sweet Hammer at level 7 (3 free), Rainbow Start 10 (2), Daily Wheel 12, Free Swap 16 (3), Star Chest 20, Lucky
-  Start 22 (2), Sweet Streak 25, Candy Whirl 28 (3), Head Start 35 (2). Locked boosters show a lock and their level.
+  Start 22 (2), Sweet Streak 25, Candy Whirl 28 (3), Head Start 35 (2), **Candy Brush** 40 (3: paints a candy into a
+  striped one), **Sugar Party** 55 (2: one blast over the whole board). Locked pre-level boosters show a lock and their
+  level; the level's booster bar shows the boosters unlocked so far.
 * **Sweet Streak:** win new levels on the first try, one after another, and the next new level starts with special
   candies already on the board: 1 striped; then striped + wrapped; then + a Rainbow Drop; then 2 striped, wrapped,
   Rainbow Drop and +2 moves; from 5 wins on, 2 striped, 2 wrapped, a Rainbow Drop and +3 moves. Losing, restarting or
@@ -124,7 +129,7 @@ Every push, every `v*` tag and manual runs execute:
 
 1. **logic**: 52 Node tests (`node tests/logic.test.js`), then fuzz games and greedy-bot games on every shipped level (`node tests/simulate.js`).
 2. **levels**: `node tests/levels.test.js`: shipped levels are valid and solvable, one new idea per level, complexity budget, the calibrated difficulty curve, and a scale test that generates levels 61–360 plus a sample up to 20,000.
-   **levels-pipeline**: runs `levels.yml` end to end on levels 61–100 with a small bot budget (nothing is published).
+   **levels-pipeline**: runs `levels.yml` end to end on levels 121–160 with a small bot budget (nothing is published).
 3. **audio**: `node tests/audio/run-audio-tests.mjs` renders every sound, a 6-sound + music stress mix and both music tracks offline in Chromium at maximum settings and checks peak level, clicks at the edges, sample jumps, energy above 4 and 6 kHz, spectral centroid, length, envelope and the loop seam.
 4. **browser**: Playwright with Chromium mobile emulation (`npx playwright test`). It plays Level 1 to a win with real swipes and taps, and checks persistence, losing, +5 Moves, hearts, boosters, the timed clock, pause/restart/quit mid-animation, Back, lifecycle, hints, settings, the self-test and reduced motion. It also captures screenshots of every screen at 360×640, 390×844, 412×915, 430×932, 673×841 and 768×1024 in all three themes (including the map at levels 1, 40, 5,000 and 19,000), plus landscape, desktop and the zoomed art sheets.
 5. **build**: Node 22, JDK 21, Android SDK, `npx cap sync android`, then Gradle `assembleDebug assembleRelease bundleRelease`.
@@ -158,7 +163,7 @@ signed with a different key), which resets local progress.
 * **Save format v4:** per-level stars as 2-bit values plus best scores (stored as score/10 in varints), base64-encoded. A save with 20,000 cleared levels is about 58 KB and parses in a few milliseconds. Older saves migrate automatically.
 * **No points-only levels:** every level is won by candy goals (collect, jelly, ingredients, orders); points only decide 2 and 3 stars. `tests/levels.test.js` fails if a score goal ever appears, in the shipped levels or anywhere the generator reaches.
 * **Star thresholds:** 1 star is winning the level. 2 and 3 stars start from 1.6× and 2.4× of a near-minimum winning score but are capped by the bot calibration (3 stars at most the 20th-percentile greedy-bot winning score and the 10th-percentile random-bot score), so an ordinary win usually earns 3 stars.
-* **Packs:** v1.0 ships levels 1–60 (25 hand-authored, the rest generated and calibrated) in `www/levels/pack-0001.js`. `getLevel(n)` accepts 1–99,999; after the last shipped level the map shows "More levels coming soon!".
+* **Packs:** the game ships levels 1–120 (25 hand-authored, the rest generated and calibrated) in `www/levels/pack-0001.js` and `pack-0002.js`. `getLevel(n)` accepts 1–99,999; after the last shipped level the map shows "More levels coming soon!".
 * **Cocoa cap and no-move loss:** Cocoa Creep never covers more than half the board; if a board ever has no possible move even after a reshuffle, the level ends with "No more moves!" instead of soft-locking.
 * **Timed levels:** the clock pauses during every popup and while the app is in the background; each special candy created adds 2 seconds.
 * **Retries:** each attempt uses a fresh deterministic seed derived from the level seed, so retries show new boards.
@@ -172,7 +177,7 @@ Open **Actions → Levels - generate and calibrate → Run workflow** and fill i
 
 | Input | Meaning |
 |---|---|
-| `from` | first level to add; must be exactly one past the last shipped level (61 today) |
+| `from` | first level to add; must be exactly one past the last shipped level (121 today) |
 | `to` | last level to add |
 | `games` / `random_games` | greedy-bot and random-bot games per calibration step (300 / 100 by default) |
 | `shard_size` | levels per parallel calibration job |
@@ -204,11 +209,11 @@ Hand-authored levels live in `scripts/levels/authored.js` (levels 1–25). A lev
 
 Layout legend (`LOGIC.LAYOUT_LEGEND`): `.` normal, `#` hole, `j`/`J` single/double jelly, `1`–`5` frosting layers,
 `k` Sugar Cage, `o` Cocoa Creep, `b` Fuse Candy (countdown in `meta.fuse`), `c` cherry, `h` hazelnut, `x` exit tray,
-`p`/`P` portal entrance/exit (pairs in `meta.portals`), `>` `<` `^` `v` Sugar Belt direction.
+`p`/`P` portal entrance/exit (pairs in `meta.portals`), `>` `<` `^` `v` Sugar Belt direction, `s` Taffy Swirl, `g` Gift Box.
 
 Mechanics unlock gradually (one new idea per level): collect 2, jelly 5, ingredients 9, Candy Order 12, frosting 13,
 double jelly 15, timed 17, Sugar Cage 19, portals 21, Cocoa Creep 22, Fuse Candy 24, mixed goals 25, Sugar Belt 31,
-thick frosting 36, hazelnut 41.
+thick frosting 36, hazelnut 41, Taffy Swirl 46, Gift Box 61.
 
 ## Adding a Tier 2 mechanic
 
@@ -225,8 +230,8 @@ To add, for example, **Jam Jar**:
 4. Add its unlock level to `UNLOCKS` in the generator and tests in `www/js/selftest.js` (they run in Node, the browser
    and on the phone).
 
-Planned Tier 2 mechanics: Jam Jar, Taffy Swirl, Gift Box, Magic Mixer and Lucky Candy, each to be introduced in the
-generated levels after level 60 (one new idea per level, following the same unlock rules).
+Taffy Swirl (`s`) and Gift Box (`g`) are the first Tier 2 mechanics. Planned next: Jam Jar, Magic Mixer and Lucky
+Candy, each to arrive at a later episode's first level (one new idea per level, following the same unlock rules).
 
 ## Running the tests yourself (optional)
 

@@ -581,6 +581,8 @@
     list.cherry = cherryRecipe(theme_id);
     list.hazelnut = hazelnutRecipe(theme_id);
     list.cage = cageRecipe();
+    list.swirl = swirlRecipe(theme_id);
+    list.gift = giftRecipe(theme_id);
     list['jelly:1'] = jellyRecipe(1);
     list['jelly:2'] = jellyRecipe(2);
     return list;
@@ -717,6 +719,53 @@
         return [cap[0] * (0.85 + 0.3 * grain), cap[1] * (0.85 + 0.3 * grain), cap[2] * (0.85 + 0.3 * grain), scar * 0.9, 0.3];
       },
       height_detail: (x, y) => 0.025 * Math.sin(x * 7 + y * 2) * Math.sin(y * 16),
+    };
+  }
+
+  /** Taffy Swirl: a chewy disc with a two-tone spiral, raised along the spiral's seam. */
+  function swirlRecipe(theme_id) {
+    const cream = lin('#fff4f8');
+    const band = (x, y) => {
+      const angle = Math.atan2(y, x);
+      const radius = Math.sqrt(x * x + y * y);
+      return Math.sin(angle * 2 - radius * 11);
+    };
+    return {
+      shape: (x, y) => sdCircle(x, y, 0.8), base: '#e8337a', highlight: '#ff8fbc', shadow: '#8f0f45', theme: theme_id, seed: 77, bevel: 0.42,
+      material: { subsurface: 0.35, translucency: 0.12, spec_power: 50, spec_tight: 1.1, env: 0.45, detail: 'none' }, detail: 'none',
+      height_detail: (x, y) => {
+        const radius = Math.sqrt(x * x + y * y);
+        return 0.05 * smoothstep(0.35, 0, Math.abs(band(x, y))) * smoothstep(0.8, 0.15, radius);
+      },
+      albedo: (x, y) => {
+        const radius = Math.sqrt(x * x + y * y);
+        if (radius < 0.09) return [cream[0], cream[1], cream[2], 1, 0.7];
+        const white = smoothstep(-0.12, 0.12, band(x, y));
+        return white > 0 ? [cream[0], cream[1], cream[2], white, 0.7] : null;
+      },
+    };
+  }
+
+  /** Gift Box: a glossy teal present with a golden ribbon and bow. */
+  function giftRecipe(theme_id) {
+    const ribbon = lin('#ffd54a');
+    const ribbon_dark = lin('#e0a01a');
+    const box = (x, y) => sdRoundBox(x, y - 0.14, 0.72, 0.62, 0.14);
+    const bow = (x, y) => Math.min(sdCircle((x + 0.24) / 1.25, (y + 0.56) / 0.85, 0.2), sdCircle((x - 0.24) / 1.25, (y + 0.56) / 0.85, 0.2), sdCircle(x, y + 0.5, 0.12));
+    const onRibbon = (x, y) => Math.abs(x) < 0.12 || Math.abs(y + 0.18) < 0.1;
+    return {
+      shape: (x, y) => smoothUnion(box(x, y), bow(x, y), 0.06), base: '#18b9b0', highlight: '#7ff0e6', shadow: '#086b66', theme: theme_id, seed: 83, bevel: 0.3,
+      material: { subsurface: 0.15, translucency: 0.04, spec_power: 70, spec_tight: 1.4, env: 0.7, detail: 'none' }, detail: 'none',
+      height_detail: (x, y) => (box(x, y) < 0 && onRibbon(x, y) ? 0.05 : 0),
+      albedo: (x, y) => {
+        if (bow(x, y) < 0.01 && y < -0.32) {
+          const knot = sdCircle(x, y + 0.5, 0.12) < 0;
+          const tone = knot ? ribbon_dark : ribbon;
+          return [tone[0], tone[1], tone[2], 1, 0.6];
+        }
+        if (box(x, y) < 0 && onRibbon(x, y)) return [ribbon[0], ribbon[1], ribbon[2], 1, 0.6];
+        return null;
+      },
     };
   }
 

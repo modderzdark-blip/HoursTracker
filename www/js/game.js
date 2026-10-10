@@ -636,6 +636,10 @@
         useHammer(cell);
         return;
       }
+      if (armed_booster === 'brush' && cell >= 0) {
+        useBrush(cell);
+        return;
+      }
       selected_cell = cell;
       renderer.setSelected(cell);
       if (cell >= 0) sound('select');
@@ -750,7 +754,8 @@
     }
 
     function updateBoosterBar() {
-      ui.setBoosters(save().meta.boosters, armed_booster, machine === STATE.PLAYING || machine === STATE.RESOLVING, boosterLocks());
+      const relayout = ui.setBoosters(save().meta.boosters, armed_booster, machine === STATE.PLAYING || machine === STATE.RESOLVING, boosterLocks());
+      if (relayout && level) layoutNow();
     }
 
     function consumeArmedBooster() {
@@ -782,11 +787,11 @@
       }
       clearHint();
       hint_scheduler.touch();
-      if (name === 'whirl') {
+      if (name === 'whirl' || name === 'party') {
         const before = logic_state;
-        const result = LOGIC.applyWhirl(before);
+        const result = name === 'whirl' ? LOGIC.applyWhirl(before) : LOGIC.applyParty(before);
         if (!result.valid) return;
-        armed_booster = 'whirl';
+        armed_booster = name;
         consumeArmedBooster();
         await playResult(result, before);
         return;
@@ -796,11 +801,23 @@
       const move = booster_lesson === name ? LOGIC.findHint(logic_state) : null;
       if (move) {
         // Second step of the lesson: point at a candy to use it on (the hint move's candy is always a fine target).
-        ui.pointAt(renderer.cellCenter(move.from), name === 'hammer' ? 'Now tap a candy to smash it' : 'Now swap it with a neighbor');
+        const lesson = { hammer: 'Now tap a candy to smash it', brush: 'Now tap a candy to paint it' }[name] || 'Now swap it with a neighbor';
+        ui.pointAt(renderer.cellCenter(move.from), lesson);
       } else {
-        ui.showBanner(name === 'hammer' ? 'Tap a piece to smash it' : 'Swap any two neighbors', false, true);
+        ui.showBanner({ hammer: 'Tap a piece to smash it', brush: 'Tap a candy to paint it striped' }[name] || 'Swap any two neighbors', false, true);
       }
-      ui.announce(name === 'hammer' ? 'Sweet Hammer ready: tap a piece' : 'Free Swap ready: swap any two neighboring candies');
+      ui.announce({ hammer: 'Sweet Hammer ready: tap a piece', brush: 'Candy Brush ready: tap a candy' }[name] || 'Free Swap ready: swap any two neighboring candies');
+    }
+
+    async function useBrush(cell) {
+      const before = logic_state;
+      const result = LOGIC.applyBrush(before, cell);
+      if (!result.valid) {
+        ui.toast('The brush only paints plain candies');
+        return;
+      }
+      consumeArmedBooster();
+      await playResult(result, before);
     }
 
     async function useHammer(cell) {

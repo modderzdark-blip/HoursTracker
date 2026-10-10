@@ -12,12 +12,13 @@
   const MAX_HEARTS = 5;
   const HEART_REFILL_MS = 30 * 60 * 1000;
   const CHEST_STARS = 25;
-  const PRICES = Object.freeze({ hammer: 60, free_swap: 40, whirl: 30, lucky: 50, rainbow: 80, head_start: 40, plus_five: 60 });
+  const PRICES = Object.freeze({ hammer: 60, free_swap: 40, whirl: 30, brush: 50, party: 120, lucky: 50, rainbow: 80, head_start: 40, plus_five: 60 });
   // Each further +5 Moves in the same attempt costs more (the original's continues climb the same way).
   const CONTINUE_PRICES = Object.freeze([60, 90, 140, 190, 240]);
-  const IN_LEVEL = Object.freeze(['hammer', 'free_swap', 'whirl']);
+  const IN_LEVEL = Object.freeze(['hammer', 'free_swap', 'whirl', 'brush', 'party']);
   const BOOSTER_NAMES = Object.freeze({
     hammer: 'Sweet Hammer', free_swap: 'Free Swap', whirl: 'Candy Whirl', lucky: 'Lucky Start', rainbow: 'Rainbow Start', head_start: 'Head Start',
+    brush: 'Candy Brush', party: 'Sugar Party',
   });
 
   // Progression, paced like the original's first episodes: a new booster or feature every few levels, each booster with a
@@ -32,6 +33,8 @@
     { id: 'streak', kind: 'feature', level: 25, title: 'Sweet Streak', text: 'Win new levels on the first try, one after another: each win puts more special candies on your next new level. Losing a level ends the streak.' },
     { id: 'whirl', kind: 'booster', level: 28, gift: 3, title: 'Candy Whirl', text: 'Stuck? Mix up the whole board. No move used.' },
     { id: 'head_start', kind: 'booster', level: 35, gift: 2, title: 'Head Start', text: 'Start a level with 3 extra moves (10 extra seconds on timed levels).' },
+    { id: 'brush', kind: 'booster', level: 40, gift: 3, title: 'Candy Brush', text: 'Paint any candy into a striped candy. It never uses a move.' },
+    { id: 'party', kind: 'booster', level: 55, gift: 2, title: 'Sugar Party', text: 'Throw a party: one blast over the whole board! Every candy pops and every blocker loses a layer. No move used.' },
   ]);
 
   // Sweet Streak bags: what the next new level starts with after 1, 2, 3, 4 and 5+ first-try wins in a row.

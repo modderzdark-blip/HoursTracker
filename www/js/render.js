@@ -488,7 +488,7 @@
       const drops = [];
       let landed = 0;
       visuals.forEach((visual) => {
-        if (visual.kind !== 'candy' && visual.kind !== 'cherry' && visual.kind !== 'hazelnut') return;
+        if (visual.kind !== 'candy' && visual.kind !== 'cherry' && visual.kind !== 'hazelnut' && visual.kind !== 'swirl' && visual.kind !== 'gift') return;
         const cell_index = Math.round(visual.y) * board.cols + Math.round(visual.x);
         if (display_cage[cell_index]) return;
         const target_y = visual.y;
@@ -794,9 +794,12 @@
           const thickness = cell * (0.75 - progress * 0.45);
           const reach = Math.min(1, progress * 3.2);
           const tint = effect.color || '#ffffff';
+          // A beam stopped by a Taffy Swirl ends at that cell (effect.span = first and last cell of its reach).
+          const span_from = effect.span ? cellCenter(effect.span[0]) : null;
+          const span_to = effect.span ? cellCenter(effect.span[1]) : null;
           if (effect.direction === 'row') {
-            const left = UTIL.lerp(center.x, layout.origin_x - cell * 0.3, reach);
-            const right = UTIL.lerp(center.x, layout.origin_x + layout.width + cell * 0.3, reach);
+            const left = UTIL.lerp(center.x, span_from ? span_from.x - cell * 0.5 : layout.origin_x - cell * 0.3, reach);
+            const right = UTIL.lerp(center.x, span_to ? span_to.x + cell * 0.5 : layout.origin_x + layout.width + cell * 0.3, reach);
             const beam = ctx.createLinearGradient(0, center.y - thickness, 0, center.y + thickness);
             beam.addColorStop(0, SPRITES.rgba(tint, 0));
             beam.addColorStop(0.5, `rgba(255,255,255,${0.95 * fade})`);
@@ -804,8 +807,8 @@
             ctx.fillStyle = beam;
             ctx.fillRect(left, center.y - thickness, right - left, thickness * 2);
           } else {
-            const top = UTIL.lerp(center.y, layout.origin_y - cell * 0.3, reach);
-            const bottom = UTIL.lerp(center.y, layout.origin_y + layout.height + cell * 0.3, reach);
+            const top = UTIL.lerp(center.y, span_from ? span_from.y - cell * 0.5 : layout.origin_y - cell * 0.3, reach);
+            const bottom = UTIL.lerp(center.y, span_to ? span_to.y + cell * 0.5 : layout.origin_y + layout.height + cell * 0.3, reach);
             const beam = ctx.createLinearGradient(center.x - thickness, 0, center.x + thickness, 0);
             beam.addColorStop(0, SPRITES.rgba(tint, 0));
             beam.addColorStop(0.5, `rgba(255,255,255,${0.95 * fade})`);
@@ -1202,13 +1205,19 @@
             hooks.sound('hammer');
             hooks.haptic('medium');
             addShake(layout.cell * 0.1, 200);
-          } else if (event.type === 'frosting' || event.type === 'cocoa') {
-            const is_cocoa = event.type === 'cocoa';
-            hooks.sound(is_cocoa ? 'cocoa' : 'frosting');
-            burst(event.cell, is_cocoa ? '#8a4a25' : '#fff0f8', 12, 0.8);
+          } else if (event.type === 'gift') {
+            hooks.sound('cage');
+            burst(event.cell, '#ffd54a', 16, 1);
+            addEffect({ type: 'ring', cell: event.cell, radius: 0.9, duration: 320 });
+            const gift_visual = visuals.get(event.piece_id);
+            if (gift_visual) pending.push(popVisual(gift_visual, '#7ff0e6', 0, 14));
+          } else if (event.type === 'frosting' || event.type === 'cocoa' || event.type === 'swirl') {
+            const tones = { frosting: ['#fff0f8', '#ffd1e8'], cocoa: ['#8a4a25', '#b0683a'], swirl: ['#ff5f9e', '#fff4f8'] }[event.type];
+            hooks.sound(event.type === 'frosting' ? 'frosting' : 'cocoa');
+            burst(event.cell, tones[0], 12, 0.8);
             const visual = visuals.get(event.piece_id);
             if (visual) {
-              if (event.layers <= 0) pending.push(popVisual(visual, is_cocoa ? '#b0683a' : '#ffd1e8', 0, 12));
+              if (event.layers <= 0) pending.push(popVisual(visual, tones[1], 0, 12));
               else {
                 visual.layers = event.layers;
                 pending.push(timeline.tween(200, (t) => {
@@ -1248,7 +1257,9 @@
       const color_hex = CONFIG.CANDIES[event.color] ? CONFIG.CANDIES[event.color].base : '#ffffff';
       const center = cellXY(event.cell);
       if (event.kind === 'row' || event.kind === 'col') {
-        addEffect({ type: 'beam', cell: event.cell, direction: event.kind, color: color_hex, duration: 420 });
+        const line = event.kind === 'row' ? board.cols : board.rows;
+        const span = event.area && event.area.length < line ? [Math.min(...event.area), Math.max(...event.area)] : null;
+        addEffect({ type: 'beam', cell: event.cell, direction: event.kind, color: color_hex, duration: 420, span });
         hooks.sound('striped');
         hooks.haptic('medium');
       } else if (event.kind === 'cross' || event.kind === 'big_cross') {

@@ -15,7 +15,7 @@ const SIZES = [
 ];
 const THEMES = ['gummy', 'hard', 'sprinkle'];
 // Real shipped levels that show each board piece: cages, portals, cocoa, fuse, belt, thick frosting, hazelnuts, jelly.
-const FEATURE_LEVELS = [[19, 'cage'], [21, 'portals'], [22, 'cocoa'], [24, 'fuse'], [31, 'belt'], [36, 'frosting-3plus'], [41, 'hazelnut'], [14, 'jelly-frosting'], [17, 'timed']];
+const FEATURE_LEVELS = [[19, 'cage'], [21, 'portals'], [22, 'cocoa'], [24, 'fuse'], [31, 'belt'], [36, 'frosting-3plus'], [41, 'hazelnut'], [46, 'taffy-swirl'], [61, 'gift-box'], [14, 'jelly-frosting'], [17, 'timed']];
 
 test.describe.configure({ mode: 'parallel' });
 
@@ -217,7 +217,7 @@ test('art quality sheet: every candy, special, blocker and Pip in all three them
           }
         });
         const blockers = [['candy', 0, 'bomb', 0], ['frosting', -1, 'none', 1], ['frosting', -1, 'none', 3], ['frosting', -1, 'none', 5], ['cocoa', -1, 'none', 0], ['cherry', -1, 'none', 0],
-          ['hazelnut', -1, 'none', 0], ['cage', -1, 'none', 0], ['jelly', -1, 'none', 1], ['jelly', -1, 'none', 2]];
+          ['hazelnut', -1, 'none', 0], ['cage', -1, 'none', 0], ['jelly', -1, 'none', 1], ['jelly', -1, 'none', 2], ['swirl', -1, 'none', 1], ['gift', -1, 'none', 1]];
         blockers.forEach((args, index) => {
           const x = 10 + (index % 6) * 158;
           const y = 650 + Math.floor(index / 6) * 158;

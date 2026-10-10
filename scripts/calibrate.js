@@ -145,12 +145,19 @@ function applyRandomFloor(level, role, target, tuned, random_games) {
 }
 
 /**
- * A copy of the level with bigger goals (collect counts and special-candy orders grow by `factor`), or null when it has
- * nothing to grow (jelly, ingredients and blocker orders are fixed by the layout).
+ * A copy of the level with bigger goals (collect counts and special-candy orders grow by `factor`). A level whose goals
+ * are all fixed by the layout (jelly, ingredients, blocker orders) gets a small collect goal beside them instead, once.
+ * Null when nothing can grow.
  */
 function withBiggerGoals(level, factor) {
   let grew = false;
   const copy = JSON.parse(JSON.stringify(level));
+  if (!copy.goals.some((goal) => goal.type === 'collect' || (goal.type === 'order' && ['striped', 'wrapped', 'bomb'].indexOf(goal.item) >= 0))) {
+    if (copy.goals.length >= 2) return null;
+    const palette = copy.palette || Array.from({ length: copy.colors }, (unused, color) => color);
+    copy.goals.push({ type: 'collect', color: palette[copy.id % palette.length], count: 12 });
+    return copy;
+  }
   copy.goals.forEach((goal) => {
     if (goal.type === 'collect' && goal.count < 99) {
       goal.count = Math.min(99, Math.max(goal.count + 1, Math.round(goal.count * factor)));

@@ -136,10 +136,10 @@ test('hearts: out of hearts shows a countdown and the Unlimited hearts shortcut;
   H.expectClean(problems);
 });
 
-test('boosters: Sweet Hammer, Free Swap and Candy Whirl work without spending moves; pre-level boosters apply', async ({ page }) => {
+test('boosters: Sweet Hammer, Free Swap, Candy Whirl, Candy Brush and Sugar Party work without spending moves; pre-level boosters apply', async ({ page }) => {
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });
-  await H.seedSave(page, { unlocked: 36, stars_upto: 3 });
+  await H.seedSave(page, { unlocked: 56, stars_upto: 3 });
   await page.evaluate(() => window.SC.game.startLevel(4));
   await H.waitState(page, 'PLAYING');
   const moves = await H.levelMoves(page, 4);
@@ -169,6 +169,18 @@ test('boosters: Sweet Hammer, Free Swap and Candy Whirl work without spending mo
   await expect.poll(async () => (await H.snapshot(page)).boosters.whirl, { timeout: 20000 }).toBe(2);
   await H.waitState(page, 'PLAYING');
   expect((await H.snapshot(page)).moves_left).toBe(moves);
+  await page.click('#btn-booster-brush');
+  await expect.poll(async () => (await H.snapshot(page)).armed_booster).toBe('brush');
+  const plain = await page.evaluate(() => window.SC.game.logic.cells.findIndex((piece) => piece && piece.kind === 'candy' && piece.special === 'none'));
+  const brush_target = await cell(plain);
+  await page.touchscreen.tap(brush_target.x, brush_target.y);
+  await expect.poll(async () => (await H.snapshot(page)).boosters.brush, { timeout: 20000 }).toBe(2);
+  await H.waitState(page, 'PLAYING');
+  expect((await H.snapshot(page)).moves_left).toBe(moves);
+  // The Sugar Party clears the whole board in one blast (on this small level it may win it outright).
+  await page.click('#btn-booster-party');
+  await expect.poll(async () => (await H.snapshot(page)).boosters.party, { timeout: 30000 }).toBe(2);
+  await expect.poll(async () => (await H.snapshot(page)).state, { timeout: 30000 }).toMatch(/^(PLAYING|WON)$/);
   // Pre-level boosters from the intro: Lucky Start and Head Start.
   await page.evaluate(() => window.SC.game.goMap());
   await H.waitState(page, 'MAP');

@@ -72,15 +72,15 @@ jobs:
           if-no-files-found: ignore
 
   levels-pipeline:
-    name: levels pipeline (61-100, end to end)
+    name: levels pipeline (121-160, end to end)
     needs: levels
     permissions:
       contents: write
       pull-requests: write
     uses: ./.github/workflows/levels.yml
     with:
-      from: 61
-      to: 100
+      from: 121
+      to: 160
       games: 60
       random_games: 20
       shard_size: 10

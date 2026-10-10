@@ -51,6 +51,8 @@
           state.cells[index] = piece(token === 'c' ? KIND.CHERRY : KIND.HAZELNUT, -1, SPECIAL.NONE, 0);
           state.ingredients_total += 1;
         } else if (token === 'o') state.cells[index] = piece(KIND.COCOA, -1, SPECIAL.NONE, 1);
+        else if (token === 's') state.cells[index] = piece(KIND.SWIRL, -1, SPECIAL.NONE, 1);
+        else if (token === 'g') state.cells[index] = piece(KIND.GIFT, -1, SPECIAL.NONE, 1);
         else if (token[0] === 'f' || token[0] === 'F') {
           const layers = token === 'f' ? 1 : token === 'F' ? 2 : parseInt(token.slice(1), 10);
           if (!(layers >= 1 && layers <= LOGIC.MAX_FROSTING_LAYERS)) throw new Error(`bad token ${token}`);
@@ -207,6 +209,8 @@
             assert.strictEqual(piece.layers, layout.frosting[cell]);
           } else if (layout.cocoa[cell]) {
             assert.strictEqual(piece.kind, KIND.COCOA);
+          } else if (layout.swirl[cell] || layout.gift[cell]) {
+            assert.strictEqual(piece.kind, layout.swirl[cell] ? KIND.SWIRL : KIND.GIFT);
           } else if (layout.ingredients[cell]) {
             assert.strictEqual(piece.kind, layout.ingredients[cell] === 1 ? KIND.CHERRY : KIND.HAZELNUT);
           } else {
@@ -758,9 +762,48 @@
   // 14. Mechanics (Tier 1 plugins)
   test('mechanics', 'every layout symbol belongs to exactly one mechanic plugin', (assert) => {
     const symbols = Object.keys(LOGIC.LAYOUT_LEGEND).sort();
-    assert.deepStrictEqual(symbols, ['#', '.', '1', '2', '3', '4', '5', '<', '>', 'J', 'P', '^', 'b', 'c', 'h', 'j', 'k', 'o', 'p', 'v', 'x'].sort());
+    assert.deepStrictEqual(symbols, ['#', '.', '1', '2', '3', '4', '5', '<', '>', 'J', 'P', '^', 'b', 'c', 'g', 'h', 'j', 'k', 'o', 'p', 's', 'v', 'x'].sort());
     const ids = LOGIC.MECHANICS.map((mechanic) => mechanic.id);
-    assert.deepStrictEqual(ids, ['jelly', 'frosting', 'cage', 'cocoa', 'ingredients', 'portals', 'belt', 'fuse']);
+    assert.deepStrictEqual(ids, ['jelly', 'frosting', 'cage', 'cocoa', 'swirl', 'gift', 'ingredients', 'portals', 'belt', 'fuse']);
+  });
+
+  test('mechanics', 'Taffy Swirl: falls, never matches, breaks from a match beside it or a blast, stops a striped beam', (assert) => {
+    let state = makeTestState(['. . . . .', '. s . . .', '0 0 0 . .', '. . . . .']);
+    let ctx = runStageOnBoard(state, null);
+    assert.deepStrictEqual(ctx.events.filter((event) => event.type === 'swirl').map((event) => [event.cell, event.layers]), [[6, 0]]);
+    assert.strictEqual(state.cells[6], null, 'a match beside it breaks it');
+    assert.strictEqual(state.order.swirl, 1, 'it counts toward a swirl order');
+    // A striped candy fired in row 2 breaks the swirl at column 2 and stops there: columns 3 and 4 keep their candies.
+    state = makeTestState(['2 . . . .', '2 . . . .', '2h 3 s 4 5', '. . . . .']);
+    const right_side = [state.cells[13].id, state.cells[14].id];
+    ctx = runStageOnBoard(state, null);
+    const beam = ctx.events.find((event) => event.type === 'activate' && event.kind === 'row');
+    assert.deepStrictEqual(beam.area, [10, 11, 12], 'the beam stops at the swirl');
+    assert.strictEqual(state.cells[12], null);
+    assert.deepStrictEqual([state.cells[13].id, state.cells[14].id], right_side, 'the far side is untouched');
+    assert.strictEqual(LOGIC.findMatchGroups(makeTestState(['s s s', '. . .', '. . .'])).length, 0, 'swirls never match');
+    state = makeTestState(['. s .', '. _ .', '. . .']);
+    const swirl_id = state.cells[1].id;
+    LOGIC.internals.settleBoard(LOGIC.internals.createContext(state));
+    assert.strictEqual(state.cells[4].id, swirl_id, 'it falls like a candy');
+    assert.ok(state.cells[1] && state.cells[1].kind === KIND.CANDY, 'and a candy spawns above it');
+  });
+
+  test('mechanics', 'Gift Box: falls, never matches, opens into a special candy from a match beside it or a blast', (assert) => {
+    const state = makeTestState(['. . . . .', '. g . . .', '0 0 0 . .', '. . . . .']);
+    const gift_id = state.cells[6].id;
+    const ctx = runStageOnBoard(state, null);
+    assert.deepStrictEqual(ctx.events.filter((event) => event.type === 'gift').map((event) => [event.cell, event.piece_id]), [[6, gift_id]]);
+    const prize = state.cells[6];
+    assert.ok(prize && prize.kind === KIND.CANDY && prize.special !== SPECIAL.NONE, 'a special candy takes its place');
+    assert.strictEqual(state.order.gift, 1);
+    const level = { id: 'g', rows: 5, cols: 5, colors: 4, seed: 9, moves: 10, layout: ['.....', '.g...', '.....', '..s..', '.....'], goals: [{ type: 'order', item: 'gift', count: 1 }], stars: [1, 2, 3] };
+    assert.deepStrictEqual(LOGIC.validateLevel(level), []);
+    assert.ok(LOGIC.validateLevel(Object.assign({}, level, { goals: [{ type: 'order', item: 'gift', count: 2 }] })).length > 0, 'an order cannot ask for more gifts than the board has');
+    const game = LOGIC.createGame(level);
+    const hit = LOGIC.applyHammer(game, game.cells.findIndex((piece) => piece && piece.kind === KIND.GIFT));
+    assert.ok(hit.valid && hit.events.some((event) => event.type === 'gift'), 'the hammer opens a gift');
+    assert.deepStrictEqual(LOGIC.replayEvents(game, hit.events).cells.map((piece) => piece && piece.id), hit.state.cells.map((piece) => piece && piece.id), 'replay agrees');
   });
 
   test('mechanics', 'frosting 1-5 layers: one layer per stage from a match beside it or a blast', (assert) => {
@@ -947,7 +990,7 @@
 
   test('modes', 'every goal mode and the order items count what they say', (assert) => {
     assert.deepStrictEqual(LOGIC.GOAL_TYPES.slice().sort(), ['collect', 'ingredients', 'jelly', 'order', 'score']);
-    assert.deepStrictEqual(LOGIC.ORDER_ITEMS.slice().sort(), ['bomb', 'cage', 'cocoa', 'frosting', 'striped', 'wrapped']);
+    assert.deepStrictEqual(LOGIC.ORDER_ITEMS.slice().sort(), ['bomb', 'cage', 'cocoa', 'frosting', 'gift', 'striped', 'swirl', 'wrapped']);
     const state = makeTestState(['. . . . . .', '. . . . . .', '. 0 0h 0 . .', '. . . . . .'], { goals: [{ type: 'order', item: 'striped', count: 1 }] });
     runStageOnBoard(state, null);
     assert.strictEqual(state.order.striped, 1, 'a striped candy counts when it fires');
@@ -1034,6 +1077,24 @@
     assert.strictEqual(result.state.cage[at(state, 2, 2)], 0, 'the cage breaks');
     assert.strictEqual(result.state.cells[at(state, 2, 2)].id, state.cells[at(state, 2, 2)].id, 'the candy stays');
     assert.strictEqual(LOGIC.applyHammer(state, at(state, 3, 2)).valid, false, 'ingredients cannot be hammered');
+  });
+
+  test('boosters', 'Candy Brush paints a plain candy striped; Sugar Party blasts the whole board; neither spends a move', (assert) => {
+    const level = { id: 'bp', rows: 6, cols: 6, colors: 4, seed: 31, moves: 10, layout: ['......', '..2...', '......', '...s..', '......', '......'], goals: [{ type: 'order', item: 'swirl', count: 1 }], stars: [1, 2, 3] };
+    const game = LOGIC.createGame(level);
+    const plain = game.cells.findIndex((piece) => piece && piece.kind === KIND.CANDY && piece.special === SPECIAL.NONE);
+    const painted = LOGIC.applyBrush(game, plain);
+    assert.ok(painted.valid);
+    assert.ok([SPECIAL.STRIPE_ROW, SPECIAL.STRIPE_COL].indexOf(painted.state.cells[plain].special) >= 0, 'painted striped');
+    assert.strictEqual(painted.state.moves_left, game.moves_left, 'no move used');
+    assert.ok(!LOGIC.applyBrush(game, game.cells.findIndex((piece) => piece && piece.kind === KIND.FROSTING)).valid, 'only plain candies');
+    const party = LOGIC.applyParty(game);
+    assert.ok(party.valid && party.events.some((event) => event.type === 'activate' && event.kind === 'board'));
+    assert.strictEqual(party.state.moves_left, game.moves_left, 'no move used');
+    assert.strictEqual(party.state.order.swirl, 1, 'the swirl broke');
+    assert.ok(party.state.order.frosting >= 1, 'the frosting lost a layer');
+    assert.deepStrictEqual(LOGIC.checkBoardInvariants(party.state).filter((problem) => problem.indexOf('valid move') < 0), []);
+    assert.deepStrictEqual(LOGIC.replayEvents(game, party.events).cells.map((piece) => piece && piece.id), party.state.cells.map((piece) => piece && piece.id), 'replay agrees');
   });
 
   test('boosters', 'Free Swap, Candy Whirl, pre-level boosters and +5 Moves', (assert) => {
@@ -1296,7 +1357,7 @@
     assert.strictEqual(STORAGE.defaultSave().settings.theme, 'gummy');
     assert.strictEqual(STORAGE.defaultSave().settings.auto_hint, 'instant');
     assert.strictEqual(STORAGE.defaultSave().settings.soft_sounds, true);
-    assert.deepStrictEqual(STORAGE.BOOSTERS.map((booster) => STORAGE.defaultSave().meta.boosters[booster]), [0, 0, 0, 0, 0, 0], 'boosters come with their unlocks, not at the start');
+    assert.ok(STORAGE.BOOSTERS.every((booster) => STORAGE.defaultSave().meta.boosters[booster] === 0), 'boosters come with their unlocks, not at the start');
     // v4 -> v5: everything a v4 player already had stays unlocked (no gifts again); episodes already finished pay nothing.
     const v4 = STORAGE.parseSave(JSON.stringify({ version: 4, unlocked: 33, progress: STORAGE.encodeProgress({ stars: [3, 2, 1], scores: [100, 200, 300] }), meta: { boosters: { hammer: 2 }, streak: 7 } })).save;
     assert.deepStrictEqual(v4.meta.announced, STORAGE.LEGACY_UNLOCKS.slice(), 'boosters, wheel and chest kept; the streak is new');
