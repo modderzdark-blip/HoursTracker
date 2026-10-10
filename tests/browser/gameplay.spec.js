@@ -218,6 +218,36 @@ test('no score: the star meter follows the goals; a first-try win with moves to 
   H.expectClean(problems);
 });
 
+test('Sweet Finale: leftover moves count down as candies charge; a second tap or Back skips to the win popup', async ({ page }) => {
+  test.setTimeout(120000);
+  const problems = H.guardPage(page);
+  await H.bootGame(page, { name: '' });
+  await H.seedSave(page, { unlocked: 17, stars_upto: 16 });
+  await page.evaluate(() => window.SC.game.startLevel(16));
+  await H.waitState(page, 'PLAYING', 15000);
+  // One collected lemon finishes the level with 19 moves to spare.
+  await page.evaluate(() => {
+    const game = window.SC.game;
+    game.logic.goals = [{ type: 'collect', color: game.logic.palette[0], count: 1 }];
+    game.logic.moves_left = 20;
+  });
+  const move = await page.evaluate(() => {
+    const game = window.SC.game;
+    const hint = window.SC.LOGIC.findHint(game.logic);
+    const a = game.renderer.cellCenter(hint.from);
+    const b = game.renderer.cellCenter(hint.to);
+    return [a.x, a.y, b.x, b.y];
+  });
+  await H.swipeMove(page, move);
+  await expect.poll(async () => (await H.snapshot(page)).state, { timeout: 30000 }).toBe('WON');
+  // The moves counter ticks down while the Finale charges candies.
+  await expect.poll(async () => Number(await page.locator('#hud-moves').textContent()), { timeout: 30000 }).toBeLessThan(19);
+  await page.keyboard.press('Escape');
+  await H.waitForModal(page, 'win', 15000);
+  await expect(page.locator('#hud-moves')).toHaveText('0');
+  H.expectClean(problems);
+});
+
 test('pause, restart and quit in the middle of an animation never leave a stuck state', async ({ page }) => {
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });

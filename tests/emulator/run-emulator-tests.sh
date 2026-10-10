@@ -405,7 +405,9 @@ pass "3 minutes of play: $played moves, metrics recorded"
 
 # --- The map at a seeded level-19,000 save: live nodes, frame pacing while flinging, memory, save size and parse time.
 # The save is written through the game's own store over the debug WebView's DevTools socket (debug builds only).
-for attempt in $(seq 1 12); do
+# The play loop may have stopped mid-win: Back skips the Sweet Finale, then closes the win popup, the map, ... (the
+# emulator renders a few frames a second, so game time runs slower than the clock: allow plenty of presses).
+for attempt in $(seq 1 20); do
   case "$(q 's.modal || s.state')" in
     TITLE) break ;;
     confirm-quit) tap_button "btn-confirm-quit-yes"; sleep 1.5 ;;

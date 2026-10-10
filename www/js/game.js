@@ -43,6 +43,7 @@
     let armed_booster = null;
     let booster_lesson = null; // a booster just unlocked: the pointer shows how to use it in this level
     let guide = null; // a guided tutorial in progress: { steps, index, move } (the first levels, like the original)
+    let finale_skip = null; // while the Sweet Finale plays: skips straight to its end
     let continues_used = 0; // +5 Moves bought in this attempt (each one costs more)
     let announcing = false;
     let time_used_ms = 0;
@@ -449,6 +450,7 @@
       armed_booster = null;
       booster_lesson = null;
       guide = null;
+      finale_skip = null;
       renderer.setSpotlight(null);
       ui.swipeHint(null);
       ui.pointAt(null);
@@ -1051,12 +1053,26 @@
         tracker = createTracker(logic_state);
         const strikes = (bonus.events.find((event) => event.type === 'end') || {}).bonus_moves || 0;
         renderer.setSpeed(speed_base * (strikes > 15 ? 1.45 : strikes > 8 ? 1.25 : 1.1));
-        const fastForward = () => renderer.setSpeed(speed_base * 6);
-        dom.app.addEventListener('pointerdown', fastForward);
-        const finished = await renderer.playEvents(bonus.events, playbackHooks());
-        dom.app.removeEventListener('pointerdown', fastForward);
+        // A tap fast-forwards the Finale; a second tap (or Back) skips straight to its end.
+        let skipNow = null;
+        const skipped = new Promise((resolve) => {
+          skipNow = () => resolve('skip');
+        });
+        let taps = 0;
+        const onTap = () => {
+          taps += 1;
+          if (taps === 1) renderer.setSpeed(speed_base * 6);
+          else skipNow();
+        };
+        finale_skip = skipNow;
+        dom.app.addEventListener('pointerdown', onTap);
+        const outcome = await Promise.race([renderer.playEvents(bonus.events, playbackHooks()), skipped]);
+        dom.app.removeEventListener('pointerdown', onTap);
+        finale_skip = null;
         renderer.setSpeed(speed_base);
-        if (!finished || level !== level_at_start) return;
+        if (level !== level_at_start) return;
+        if (outcome === 'skip') renderer.cancelAll();
+        else if (!outcome) return;
         logic_state = bonus.state;
         renderer.syncToState(logic_state);
         tracker = createTracker(logic_state);
@@ -1268,6 +1284,10 @@
       if (machine === STATE.PLAYING || machine === STATE.RESOLVING) {
         openPause();
         return 'pause';
+      }
+      if (machine === STATE.WON && finale_skip) {
+        finale_skip();
+        return 'skip-finale';
       }
       if (machine === STATE.MAP || machine === STATE.INTRO) {
         goTitle();
