@@ -1764,6 +1764,18 @@
       else state.moves_left += 3;
       emit(ctx, { type: 'booster', booster: 'head_start', cell: -1, moves_left: state.moves_left, time_limit: state.time_limit });
     }
+    // Sweet Streak bag: { striped, wrapped, bomb, moves } (moves are 3 seconds each on timed levels).
+    const bag = wanted.streak_bag;
+    if (bag) {
+      for (let count = 0; count < (bag.striped || 0); count += 1) transform(rngNext(state) < 0.5 ? SPECIAL.STRIPE_ROW : SPECIAL.STRIPE_COL);
+      for (let count = 0; count < (bag.wrapped || 0); count += 1) transform(SPECIAL.WRAPPED);
+      for (let count = 0; count < (bag.bomb || 0); count += 1) transform(SPECIAL.BOMB);
+      if (bag.moves) {
+        if (state.timed) state.time_limit += 3 * bag.moves;
+        else state.moves_left += bag.moves;
+        emit(ctx, { type: 'booster', booster: 'streak', cell: -1, moves_left: state.moves_left, time_limit: state.time_limit });
+      }
+    }
     return { state, events: ctx.events };
   }
 

@@ -10,7 +10,7 @@
   save.player_name = live.player_name || '';
   save.name_asked = true;
   save.settings = Object.assign({}, live.settings, { comfort_done: true });
-  save.meta = Object.assign({}, live.meta, { in_progress: 0 });
+  save.meta = Object.assign({}, live.meta, { in_progress: 0, announced: window.SC.META.UNLOCKS.map((unlock) => unlock.id) });
   const started = performance.now();
   for (let level = 1; level < 19000; level += 1) STORAGE.recordResult(save, level, { won: true, score: 9000 + (level % 9) * 1000, stars: 1 + (level % 3) });
   save.unlocked = 19000;

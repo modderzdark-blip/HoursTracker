@@ -35,8 +35,49 @@
     clock: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M12 7v5l3.5 2" stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round"/></svg>',
   };
 
+  ICONS.crown = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 8.5l4.2 3.6L12 5l4.3 7.1 4.2-3.6-1.6 9.5H5.1z" fill="#ffcf3f" stroke="#a5620a" stroke-width="1.4" stroke-linejoin="round"/><rect x="5" y="18.2" width="14" height="2.6" rx="1.1" fill="#ffb21f" stroke="#a5620a" stroke-width="1.2"/><circle cx="12" cy="13.6" r="1.5" fill="#ff5d8f"/></svg>';
+  ICONS.hand = '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M17.5 7.5c2.1 0 3.6 1.6 3.6 3.6v13.2l1.4-.3V20c0-2 1.6-3.5 3.5-3.5S29.5 18 29.5 20v3.6l1.2-.2c.3-1.8 1.8-3 3.5-3 2 0 3.5 1.6 3.5 3.6v.6c1.7.2 3 1.6 3 3.4v6.4c0 6.6-5.3 11.6-11.9 11.6h-3.5c-4 0-7.5-1.9-9.8-5.1L9.2 31.7c-1-1.5-.7-3.5.7-4.6 1.4-1.1 3.5-.9 4.6.5l-.5-.6V11.1c0-2 1.5-3.6 3.5-3.6z" fill="#fff" stroke="#3b1a4a" stroke-width="2.4" stroke-linejoin="round"/><path d="M21.1 24.3v6M29.5 23.6v6.4M37.7 24.6v5.6" stroke="#3b1a4a" stroke-width="2" stroke-linecap="round" opacity="0.35"/></svg>';
+
   function icon(name) {
     return ICONS[name] || '';
+  }
+
+  /** Art for an unlock popup or a booster tile: the booster's icon, or the feature's emblem. */
+  function unlockArt(id) {
+    if (id === 'hammer') return `<span class="unlock-glyph">${ICONS.hammer}</span>`;
+    if (id === 'free_swap') return `<span class="unlock-glyph is-ink">${ICONS.swap}</span>`;
+    if (id === 'whirl') return `<span class="unlock-glyph is-ink">${ICONS.whirl}</span>`;
+    if (id === 'lucky') return `<img src="${spriteUrl('wrapped:3', 72)}" alt="">`;
+    if (id === 'rainbow') return `<img src="${spriteUrl('bomb', 72)}" alt="">`;
+    if (id === 'head_start') return '<span class="head-start big">+3</span>';
+    if (id === 'wheel') return `<span class="unlock-glyph">${ICONS.wheel}</span>`;
+    if (id === 'chest') return `<img src="${SPRITES.iconUrl('star', 144)}" alt="">`;
+    if (id === 'streak') return `<span class="streak-art"><img src="${spriteUrl('stripe_row:0', 44)}" alt=""><img src="${spriteUrl('wrapped:4', 44)}" alt=""><img src="${spriteUrl('bomb', 44)}" alt=""></span>`;
+    return '';
+  }
+
+  /** Small candy icons for a Sweet Streak bag ({striped, wrapped, bomb, moves}). */
+  function bagHtml(bag, size) {
+    if (!bag) return '';
+    let html = '';
+    const add = (count, key) => {
+      for (let index = 0; index < (count || 0); index += 1) html += `<img src="${spriteUrl(key, size)}" alt="">`;
+    };
+    add(bag.striped, 'stripe_row:0');
+    add(bag.wrapped, 'wrapped:4');
+    add(bag.bomb, 'bomb');
+    if (bag.moves) html += `<span class="bag-moves">+${bag.moves}</span>`;
+    return html;
+  }
+
+  function bagText(bag) {
+    if (!bag) return '';
+    const parts = [];
+    if (bag.striped) parts.push(`${bag.striped} striped`);
+    if (bag.wrapped) parts.push(`${bag.wrapped} wrapped`);
+    if (bag.bomb) parts.push(`${bag.bomb} Rainbow Drop`);
+    if (bag.moves) parts.push(`${bag.moves} extra moves`);
+    return parts.join(', ');
   }
 
   // ---------------------------------------------------------------- shaded images for the DOM
@@ -259,11 +300,15 @@
         }
         by_id('map-gold-count').textContent = String(status.gold);
         by_id('map-gold').setAttribute('aria-label', `${status.gold} Gold Drops`);
-        by_id('btn-map-wheel').classList.toggle('is-ready', status.wheel_ready);
-        by_id('btn-map-wheel').setAttribute('aria-label', status.wheel_ready ? 'Daily Wheel: a free spin is ready' : 'Daily Wheel');
+        const wheel = by_id('btn-map-wheel');
+        wheel.hidden = !!status.wheel_locked;
+        wheel.classList.toggle('is-ready', status.wheel_ready && !status.wheel_locked);
+        wheel.setAttribute('aria-label', status.wheel_ready ? 'Daily Wheel: a free spin is ready' : 'Daily Wheel');
+        const chest = by_id('btn-map-chest');
+        chest.hidden = !!status.chest_locked;
         by_id('map-chest-progress').textContent = `${status.chest_progress}/${META.CHEST_STARS}`;
-        by_id('btn-map-chest').classList.toggle('is-ready', status.chest_progress >= META.CHEST_STARS);
-        by_id('btn-map-chest').setAttribute('aria-label', `Star Chest: ${status.chest_progress} of ${META.CHEST_STARS} stars`);
+        chest.classList.toggle('is-ready', status.chest_progress >= META.CHEST_STARS);
+        chest.setAttribute('aria-label', `Star Chest: ${status.chest_progress} of ${META.CHEST_STARS} stars`);
       },
 
       // ------------------------------------------------------------ HUD
@@ -373,16 +418,54 @@
         dom.btn_sound.classList.toggle('is-off', !sound_on);
       },
       /** Booster bar: counts (0 shows a "+" to buy with Gold Drops), the armed booster highlighted. */
-      setBoosters(counts, armed, enabled) {
+      /** locks: { booster: unlock level } for the boosters not unlocked yet (they show a lock). */
+      setBoosters(counts, armed, enabled, locks) {
         document.querySelectorAll('.booster').forEach((booster_button) => {
           const name = booster_button.dataset.booster;
           const count = counts[name] || 0;
-          booster_button.querySelector('.booster-count').textContent = count > 0 ? String(count) : '+';
-          booster_button.classList.toggle('is-empty', count <= 0);
+          const locked_at = locks && locks[name] ? locks[name] : 0;
+          const badge = booster_button.querySelector('.booster-count');
+          if (locked_at) badge.innerHTML = icon('lock');
+          else badge.textContent = count > 0 ? String(count) : '+';
+          booster_button.classList.toggle('is-locked', !!locked_at);
+          booster_button.classList.toggle('is-empty', !locked_at && count <= 0);
           booster_button.classList.toggle('is-armed', armed === name);
           booster_button.disabled = !enabled;
-          booster_button.setAttribute('aria-label', `${META.BOOSTER_NAMES[name]}, ${count > 0 ? `${count} left` : `buy for ${META.PRICES[name]} Gold Drops`}${armed === name ? ', selected' : ''}`);
+          booster_button.setAttribute('aria-label', locked_at ? `${META.BOOSTER_NAMES[name]}, unlocks at level ${locked_at}`
+            : `${META.BOOSTER_NAMES[name]}, ${count > 0 ? `${count} left` : `buy for ${META.PRICES[name]} Gold Drops`}${armed === name ? ', selected' : ''}`);
         });
+      },
+      /**
+       * The tap pointer: a hand that taps on `target` (an element, or a {x, y} point in page pixels) with an optional
+       * label, used to show a new booster. Passing null hides it.
+       */
+      pointAt(target, label) {
+        let pointer = by_id('tap-pointer');
+        if (!target) {
+          if (pointer) pointer.classList.remove('is-showing');
+          return;
+        }
+        if (!pointer) {
+          pointer = element('div', 'tap-pointer', { id: 'tap-pointer', 'aria-hidden': 'true' });
+          pointer.innerHTML = `<span class="tap-ring"></span><span class="tap-hand">${icon('hand')}</span><span class="tap-label"></span>`;
+          dom.app.appendChild(pointer);
+        }
+        let point = target;
+        if (target instanceof Element) {
+          const rect = target.getBoundingClientRect();
+          point = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        }
+        const app_rect = dom.app.getBoundingClientRect();
+        pointer.style.left = `${Math.round(point.x - app_rect.left)}px`;
+        pointer.style.top = `${Math.round(point.y - app_rect.top)}px`;
+        const label_node = pointer.querySelector('.tap-label');
+        label_node.textContent = label || '';
+        label_node.hidden = !label;
+        // Keep the label on screen: it sits above the hand, shifted toward the middle of the screen.
+        const shift = Math.max(-120, Math.min(120, app_rect.width / 2 - (point.x - app_rect.left)));
+        label_node.style.transform = `translateX(calc(-50% + ${Math.round(shift)}px))`;
+        pointer.classList.toggle('is-low', point.y - app_rect.top > app_rect.height * 0.55);
+        pointer.classList.add('is-showing');
       },
       /** Pip in the corner of the game screen: reacts to big combos, points at the hint in the first levels. */
       pip(expression, duration_ms, angle) {
@@ -593,15 +676,21 @@
       },
 
       /**
-       * Level intro: name, role ribbon, goals, moves or time, best stars, pre-level boosters, Pip's tip for a new idea.
-       * data: { best: {stars, score}, boosters: {lucky, rainbow, head_start}, hearts_on }.
+       * Level intro: name, role ribbon, goals, moves or time, best stars, pre-level boosters, Pip's tip for a new idea,
+       * the Sweet Streak meter. data: { best: {stars, score}, boosters: {lucky, rainbow, head_start}, hearts_on,
+       * locks: {booster: unlock level}, try_booster, streak: {on, count, bag, new_level} | null, crown }.
        */
       showIntro(level, data, actions) {
         const chosen = { lucky: false, rainbow: false, head_start: false };
+        let pointer_timer = null;
         return ui.openModal({
           id: 'intro',
           back: (handle) => handle.close(),
-          on_close: actions.closed,
+          on_close: () => {
+            clearTimeout(pointer_timer);
+            ui.pointAt(null);
+            if (actions.closed) actions.closed();
+          },
           build(modal, handle) {
             modal.classList.add('intro');
             modal.appendChild(iconButton('close', 'Close', () => {
@@ -614,6 +703,7 @@
             modal.appendChild(glossyHeading('h2', level.name, 'modal-title'));
             const stars = element('div', 'star-row');
             for (let index = 0; index < 3; index += 1) stars.insertAdjacentHTML('beforeend', icon(data.best.stars > index ? 'star' : 'star_empty'));
+            if (data.crown) stars.insertAdjacentHTML('beforeend', `<span class="intro-crown" title="Won on the first try">${icon('crown')}</span>`);
             modal.appendChild(stars);
             const goals = element('div', 'intro-goals');
             level.goals.forEach((goal) => {
@@ -638,14 +728,37 @@
               tip.appendChild(element('p', '', { text: level.tip }));
               modal.appendChild(tip);
             }
+            if (data.streak && data.streak.on) {
+              const streak = element('div', 'streak-meter');
+              let pips = '';
+              for (let index = 0; index < META.STREAK_MAX; index += 1) pips += `<i class="${index < data.streak.count ? 'is-on' : ''}"></i>`;
+              streak.innerHTML = `<div class="streak-head"><strong>Sweet Streak</strong><span class="streak-pips" aria-hidden="true">${pips}</span></div>`;
+              let line;
+              if (!data.streak.new_level) line = 'Replays do not change your streak.';
+              else if (data.streak.bag) line = `<span>Starts with:</span><span class="bag">${bagHtml(data.streak.bag, 26)}</span>`;
+              else line = 'Win on the first try to start a streak!';
+              streak.appendChild(element('div', 'streak-line', { html: line }));
+              streak.setAttribute('aria-label', `Sweet Streak ${data.streak.count}${data.streak.bag && data.streak.new_level ? `: this level starts with ${bagText(data.streak.bag)}` : ''}`);
+              modal.appendChild(streak);
+            }
             const booster_row = element('div', 'intro-boosters', { role: 'group', 'aria-label': 'Pre-level boosters' });
             [['lucky', 'wrapped:3', 'Lucky Start'], ['rainbow', 'bomb', 'Rainbow Start'], ['head_start', null, level.time ? '+10 seconds' : '+3 moves']].forEach(([name, sprite_key, label]) => {
               const count = data.boosters[name] || 0;
-              const toggle = element('button', `intro-booster${count ? '' : ' is-empty'}`, { type: 'button', role: 'switch', 'aria-checked': 'false', id: `intro-booster-${name}` });
-              toggle.innerHTML = `${sprite_key ? `<img src="${spriteUrl(sprite_key, 40)}" alt="">` : `<span class="head-start">${level.time ? '+10s' : '+3'}</span>`}<small>${label}</small><b>${count || '+'}</b>`;
-              toggle.setAttribute('aria-label', `${META.BOOSTER_NAMES[name]}, ${count ? `${count} owned` : `buy for ${META.PRICES[name]} Gold Drops`}`);
+              const locked_at = data.locks && data.locks[name] ? data.locks[name] : 0;
+              const toggle = element('button', `intro-booster${locked_at ? ' is-locked' : count ? '' : ' is-empty'}`, { type: 'button', role: 'switch', 'aria-checked': 'false', id: `intro-booster-${name}` });
+              toggle.innerHTML = `${sprite_key ? `<img src="${spriteUrl(sprite_key, 40)}" alt="">` : `<span class="head-start">${level.time ? '+10s' : '+3'}</span>`}<small>${locked_at ? `Level ${locked_at}` : label}</small><b>${locked_at ? icon('lock') : count || '+'}</b>`;
+              toggle.setAttribute('aria-label', locked_at ? `${META.BOOSTER_NAMES[name]}, unlocks at level ${locked_at}`
+                : `${META.BOOSTER_NAMES[name]}, ${count ? `${count} owned` : `buy for ${META.PRICES[name]} Gold Drops`}`);
+              if (data.try_booster === name && !locked_at) {
+                pointer_timer = setTimeout(() => ui.pointAt(toggle, `Tap to use your free ${META.BOOSTER_NAMES[name]}!`), 450);
+              }
               toggle.addEventListener('click', () => {
                 clickSound();
+                if (data.try_booster === name) ui.pointAt(null);
+                if (locked_at) {
+                  ui.toast(`${META.BOOSTER_NAMES[name]} unlocks at level ${locked_at}`);
+                  return;
+                }
                 if (!(data.boosters[name] > 0)) {
                   actions.buy(name).then((bought) => {
                     if (!bought) return;
@@ -675,6 +788,76 @@
             column.appendChild(play);
             modal.appendChild(column);
           },
+        });
+      },
+
+      /** A booster or feature just unlocked (META.UNLOCKS entry). Resolves when closed. */
+      showUnlock(unlock) {
+        return new Promise((resolve) => {
+          ui.openModal({
+            id: 'unlock',
+            back: (handle) => handle.close(),
+            on_close: () => resolve(),
+            build(modal, handle) {
+              modal.classList.add('unlock');
+              modal.appendChild(element('p', 'unlock-kicker', { text: unlock.kind === 'booster' ? 'New booster!' : 'New feature!' }));
+              const art = element('div', 'unlock-art', { html: `<span class="unlock-rays" aria-hidden="true"></span>${unlockArt(unlock.id)}` });
+              modal.appendChild(art);
+              modal.appendChild(glossyHeading('h2', unlock.title, 'modal-title'));
+              modal.appendChild(element('p', 'unlock-text', { text: unlock.text }));
+              if (unlock.gift) modal.appendChild(element('div', 'reward-row', { html: `<span class="reward">${unlock.gift} free!</span>` }));
+              const ok = button(unlock.kind === 'booster' ? 'Great!' : 'Got it!', 'pill pill-big', () => {
+                clickSound();
+                handle.close();
+              });
+              ok.id = 'btn-unlock-ok';
+              ok.setAttribute('data-autofocus', '');
+              const column = element('div', 'button-column');
+              column.appendChild(ok);
+              modal.appendChild(column);
+              hooks.sound('reward');
+            },
+          });
+        });
+      },
+
+      /**
+       * Episode finale cleared for the first time. data: { episode, name, stars, max_stars, crowns, levels, reward:
+       * {gold, booster}, next: {episode, name} | null }. Resolves when closed.
+       */
+      showEpisodeComplete(data) {
+        return new Promise((resolve) => {
+          ui.openModal({
+            id: 'episode',
+            back: (handle) => handle.close(),
+            on_close: () => resolve(),
+            build(modal, handle) {
+              modal.classList.add('episode-done');
+              modal.appendChild(element('div', 'unlock-art', { html: `<span class="unlock-rays" aria-hidden="true"></span>${pipImage('cheer', 84).outerHTML}` }));
+              modal.appendChild(element('p', 'unlock-kicker', { text: `Episode ${data.episode} complete!` }));
+              modal.appendChild(glossyHeading('h2', data.name, 'modal-title'));
+              const tally = element('div', 'episode-tally');
+              tally.appendChild(element('span', '', { html: `${icon('star')}<b>${data.stars}</b>/${data.max_stars}` }));
+              tally.appendChild(element('span', '', { html: `${icon('crown')}<b>${data.crowns}</b>/${data.levels}` }));
+              modal.appendChild(tally);
+              const rewards = element('div', 'reward-row');
+              rewards.appendChild(element('span', 'reward', { html: `<img src="${SPRITES.iconUrl('gold', 48)}" alt="">+${data.reward.gold}` }));
+              if (data.reward.booster) rewards.appendChild(element('span', 'reward', { text: `+1 ${META.BOOSTER_NAMES[data.reward.booster]}` }));
+              modal.appendChild(rewards);
+              if (data.next) modal.appendChild(element('p', 'episode-next', { text: `Next: Episode ${data.next.episode}, ${data.next.name}` }));
+              const ok = button('Continue', 'pill pill-big', () => {
+                clickSound();
+                handle.close();
+              });
+              ok.id = 'btn-episode-continue';
+              ok.setAttribute('data-autofocus', '');
+              const column = element('div', 'button-column');
+              column.appendChild(ok);
+              modal.appendChild(column);
+              hooks.sound('win');
+              hooks.haptic('heavy');
+            },
+          });
         });
       },
 
@@ -715,7 +898,10 @@
         });
       },
 
-      /** data: { score, stars, is_new_best, player_name, win_message, has_next, rewards: {gold, streak_reward, chest_ready}, streak } */
+      /**
+       * data: { score, stars, is_new_best, player_name, win_message, has_next, crown, rewards: {gold, chest_ready},
+       * streak: the Sweet Streak after this win (0 = none shown), streak_on }
+       */
       showWin(data, actions) {
         const timers = [];
         let count_frame = 0;
@@ -748,8 +934,8 @@
             modal.appendChild(best);
             const rewards = element('div', 'reward-row');
             if (data.rewards.gold) rewards.appendChild(element('span', 'reward', { html: `<img src="${SPRITES.iconUrl('gold', 48)}" alt="">+${data.rewards.gold}` }));
-            if (data.rewards.streak_reward) rewards.appendChild(element('span', 'reward', { text: `Sweet Streak! +1 ${META.BOOSTER_NAMES[data.rewards.streak_reward]}` }));
-            else if (data.streak > 0) rewards.appendChild(element('span', 'reward is-quiet', { text: `Streak ${data.streak % META.STREAK_LENGTH || META.STREAK_LENGTH}/${META.STREAK_LENGTH}` }));
+            if (data.crown) rewards.appendChild(element('span', 'reward is-crown', { html: `${icon('crown')}First try!` }));
+            if (data.streak_on && data.streak > 0) rewards.appendChild(element('span', 'reward is-streak', { html: `Sweet Streak ${data.streak}! <span class="bag">${bagHtml(META.streakBag(data.streak), 20)}</span>` }));
             if (data.rewards.chest_ready) rewards.appendChild(element('span', 'reward', { text: 'Star Chest ready!' }));
             modal.appendChild(rewards);
             const column = element('div', 'button-column');
@@ -825,7 +1011,11 @@
               summary.appendChild(card);
             });
             modal.appendChild(summary);
-            modal.appendChild(element('p', 'pip-says', { text: 'Pip says: every try teaches the board a little better. You can do it!' }));
+            if (data.streak_at_risk > 0) {
+              modal.appendChild(element('p', 'streak-warning', { html: `<span>Giving up ends your <b>Sweet Streak of ${data.streak_at_risk}</b>!</span>` }));
+            } else {
+              modal.appendChild(element('p', 'pip-says', { text: 'Pip says: every try teaches the board a little better. You can do it!' }));
+            }
             const column = element('div', 'button-column');
             if (data.can_continue) {
               const plus = button('', 'pill pill-big gold', () => {

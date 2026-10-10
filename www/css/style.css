@@ -585,3 +585,71 @@ input[type="range"] { width: 130px; height: 36px; accent-color: var(--btn2); }
 .map-node .node-number.digits-5 { font-size: 17px; letter-spacing: -0.02em; }
 /* Softer gloss on the nodes: an elliptical sheen instead of a dot, so numbers stay readable. */
 .map-node { background: radial-gradient(ellipse 48% 26% at 50% 22%, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0) 70%), radial-gradient(circle at 50% 40%, var(--node1, #ff7fc4), var(--node2, #d42a7c)); }
+
+/* ---------------------------------------------------------------- progression (v1.4) */
+/* Gold Crown: a level won on the very first try turns gold with a crown on top. */
+.map-node.is-crowned { --node1: #ffe58a; --node2: #f2a800; --node3: #9a6200; }
+.map-node .node-crown { position: absolute; left: 50%; top: -22px; transform: translateX(-50%) rotate(-8deg); width: 34px; height: 34px; filter: drop-shadow(0 2px 2px rgba(90, 40, 0, 0.45)); }
+.map-node .node-crown svg { width: 34px; height: 34px; display: block; }
+.intro-crown { display: inline-flex; margin-left: 6px; }
+.intro-crown svg { width: 30px; height: 30px; }
+[hidden] { display: none !important; }
+
+/* Locked boosters show a lock and the level that unlocks them. */
+.booster.is-locked { filter: grayscale(0.85); opacity: 0.75; }
+.booster.is-locked .booster-count { background: #7d6a8f; display: grid; place-items: center; padding: 0; width: 22px; }
+.booster.is-locked .booster-count svg { width: 13px; height: 13px; }
+.intro-booster.is-locked { filter: grayscale(0.9); opacity: 0.7; cursor: default; }
+.intro-booster.is-locked b { background: #7d6a8f; display: grid; place-items: center; padding: 0; width: 22px; }
+.intro-booster.is-locked b svg { width: 13px; height: 13px; }
+
+/* The tap pointer that teaches a new booster. */
+.tap-pointer { position: absolute; z-index: 45; width: 0; height: 0; pointer-events: none !important; opacity: 0; transition: opacity 0.25s ease; }
+.tap-pointer.is-showing { opacity: 1; }
+.tap-ring { position: absolute; left: -30px; top: -30px; width: 60px; height: 60px; border-radius: 50%; border: 4px solid #fff; box-shadow: 0 0 0 3px rgba(224, 56, 142, 0.7), 0 0 18px rgba(255, 255, 255, 0.9); }
+.app:not(.reduced-motion) .tap-ring { animation: tap-ring 1.2s ease-out infinite; }
+@keyframes tap-ring { 0% { transform: scale(0.5); opacity: 0; } 30% { opacity: 1; } 100% { transform: scale(1.25); opacity: 0; } }
+.tap-hand { position: absolute; left: -6px; top: 2px; width: 54px; height: 54px; filter: drop-shadow(0 4px 4px rgba(40, 10, 40, 0.4)); }
+.tap-hand svg { width: 54px; height: 54px; display: block; transform: rotate(-18deg); }
+.app:not(.reduced-motion) .tap-hand { animation: tap-hand 1.2s ease-in-out infinite; }
+@keyframes tap-hand { 0%, 100% { transform: translate(14px, 18px); } 35% { transform: translate(0, 0) scale(0.92); } 50% { transform: translate(0, 0) scale(0.92); } }
+.tap-label { position: absolute; left: 0; bottom: 44px; white-space: nowrap; padding: 6px 12px; border-radius: 14px; background: #fff; color: var(--ink); font-size: 15px; font-weight: 900; box-shadow: 0 4px 12px rgba(40, 10, 40, 0.3), inset 0 -3px 0 #f2c6dd; }
+.tap-pointer:not(.is-low) .tap-label { bottom: auto; top: 64px; }
+
+/* Unlock and episode popups. */
+.modal.unlock, .modal.episode-done { text-align: center; }
+.unlock-kicker { margin: 0; font-size: 15px; font-weight: 900; letter-spacing: 0.06em; text-transform: uppercase; color: #e0388e; }
+.unlock-art { position: relative; width: 132px; height: 132px; margin: 6px auto 2px; display: grid; place-items: center; }
+.unlock-art > img, .unlock-art > .unlock-glyph, .unlock-art > .head-start, .unlock-art > .streak-art, .unlock-art > .pip-image { position: relative; z-index: 1; }
+.unlock-art > img { width: 92px; height: 92px; }
+.unlock-rays { position: absolute; inset: -16px; border-radius: 50%; background: repeating-conic-gradient(rgba(255, 211, 77, 0.55) 0 12deg, rgba(255, 211, 77, 0) 12deg 30deg); -webkit-mask: radial-gradient(circle, #000 35%, transparent 70%); mask: radial-gradient(circle, #000 35%, transparent 70%); }
+.app:not(.reduced-motion) .unlock-rays { animation: rays-spin 9s linear infinite; }
+@keyframes rays-spin { to { transform: rotate(360deg); } }
+.unlock-glyph { display: grid; place-items: center; width: 96px; height: 96px; border-radius: 28px; background: linear-gradient(180deg, #ffffff, #ffe7f3); box-shadow: 0 5px 0 #f2c6dd, 0 10px 18px rgba(80, 10, 60, 0.2); }
+.unlock-glyph svg { width: 64px; height: 64px; }
+.unlock-glyph.is-ink { color: #e0388e; }
+.head-start.big { font-size: 54px; font-weight: 900; color: #e0388e; text-shadow: 0 3px 0 #fff, 0 6px 10px rgba(80, 10, 60, 0.25); }
+.streak-art { display: flex; gap: 2px; }
+.streak-art img { width: 40px; height: 40px; }
+.unlock-text { margin: 4px 8px 0; font-size: 16px; font-weight: 700; line-height: 1.35; }
+.episode-tally { display: flex; justify-content: center; gap: 18px; margin-top: 8px; font-size: 20px; font-weight: 900; }
+.episode-tally span { display: inline-flex; align-items: center; gap: 4px; }
+.episode-tally svg { width: 30px; height: 30px; }
+.episode-tally b { font-size: 24px; }
+.episode-next { margin: 10px 0 0; font-weight: 800; opacity: 0.85; }
+
+/* Sweet Streak meter on the level popup, and the win/lose lines. */
+.streak-meter { margin: 10px auto 0; max-width: 340px; padding: 8px 12px; border-radius: 16px; background: linear-gradient(180deg, #fff6d6, #ffe9a8); box-shadow: inset 0 -3px 0 rgba(199, 136, 0, 0.25); }
+.streak-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 15px; }
+.streak-pips { display: flex; gap: 5px; }
+.streak-pips i { width: 16px; height: 16px; border-radius: 50%; background: #ffffff; box-shadow: inset 0 0 0 2px #e6b84a; }
+.streak-pips i.is-on { background: radial-gradient(circle at 35% 30%, #fff 0 18%, transparent 20%), linear-gradient(180deg, #ff8ac6, #e0388e); box-shadow: 0 0 0 2px #fff, 0 2px 4px rgba(120, 20, 70, 0.35); }
+.streak-line { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 4px; font-size: 13px; font-weight: 800; }
+.bag { display: inline-flex; align-items: center; gap: 1px; }
+.bag img { width: 24px; height: 24px; }
+.reward .bag img { width: 20px; height: 20px; }
+.bag-moves { font-weight: 900; color: #e0388e; margin-left: 2px; }
+.reward.is-crown { background: linear-gradient(180deg, #fff1a8, #ffd25a); }
+.reward.is-crown svg { width: 22px; height: 22px; }
+.reward.is-streak { background: linear-gradient(180deg, #ffe0f0, #ffc4e2); box-shadow: 0 2px 0 #e08ab4; }
+.streak-warning { margin: 10px 4px 0; padding: 8px 12px; border-radius: 14px; background: #ffe3ec; color: #a3123f; font-weight: 800; }

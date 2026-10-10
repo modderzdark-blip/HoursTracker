@@ -61,8 +61,20 @@ The repository is public, so you don't need to sign in to download.
   3 s, 8 s or Off; the bulb button shows it any time. Hints prefer the move that wins, then goal progress, then specials.
 * **Meta game:** Hearts (5, one refills every 30 minutes; Settings → Unlimited hearts turns them off), Gold Drops
   earned by winning, the boosters Sweet Hammer, Free Swap and Candy Whirl in a level, Lucky Start, Rainbow Start and
-  Head Start before a level, **+5 Moves** (or +15 seconds) when you run out, the Daily Wheel, the Sweet Streak (a reward
-  every 3 wins in a row) and the Star Chest (every 25 stars). Everything is earned in play; nothing is sold.
+  Head Start before a level, **+5 Moves** (or +15 seconds) when you run out (60, then 90, 140, 190, 240 Gold Drops
+  within one attempt), the Daily Wheel and the Star Chest (every 25 stars). Everything is earned in play; nothing is
+  sold.
+* **Progression** (paced on the original's first episodes, `META.UNLOCKS`): boosters and features unlock one at a time
+  as you advance, with a popup, free boosters and a hand pointer that shows how to use each new booster in the next
+  level: Sweet Hammer at level 7 (3 free), Rainbow Start 10 (2), Daily Wheel 12, Free Swap 16 (3), Star Chest 20, Lucky
+  Start 22 (2), Sweet Streak 25, Candy Whirl 28 (3), Head Start 35 (2). Locked boosters show a lock and their level.
+* **Sweet Streak:** win new levels on the first try, one after another, and the next new level starts with special
+  candies already on the board: 1 striped; then striped + wrapped; then + a Rainbow Drop; then 2 striped, wrapped,
+  Rainbow Drop and +2 moves; from 5 wins on, 2 striped, 2 wrapped, a Rainbow Drop and +3 moves. Losing, restarting or
+  quitting a new level ends the streak (the game warns you first); replays never count.
+* **Gold Crowns:** a level won on its very first attempt turns gold on the map with a crown (+5 Gold Drops).
+* **Episodes:** clearing an episode's last level for the first time shows the episode's stars and crowns and pays a
+  reward (Gold Drops plus a booster), then the map moves on to the next episode.
 * **Level start and end:** the candies drop onto the board while a ribbon sweeps across with the goals. A win plays
   "Sweet Victory!" and then the **Sweet Finale** (moves left turn into striped candies that fire for bonus points). A
   loss pops "Out of moves!" (or "Time's up!") over the board before the keep-going popup, and giving up cracks a heart.

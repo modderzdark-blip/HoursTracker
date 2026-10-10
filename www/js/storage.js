@@ -4,13 +4,15 @@
 //
 // Save v4 is built for 20,000+ levels: per-level progress is packed (2-bit stars, varint best score / 10) into one
 // base64 string, so a save with 20,000 completed levels stays well under 100 KB and parses in a few milliseconds.
+// Save v5 adds two bitsets (levels ever tried, Gold Crowns for first-try wins) and the progression bookkeeping: which
+// boosters and features have been unlocked and announced, the booster to try next, and episode rewards claimed.
 (function attachStorage(root) {
   'use strict';
   const SC = root.SC || (root.SC = {});
 
   const SAVE_KEY = 'sweet_cascade_save';
   const PHOTO_KEY = 'sweet_cascade_photo';
-  const SAVE_VERSION = 4;
+  const SAVE_VERSION = 5;
   const MAX_LEVEL = 99999;
   const THEMES = ['gummy', 'hard', 'sprinkle'];
   const ACCENTS = ['bubblegum', 'sunset', 'ocean', 'mint', 'grape', 'cherry', 'gold', 'midnight'];
@@ -22,6 +24,9 @@
   const MAX_HEARTS = 5;
   const MAX_NAME_LENGTH = 16;
   const MAX_MESSAGE_LENGTH = 80;
+  // Everything a v4 (or older) save already had from the start: those players keep it unlocked without a new popup.
+  const LEGACY_UNLOCKS = Object.freeze(['hammer', 'free_swap', 'whirl', 'lucky', 'rainbow', 'head_start', 'wheel', 'chest']);
+  const UNLOCK_IDS = Object.freeze(LEGACY_UNLOCKS.concat(['streak']));
 
   function defaultSettings() {
     return {
@@ -46,9 +51,9 @@
   }
 
   function defaultMeta() {
+    // New players start with no boosters: each one unlocks at its level with a few free (META.UNLOCKS).
     const boosters = {};
-    IN_LEVEL_BOOSTERS.forEach((booster) => { boosters[booster] = 3; });
-    PRE_LEVEL_BOOSTERS.forEach((booster) => { boosters[booster] = 1; });
+    BOOSTERS.forEach((booster) => { boosters[booster] = 0; });
     return {
       hearts: MAX_HEARTS,
       hearts_clock: 0, // when the oldest missing heart started refilling (ms since epoch)
@@ -56,8 +61,11 @@
       gold: 100,
       boosters,
       wheel_day: '', // local date of the last Daily Wheel spin (YYYY-MM-DD)
-      streak: 0, // wins in a row toward the next Sweet Streak reward
+      streak: 0, // Sweet Streak: new levels won on the first try in a row
       chest_claimed: 0, // total stars when the Star Chest was last opened
+      announced: [], // unlocks (boosters and features) already announced, and so usable
+      try_booster: '', // a booster just unlocked: the next level points at it once
+      episodes_claimed: 0, // episodes whose completion reward has been given
       in_progress: 0, // the level being played (restarted for free after the app was killed)
       total_attempts: 0,
       total_wins: 0,
@@ -71,6 +79,8 @@
       name_asked: false,
       unlocked: 1,
       progress: { stars: [], scores: [] }, // index = level - 1; scores are best scores rounded down to tens
+      tried: [], // bitset bytes: levels with at least one finished attempt
+      crowns: [], // bitset bytes: Gold Crowns (won on the very first attempt)
       tutorials_seen: {},
       settings: defaultSettings(),
       meta: defaultMeta(),
@@ -138,7 +148,49 @@
       in_progress: clampInteger(raw.in_progress, 0, MAX_LEVEL, 0),
       total_attempts: clampInteger(raw.total_attempts, 0, 1e9, 0),
       total_wins: clampInteger(raw.total_wins, 0, 1e9, 0),
+      announced: Array.isArray(raw.announced) ? UNLOCK_IDS.filter((id) => raw.announced.indexOf(id) >= 0) : [],
+      try_booster: BOOSTERS.indexOf(raw.try_booster) >= 0 ? raw.try_booster : '',
+      episodes_claimed: clampInteger(raw.episodes_claimed, 0, MAX_LEVEL, 0),
     };
+  }
+
+  // ------------------------------------------------------------------ level bitsets (tried, crowns)
+
+  function bitGet(bytes, level_id) {
+    const index = level_id - 1;
+    return index >= 0 && ((bytes[index >> 3] || 0) >> (index & 7)) & 1 ? 1 : 0;
+  }
+
+  function bitSet(bytes, level_id) {
+    const index = level_id - 1;
+    if (index < 0 || index >= MAX_LEVEL) return;
+    while (bytes.length <= index >> 3) bytes.push(0);
+    bytes[index >> 3] |= 1 << (index & 7);
+  }
+
+  function bitCount(bytes) {
+    let total = 0;
+    for (let index = 0; index < bytes.length; index += 1) {
+      let byte = bytes[index];
+      while (byte) {
+        total += byte & 1;
+        byte >>= 1;
+      }
+    }
+    return total;
+  }
+
+  function sanitizeBits(raw) {
+    const limit = Math.ceil(MAX_LEVEL / 8);
+    if (typeof raw === 'string') {
+      try {
+        return raw ? Array.from(base64ToBytes(raw).subarray(0, limit)) : [];
+      } catch (decode_error) {
+        return [];
+      }
+    }
+    if (Array.isArray(raw)) return raw.slice(0, limit).map((byte) => clampInteger(byte, 0, 255, 0));
+    return [];
   }
 
   // ------------------------------------------------------------------ packed progress
@@ -316,6 +368,17 @@
       save.settings = sanitizeSettings(source.settings);
       save.meta = sanitizeMeta(source.meta);
     }
+    save.tried = sanitizeBits(source.tried);
+    save.crowns = sanitizeBits(source.crowns);
+    if (legacy || source.version < 5) {
+      // Saves from before v5 had every booster, the wheel and the chest from the start, and no crowns or tries.
+      save.meta.announced = LEGACY_UNLOCKS.slice();
+      save.meta.try_booster = '';
+      save.meta.streak = 0;
+      save.progress.stars.forEach((stars, index) => {
+        if (stars > 0) bitSet(save.tried, index + 1);
+      });
+    }
     save.unlocked = clampInteger(source.unlocked, 1, MAX_LEVEL, 1);
     // A level beaten but never unlocked past (older saves) still unlocks the next one.
     for (let index = save.progress.stars.length - 1; index >= 0; index -= 1) {
@@ -324,6 +387,8 @@
         break;
       }
     }
+    // Episodes already finished before v5 do not pay their completion reward again (episodes are 15 levels long).
+    if (legacy || source.version < 5) save.meta.episodes_claimed = Math.floor((save.unlocked - 1) / 15);
     if (source.tutorials_seen && typeof source.tutorials_seen === 'object') {
       Object.keys(source.tutorials_seen).forEach((level_key) => {
         if (source.tutorials_seen[level_key] === true && /^\d+$/.test(level_key)) save.tutorials_seen[level_key] = true;
@@ -346,7 +411,11 @@
 
   function serializeSave(save) {
     const normal = normalizeSave(Object.assign({}, save, { version: SAVE_VERSION }));
-    return JSON.stringify(Object.assign({}, normal, { progress: encodeProgress(normal.progress) }));
+    return JSON.stringify(Object.assign({}, normal, {
+      progress: encodeProgress(normal.progress),
+      tried: normal.tried.length ? bytesToBase64(normal.tried) : '',
+      crowns: normal.crowns.length ? bytesToBase64(normal.crowns) : '',
+    }));
   }
 
   // ------------------------------------------------------------------ progress helpers
@@ -363,7 +432,18 @@
     return total;
   }
 
-  /** Records a finished attempt; returns {is_new_best, unlocked_next}. */
+  function hasCrown(save, level_id) {
+    return bitGet(save.crowns, level_id) === 1;
+  }
+
+  function totalCrowns(save) {
+    return bitCount(save.crowns);
+  }
+
+  /**
+   * Records a finished attempt; returns {is_new_best, unlocked_next, crown, new_level}. crown: won on the level's very
+   * first attempt (a Gold Crown); new_level: the level had not been won before this attempt.
+   */
   function recordResult(save, level_id, result) {
     save.meta.total_attempts += 1;
     const index = level_id - 1;
@@ -371,6 +451,10 @@
       save.progress.stars.push(0);
       save.progress.scores.push(0);
     }
+    const new_level = !(save.progress.stars[index] > 0);
+    const crown = !!result.won && !bitGet(save.tried, level_id);
+    bitSet(save.tried, level_id);
+    if (crown) bitSet(save.crowns, level_id);
     const stored_score = Math.floor(Math.max(0, result.score || 0) / 10) * 10;
     const is_new_best = !!result.won && stored_score > save.progress.scores[index];
     if (result.won) {
@@ -383,7 +467,7 @@
       save.unlocked = level_id + 1;
       unlocked_next = true;
     }
-    return { is_new_best, unlocked_next };
+    return { is_new_best, unlocked_next, crown, new_level };
   }
 
   // ------------------------------------------------------------------ backends
@@ -527,7 +611,10 @@
     decodeProgress,
     levelBest,
     totalStars,
+    hasCrown,
+    totalCrowns,
     recordResult,
+    LEGACY_UNLOCKS,
     cleanText,
     createStore,
     createMemoryBackend,

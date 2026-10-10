@@ -139,6 +139,7 @@ test('hearts: out of hearts shows a countdown and the Unlimited hearts shortcut;
 test('boosters: Sweet Hammer, Free Swap and Candy Whirl work without spending moves; pre-level boosters apply', async ({ page }) => {
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });
+  await H.seedSave(page, { unlocked: 36, stars_upto: 3 });
   await page.evaluate(() => window.SC.game.startLevel(4));
   await H.waitState(page, 'PLAYING');
   const moves = await H.levelMoves(page, 4);
@@ -400,7 +401,7 @@ test('the map handles 20,000 levels: at most 60 live nodes from level 1 to 19,00
 test('Daily Wheel spins once per day; Star Chest opens at 25 stars', async ({ page }) => {
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });
-  await H.seedSave(page, { unlocked: 15, stars_upto: 14 });
+  await H.seedSave(page, { unlocked: 21, stars_upto: 20 });
   await page.click('#btn-play');
   await H.waitState(page, 'MAP');
   await page.click('#btn-map-wheel');
@@ -731,5 +732,47 @@ test('Back on the win screen returns to the map with the new level unlocked, wit
   await expect(page.locator('#map-scroll')).not.toHaveClass(/is-advancing/, { timeout: 10000 });
   await page.waitForTimeout(800);
   expect((await H.snapshot(page)).modal).toBe(null);
+  H.expectClean(problems);
+});
+
+test('progression: a booster unlocks with a popup, free copies and a pointer; first-try wins earn crowns and grow the Sweet Streak', async ({ page }) => {
+  test.setTimeout(240000);
+  const problems = H.guardPage(page);
+  await H.bootGame(page, { name: '' });
+  const none = { hammer: 0, free_swap: 0, whirl: 0, lucky: 0, rainbow: 0, head_start: 0 };
+  await H.seedSave(page, { unlocked: 7, stars_upto: 6, meta: { announced: [], boosters: none } });
+  await page.click('#btn-play');
+  await H.waitState(page, 'MAP');
+  await H.waitForModal(page, 'unlock', 10000);
+  await expect(page.locator('[data-modal="unlock"]')).toContainText('Sweet Hammer');
+  await page.click('#btn-unlock-ok');
+  expect((await H.snapshot(page)).boosters.hammer).toBe(3);
+  await page.evaluate(() => window.SC.game.openIntro(7));
+  await H.waitForModal(page, 'intro');
+  await expect(page.locator('#intro-booster-rainbow')).toHaveClass(/is-locked/);
+  await page.click('#btn-intro-play');
+  await H.waitState(page, 'PLAYING', 15000);
+  await expect(page.locator('#tap-pointer')).toHaveClass(/is-showing/);
+  await expect(page.locator('#btn-booster-free_swap')).toHaveClass(/is-locked/);
+  await page.click('#btn-booster-hammer');
+  await expect.poll(async () => (await H.snapshot(page)).armed_booster).toBe('hammer');
+  // A Sweet Streak of 2 puts a striped and a wrapped candy on the next new level; a first-try win adds a crown.
+  await page.evaluate(() => window.SC.game.goMap());
+  await H.seedSave(page, { unlocked: 26, stars_upto: 25, meta: { streak: 2 } });
+  await page.click('#btn-play');
+  await H.waitState(page, 'MAP');
+  await page.evaluate(() => window.SC.game.openIntro(26));
+  await H.waitForModal(page, 'intro');
+  await expect(page.locator('.streak-meter')).toContainText('Starts with');
+  await page.click('#btn-intro-play');
+  await H.waitState(page, 'PLAYING', 15000);
+  const specials = await page.evaluate(() => window.SC.game.logic.cells.filter((piece) => piece && piece.special !== 'none').length);
+  expect(specials).toBeGreaterThanOrEqual(2);
+  await page.evaluate(() => { window.SC.game.logic.moves_left = 99; });
+  await H.playLevel(page, { max_moves: 99 });
+  await H.waitForModal(page, 'win', 180000);
+  await expect(page.locator('[data-modal="win"]')).toContainText('First try!');
+  const after = await page.evaluate(() => ({ streak: window.SC.game.store.save.meta.streak, crown: window.SC.STORAGE.hasCrown(window.SC.game.store.save, 26) }));
+  expect(after).toEqual({ streak: 3, crown: true });
   H.expectClean(problems);
 });

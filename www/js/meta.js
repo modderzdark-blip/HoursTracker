@@ -1,7 +1,9 @@
 // META: the offline meta game, as pure functions over save.meta (no DOM, no real clock: callers pass `now`).
 // Hearts (5, one refills every 30 minutes, guarded against the clock moving backwards), Gold Drops, booster inventory and
-// prices, the Daily Wheel (one spin per local day), Sweet Streak (a free pre-level booster every 3 wins in a row), the
-// Star Chest (every 25 new stars), win rewards, and the auto-hint scheduler. Nothing here can be bought with money.
+// prices, the progression (boosters and features unlock one by one as the player advances, each booster with a few free),
+// the Sweet Streak (new levels won on the first try in a row start the next new level with special candies), episode
+// rewards, the Daily Wheel (one spin per local day), the Star Chest (every 25 new stars), win rewards, and the auto-hint
+// scheduler. Nothing here can be bought with money.
 (function attachMeta(root) {
   'use strict';
   const SC = root.SC || (root.SC = {});
@@ -10,12 +12,38 @@
   const MAX_HEARTS = 5;
   const HEART_REFILL_MS = 30 * 60 * 1000;
   const CHEST_STARS = 25;
-  const STREAK_LENGTH = 3;
   const PRICES = Object.freeze({ hammer: 60, free_swap: 40, whirl: 30, lucky: 50, rainbow: 80, head_start: 40, plus_five: 60 });
+  // Each further +5 Moves in the same attempt costs more (the original's continues climb the same way).
+  const CONTINUE_PRICES = Object.freeze([60, 90, 140, 190, 240]);
+  const IN_LEVEL = Object.freeze(['hammer', 'free_swap', 'whirl']);
   const BOOSTER_NAMES = Object.freeze({
     hammer: 'Sweet Hammer', free_swap: 'Free Swap', whirl: 'Candy Whirl', lucky: 'Lucky Start', rainbow: 'Rainbow Start', head_start: 'Head Start',
   });
-  const STREAK_REWARDS = Object.freeze(['lucky', 'head_start', 'rainbow']);
+
+  // Progression, paced like the original's first episodes: a new booster or feature every few levels, each booster with a
+  // few free on unlock (and a pointer showing how to use it in the next level).
+  const UNLOCKS = Object.freeze([
+    { id: 'hammer', kind: 'booster', level: 7, gift: 3, title: 'Sweet Hammer', text: 'Smash any candy or blocker. It never uses a move.' },
+    { id: 'rainbow', kind: 'booster', level: 10, gift: 2, title: 'Rainbow Start', text: 'Start a level with a Rainbow Drop already on the board.' },
+    { id: 'wheel', kind: 'feature', level: 12, title: 'Daily Wheel', text: 'Spin the wheel once a day for a free gift.' },
+    { id: 'free_swap', kind: 'booster', level: 16, gift: 3, title: 'Free Swap', text: 'Swap any two neighbouring candies, even without a match. No move used.' },
+    { id: 'chest', kind: 'feature', level: 20, title: 'Star Chest', text: 'Every 25 stars you earn fill the chest with a gift.' },
+    { id: 'lucky', kind: 'booster', level: 22, gift: 2, title: 'Lucky Start', text: 'Start a level with a striped and a wrapped candy on the board.' },
+    { id: 'streak', kind: 'feature', level: 25, title: 'Sweet Streak', text: 'Win new levels on the first try, one after another: each win puts more special candies on your next new level. Losing a level ends the streak.' },
+    { id: 'whirl', kind: 'booster', level: 28, gift: 3, title: 'Candy Whirl', text: 'Stuck? Mix up the whole board. No move used.' },
+    { id: 'head_start', kind: 'booster', level: 35, gift: 2, title: 'Head Start', text: 'Start a level with 3 extra moves (10 extra seconds on timed levels).' },
+  ]);
+
+  // Sweet Streak bags: what the next new level starts with after 1, 2, 3, 4 and 5+ first-try wins in a row.
+  const STREAK_MAX = 5;
+  const STREAK_BAGS = Object.freeze([
+    null,
+    Object.freeze({ striped: 1 }),
+    Object.freeze({ striped: 1, wrapped: 1 }),
+    Object.freeze({ striped: 1, wrapped: 1, bomb: 1 }),
+    Object.freeze({ striped: 2, wrapped: 1, bomb: 1, moves: 2 }),
+    Object.freeze({ striped: 2, wrapped: 2, bomb: 1, moves: 3 }),
+  ]);
   const WHEEL = Object.freeze([
     { kind: 'gold', amount: 25, label: '25 Gold Drops' },
     { kind: 'booster', booster: 'hammer', label: 'Sweet Hammer' },
@@ -123,6 +151,61 @@
     return reward;
   }
 
+  /** The +5 Moves price for the given continue in this attempt (0 = the first). */
+  function continuePrice(index) {
+    return CONTINUE_PRICES[Math.min(CONTINUE_PRICES.length - 1, Math.max(0, index || 0))];
+  }
+
+  // ---------------------------------------------------------------- progression
+
+  function unlockOf(id) {
+    return UNLOCKS.find((unlock) => unlock.id === id) || null;
+  }
+
+  /** Whether a booster or feature can be used: reached its level (or already announced, e.g. kept from an older save). */
+  function isUnlocked(meta, reached_level, id) {
+    const unlock = unlockOf(id);
+    return !unlock || reached_level >= unlock.level || meta.announced.indexOf(id) >= 0;
+  }
+
+  /** Unlocks reached but not announced yet, in order. */
+  function pendingUnlocks(meta, reached_level) {
+    return UNLOCKS.filter((unlock) => unlock.level <= reached_level && meta.announced.indexOf(unlock.id) < 0);
+  }
+
+  /** Announces an unlock once: a booster comes with its free gift and becomes the one to try next. */
+  function announceUnlock(meta, id) {
+    const unlock = unlockOf(id);
+    if (!unlock || meta.announced.indexOf(id) >= 0) return null;
+    meta.announced.push(id);
+    if (unlock.kind === 'booster') {
+      meta.boosters[id] = (meta.boosters[id] || 0) + (unlock.gift || 0);
+      meta.try_booster = id;
+    }
+    return unlock;
+  }
+
+  /** The Sweet Streak bag for a streak length (null at 0). */
+  function streakBag(streak) {
+    return STREAK_BAGS[Math.min(STREAK_MAX, Math.max(0, streak || 0))] || null;
+  }
+
+  /** Episode completion reward: Gold Drops growing with the episode, plus one of the unlocked in-level boosters. */
+  function episodeReward(meta, episode, reached_level) {
+    const boosters = IN_LEVEL.filter((booster) => isUnlocked(meta, reached_level, booster));
+    return { gold: 40 + 10 * Math.min(6, episode), booster: boosters.length ? boosters[(episode - 1) % boosters.length] : null };
+  }
+
+  /** Gives an episode's completion reward once; returns it, or null when it was given before. */
+  function claimEpisode(meta, episode, reached_level) {
+    if (episode <= meta.episodes_claimed) return null;
+    const reward = episodeReward(meta, episode, reached_level);
+    meta.episodes_claimed = episode;
+    meta.gold += reward.gold;
+    if (reward.booster) meta.boosters[reward.booster] = (meta.boosters[reward.booster] || 0) + 1;
+    return reward;
+  }
+
   // ---------------------------------------------------------------- Daily Wheel
 
   /** Local calendar day 'YYYY-MM-DD' for a timestamp (the wheel resets at local midnight). */
@@ -148,24 +231,22 @@
   // ---------------------------------------------------------------- results: streak, stars, chest
 
   /**
-   * Applies a finished level to the meta game. win: {won, new_stars} (new_stars = stars above the previous best).
-   * Returns the rewards earned: { gold, streak_reward, chest_ready }.
+   * Applies a finished level to the meta game. outcome: {won, new_stars, crown, new_level, streak_on} (new_stars = stars
+   * above the previous best; crown = won on the very first attempt; new_level = not won before; streak_on = the Sweet
+   * Streak is unlocked). Replays never touch the streak. Returns { gold, streak, streak_lost, chest_ready }.
    */
   function recordOutcome(save, outcome, total_stars) {
     const meta = save.meta;
-    const rewards = { gold: 0, streak_reward: null, chest_ready: false };
+    const rewards = { gold: 0, streak: meta.streak, streak_lost: 0, chest_ready: false };
     if (outcome.won) {
-      rewards.gold = 5 + 10 * Math.max(0, outcome.new_stars || 0);
+      rewards.gold = 5 + 10 * Math.max(0, outcome.new_stars || 0) + (outcome.crown ? 5 : 0);
       meta.gold += rewards.gold;
-      meta.streak += 1;
-      if (meta.streak % STREAK_LENGTH === 0) {
-        const booster = STREAK_REWARDS[(meta.streak / STREAK_LENGTH - 1) % STREAK_REWARDS.length];
-        meta.boosters[booster] = (meta.boosters[booster] || 0) + 1;
-        rewards.streak_reward = booster;
-      }
-    } else {
+      if (outcome.streak_on && outcome.new_level) meta.streak = outcome.crown ? meta.streak + 1 : 0;
+    } else if (outcome.streak_on && outcome.new_level && meta.streak > 0) {
+      rewards.streak_lost = meta.streak;
       meta.streak = 0;
     }
+    rewards.streak = meta.streak;
     rewards.chest_ready = chestReady(meta, total_stars);
     return rewards;
   }
@@ -231,8 +312,9 @@
   }
 
   const META = {
-    MAX_HEARTS, HEART_REFILL_MS, CHEST_STARS, STREAK_LENGTH, PRICES, BOOSTER_NAMES, WHEEL, CHEST, STREAK_REWARDS,
+    MAX_HEARTS, HEART_REFILL_MS, CHEST_STARS, PRICES, CONTINUE_PRICES, BOOSTER_NAMES, WHEEL, CHEST, UNLOCKS, STREAK_MAX, STREAK_BAGS,
     refreshHearts, nextHeartIn, heartsEnabled, canPlay, spendHeart, grantHearts, boosterCount, useBooster, buy, applyReward,
+    continuePrice, unlockOf, isUnlocked, pendingUnlocks, announceUnlock, streakBag, episodeReward, claimEpisode,
     localDay, canSpin, spinWheel, recordOutcome, chestReady, chestProgress, openChest, createHintScheduler,
   };
   SC.META = META;

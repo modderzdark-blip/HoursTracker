@@ -127,6 +127,13 @@ async function seedSave(page, seed) {
     save.settings.comfort_done = true;
     for (let level = 1; level <= (spec.stars_upto || 0); level += 1) STORAGE.recordResult(save, level, { won: true, score: 12000 + (level % 7) * 1500, stars: 1 + (level % 3) });
     save.unlocked = Math.max(save.unlocked, spec.unlocked || 1);
+    // A seeded player is mid-game: everything reached so far is already announced (no unlock popups), with a few
+    // of each booster, unless the spec says otherwise.
+    const reached = window.SC.META.UNLOCKS.filter((unlock) => unlock.level <= save.unlocked);
+    save.meta.announced = reached.map((unlock) => unlock.id);
+    reached.filter((unlock) => unlock.kind === 'booster').forEach((unlock) => {
+      save.meta.boosters[unlock.id] = STORAGE.IN_LEVEL_BOOSTERS.indexOf(unlock.id) >= 0 ? 3 : 1;
+    });
     Object.assign(save.meta, spec.meta || {});
     Object.assign(save.settings, spec.settings || {});
     // Replace the running game's save too: on unload the page persists what it holds in memory.

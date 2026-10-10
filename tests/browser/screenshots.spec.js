@@ -100,7 +100,7 @@ for (const size of SIZES) {
       await page.evaluate(() => {
         const game = window.SC.game;
         game.ui.closeAllModals();
-        game.ui.showWin({ score: 34560, stars: 3, is_new_best: true, player_name: 'Sam', win_message: 'You are amazing!', has_next: true, rewards: { gold: 25, streak_reward: 'lucky', chest_ready: true }, streak: 3 }, { next() {}, replay() {}, map() {} });
+        game.ui.showWin({ score: 34560, stars: 3, is_new_best: true, player_name: 'Sam', win_message: 'You are amazing!', has_next: true, rewards: { gold: 30, chest_ready: true }, crown: true, streak: 3, streak_on: true }, { next() {}, replay() {}, map() {} });
       });
       await page.waitForTimeout(2200);
       await shot('09-win');

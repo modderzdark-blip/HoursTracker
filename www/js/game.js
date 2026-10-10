@@ -41,6 +41,9 @@
     let invalid_swap_playing = false;
     let moves_played = 0;
     let armed_booster = null;
+    let booster_lesson = null; // a booster just unlocked: the pointer shows how to use it in this level
+    let continues_used = 0; // +5 Moves bought in this attempt (each one costs more)
+    let announcing = false;
     let time_used_ms = 0;
     let pip_pointed = false;
     let map_status_timer = null;
@@ -57,12 +60,44 @@
       icon: ui.icon,
       iconUrl: (kind, size) => SC.SPRITES.iconUrl(kind, size),
       heartsOn: () => META.heartsEnabled(settings()),
+      hasCrown: (level_id) => STORAGE.hasCrown(save(), level_id),
     });
     const hint_scheduler = META.createHintScheduler({ set: (run, ms) => setTimeout(run, ms), clear: (handle) => clearTimeout(handle) }, CONFIG.AUTO_HINT_DELAYS, (source) => showHint(source));
 
     const save = () => store.save;
     const settings = () => store.save.settings;
     const now = () => Date.now();
+
+    // ---------------------------------------------------------------- progression
+    const isUnlocked = (id) => META.isUnlocked(save().meta, save().unlocked, id);
+    const streakOn = () => isUnlocked('streak');
+    const isNewLevel = (level_id) => !(STORAGE.levelBest(save(), level_id).stars > 0);
+
+    /** { booster: unlock level } for the boosters still locked. */
+    function boosterLocks() {
+      const locks = {};
+      STORAGE.BOOSTERS.forEach((name) => {
+        if (!isUnlocked(name)) locks[name] = META.unlockOf(name).level;
+      });
+      return locks;
+    }
+
+    /** Shows each booster or feature reached but not announced yet, one popup at a time (boosters come with gifts). */
+    async function announceUnlocks() {
+      if (announcing) return;
+      announcing = true;
+      try {
+        for (const unlock of META.pendingUnlocks(save().meta, save().unlocked)) {
+          if (machine !== STATE.MAP && machine !== STATE.INTRO) break;
+          META.announceUnlock(save().meta, unlock.id);
+          persist();
+          refreshMapStatus();
+          await ui.showUnlock(unlock);
+        }
+      } finally {
+        announcing = false;
+      }
+    }
     const reducedMotion = () => settings().reduced_motion || !!(system_reduced_motion && system_reduced_motion.matches);
 
     // ---------------------------------------------------------------- feedback helpers
@@ -394,6 +429,8 @@
       current_hint = null;
       tutorial_active = false;
       armed_booster = null;
+      booster_lesson = null;
+      ui.pointAt(null);
       ui.tutorial(null);
       ui.hidePip();
       native.keepAwake(false);
@@ -418,6 +455,7 @@
       ui.setMapStatus({
         hearts: meta.hearts, next_heart_ms: META.nextHeartIn(meta, now()), unlimited: !META.heartsEnabled(settings()), gold: meta.gold,
         wheel_ready: META.canSpin(meta, now()), chest_progress: META.chestProgress(meta, STORAGE.totalStars(save())),
+        wheel_locked: !isUnlocked('wheel'), chest_locked: !isUnlocked('chest'),
       });
     }
 
@@ -440,8 +478,10 @@
       }, 1000);
       const advance = opts.advance || null;
       const sequence = map.render(save(), { advance });
-      return sequence.then((finished) => {
-        if (finished && advance && advance.open_next && machine === STATE.MAP && !ui.topModal()) openIntro(advance.to);
+      return sequence.then(async (finished) => {
+        if (machine !== STATE.MAP || ui.topModal()) return finished;
+        if (finished && advance && advance.open_next) openIntro(advance.to);
+        else await announceUnlocks();
         return finished;
       });
     }
@@ -462,9 +502,19 @@
         });
         return;
       }
+      await announceUnlocks();
+      if (machine !== STATE.MAP && machine !== STATE.INTRO) return;
+      if (ui.topModal()) return;
       machine = STATE.INTRO;
       background.setScenery(LEVELS.sceneryOf(LEVELS.episodeOf(level_id)));
-      ui.showIntro(intro_level, { best: STORAGE.levelBest(save(), level_id), boosters: Object.assign({}, save().meta.boosters), hearts_on: META.heartsEnabled(settings()) }, {
+      const meta = save().meta;
+      const new_level = isNewLevel(level_id);
+      ui.showIntro(intro_level, {
+        best: STORAGE.levelBest(save(), level_id), boosters: Object.assign({}, meta.boosters), hearts_on: META.heartsEnabled(settings()),
+        locks: boosterLocks(), try_booster: STORAGE.PRE_LEVEL_BOOSTERS.indexOf(meta.try_booster) >= 0 ? meta.try_booster : '',
+        crown: STORAGE.hasCrown(save(), level_id),
+        streak: streakOn() ? { on: true, count: meta.streak, bag: META.streakBag(meta.streak), new_level } : null,
+      }, {
         play: (chosen) => startLevel(level_id, chosen),
         buy: (item) => buyItem(item),
         closed: () => {
@@ -500,12 +550,23 @@
       const attempt = session_attempts[level_id] || 0;
       session_attempts[level_id] = attempt + 1;
       logic_state = LOGIC.createGame(level, { seed: level.seed + attempt * 7919 });
+      const meta = save().meta;
       const boosters = {};
       Object.keys(chosen_boosters || {}).forEach((name) => {
-        if (chosen_boosters[name] && META.useBooster(save().meta, name)) boosters[name] = true;
+        if (chosen_boosters[name] && isUnlocked(name) && META.useBooster(meta, name)) boosters[name] = true;
       });
-      if (Object.keys(boosters).length) logic_state = LOGIC.applyStartBoosters(logic_state, boosters).state;
-      save().meta.in_progress = level_id;
+      // Sweet Streak: a new level starts with the bag earned by the first-try wins in a row before it.
+      const bag = streakOn() && isNewLevel(level_id) ? META.streakBag(meta.streak) : null;
+      const start = Object.assign({}, boosters);
+      if (bag) start.streak_bag = bag;
+      if (Object.keys(start).length) logic_state = LOGIC.applyStartBoosters(logic_state, start).state;
+      continues_used = 0;
+      booster_lesson = null;
+      if (meta.try_booster) {
+        if (STORAGE.IN_LEVEL_BOOSTERS.indexOf(meta.try_booster) >= 0 && isUnlocked(meta.try_booster)) booster_lesson = meta.try_booster;
+        meta.try_booster = '';
+      }
+      meta.in_progress = level_id;
       persist();
       time_used_ms = 0;
       pip_pointed = false;
@@ -530,11 +591,11 @@
       }
       const goal_text = level.goals.map((goal) => ui.goalText(goal)).join(', ');
       ui.announce(`Level ${level.id}, ${level.name}. ${level.time ? `${level.time} seconds` : `${level.moves} moves`}. Goals: ${goal_text}.`);
-      playOpening(Object.keys(boosters).length > 0);
+      playOpening(Object.keys(boosters).length > 0, !!bag);
     }
 
     /** The level opening: the candies drop into the board while the goal ribbon sweeps across, then play begins. */
-    async function playOpening(has_boosters) {
+    async function playOpening(has_boosters, has_bag) {
       // A restart or a quit during the opening starts a new one (or none): only the latest may finish it.
       opening_token += 1;
       const token = opening_token;
@@ -545,8 +606,23 @@
       if (token !== opening_token) return;
       opening = false;
       if (!waited || machine !== STATE.PLAYING) return;
-      if (has_boosters) ui.showBanner('Boosters ready!', false, true);
+      if (has_bag) ui.showBanner('Sweet Streak bonus!', true, true);
+      else if (has_boosters) ui.showBanner('Boosters ready!', false, true);
       boardIdle();
+      showBoosterLesson();
+    }
+
+    /** A booster unlocked just before this level: the hand points at its button until it is used (or a move is made). */
+    function showBoosterLesson() {
+      if (!booster_lesson || machine !== STATE.PLAYING || opening) return;
+      const target = document.getElementById(`btn-booster-${booster_lesson}`);
+      if (target) ui.pointAt(target, `Try your new ${META.BOOSTER_NAMES[booster_lesson]}!`);
+    }
+
+    function endBoosterLesson() {
+      if (!booster_lesson) return;
+      booster_lesson = null;
+      ui.pointAt(null);
     }
 
     // ---------------------------------------------------------------- hints
@@ -659,6 +735,7 @@
         boardIdle();
         return;
       }
+      endBoosterLesson();
       moves_played += 1;
       await playResult(result, before);
     }
@@ -673,10 +750,11 @@
     }
 
     function updateBoosterBar() {
-      ui.setBoosters(save().meta.boosters, armed_booster, machine === STATE.PLAYING || machine === STATE.RESOLVING);
+      ui.setBoosters(save().meta.boosters, armed_booster, machine === STATE.PLAYING || machine === STATE.RESOLVING, boosterLocks());
     }
 
     function consumeArmedBooster() {
+      if (booster_lesson === armed_booster) endBoosterLesson();
       META.useBooster(save().meta, armed_booster);
       armed_booster = null;
       persist();
@@ -686,11 +764,16 @@
     async function onBoosterButton(name) {
       if (machine !== STATE.PLAYING || opening || !logic_state) return;
       sound('tap');
+      if (!isUnlocked(name)) {
+        ui.toast(`${META.BOOSTER_NAMES[name]} unlocks at level ${META.unlockOf(name).level}`);
+        return;
+      }
       if (armed_booster === name) {
         armed_booster = null;
         ui.toast('Booster put away');
         updateBoosterBar();
         boardIdle();
+        showBoosterLesson();
         return;
       }
       if (!(save().meta.boosters[name] > 0)) {
@@ -710,7 +793,13 @@
       }
       armed_booster = name;
       updateBoosterBar();
-      ui.showBanner(name === 'hammer' ? 'Tap a piece to smash it' : 'Swap any two neighbors', false, true);
+      const move = booster_lesson === name ? LOGIC.findHint(logic_state) : null;
+      if (move) {
+        // Second step of the lesson: point at a candy to use it on (the hint move's candy is always a fine target).
+        ui.pointAt(renderer.cellCenter(move.from), name === 'hammer' ? 'Now tap a candy to smash it' : 'Now swap it with a neighbor');
+      } else {
+        ui.showBanner(name === 'hammer' ? 'Tap a piece to smash it' : 'Swap any two neighbors', false, true);
+      }
       ui.announce(name === 'hammer' ? 'Sweet Hammer ready: tap a piece' : 'Free Swap ready: swap any two neighboring candies');
     }
 
@@ -783,21 +872,48 @@
       const stars = LOGIC.starsForScore(logic_state.score, level.stars, true);
       const previous = STORAGE.levelBest(save(), level.id);
       const outcome = STORAGE.recordResult(save(), level.id, { won: true, score: logic_state.score, stars });
-      const rewards = META.recordOutcome(save(), { won: true, new_stars: Math.max(0, stars - previous.stars) }, STORAGE.totalStars(save()));
+      const streak_on = streakOn();
+      const rewards = META.recordOutcome(save(), {
+        won: true, new_stars: Math.max(0, stars - previous.stars), crown: outcome.crown, new_level: outcome.new_level, streak_on,
+      }, STORAGE.totalStars(save()));
       save().meta.in_progress = 0;
       save().tutorials_seen[level.id] = true;
       persist();
-      ui.announce(`Level complete! ${stars} stars, score ${logic_state.score}.`);
+      ui.announce(`Level complete! ${stars} stars, score ${logic_state.score}.${outcome.crown ? ' Gold Crown: won on the first try!' : ''}`);
       const finished_level = level;
       const has_next = finished_level.id < LEVELS.shippedCount();
+      // The last level of an episode, won for the first time: the episode celebration comes before the map.
+      const episode = LEVELS.episodeOf(finished_level.id);
+      const finale = finished_level.id === LEVELS.episodeRange(episode).last && outcome.new_level && episode > save().meta.episodes_claimed;
+      const afterWin = (then) => (finale ? celebrateEpisode(episode).then(then) : then());
       ui.showWin({
         score: logic_state.score, stars, is_new_best: outcome.is_new_best, player_name: save().player_name,
-        win_message: settings().win_message, has_next, rewards, streak: save().meta.streak,
+        win_message: settings().win_message, has_next, rewards, crown: outcome.crown,
+        streak: rewards.streak, streak_on: streak_on && outcome.new_level,
       }, {
-        next: () => goMap({ advance: { from: finished_level.id, to: finished_level.id + 1, open_next: true } }),
-        replay: () => openIntroFrom(finished_level.id),
-        map: () => goMap(has_next ? { advance: { from: finished_level.id, to: finished_level.id + 1, open_next: false } } : {}),
+        next: () => afterWin(() => goMap({ advance: { from: finished_level.id, to: finished_level.id + 1, open_next: true } })),
+        replay: () => afterWin(() => openIntroFrom(finished_level.id)),
+        map: () => afterWin(() => goMap(has_next ? { advance: { from: finished_level.id, to: finished_level.id + 1, open_next: false } } : {})),
       });
+    }
+
+    /** The episode's completion reward and its celebration popup (once per episode). */
+    function celebrateEpisode(episode) {
+      const reward = META.claimEpisode(save().meta, episode, save().unlocked);
+      persist();
+      if (!reward) return Promise.resolve();
+      ui.closeAllModals();
+      const range = LEVELS.episodeRange(episode);
+      let stars = 0;
+      let crowns = 0;
+      for (let level_id = range.first; level_id <= range.last; level_id += 1) {
+        stars += STORAGE.levelBest(save(), level_id).stars;
+        crowns += STORAGE.hasCrown(save(), level_id) ? 1 : 0;
+      }
+      const levels = range.last - range.first + 1;
+      const next = range.last < LEVELS.shippedCount() ? { episode: episode + 1, name: LEVELS.episodeName(episode + 1) } : null;
+      ui.announce(`Episode ${episode} complete! ${reward.gold} Gold Drops${reward.booster ? ` and a ${META.BOOSTER_NAMES[reward.booster]}` : ''}.`);
+      return ui.showEpisodeComplete({ episode, name: LEVELS.episodeName(episode), stars, max_stars: levels * 3, crowns, levels, reward, next });
     }
 
     function openIntroFrom(level_id) {
@@ -827,9 +943,11 @@
       const reason = logic_state.loss_reason;
       const can_continue = reason === 'moves' || reason === 'time';
       ui.announce(reason === 'time' ? "Time's up." : reason === 'fuse' ? 'A Fuse Candy went off.' : 'Out of moves.');
+      const streak_at_risk = streakOn() && isNewLevel(lost_level.id) ? save().meta.streak : 0;
       const giveUp = () => {
-        STORAGE.recordResult(save(), lost_level.id, { won: false, score: logic_state.score, stars: 0 });
-        META.recordOutcome(save(), { won: false }, STORAGE.totalStars(save()));
+        const outcome = STORAGE.recordResult(save(), lost_level.id, { won: false, score: logic_state.score, stars: 0 });
+        const result = META.recordOutcome(save(), { won: false, new_level: outcome.new_level, streak_on: streakOn() }, STORAGE.totalStars(save()));
+        if (result.streak_lost) ui.toast(`Your Sweet Streak of ${result.streak_lost} ended`);
         if (META.heartsEnabled(settings())) ui.heartBreak();
         META.spendHeart(save(), now());
         save().meta.in_progress = 0;
@@ -837,7 +955,7 @@
       };
       ui.showLose({
         progress: LOGIC.goalProgress(logic_state), goals: lost_level.goals, player_name: save().player_name, reason, timed: logic_state.timed,
-        can_continue, price: META.PRICES.plus_five, gold: save().meta.gold,
+        can_continue, price: META.continuePrice(continues_used), gold: save().meta.gold, streak_at_risk,
       }, {
         retry: () => {
           giveUp();
@@ -852,10 +970,13 @@
           goMap();
         },
         plusFive: () => {
-          if (!META.buy(save().meta, 'plus_five')) {
+          const price = META.continuePrice(continues_used);
+          if (save().meta.gold < price) {
             ui.toast('Not enough Gold Drops');
             return;
           }
+          save().meta.gold -= price;
+          continues_used += 1;
           persist();
           ui.closeAllModals();
           logic_state = LOGIC.addMoves(logic_state, 5);
@@ -878,15 +999,24 @@
       boardInput.cancel();
       hint_scheduler.touch();
       native.keepAwake(false);
+      ui.pointAt(null);
       const heart_note = META.heartsEnabled(settings()) ? ' You will lose a heart.' : '';
+      const streak = streakOn() && isNewLevel(level.id) ? save().meta.streak : 0;
+      const streak_note = streak > 0 ? ` Your Sweet Streak of ${streak} will end.` : '';
+      // Restarting or quitting counts as a lost attempt: no Gold Crown on this level, and the streak ends.
+      const abandonAttempt = () => {
+        const outcome = STORAGE.recordResult(save(), level.id, { won: false, score: logic_state ? logic_state.score : 0, stars: 0 });
+        META.recordOutcome(save(), { won: false, new_level: outcome.new_level, streak_on: streakOn() }, STORAGE.totalStars(save()));
+        META.spendHeart(save(), now());
+        save().meta.in_progress = 0;
+      };
       ui.showPause({
         resume: resumeFromPause,
         restart: () => {
-          ui.confirm({ id: 'confirm-restart', title: 'Restart level?', text: `Your progress on this attempt will be lost.${heart_note}`, yes: 'Restart', no: 'Keep playing' }).then((confirmed) => {
+          ui.confirm({ id: 'confirm-restart', title: 'Restart level?', text: `Your progress on this attempt will be lost.${heart_note}${streak_note}`, yes: 'Restart', no: 'Keep playing' }).then((confirmed) => {
             if (!confirmed) return;
             const restart_id = level.id;
-            META.spendHeart(save(), now());
-            save().meta.in_progress = 0;
+            abandonAttempt();
             persist();
             if (!META.canPlay(save(), now())) goMap();
             else startLevel(restart_id);
@@ -894,10 +1024,9 @@
         },
         settings: () => openSettings(),
         quit: () => {
-          ui.confirm({ id: 'confirm-quit', title: 'Quit to map?', text: `This attempt will not be saved.${heart_note}`, yes: 'Quit', no: 'Stay' }).then((confirmed) => {
+          ui.confirm({ id: 'confirm-quit', title: streak ? "Don't give up!" : 'Quit to map?', text: `This attempt will not be saved.${heart_note}${streak_note}`, yes: 'Quit', no: 'Stay' }).then((confirmed) => {
             if (!confirmed) return;
-            META.spendHeart(save(), now());
-            save().meta.in_progress = 0;
+            abandonAttempt();
             persist();
             goMap();
           });
@@ -912,7 +1041,10 @@
       paused_from = null;
       native.keepAwake(true);
       renderer.markActivity();
-      if (machine === STATE.PLAYING) boardIdle();
+      if (machine === STATE.PLAYING) {
+        boardIdle();
+        showBoosterLesson();
+      }
     }
 
     function confirmExit() {
@@ -981,6 +1113,10 @@
     // ---------------------------------------------------------------- map extras
     function openWheel() {
       sound('tap');
+      if (!isUnlocked('wheel')) {
+        ui.toast(`The Daily Wheel unlocks at level ${META.unlockOf('wheel').level}`);
+        return;
+      }
       ui.showWheel({ can_spin: META.canSpin(save().meta, now()) }, {
         spin: () => {
           const outcome = META.spinWheel(save().meta, now());
@@ -993,6 +1129,10 @@
 
     function openChest() {
       sound('tap');
+      if (!isUnlocked('chest')) {
+        ui.toast(`The Star Chest unlocks at level ${META.unlockOf('chest').level}`);
+        return;
+      }
       const total = STORAGE.totalStars(save());
       if (!META.chestReady(save().meta, total)) {
         ui.toast(`Star Chest: ${META.chestProgress(save().meta, total)} of ${META.CHEST_STARS} stars. Earn stars to open it!`);

@@ -103,7 +103,8 @@
       const unlocked = level_number <= reached && (available || completed);
       const is_current = level_number === reached && available;
       const role = LEVELS.roleOf(level_number);
-      node.className = `map-node${unlocked ? '' : ' is-locked'}${is_current ? ' is-current' : ''}${role === 'hard' ? ' is-hard' : role === 'superhard' ? ' is-superhard' : ''}`;
+      const crowned = unlocked && !is_current && !!(hooks.hasCrown && hooks.hasCrown(level_number));
+      node.className = `map-node${unlocked ? '' : ' is-locked'}${is_current ? ' is-current' : ''}${crowned ? ' is-crowned' : ''}${role === 'hard' ? ' is-hard' : role === 'superhard' ? ' is-superhard' : ''}`;
       node.dataset.levelId = String(level_number);
       const point = pointOf(level_number);
       node.style.left = `${point.x}px`;
@@ -116,11 +117,12 @@
         for (let star = 0; star < 3; star += 1) html += hooks.icon(star < stars ? 'star' : 'star_empty');
         html += '</span>';
       }
-      if (role === 'hard' || role === 'superhard') html += `<span class="node-ribbon">${role === 'hard' ? 'Hard' : 'Super Hard'}</span>`;
+      if (crowned) html += `<span class="node-crown">${hooks.icon('crown')}</span>`;
+      else if (role === 'hard' || role === 'superhard') html += `<span class="node-ribbon">${role === 'hard' ? 'Hard' : 'Super Hard'}</span>`;
       if (is_current && hooks.heartsOn()) html += `<span class="node-cost">${hooks.icon('heart')}1</span>`;
       node.innerHTML = html;
       node.setAttribute('aria-label', unlocked
-        ? `Level ${level_number}${role === 'hard' ? ', hard' : role === 'superhard' ? ', super hard' : ''}, ${stars} of 3 stars${is_current ? ', next to play' : ''}`
+        ? `Level ${level_number}${role === 'hard' ? ', hard' : role === 'superhard' ? ', super hard' : ''}, ${stars} of 3 stars${crowned ? ', won on the first try' : ''}${is_current ? ', next to play' : ''}`
         : `Level ${level_number}, locked`);
       node.onclick = () => {
         hooks.sound('tap');
