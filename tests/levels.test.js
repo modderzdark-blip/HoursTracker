@@ -59,8 +59,10 @@ test('shipped levels: 60+, numbered in order, valid, roles set, authored layouts
 
 test('shipped levels: every level is won by the greedy bot', () => {
   shipped.forEach((level) => {
+    // Hard and super hard levels are won on about 5-15% of tries (like the original), so they get more tries.
+    const tries = LEVELS.targetWinRate(level.id, level.role) < 0.25 ? 100 : 30;
     let wins = 0;
-    for (let attempt = 0; attempt < 30 && wins === 0; attempt += 1) {
+    for (let attempt = 0; attempt < tries && wins === 0; attempt += 1) {
       if (LOGIC.playBotGame(level, { attempt: 5000 + attempt }).won) wins += 1;
     }
     assert.ok(wins > 0, `level ${level.id} never won`);
@@ -174,7 +176,8 @@ test('the calibrated curve: every shipped level within its tolerance of its targ
     const level = LEVELS.getLevel(Number(row.level));
     const target = LEVELS.targetWinRate(level.id, level.role);
     assert.ok(Math.abs(Number(row.target) - target) < 0.001, `level ${level.id}: report target ${row.target} vs ${target.toFixed(3)}`);
-    assert.ok(Math.abs(Number(row.win_rate) - target) <= LEVELS.calibrationTolerance(target) + 1e-9, `level ${level.id}: ${row.win_rate} vs target ${target.toFixed(3)}`);
+    // The report rounds win rates to 3 decimals: allow for that rounding on top of the tolerance.
+    assert.ok(Math.abs(Number(row.win_rate) - target) <= LEVELS.calibrationTolerance(target) + 0.0005 + 1e-9, `level ${level.id}: ${row.win_rate} vs target ${target.toFixed(3)}`);
     assert.deepStrictEqual([Number(row.star1), Number(row.star2), Number(row.star3)], level.stars, `level ${level.id} stars match the report`);
   });
   // The Candy Crush-matched shape: normal levels ease down to about 27%, hard ones take several tries.
@@ -185,6 +188,33 @@ test('the calibrated curve: every shipped level within its tolerance of its targ
     previous = base;
     const hard = LEVELS.targetWinRate(level_number, 'hard');
     assert.ok(hard >= 0.09 && hard <= 0.23 && LEVELS.targetWinRate(level_number, 'superhard') < hard, `hard targets at ${level_number}`);
+  }
+});
+
+/** True when every ingredient of a level can fall straight down (or through portals) to an exit tray. */
+function ingredientsReachTrays(level) {
+  const layout = LOGIC.parseLayout(level);
+  for (let index = 0; index < layout.ingredients.length; index += 1) {
+    if (!layout.ingredients[index]) continue;
+    let cursor = index;
+    for (let guard = 0; guard < 200 && !layout.exits[cursor]; guard += 1) {
+      const below = cursor + level.cols;
+      if (below < layout.holes.length && !layout.holes[below]) cursor = below;
+      else {
+        const pair = layout.portals.find((portal) => portal.entrance === cursor);
+        if (!pair) break;
+        cursor = pair.exit;
+      }
+    }
+    if (!layout.exits[cursor]) return false;
+  }
+  return true;
+}
+
+test('every ingredient can reach an exit tray (levels 1-360)', () => {
+  for (let level_number = 1; level_number <= SCALE_LAST; level_number += 1) {
+    const level = levelAt(level_number);
+    assert.ok(ingredientsReachTrays(level), `level ${level_number}: an ingredient cannot fall to a tray`);
   }
 });
 

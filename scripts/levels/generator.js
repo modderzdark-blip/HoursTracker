@@ -397,7 +397,8 @@
       if (placed === 0) return null;
       const free = [];
       grid.forEach((row, row_index) => row.forEach((symbol, col) => {
-        if (symbol === '.' && !reserved.has(row_index * cols + col)) free.push([row_index, col]);
+        // Never the bottom row: it may become the ingredients' exit trays.
+        if (symbol === '.' && !reserved.has(row_index * cols + col) && row_index < rows - 1) free.push([row_index, col]);
       }));
       free.sort(() => rng() - 0.5).slice(0, 2).forEach(([row_index, col]) => {
         grid[row_index][col] = 'y';
@@ -408,7 +409,8 @@
     if (mood_level) {
       const free = [];
       grid.forEach((row, row_index) => row.forEach((symbol, col) => {
-        if (symbol === '.' && !reserved.has(row_index * cols + col)) free.push([row_index, col]);
+        // Never the bottom row: it may become the ingredients' exit trays.
+        if (symbol === '.' && !reserved.has(row_index * cols + col) && row_index < rows - 1) free.push([row_index, col]);
       }));
       free.sort(() => rng() - 0.5).slice(0, between(rng, 4, 7)).forEach(([row_index, col]) => {
         grid[row_index][col] = 'm';
@@ -535,7 +537,7 @@
     });
     for (let col = 0; col < cols; col += 1) {
       const symbol = grid[rows - 1][col];
-      if (symbol === '.' || symbol === 'j' || symbol === 'J') grid[rows - 1][col] = 'x';
+      if (symbol === '.' || symbol === 'j' || symbol === 'J' || symbol === 'm') grid[rows - 1][col] = 'x';
     }
     return wanted;
   }
