@@ -27,7 +27,7 @@ const AUTHORED = require(path.join(ROOT, 'scripts/levels/authored.js'));
 
 const TOLERANCE = LEVELS.calibrationTolerance;
 const MAX_VARIANTS = 20;
-const MOVE_RANGE = [10, 60]; // never fewer than 10 moves: short levels feel stingy
+const MOVE_RANGE = [10, 40]; // never fewer than 10 moves (stingy), never more than 40 (a layout needing more is replaced)
 const TIME_RANGE = [30, 240];
 
 function percentile(values, fraction) {

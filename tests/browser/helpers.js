@@ -43,9 +43,6 @@ async function bootGame(page, options) {
     } else {
       await page.click('#btn-name-skip');
     }
-    // First launch also asks "Is this volume comfortable?" before Level 1 starts.
-    await expect(page.locator('[data-modal="comfort"]')).toBeVisible();
-    await page.click('#btn-comfort-ok');
     await waitState(page, 'PLAYING');
   }
 }
@@ -127,6 +124,9 @@ async function seedSave(page, seed) {
     save.settings.comfort_done = true;
     for (let level = 1; level <= (spec.stars_upto || 0); level += 1) STORAGE.recordResult(save, level, { won: true, score: 12000 + (level % 7) * 1500, stars: 1 + (level % 3) });
     save.unlocked = Math.max(save.unlocked, spec.unlocked || 1);
+    // A seeded player has already had the guided lessons of the levels reached (a fresh boot shows them). Lessons only
+    // live in the first episodes, so the first 200 levels are enough (and keep a 19,000-level save small).
+    for (let level = 1; level <= Math.min(save.unlocked, 200); level += 1) save.tutorials_seen[level] = true;
     // A seeded player is mid-game: everything reached so far is already announced (no unlock popups), with a few
     // of each booster, unless the spec says otherwise.
     const reached = window.SC.META.UNLOCKS.filter((unlock) => unlock.level <= save.unlocked);

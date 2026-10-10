@@ -43,6 +43,8 @@
   ICONS.sparkle = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.8l2.3 6.9 6.9 2.3-6.9 2.3L12 20.2l-2.3-6.9L2.8 11l6.9-2.3z" fill="#ff7fc4" stroke="#ffffff" stroke-width="1.4" stroke-linejoin="round"/><circle cx="19" cy="4.5" r="1.6" fill="#ffd34d"/><circle cx="5" cy="19" r="1.3" fill="#7fd8ff"/></svg>';
   ICONS.hand = '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M17.5 7.5c2.1 0 3.6 1.6 3.6 3.6v13.2l1.4-.3V20c0-2 1.6-3.5 3.5-3.5S29.5 18 29.5 20v3.6l1.2-.2c.3-1.8 1.8-3 3.5-3 2 0 3.5 1.6 3.5 3.6v.6c1.7.2 3 1.6 3 3.4v6.4c0 6.6-5.3 11.6-11.9 11.6h-3.5c-4 0-7.5-1.9-9.8-5.1L9.2 31.7c-1-1.5-.7-3.5.7-4.6 1.4-1.1 3.5-.9 4.6.5l-.5-.6V11.1c0-2 1.5-3.6 3.5-3.6z" fill="#fff" stroke="#3b1a4a" stroke-width="2.4" stroke-linejoin="round"/><path d="M21.1 24.3v6M29.5 23.6v6.4M37.7 24.6v5.6" stroke="#3b1a4a" stroke-width="2" stroke-linecap="round" opacity="0.35"/></svg>';
 
+  ICONS.daily = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3.5" width="16" height="18" rx="3" fill="#ffffff" stroke="#3b1a4a" stroke-width="1.6"/><rect x="8.5" y="2" width="7" height="3.6" rx="1.6" fill="#ff6fb5" stroke="#3b1a4a" stroke-width="1.4"/><path d="M7.5 10.2l1.6 1.6 2.8-3M7.5 15.6l1.6 1.6 2.8-3" fill="none" stroke="#2fb36b" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.6 10.6h3.2M13.6 16h3.2" stroke="#3b1a4a" stroke-width="1.6" stroke-linecap="round"/></svg>';
+
   function icon(name) {
     return ICONS[name] || '';
   }
@@ -59,6 +61,7 @@
     if (id === 'head_start') return '<span class="head-start big">+3</span>';
     if (id === 'wheel') return `<span class="unlock-glyph">${ICONS.wheel}</span>`;
     if (id === 'chest') return `<img src="${SPRITES.iconUrl('star', 144)}" alt="">`;
+    if (id === 'daily') return `<span class="unlock-glyph">${ICONS.daily}</span>`;
     if (id === 'streak') return `<span class="streak-art"><img src="${spriteUrl('stripe_row:0', 44)}" alt=""><img src="${spriteUrl('wrapped:4', 44)}" alt=""><img src="${spriteUrl('bomb', 44)}" alt=""></span>`;
     return '';
   }
@@ -100,7 +103,14 @@
     return spriteUrl(`candy:${color}`, size);
   }
 
-  const ORDER_ICONS = { striped: 'stripe_row:4', wrapped: 'wrapped:0', bomb: 'bomb', frosting: 'frosting:2', cocoa: 'cocoa', cage: 'cage', swirl: 'swirl', gift: 'gift' };
+  /** The picture on the level popup for the idea a level introduces. */
+  const NEW_PIECE_ART = {
+    collect: 'candy:2', striped: 'stripe_row:0', jelly: 'jelly:2', wrapped: 'wrapped:2', bomb: 'bomb', ingredients: 'cherry', combos: 'wrapped:3',
+    frosting: 'frosting:2', order: 'stripe_col:4', jelly2: 'jelly:2', cage: 'cage', popcorn: 'popcorn:3', portals: 'candy:4', cocoa: 'cocoa',
+    fuse: 'candy:1', belt: 'candy:3', frosting3: 'frosting:4', hazelnut: 'hazelnut', swirl: 'swirl', chest: 'chest:2', gift: 'gift', mood: 'candy:5', mixer: 'mixer',
+  };
+
+  const ORDER_ICONS = { striped: 'stripe_row:4', wrapped: 'wrapped:0', bomb: 'bomb', frosting: 'frosting:2', cocoa: 'cocoa', cage: 'cage', swirl: 'swirl', gift: 'gift', popcorn: 'popcorn:3', chest: 'chest:1', mixer: 'mixer' };
 
   function goalIcon(goal, size) {
     if (goal.type === 'collect') return candyImage(goal.color, 'none', size);
@@ -119,6 +129,9 @@
     cage: (count) => `Break ${count} cage${count === 1 ? '' : 's'}`,
     swirl: (count) => `Break ${count} Taffy Swirl${count === 1 ? '' : 's'}`,
     gift: (count) => `Open ${count} Gift Box${count === 1 ? '' : 'es'}`,
+    popcorn: (count) => `Pop ${count} Popcorn`,
+    chest: (count) => `Open ${count} Sugar Chest${count === 1 ? '' : 's'}`,
+    mixer: (count) => `Hit the Candy Mixer ${count} times`,
   };
 
   function goalText(goal) {
@@ -290,6 +303,12 @@
         wheel.hidden = !!status.wheel_locked;
         wheel.classList.toggle('is-ready', status.wheel_ready && !status.wheel_locked);
         wheel.setAttribute('aria-label', status.wheel_ready ? 'Daily Wheel: a free spin is ready' : 'Daily Wheel');
+        const daily = by_id('btn-map-daily');
+        daily.hidden = !!status.daily_locked;
+        daily.classList.toggle('is-ready', status.daily_claimable > 0 && !status.daily_locked);
+        if (status.daily_claimable > 0) daily.setAttribute('data-count', String(status.daily_claimable));
+        else daily.removeAttribute('data-count');
+        daily.setAttribute('aria-label', status.daily_claimable > 0 ? `Daily Challenges: ${status.daily_claimable} reward${status.daily_claimable === 1 ? '' : 's'} to collect` : 'Daily Challenges');
         const chest = by_id('btn-map-chest');
         chest.hidden = !!status.chest_locked;
         by_id('map-chest-progress').textContent = `${status.chest_progress}/${META.CHEST_STARS}`;
@@ -370,6 +389,11 @@
           });
         }
       },
+      /** Page position of the moves counter (the Sweet Finale's sparks fly from it). */
+      movesCenter() {
+        const rect = dom.hud_moves.getBoundingClientRect();
+        return rect.width ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null;
+      },
       goalElementCenter(goal_type) {
         const index = hud_goal_nodes.findIndex((entry) => entry.goal.type === goal_type);
         const target = index >= 0 ? hud_goal_nodes[index].node : dom.hud_goal_list;
@@ -443,6 +467,33 @@
         pointer.classList.toggle('is-low', point.y - app_rect.top > app_rect.height * 0.55);
         pointer.classList.add('is-showing');
       },
+      /**
+       * Guided tutorial hand: slides from one point to another over and over, showing the swap to make. null hides it.
+       */
+      swipeHint(from_point, to_point) {
+        let hand = by_id('swipe-hand');
+        if (!from_point) {
+          if (hand) hand.classList.remove('is-showing');
+          return;
+        }
+        if (!hand) {
+          hand = element('div', 'swipe-hand', { id: 'swipe-hand', 'aria-hidden': 'true' });
+          hand.innerHTML = `<span class="swipe-trail"></span><span class="swipe-glove">${icon('hand')}</span>`;
+          dom.app.appendChild(hand);
+        }
+        const app_rect = dom.app.getBoundingClientRect();
+        hand.style.left = `${Math.round(from_point.x - app_rect.left)}px`;
+        hand.style.top = `${Math.round(from_point.y - app_rect.top)}px`;
+        hand.style.setProperty('--dx', `${Math.round(to_point.x - from_point.x)}px`);
+        hand.style.setProperty('--dy', `${Math.round(to_point.y - from_point.y)}px`);
+        const trail = hand.querySelector('.swipe-trail');
+        const length = Math.hypot(to_point.x - from_point.x, to_point.y - from_point.y);
+        trail.style.width = `${Math.round(length)}px`;
+        trail.style.transform = `rotate(${Math.atan2(to_point.y - from_point.y, to_point.x - from_point.x)}rad)`;
+        hand.classList.remove('is-showing');
+        void hand.offsetWidth;
+        hand.classList.add('is-showing');
+      },
       /** Pip in the corner of the game screen: reacts to big combos, points at the hint in the first levels. */
       pip(expression, duration_ms, angle) {
         const canvas = by_id('game-pip');
@@ -475,7 +526,7 @@
         dom.tutorial_bubble.hidden = false;
       },
       /** Puts the tutorial bubble in free space below or above the board; if there is none, it overlays and fades on touch. */
-      placeTutorial(board_rect, has_trays) {
+      placeTutorial(board_rect, has_trays, avoid) {
         const bubble = dom.tutorial_bubble;
         if (bubble.hidden || !board_rect) return;
         const bar_top = dom.btn_pause.getBoundingClientRect().top - 4;
@@ -486,7 +537,11 @@
         let top;
         if (bar_top - board_bottom >= height) top = board_bottom + (bar_top - board_bottom - height) / 2;
         else if (board_top - hud_bottom >= height) top = hud_bottom + (board_top - hud_bottom - height) / 2;
-        else top = board_rect.top + board_rect.height - height - 6;
+        else {
+          top = board_rect.top + board_rect.height - height - 6;
+          // A guided step's highlighted candies stay uncovered: the words move to the other end of the board.
+          if (avoid && top < avoid.bottom && top + height > avoid.top) top = board_rect.top + 6;
+        }
         bubble.style.top = `${Math.round(top)}px`;
         bubble.style.bottom = 'auto';
         const overlays_board = top < board_bottom && top + height > board_rect.top;
@@ -545,6 +600,7 @@
       },
       /** A lost heart: the heart pops up over everything, cracks in two and the halves fall away with a "-1". */
       heartBreak() {
+        hooks.sound('heart_break');
         const holder = element('div', 'heart-break', { 'aria-hidden': 'true' });
         const url = SPRITES.iconUrl('heart', 192);
         holder.appendChild(element('img', 'heart-half heart-half-left', { src: url, alt: '' }));
@@ -579,6 +635,8 @@
       // ------------------------------------------------------------ modals
       /** Opens a modal. `spec`: { id, build(container, handle), back(handle), on_close }. Returns a handle with close(). */
       openModal(spec) {
+        // Popups slide in with a soft swish (win, lose and reward popups bring their own jingles).
+        if (['win', 'lose', 'reward'].indexOf(spec.id) < 0) hooks.sound('open');
         dom.modal_root.hidden = false;
         dom.modal_root.classList.remove('is-closing');
         const modal = element('div', 'modal', { role: 'dialog', 'aria-modal': 'true', 'data-modal': spec.id });
@@ -703,7 +761,15 @@
             modal.appendChild(meta);
             if (level.tutorial && level.newMechanic) {
               const tip = element('div', 'pip-tip');
-              tip.appendChild(pipImage('wow', 56));
+              const art = NEW_PIECE_ART[level.newMechanic];
+              if (art) {
+                const card = element('div', 'new-piece');
+                card.appendChild(element('img', '', { src: spriteUrl(art, 64), alt: '' }));
+                card.appendChild(element('span', 'new-piece-badge', { text: 'New!' }));
+                tip.appendChild(card);
+              } else {
+                tip.appendChild(pipImage('wow', 56));
+              }
               tip.appendChild(element('p', '', { text: level.tutorial }));
               modal.appendChild(tip);
             } else if (level.tip) {
@@ -1163,6 +1229,93 @@
         });
       },
 
+      /**
+       * Daily Challenges: today's three challenges with progress bars and their rewards (Claim when done), and the bonus
+       * box for finishing all three. actions: { claim(index) -> reward, bonus() -> reward, status() -> fresh status }.
+       */
+      showDaily(status, actions) {
+        const kind_art = {
+          win: () => SPRITES.iconUrl('star', 80), first_try: () => SPRITES.iconUrl('star', 80), striped: () => spriteUrl('stripe_row:4', 40),
+          wrapped: () => spriteUrl('wrapped:0', 40), bomb: () => spriteUrl('bomb', 40), combo: () => spriteUrl('wrapped:3', 40),
+          jelly: () => spriteUrl('jelly:2', 40), blockers: () => spriteUrl('frosting:3', 40), candies: () => spriteUrl('candy:1', 40), cascade: () => spriteUrl('candy:5', 40),
+        };
+        return ui.openModal({
+          id: 'daily',
+          back: (handle) => handle.close(),
+          on_close: actions.closed,
+          build(modal, handle) {
+            modal.classList.add('daily-modal');
+            modal.appendChild(iconButton('close', 'Close', () => {
+              clickSound();
+              handle.close();
+            }, 'round small modal-close'));
+            modal.appendChild(glossyHeading('h2', 'Daily Challenges', 'modal-title'));
+            const subtitle = element('p', 'daily-sub');
+            modal.appendChild(subtitle);
+            const list = element('div', 'daily-list');
+            modal.appendChild(list);
+            const bonus_row = element('div', 'daily-bonus');
+            modal.appendChild(bonus_row);
+            const render = (current) => {
+              const left_ms = Math.max(0, new Date(new Date().setHours(24, 0, 0, 0)).getTime() - Date.now());
+              subtitle.textContent = `New challenges in ${Math.floor(left_ms / 3600000)}h ${Math.floor((left_ms % 3600000) / 60000)}m`;
+              list.innerHTML = '';
+              current.quests.forEach((quest, index) => {
+                const row = element('div', `daily-row${quest.done ? ' is-done' : ''}${quest.claimed ? ' is-claimed' : ''}`);
+                row.appendChild(element('img', 'daily-art', { src: (kind_art[quest.kind] || kind_art.candies)(), alt: '' }));
+                const body = element('div', 'daily-body');
+                body.appendChild(element('p', 'daily-text', { text: quest.text }));
+                const bar = element('div', 'daily-bar');
+                const fill = element('span', 'daily-fill');
+                fill.style.width = `${Math.round((quest.progress / quest.target) * 100)}%`;
+                bar.appendChild(fill);
+                bar.appendChild(element('b', 'daily-count', { text: `${quest.progress}/${quest.target}` }));
+                body.appendChild(bar);
+                body.appendChild(element('p', 'daily-reward', { text: `Reward: ${quest.reward.label}` }));
+                row.appendChild(body);
+                if (quest.claimed) {
+                  row.appendChild(element('span', 'daily-check', { html: icon('check') }));
+                } else {
+                  const claim = button('Claim', `pill small${quest.done ? '' : ' secondary'}`, () => {
+                    if (!quest.done) {
+                      ui.toast('Keep playing levels to finish this challenge!');
+                      return;
+                    }
+                    const reward = actions.claim(index);
+                    if (reward) {
+                      hooks.sound('reward');
+                      ui.toast(`You got ${reward.label}!`);
+                    }
+                    render(actions.status());
+                  });
+                  claim.id = `btn-daily-claim-${index}`;
+                  claim.disabled = !quest.done;
+                  row.appendChild(claim);
+                }
+                list.appendChild(row);
+              });
+              bonus_row.innerHTML = '';
+              bonus_row.appendChild(element('span', 'daily-bonus-art', { html: icon('chest') }));
+              bonus_row.appendChild(element('p', 'daily-bonus-text', { html: current.bonus.claimed ? '<b>Bonus box opened!</b> Come back tomorrow for new challenges.' : `<b>Finish all three:</b> a bonus box with ${current.bonus.reward.label}!` }));
+              if (current.bonus.ready) {
+                const open = button('Open!', 'pill small', () => {
+                  const reward = actions.bonus();
+                  if (reward) {
+                    hooks.sound('unlock');
+                    ui.toast(`Bonus box: ${reward.label}!`);
+                  }
+                  render(actions.status());
+                });
+                open.id = 'btn-daily-bonus';
+                bonus_row.appendChild(open);
+              }
+              bonus_row.classList.toggle('is-ready', current.bonus.ready);
+            };
+            render(status);
+          },
+        });
+      },
+
       showReward(title, text, expression) {
         hooks.sound('reward');
         return ui.openModal({
@@ -1259,35 +1412,6 @@
             input.addEventListener('keydown', (event) => {
               if (event.key === 'Enter') save.click();
             });
-          },
-        });
-      },
-
-      /** First launch: "Volume check: is this volume comfortable?" with a slider and a gentle sample. */
-      showComfort(settings, actions) {
-        return ui.openModal({
-          id: 'comfort',
-          back: (handle) => {
-            handle.close();
-            actions.done();
-          },
-          build(modal, handle) {
-            modal.appendChild(glossyHeading('h2', 'Volume check', 'modal-title'));
-            modal.appendChild(element('p', '', { text: 'Is this volume comfortable? All sounds are soft by design. Move the slider until the sample feels gentle.' }));
-            const slider = element('input', 'comfort-slider', { type: 'range', min: '0', max: '1', step: '0.05', value: String(settings.master_volume), id: 'comfort-slider', 'aria-label': 'Overall volume' });
-            slider.addEventListener('input', () => actions.change('master_volume', parseFloat(slider.value)));
-            slider.addEventListener('change', () => actions.soundCheck());
-            modal.appendChild(slider);
-            const row = element('div', 'button-row');
-            row.appendChild(button('Play sample', 'pill secondary', () => actions.soundCheck()));
-            const ok = button('Sounds good', 'pill', () => {
-              clickSound();
-              handle.close();
-              actions.done();
-            });
-            ok.id = 'btn-comfort-ok';
-            row.appendChild(ok);
-            modal.appendChild(row);
           },
         });
       },
@@ -1495,6 +1619,10 @@
             row(candyImage(2, 'none', 48), '<b>Fuse Candy</b> shows a countdown. Clear it before it reaches zero!');
             row(spriteUrl('swirl', 48), '<b>Taffy Swirl</b> falls like a candy but never matches. Match beside it or blast it to break it. It stops a striped beam.');
             row(spriteUrl('gift', 48), '<b>Gift Box</b> falls like a candy. Match beside it or blast it to open it: a special candy is inside!');
+            row(spriteUrl('popcorn:3', 48), '<b>Popcorn</b> stays put. Hit it three times (match beside it or blast it) and it bursts into a Color Bomb!');
+            row(spriteUrl('chest:2', 48), '<b>Sugar Chest</b>: only keys open it. Match candies that carry a golden key: each key opens one lock.');
+            row(spriteUrl('mixer', 48), '<b>Candy Mixer</b> frosts a nearby candy every 3 moves (watch its lights). Hitting it restarts the count; three hits break it.');
+            row(candyImage(4, 'none', 48), '<b>Mood Candy</b> (rainbow ring) changes color after every move. Plan your match before it changes!');
             row(spriteUrl('cherry', 48), '<b>Ingredients</b> (cherries and hazelnuts): bring them down to the trays. Blasts never break them.');
             row(spriteUrl('candy:4', 48), '<b>Portals</b> pass falling candies to their partner. <b>Sugar Belts</b> slide candies one step after every move.');
             modal.appendChild(element('h3', '', { text: 'Boosters and hearts' }));

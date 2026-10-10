@@ -9,21 +9,40 @@
   const LOGIC = SC.LOGIC || require('../../www/js/logic.js');
   const LEVELS = SC.LEVELS || require('../../www/js/levels.js');
 
-  // First level that uses each idea (1-25 are hand-authored; 31, 36 and 41 are generated introductions).
+  // First level that uses each idea (1-25 are hand-authored; the rest arrive in generated introduction levels).
   const UNLOCKS = Object.freeze({
-    collect: 1, jelly: 5, ingredients: 9, order: 12, frosting: 13, jelly2: 15, cage: 19,
-    portals: 21, cocoa: 22, fuse: 24, mixed: 25, belt: 31, frosting3: 36, hazelnut: 41, swirl: 46, gift: 61,
+    collect: 1, jelly: 3, ingredients: 7, frosting: 10, order: 11, jelly2: 12, cage: 14, popcorn: 15,
+    portals: 19, cocoa: 20, fuse: 22, mixed: 25, belt: 31, frosting3: 36, hazelnut: 41, swirl: 46, chest: 53, gift: 61,
+    mood: 68, mixer: 76,
   });
-  // Like the original, from episode 4 a new piece arrives at an episode's first level (episodes start at 16, 31, 46 ...).
-  const GENERATED_INTROS = Object.freeze({ 31: 'belt', 36: 'frosting3', 41: 'hazelnut', 46: 'swirl', 61: 'gift' });
+  // Like the original, a new piece arrives every few levels: at an episode's first level or in its middle.
+  const GENERATED_INTROS = Object.freeze({ 31: 'belt', 36: 'frosting3', 41: 'hazelnut', 46: 'swirl', 53: 'chest', 61: 'gift', 68: 'mood', 76: 'mixer' });
   const INTRO_TEXT = Object.freeze({
     belt: { tutorial: 'Sugar Belts slide every candy on them one step after each move.', tip: 'Line up matches that the belt will finish for you.' },
     frosting3: { tutorial: 'Thick frosting has up to five layers. Keep cracking!', tip: 'Special candy blasts take a layer off each time.' },
     hazelnut: { tutorial: 'Hazelnuts are ingredients too: bring them down to the trays!', tip: 'Clear the column under a hazelnut to drop it.' },
-    swirl: { tutorial: 'Taffy Swirls fall like candies but never match. Match next to them to break them!', tip: 'A swirl stops a striped beam, so aim around it.' },
-    gift: { tutorial: 'Gift Boxes hide a special candy. Match next to one to open it!', tip: 'Open the gifts early and use what is inside.' },
+    swirl: {
+      tutorial: 'Taffy Swirls fall like candies but never match. Match next to them to break them!', tip: 'A swirl stops a striped beam, so aim around it.',
+      guide: [{ find: 'swirl', text: 'Taffy Swirls never match. Match right next to one to break it!' }, { text: 'A swirl stops a striped beam: aim around them.' }],
+    },
+    chest: {
+      tutorial: 'Sugar Chests only open with keys. Match the candies carrying golden keys!', tip: 'New keys drop in while a chest is still locked.',
+      guide: [{ find: 'key', text: 'See the golden key? Match that candy: the key flies to a chest and opens a lock!' }, { text: 'Each key opens one lock. New keys keep dropping in until every chest is open.' }],
+    },
+    gift: {
+      tutorial: 'Gift Boxes hide a special candy. Match next to one to open it!', tip: 'Open the gifts early and use what is inside.',
+      guide: [{ find: 'gift', text: 'A Gift Box! Match next to it to see what is inside.' }, { text: 'Gifts hold special candies. Open them early!' }],
+    },
+    mood: {
+      tutorial: 'Mood Candies (with a rainbow ring) change color after every move. Plan ahead!', tip: 'Match a Mood Candy now, before it changes its mind.',
+      guide: [{ text: 'Mood Candies change color after every move. Watch the rainbow rings!' }],
+    },
+    mixer: {
+      tutorial: 'The Candy Mixer frosts a nearby candy every 3 moves. Hit it to reset its count; three hits break it!', tip: 'Its lights show the moves left before it whips up frosting.',
+      guide: [{ find: 'mixer', text: 'The Candy Mixer frosts a candy every 3 moves. Hit it now to restart its count!' }, { text: 'Three hits break it for good. Watch its lights!' }],
+    },
   });
-  const BLOCKER_TYPES = Object.freeze(['frosting', 'cage', 'cocoa', 'fuse', 'swirl']);
+  const BLOCKER_TYPES = Object.freeze(['frosting', 'cage', 'cocoa', 'fuse', 'swirl', 'popcorn', 'mixer']);
 
   const NAME_FIRST = Object.freeze(['Toffee', 'Gummy', 'Caramel', 'Sprinkle', 'Marzipan', 'Nougat', 'Fudge', 'Praline', 'Licorice', 'Butterscotch',
     'Bonbon', 'Truffle', 'Meringue', 'Sherbet', 'Taffy', 'Brittle', 'Cocoa', 'Vanilla', 'Maple', 'Honey', 'Pistachio', 'Cinnamon', 'Mint', 'Berry']);
@@ -108,11 +127,14 @@
     return chance(rng, 0.8) ? 6 : 5;
   }
 
-  /** How many blocker types a level may mix: 1 before 60, 2 before 200, 3 before 600, 4 after. */
+  /**
+   * How many blocker types a level may mix: 1 before 40, 2 before 80, 3 before 400, 4 after. Like the original, almost
+   * every level past the opening has something in the way; later ones stack two or three kinds.
+   */
   function blockerBudget(level_number) {
-    if (level_number < 60) return 1;
-    if (level_number < 200) return 2;
-    if (level_number < 600) return 3;
+    if (level_number < 40) return 1;
+    if (level_number < 80) return 2;
+    if (level_number < 400) return 3;
     return 4;
   }
 
@@ -156,7 +178,9 @@
     if (intro === 'hazelnut') return 'ingredients';
     if (intro === 'frosting3') return level_number === 36 ? 'order' : 'collect';
     if (intro === 'belt') return 'collect';
-    if (intro === 'swirl' || intro === 'gift') return level_number === UNLOCKS[intro] ? 'order' : 'collect';
+    if (intro === 'swirl' || intro === 'gift' || intro === 'chest') return level_number === UNLOCKS[intro] ? 'order' : 'collect';
+    if (intro === 'mood') return 'collect';
+    if (intro === 'mixer') return level_number === UNLOCKS[intro] ? 'jelly' : 'collect';
     return rawMode(level_number);
   }
 
@@ -322,8 +346,11 @@
     let blocker_types = [];
     if (intro === 'frosting3' || practice === 'frosting3') blocker_types = ['frosting'];
     else if (intro === 'swirl' || practice === 'swirl') blocker_types = ['swirl'];
+    else if (intro === 'mixer' || practice === 'mixer') blocker_types = ['mixer'];
     else if (!intro && !practice && allowed_blockers.length) {
-      const count = Math.min(blockerBudget(level_number), between(rng, level_number < 40 ? 0 : 1, blockerBudget(level_number)));
+      // Every level past the opening has at least one kind of blocker in the way (the original rarely has a bare board).
+      const budget = blockerBudget(level_number);
+      const count = Math.min(budget, between(rng, 1, budget));
       const shuffled = allowed_blockers.slice().sort(() => rng() - 0.5);
       blocker_types = shuffled.slice(0, count);
     }
@@ -357,8 +384,36 @@
         meta.fuse = between(rng, 12, 20);
       } else if (type === 'swirl') {
         placeBlocker('s', pick(rng, ['rows', 'checker', 'pillars', 'corners', 'diamond']), between(rng, 5, 10));
+      } else if (type === 'popcorn') {
+        placeBlocker('n', pick(rng, ['corners', 'pillars', 'diamond', 'ring']), between(rng, 2, 4));
+      } else if (type === 'mixer') {
+        placeBlocker('X', 'block', 1);
       }
     });
+    // Sugar Chests (with their starting keys) on their intro and practice levels and now and then afterwards.
+    const chest_level = intro === 'chest' || practice === 'chest' || (!intro && !practice && unlocked('chest', level_number) && chance(rng, 0.2));
+    if (chest_level) {
+      const placed = placeBlocker(() => (chance(rng, level_number < 80 ? 0.3 : 0.55) ? 'U' : 'u'), pick(rng, ['corners', 'pillars', 'ring']), intro === 'chest' ? 2 : between(rng, 2, 3));
+      if (placed === 0) return null;
+      const free = [];
+      grid.forEach((row, row_index) => row.forEach((symbol, col) => {
+        if (symbol === '.' && !reserved.has(row_index * cols + col)) free.push([row_index, col]);
+      }));
+      free.sort(() => rng() - 0.5).slice(0, 2).forEach(([row_index, col]) => {
+        grid[row_index][col] = 'y';
+      });
+    }
+    // Mood Candies: a few moody candies that change color every move.
+    const mood_level = intro === 'mood' || practice === 'mood' || (!intro && !practice && unlocked('mood', level_number) && chance(rng, 0.2));
+    if (mood_level) {
+      const free = [];
+      grid.forEach((row, row_index) => row.forEach((symbol, col) => {
+        if (symbol === '.' && !reserved.has(row_index * cols + col)) free.push([row_index, col]);
+      }));
+      free.sort(() => rng() - 0.5).slice(0, between(rng, 4, 7)).forEach(([row_index, col]) => {
+        grid[row_index][col] = 'm';
+      });
+    }
     // Gift Boxes are a treat, not a blocker: a few now and then once unlocked (always on their intro and practice).
     const gift_level = intro === 'gift' || practice === 'gift' || (!intro && !practice && unlocked('gift', level_number) && chance(rng, 0.25));
     if (gift_level) placeBlocker('g', pick(rng, ['corners', 'pillars', 'diamond', 'ring']), intro === 'gift' ? 4 : between(rng, 2, 4));
@@ -400,7 +455,9 @@
       if (blocker_types.indexOf('cage') >= 0) items.push('cage');
       if (blocker_types.indexOf('swirl') >= 0 && grid.some((row) => row.indexOf('s') >= 0)) items.push('swirl');
       if (grid.some((row) => row.indexOf('g') >= 0)) items.push('gift');
-      const item = intro === 'frosting3' ? 'frosting' : intro === 'swirl' ? 'swirl' : intro === 'gift' ? 'gift' : pick(rng, items);
+      if (grid.some((row) => row.indexOf('n') >= 0)) items.push('popcorn');
+      if (grid.some((row) => row.indexOf('u') >= 0 || row.indexOf('U') >= 0)) items.push('chest');
+      const item = intro === 'frosting3' ? 'frosting' : intro === 'swirl' ? 'swirl' : intro === 'gift' ? 'gift' : intro === 'chest' ? 'chest' : pick(rng, items);
       goals.push({ type: 'order', item, count: orderCount(item, grid, rng) });
     }
     if (goals.length === 0) goals.push({ type: 'collect', color: palette[0], count: Math.min(45, Math.round(active_cells * 0.22)) });
@@ -423,6 +480,7 @@
     if (intro) {
       level.tutorial = INTRO_TEXT[intro].tutorial;
       level.tip = INTRO_TEXT[intro].tip;
+      if (INTRO_TEXT[intro].guide) level.guide = INTRO_TEXT[intro].guide.map((step) => Object.assign({}, step));
     }
     return level;
   }
@@ -436,8 +494,9 @@
       if (item === 'frosting' && symbol >= '1' && symbol <= '5') total += Number(symbol);
       if (item === 'cage' && symbol === 'k') total += 1;
       if (item === 'cocoa' && symbol === 'o') total += 1;
-      if ((item === 'swirl' && symbol === 's') || (item === 'gift' && symbol === 'g')) total += 1;
+      if ((item === 'swirl' && symbol === 's') || (item === 'gift' && symbol === 'g') || (item === 'popcorn' && symbol === 'n') || (item === 'chest' && (symbol === 'u' || symbol === 'U'))) total += 1;
     }));
+    if (item === 'popcorn' || item === 'chest') return Math.max(1, total);
     if (item === 'gift') return Math.max(1, total);
     if (item === 'cocoa') return Math.max(3, total + between(rng, 2, 6)); // cocoa grows, so the order asks for a few more
     return Math.max(1, Math.round(total * 0.8));
@@ -460,7 +519,7 @@
       let clear = true;
       for (let row = top; row < rows; row += 1) {
         const symbol = grid[row][col];
-        if (symbol === '#' || symbol === 'k' || symbol === 'o' || symbol === 'p' || symbol === 'P' || (symbol >= '1' && symbol <= '5') || '><^v'.indexOf(symbol) >= 0) {
+        if (symbol === '#' || symbol === 'k' || symbol === 'o' || symbol === 'p' || symbol === 'P' || (symbol >= '1' && symbol <= '5') || '><^vnuUX'.indexOf(symbol) >= 0) {
           clear = false;
           break;
         }
@@ -530,6 +589,10 @@
         if (symbol === 'p' || symbol === 'P') ideas.add('portals');
         if (symbol === 's') ideas.add('swirl');
         if (symbol === 'g') ideas.add('gift');
+        if (symbol === 'n') ideas.add('popcorn');
+        if (symbol === 'u' || symbol === 'U' || symbol === 'y') ideas.add('chest');
+        if (symbol === 'm') ideas.add('mood');
+        if (symbol === 'X') ideas.add('mixer');
         if ('><^v'.indexOf(symbol) >= 0) ideas.add('belt');
       }
     });

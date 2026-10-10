@@ -10,7 +10,7 @@
   const UTIL = SC.UTIL || require('./util.js');
   const rngNext = UTIL.rngNext;
 
-  const KIND = Object.freeze({ CANDY: 'candy', CHERRY: 'cherry', HAZELNUT: 'hazelnut', FROSTING: 'frosting', COCOA: 'cocoa', SWIRL: 'swirl', GIFT: 'gift' });
+  const KIND = Object.freeze({ CANDY: 'candy', CHERRY: 'cherry', HAZELNUT: 'hazelnut', FROSTING: 'frosting', COCOA: 'cocoa', SWIRL: 'swirl', GIFT: 'gift', POPCORN: 'popcorn', CHEST: 'chest', MIXER: 'mixer' });
   const SPECIAL = Object.freeze({
     NONE: 'none',
     STRIPE_ROW: 'stripe_row', // horizontal stripes: clears its row (made by a vertical 4-match)
@@ -44,6 +44,9 @@
     CAGE: 100,
     SWIRL: 150,
     GIFT: 200,
+    POPCORN: 150,
+    CHEST: 300,
+    MIXER: 200,
     END_BONUS_PER_MOVE: 300,
     CASCADE_STEP: 0.5,
     CASCADE_CAP: 4,
@@ -72,7 +75,7 @@
   }
 
   function isBlocker(piece) {
-    return !!piece && (piece.kind === KIND.FROSTING || piece.kind === KIND.COCOA);
+    return !!piece && (piece.kind === KIND.FROSTING || piece.kind === KIND.COCOA || piece.kind === KIND.POPCORN || piece.kind === KIND.CHEST || piece.kind === KIND.MIXER);
   }
 
   /** Pieces that fall but never match: Taffy Swirls and Gift Boxes (a match beside them or a blast breaks them). */
@@ -99,7 +102,8 @@
   //   onMoveEnd(ctx)                      after a player move's cascades (belts, fuses, cocoa), unless already won
   //   goalProgress(state, goal)           -> progress for goal types the mechanic owns, or null
   //   stopsBeam(state, cell)              -> true when a striped candy's beam stops at this cell (after hitting it)
-  //   orderCounter                        name of the order counter the mechanic feeds ('frosting', 'cocoa', 'cage', 'swirl', 'gift')
+  //   orderCounter                        name of the order counter the mechanic feeds ('frosting', 'cocoa', 'cage', 'swirl', 'gift',
+  //                                       'popcorn', 'chest', 'mixer')
 
   function damageBlocker(ctx, stage, cell, counter, points, event_type) {
     if (stage.blocker_hit.has(cell)) return;
@@ -369,6 +373,255 @@
     },
   };
 
+
+  /** How many blockers of a kind a layout holds, for order goals that ask for more than the board can give. */
+  function orderShortfall(level, item, available, label) {
+    return (level.goals || []).filter((goal) => goal.type === 'order' && goal.item === item && goal.count > available)
+      .map((goal) => `order needs ${goal.count} ${label} but the board has ${available}`);
+  }
+
+  const POPCORN_HITS = 3;
+
+  /** Takes one hit off a Popcorn; the third hit bursts it into a Rainbow Drop right where it stood. */
+  function hitPopcorn(ctx, stage, cell) {
+    const state = ctx.state;
+    const piece = state.cells[cell];
+    if (!piece || piece.kind !== KIND.POPCORN || stage.blocker_hit.has(cell)) return;
+    stage.blocker_hit.add(cell);
+    piece.layers -= 1;
+    emit(ctx, { type: 'popcorn', cell, piece_id: piece.id, layers: piece.layers, wave: stage.wave });
+    addScore(ctx, SCORING.POPCORN, 'popcorn', cell);
+    if (piece.layers > 0) return;
+    state.order.popcorn += 1;
+    const bomb = newPiece(state, KIND.CANDY, -1, SPECIAL.BOMB, 0);
+    state.cells[cell] = bomb;
+    emit(ctx, { type: 'create', cell, piece: clonePiece(bomb), from_cells: [cell], popcorn: true, wave: stage.wave });
+  }
+
+  /** Popcorn: a kernel that stays put and takes three hits (matches beside it or blasts), then bursts into a Rainbow Drop. */
+  const POPCORN = {
+    id: 'popcorn',
+    symbols: { n: 'Popcorn (3 hits, then it bursts into a Rainbow Drop)' },
+    orderCounter: 'popcorn',
+    parseCell(parsed, index) {
+      parsed.popcorn[index] = 1;
+      parsed.solid[index] = 1;
+    },
+    validateLayout(level, parsed) {
+      return orderShortfall(level, 'popcorn', parsed.popcorn.reduce((sum, value) => sum + value, 0), 'Popcorns');
+    },
+    populate(state, parsed, index) {
+      if (parsed.popcorn[index]) state.cells[index] = newPiece(state, KIND.POPCORN, -1, SPECIAL.NONE, POPCORN_HITS);
+    },
+    absorbHit(ctx, stage, cell) {
+      const piece = ctx.state.cells[cell];
+      if (!piece || piece.kind !== KIND.POPCORN) return false;
+      hitPopcorn(ctx, stage, cell);
+      return true;
+    },
+    onAdjacentMatch(ctx, stage, cell) {
+      hitPopcorn(ctx, stage, cell);
+    },
+  };
+
+  const KEY_SPAWN_CHANCE = 0.12;
+
+  /** A Sugar Key flies from a cleared candy to the nearest locked chest (reading order on a tie) and opens one lock. */
+  function useKey(ctx, stage, from_cell) {
+    const state = ctx.state;
+    let target = -1;
+    let best = Infinity;
+    state.cells.forEach((piece, cell) => {
+      if (!piece || piece.kind !== KIND.CHEST || piece.layers <= 0) return;
+      const distance = Math.abs(rowOf(state, cell) - rowOf(state, from_cell)) + Math.abs(colOf(state, cell) - colOf(state, from_cell));
+      if (distance < best) {
+        best = distance;
+        target = cell;
+      }
+    });
+    if (target < 0) {
+      emit(ctx, { type: 'key', from: from_cell, cell: -1, wave: stage.wave });
+      return;
+    }
+    const chest = state.cells[target];
+    chest.layers -= 1;
+    emit(ctx, { type: 'key', from: from_cell, cell: target, wave: stage.wave });
+    emit(ctx, { type: 'chest', cell: target, piece_id: chest.id, layers: chest.layers, wave: stage.wave });
+    addScore(ctx, SCORING.CHEST, 'chest', target);
+    if (chest.layers <= 0) {
+      state.cells[target] = null;
+      state.order.chest += 1;
+    }
+  }
+
+  /**
+   * Sugar Chest: a locked box (one or two locks) that only Sugar Keys open; matches and blasts bounce off it. Keys ride
+   * on candies ('y' in a layout); clearing a key candy sends its key to the nearest locked chest. While locks remain
+   * and too few keys are on the board, now and then a new candy drops in carrying a key.
+   */
+  const CHEST = {
+    id: 'chest',
+    symbols: { u: 'Sugar Chest (1 lock)', U: 'Sugar Chest (2 locks)', y: 'candy carrying a Sugar Key' },
+    orderCounter: 'chest',
+    parseCell(parsed, index, symbol) {
+      if (symbol === 'y') {
+        parsed.key[index] = 1;
+        return;
+      }
+      parsed.chest[index] = symbol === 'U' ? 2 : 1;
+      parsed.solid[index] = 1;
+    },
+    validateLayout(level, parsed) {
+      const chests = parsed.chest.reduce((sum, value) => sum + (value ? 1 : 0), 0);
+      const keys = parsed.key.reduce((sum, value) => sum + value, 0);
+      const problems = orderShortfall(level, 'chest', chests, 'Sugar Chests');
+      if (chests > 0 && keys === 0) problems.push('Sugar Chests need at least one key candy (y) to start with');
+      if (keys > 0 && chests === 0) problems.push('key candies (y) without a Sugar Chest');
+      return problems;
+    },
+    populate(state, parsed, index) {
+      if (!parsed.chest[index]) return;
+      state.cells[index] = newPiece(state, KIND.CHEST, -1, SPECIAL.NONE, parsed.chest[index]);
+      state.has_chests = true;
+    },
+    afterFill(state, parsed, index) {
+      const piece = state.cells[index];
+      if (parsed.key[index] && piece && piece.kind === KIND.CANDY) piece.key = true;
+    },
+    absorbHit(ctx, stage, cell) {
+      const piece = ctx.state.cells[cell];
+      return !!piece && piece.kind === KIND.CHEST; // only keys open it
+    },
+    onCleared(ctx, stage, cell) {
+      const piece = ctx.state.cells[cell];
+      if (!piece || !piece.key) return;
+      delete piece.key;
+      useKey(ctx, stage, cell);
+    },
+  };
+
+  /** Keys still wanted on the board: locks left minus keys already riding on candies (spawns add keys while > 0). */
+  function keysWanted(state) {
+    let locks = 0;
+    let keys = 0;
+    state.cells.forEach((piece) => {
+      if (!piece) return;
+      if (piece.kind === KIND.CHEST) locks += piece.layers;
+      if (piece.key) keys += 1;
+    });
+    return Math.min(2, locks) - keys;
+  }
+
+  /**
+   * Mood Candy: a regular candy that changes color after every move, cycling through the level's colors (it skips a
+   * color that would line up a ready-made match). In levels with Mood Candies, a few new candies arrive moody too.
+   */
+  const MOOD_SPAWN_CHANCE = 0.08;
+  const MOOD = {
+    id: 'mood',
+    symbols: { m: 'Mood Candy (changes color after every move)' },
+    parseCell(parsed, index) {
+      parsed.mood[index] = 1;
+    },
+    afterFill(state, parsed, index) {
+      const piece = state.cells[index];
+      if (!parsed.mood[index] || !isRegularCandy(piece)) return;
+      piece.mood = true;
+      state.has_mood = true;
+    },
+    onMoveEnd(ctx) {
+      const state = ctx.state;
+      const changes = [];
+      state.cells.forEach((piece, cell) => {
+        if (!piece || !piece.mood || !isRegularCandy(piece)) return;
+        const original = piece.color;
+        const start = state.palette.indexOf(original);
+        for (let step = 1; step < state.palette.length; step += 1) {
+          piece.color = state.palette[(start + step) % state.palette.length];
+          if (!makesLineAt(state, cell)) {
+            changes.push({ cell, piece_id: piece.id, color: piece.color });
+            return;
+          }
+        }
+        piece.color = original;
+      });
+      if (changes.length === 0) return;
+      beginPhase(ctx, 'mood', {});
+      emit(ctx, { type: 'mood', changes });
+    },
+  };
+
+  const MIXER_HITS = 3;
+  const MIXER_PERIOD = 3;
+
+  function hitMixer(ctx, stage, cell) {
+    const piece = ctx.state.cells[cell];
+    if (!piece || piece.kind !== KIND.MIXER || stage.blocker_hit.has(cell)) return;
+    piece.timer = MIXER_PERIOD + 1; // a hit stalls it: the countdown starts over after this move
+    damageBlocker(ctx, stage, cell, 'mixer', SCORING.MIXER, 'mixer');
+  }
+
+  /**
+   * Candy Mixer: a sturdy machine (three hits) that frosts one nearby candy (within two cells) every three moves.
+   * Hitting it restarts its countdown, so keeping it busy keeps the board clean.
+   */
+  const MIXER = {
+    id: 'mixer',
+    symbols: { X: 'Candy Mixer (3 hits; frosts a nearby candy every 3 moves)' },
+    orderCounter: 'mixer',
+    parseCell(parsed, index) {
+      parsed.mixer[index] = 1;
+      parsed.solid[index] = 1;
+    },
+    validateLayout(level, parsed) {
+      return orderShortfall(level, 'mixer', parsed.mixer.reduce((sum, value) => sum + value, 0) * MIXER_HITS, 'Candy Mixer hits');
+    },
+    populate(state, parsed, index) {
+      if (!parsed.mixer[index]) return;
+      const piece = newPiece(state, KIND.MIXER, -1, SPECIAL.NONE, MIXER_HITS);
+      piece.timer = MIXER_PERIOD;
+      state.cells[index] = piece;
+    },
+    absorbHit(ctx, stage, cell) {
+      const piece = ctx.state.cells[cell];
+      if (!piece || piece.kind !== KIND.MIXER) return false;
+      hitMixer(ctx, stage, cell);
+      return true;
+    },
+    onAdjacentMatch(ctx, stage, cell) {
+      hitMixer(ctx, stage, cell);
+    },
+    onMoveEnd(ctx) {
+      const state = ctx.state;
+      const spawns = [];
+      const ticks = [];
+      state.cells.forEach((piece, cell) => {
+        if (!piece || piece.kind !== KIND.MIXER) return;
+        piece.timer -= 1;
+        if (piece.timer > 0) {
+          ticks.push({ cell, piece_id: piece.id, timer: piece.timer });
+          return;
+        }
+        piece.timer = MIXER_PERIOD;
+        ticks.push({ cell, piece_id: piece.id, timer: piece.timer });
+        const options = squareCells(state, cell, 2).filter((target) => {
+          const candy = state.cells[target];
+          return isRegularCandy(candy) && !state.cage[target] && !state.belt[target] && !candy.key && candy.fuse === undefined && state.portal_to[target] < 0 && state.portal_from[target] < 0;
+        });
+        if (options.length === 0) return;
+        const target = options[Math.floor(rngNext(state) * options.length)];
+        const old_piece = state.cells[target];
+        const frosting = newPiece(state, KIND.FROSTING, -1, SPECIAL.NONE, 1);
+        state.cells[target] = frosting;
+        spawns.push({ from: cell, cell: target, old_piece_id: old_piece.id, piece: clonePiece(frosting) });
+      });
+      if (ticks.length === 0) return;
+      beginPhase(ctx, 'mixer', {});
+      emit(ctx, { type: 'mixer_tick', ticks });
+      spawns.forEach((spawn) => emit(ctx, Object.assign({ type: 'mixer_spawn' }, spawn)));
+    },
+  };
+
   const INGREDIENTS = {
     id: 'ingredients',
     symbols: { c: 'cherry (ingredient)', h: 'hazelnut (ingredient)', x: 'exit tray (ingredients resting here are collected)' },
@@ -466,13 +719,13 @@
     },
   };
 
-  /** Registry order matters for onMoveEnd: belts shift first, then fuses tick, then cocoa spreads. */
-  const MECHANICS = [JELLY, FROSTING, CAGE, COCOA, SWIRL, GIFT, INGREDIENTS, PORTALS, BELT, FUSE];
+  /** Registry order matters for onMoveEnd: belts shift first, then fuses tick, cocoa spreads, mixers whip, moods change. */
+  const MECHANICS = [JELLY, FROSTING, CAGE, COCOA, SWIRL, GIFT, POPCORN, CHEST, MOOD, MIXER, INGREDIENTS, PORTALS, BELT, FUSE];
   const MECHANIC_BY_SYMBOL = {};
   MECHANICS.forEach((mechanic) => Object.keys(mechanic.symbols).forEach((symbol) => {
     MECHANIC_BY_SYMBOL[symbol] = mechanic;
   }));
-  const MOVE_END_ORDER = [BELT, FUSE, COCOA];
+  const MOVE_END_ORDER = [BELT, FUSE, COCOA, MIXER, MOOD];
 
   const LAYOUT_LEGEND = Object.freeze(Object.assign({ '.': 'normal cell', '#': 'hole' }, ...MECHANICS.map((mechanic) => mechanic.symbols)));
 
@@ -526,6 +779,12 @@
       cocoa: new Uint8Array(cell_count),
       swirl: new Uint8Array(cell_count),
       gift: new Uint8Array(cell_count),
+      popcorn: new Uint8Array(cell_count),
+      chest: new Uint8Array(cell_count),
+      key: new Uint8Array(cell_count),
+      mood: new Uint8Array(cell_count),
+      mixer: new Uint8Array(cell_count),
+      solid: new Uint8Array(cell_count), // pieces that never move (popcorn, chests, mixers)
       fuse: new Uint8Array(cell_count),
       ingredients: new Uint8Array(cell_count),
       exits: new Uint8Array(cell_count),
@@ -581,6 +840,9 @@
     if (!piece) return null;
     const copy = { id: piece.id, kind: piece.kind, color: piece.color, special: piece.special, layers: piece.layers };
     if (piece.fuse !== undefined) copy.fuse = piece.fuse;
+    if (piece.key) copy.key = true;
+    if (piece.mood) copy.mood = true;
+    if (piece.timer !== undefined) copy.timer = piece.timer;
     return copy;
   }
 
@@ -626,7 +888,9 @@
       moves_left: timed ? Infinity : level.moves,
       moves_made: 0,
       collected: new Array(MAX_COLORS).fill(0),
-      order: { striped: 0, wrapped: 0, bomb: 0, frosting: 0, cocoa: 0, cage: 0, swirl: 0, gift: 0 },
+      order: { striped: 0, wrapped: 0, bomb: 0, frosting: 0, cocoa: 0, cage: 0, swirl: 0, gift: 0, popcorn: 0, chest: 0, mixer: 0 },
+      has_chests: false,
+      has_mood: false,
       ingredients_collected: 0,
       ingredients_total: 0,
       jelly_total: 0,
@@ -1072,7 +1336,7 @@
 
   // ------------------------------------------------------------------ goals and stars
 
-  const ORDER_ITEMS = Object.freeze(['striped', 'wrapped', 'bomb', 'frosting', 'cocoa', 'cage', 'swirl', 'gift']);
+  const ORDER_ITEMS = Object.freeze(['striped', 'wrapped', 'bomb', 'frosting', 'cocoa', 'cage', 'swirl', 'gift', 'popcorn', 'chest', 'mixer']);
 
   function goalProgress(state) {
     return state.goals.map((goal) => {
@@ -1470,6 +1734,9 @@
     };
     let step = 0;
     let guard = 0;
+    // Keys only spawn in levels with chests and moods only in levels with Mood Candies (other levels draw no extra
+    // random numbers, so their boards stay exactly as calibrated).
+    let keys_to_spawn = state.has_chests ? keysWanted(state) : 0;
     while (true) {
       guard += 1;
       if (guard > SETTLE_STEP_CAP) throw new Error('Gravity did not settle');
@@ -1503,6 +1770,11 @@
         const spawn_cell = state.spawn_cells[col];
         if (spawn_cell < 0 || cells[spawn_cell] !== null) continue;
         const piece = newPiece(state, KIND.CANDY, randomPaletteColor(state), SPECIAL.NONE, 0);
+        if (keys_to_spawn > 0 && rngNext(state) < KEY_SPAWN_CHANCE) {
+          piece.key = true;
+          keys_to_spawn -= 1;
+        }
+        if (state.has_mood && rngNext(state) < MOOD_SPAWN_CHANCE) piece.mood = true;
         cells[spawn_cell] = piece;
         const track = trackPiece(piece, step, spawn_cell, true);
         const spawn_row = rowOf(state, spawn_cell);
@@ -1741,36 +2013,84 @@
     return { valid: true, state, events: ctx.events, stats: ctx.stats };
   }
 
+  /** Leftover moves the Sweet Finale charges per volley (any more wait for the next volley, once the board settles). */
+  const FINALE_VOLLEY = 12;
+  /** Charged candies fire in small groups, so the beams go off one after another rather than all in one flash. */
+  const FINALE_FIRE_GROUP = 3;
+
   /**
-   * Sweet Finale after a win: each remaining move (or, in timed levels, each remaining second up to a cap) turns a
-   * random regular candy into a striped candy that fires immediately (+300 each plus normal clear points), one by one,
-   * with cascades resolved after each.
+   * Fires every special candy resting on the board (caged ones stay put): wrapped candies first, then striped candies,
+   * then Rainbow Drops, like the original's end-of-level party. Repeats until the board is calm.
+   */
+  function fireAllSpecials(ctx) {
+    const order = [[SPECIAL.WRAPPED, SPECIAL.WRAPPED_ARMED, SPECIAL.WRAPPED_BIG_ARMED], [SPECIAL.STRIPE_ROW, SPECIAL.STRIPE_COL], [SPECIAL.BOMB]];
+    for (let round = 0; round < 40; round += 1) {
+      let fired = false;
+      for (const kinds of order) {
+        const state = ctx.state;
+        const armed = [];
+        state.cells.forEach((piece, cell) => {
+          if (piece && piece.kind === KIND.CANDY && kinds.indexOf(piece.special) >= 0 && !state.cage[cell]) armed.push(cell);
+        });
+        if (armed.length === 0) continue;
+        fired = true;
+        runDetonationStage(ctx, armed, 'bonus');
+        resolveBoard(ctx);
+      }
+      if (!fired) return;
+    }
+  }
+
+  /**
+   * Sweet Finale after a win, like the original's end-of-level party:
+   *  1. every special candy already on the board goes off;
+   *  2. each leftover move charges one random candy into a striped candy, one after another (the moves counter ticks
+   *     down with each), then the charged candies fire in quick groups and the board settles;
+   *  3. anything special those blasts made goes off too, until the board is calm (+300 per leftover move).
+   * Timed levels charge one candy per leftover second, up to a cap.
    */
   function applyEndBonus(state_in, options) {
     const state = cloneState(state_in);
     const ctx = createContext(state);
-    const strikes = state.timed
+    ctx.cascade_depth = 1;
+    let leftover = state.timed
       ? Math.min(SCORING.FINALE_MAX_STRIKES_TIMED, Math.max(0, Math.floor((options && options.seconds_left) || 0)))
       : Math.max(0, state.moves_left);
-    for (let strike = 0; strike < strikes; strike += 1) {
-      if (!state.timed) state.moves_left -= 1;
-      beginPhase(ctx, 'bonus', { moves_left: state.timed ? strikes - strike - 1 : state.moves_left });
-      ctx.cascade_depth = 1;
-      addScore(ctx, SCORING.END_BONUS_PER_MOVE, 'bonus', -1);
+    const total = leftover;
+    fireAllSpecials(ctx);
+    let step = 0;
+    while (leftover > 0) {
       const candidates = [];
-      state.cells.forEach((piece, index) => {
-        if (isRegularCandy(piece) && !state.cage[index]) candidates.push(index);
+      state.cells.forEach((piece, cell) => {
+        if (isRegularCandy(piece) && !state.cage[cell]) candidates.push(cell);
       });
-      if (candidates.length === 0) continue;
-      const cell = candidates[Math.floor(rngNext(state) * candidates.length)];
-      const piece = state.cells[cell];
-      piece.special = rngNext(state) < 0.5 ? SPECIAL.STRIPE_ROW : SPECIAL.STRIPE_COL;
-      emit(ctx, { type: 'transform', cell, piece_id: piece.id, special: piece.special, color: piece.color, bonus: true });
-      runDetonationStage(ctx, [cell], 'bonus');
+      if (candidates.length === 0) break;
+      const volley = Math.min(leftover, FINALE_VOLLEY, candidates.length);
+      beginPhase(ctx, 'bonus', { charges: volley, moves_left: state.timed ? leftover : state.moves_left });
+      const charged = [];
+      for (let index = 0; index < volley; index += 1) {
+        const cell = candidates.splice(Math.floor(rngNext(state) * candidates.length), 1)[0];
+        const piece = state.cells[cell];
+        piece.special = rngNext(state) < 0.5 ? SPECIAL.STRIPE_ROW : SPECIAL.STRIPE_COL;
+        leftover -= 1;
+        if (!state.timed) state.moves_left -= 1;
+        addScore(ctx, SCORING.END_BONUS_PER_MOVE, 'bonus', cell);
+        emit(ctx, { type: 'transform', cell, piece_id: piece.id, special: piece.special, color: piece.color, bonus: true, step, moves_left: state.timed ? leftover : state.moves_left });
+        step += 1;
+        charged.push({ cell, piece_id: piece.id });
+      }
+      for (let start = 0; start < charged.length; start += FINALE_FIRE_GROUP) {
+        // A charged candy an earlier group's beam already set off has fired with it; the rest go now.
+        const group = charged.slice(start, start + FINALE_FIRE_GROUP)
+          .filter((entry) => state.cells[entry.cell] && state.cells[entry.cell].id === entry.piece_id)
+          .map((entry) => entry.cell);
+        if (group.length) runDetonationStage(ctx, group, 'bonus');
+      }
       resolveBoard(ctx);
+      fireAllSpecials(ctx);
     }
     if (!state.timed) state.moves_left = 0;
-    emit(ctx, { type: 'end', status: state.status, score: state.score, moves_left: 0, bonus_moves: strikes });
+    emit(ctx, { type: 'end', status: state.status, score: state.score, moves_left: 0, bonus_moves: total });
     return { state, events: ctx.events, stats: ctx.stats };
   }
 
@@ -1994,6 +2314,7 @@
         if (isTriggerable(original_piece)) value += 400;
         if (original_piece && original_piece.fuse !== undefined) value += Math.max(0, 80 - 10 * original_piece.fuse);
         if (state.cage[cell]) value += wants.order.has('cage') ? 40 : 15;
+        if (original_piece && original_piece.key) value += wants.order.has('chest') ? 60 : 30;
         if (wants.jelly && state.jelly[cell] > 0) value += 15 * state.jelly[cell];
         if (wants.colors.has(group.color)) value += 12;
         orthogonalNeighbors(state, cell).forEach((neighbor) => {
@@ -2002,6 +2323,8 @@
           if (neighbor_piece && neighbor_piece.kind === KIND.FROSTING) value += wants.order.has('frosting') ? 30 : 12;
           if (neighbor_piece && neighbor_piece.kind === KIND.SWIRL) value += wants.order.has('swirl') ? 30 : 8;
           if (neighbor_piece && neighbor_piece.kind === KIND.GIFT) value += wants.order.has('gift') ? 40 : 25;
+          if (neighbor_piece && neighbor_piece.kind === KIND.POPCORN) value += wants.order.has('popcorn') ? 40 : 22;
+          if (neighbor_piece && neighbor_piece.kind === KIND.MIXER) value += 28;
         });
         if (wants.ingredients) {
           for (let above = cell - state.cols; above >= 0; above -= state.cols) {
@@ -2161,6 +2484,87 @@
     return rng() < 0.5 ? move : { from: move.to, to: move.from };
   }
 
+  // ------------------------------------------------------------------ guided tutorials
+
+  /** The events of a move up to its first refill (what the player sees the swap itself do). */
+  function firstStageEvents(events) {
+    const first = [];
+    let phases = 0;
+    for (const event of events) {
+      if (event.type === 'phase') {
+        if (event.kind === 'settle') break;
+        phases += 1;
+      }
+      first.push(event);
+    }
+    return phases ? first : events;
+  }
+
+  const GUIDE_EVENT = Object.freeze({ jelly: 'jelly', frosting: 'frosting', popcorn: 'popcorn', cocoa: 'cocoa', cage: 'cage', swirl: 'swirl', gift: 'gift', key: 'key', mixer: 'mixer' });
+
+  /**
+   * A move that shows off one idea, for the guided tutorials of the first levels (like the original, the hand shows the
+   * exact swap and only that swap is allowed):
+   *   'match' a plain match; 'striped', 'wrapped', 'bomb' a move that makes that special; 'use_special' a move that fires
+   *   a striped or wrapped candy; 'use_bomb' swaps a Color Bomb; 'combo' swaps two specials together; 'jelly',
+   *   'frosting', 'popcorn', 'cocoa', 'cage', 'swirl', 'gift', 'key', 'mixer' a move whose own match reaches one;
+   *   'ingredient' a move that brings an ingredient lower.
+   * options.color asks for a first match of that color. Among the fitting moves it picks the one nearest the middle of
+   * the board (easy to see). Returns
+   * { from, to, cells } (cells: the swap plus the candies its first match uses) or null when no move fits.
+   */
+  function findGuideMove(state, kind, options) {
+    const wanted_color = options && Number.isInteger(options.color) ? options.color : -1;
+    const center_row = (state.rows - 1) / 2;
+    const center_col = (state.cols - 1) / 2;
+    let best = null;
+    listValidMoves(state).forEach((move) => {
+      const from_piece = state.cells[move.from];
+      const to_piece = state.cells[move.to];
+      const both_special = isActivatable(from_piece) && isActivatable(to_piece);
+      const has_bomb = from_piece.special === SPECIAL.BOMB || to_piece.special === SPECIAL.BOMB;
+      const has_special = isActivatable(from_piece) || isActivatable(to_piece);
+      if (kind === 'combo' && !both_special) return;
+      if (kind === 'use_bomb' && (!has_bomb || both_special)) return;
+      if (kind === 'use_special' && (!has_special || has_bomb || both_special)) return;
+      if (kind !== 'combo' && kind !== 'use_bomb' && kind !== 'use_special' && has_special) return;
+      const result = applySwap(state, move.from, move.to);
+      if (!result.valid) return;
+      const first = firstStageEvents(result.events);
+      const created = first.filter((event) => event.type === 'create').map((event) => event.piece.special);
+      let fits;
+      if (kind === 'match') fits = created.length === 0;
+      else if (kind === 'striped') fits = created.some((special) => special === SPECIAL.STRIPE_ROW || special === SPECIAL.STRIPE_COL);
+      else if (kind === 'wrapped') fits = created.indexOf(SPECIAL.WRAPPED) >= 0;
+      else if (kind === 'bomb') fits = created.indexOf(SPECIAL.BOMB) >= 0;
+      else if (kind === 'combo' || kind === 'use_bomb' || kind === 'use_special') fits = true;
+      else if (kind === 'ingredient') {
+        fits = false;
+        state.cells.forEach((piece, cell) => {
+          if (!isIngredient(piece)) return;
+          const after = result.state.cells.findIndex((other) => other && other.id === piece.id);
+          if (after < 0 || rowOf(state, after) > rowOf(state, cell)) fits = true;
+        });
+      } else if (GUIDE_EVENT[kind]) fits = first.some((event) => event.type === GUIDE_EVENT[kind]);
+      else fits = false;
+      if (fits && wanted_color >= 0) fits = first.some((event) => event.type === 'match' && event.color === wanted_color);
+      if (!fits) return;
+      const middle = (rowOf(state, move.from) + rowOf(state, move.to)) / 2;
+      const across = (colOf(state, move.from) + colOf(state, move.to)) / 2;
+      const distance = Math.abs(middle - center_row) + Math.abs(across - center_col);
+      if (best && distance >= best.distance) return;
+      const cells = new Set([move.from, move.to]);
+      first.forEach((event) => {
+        if (event.type === 'match') event.cells.forEach((cell) => cells.add(cell));
+        // The piece the lesson is about (the frosting cracked, the chest a key opens ...) is lit up too.
+        if (GUIDE_EVENT[kind] && event.type === GUIDE_EVENT[kind] && event.cell >= 0) cells.add(event.cell);
+        if (kind === 'key' && event.type === 'chest') cells.add(event.cell);
+      });
+      best = { from: move.from, to: move.to, cells: Array.from(cells).sort((a, b) => a - b), distance };
+    });
+    return best ? { from: best.from, to: best.to, cells: best.cells } : null;
+  }
+
   // ------------------------------------------------------------------ invariants and replay
 
   /** Returns a list of invariant violations for a board at rest (empty when healthy). */
@@ -2234,6 +2638,10 @@
       }
       if (piece.kind === KIND.FROSTING && (piece.layers < 1 || piece.layers > MAX_FROSTING_LAYERS)) problems.push(`bad frosting layers at ${index}`);
       if (piece.kind === KIND.COCOA && piece.layers !== 1) problems.push(`bad cocoa at ${index}`);
+      if (piece.kind === KIND.POPCORN && (piece.layers < 1 || piece.layers > POPCORN_HITS)) problems.push(`bad popcorn at ${index}`);
+      if (piece.kind === KIND.CHEST && (piece.layers < 1 || piece.layers > 2)) problems.push(`bad chest at ${index}`);
+      if (piece.kind === KIND.MIXER && (piece.layers < 1 || piece.layers > MIXER_HITS || !(piece.timer >= 1 && piece.timer <= MIXER_PERIOD + 1))) problems.push(`bad mixer at ${index}`);
+      if ((piece.key || piece.mood) && piece.kind !== KIND.CANDY) problems.push(`key or mood on a non-candy at ${index}`);
       if (state.cage[index] && piece.kind !== KIND.CANDY) problems.push(`cage on a non-candy at ${index}`);
       if (state.jelly[index] > 2) problems.push(`bad jelly at ${index}`);
     });
@@ -2244,7 +2652,7 @@
   }
 
   function boardSignature(state) {
-    const cell_text = state.cells.map((piece) => (piece ? `${piece.id}:${piece.kind[0]}${piece.color}${piece.special}${piece.layers}${piece.fuse === undefined ? '' : `f${piece.fuse}`}` : '_')).join(',');
+    const cell_text = state.cells.map((piece) => (piece ? `${piece.id}:${piece.kind[0]}${piece.color}${piece.special}${piece.layers}${piece.fuse === undefined ? '' : `f${piece.fuse}`}${piece.key ? 'k' : ''}${piece.mood ? 'm' : ''}${piece.timer === undefined ? '' : `t${piece.timer}`}` : '_')).join(',');
     return `${cell_text}|${Array.from(state.jelly).join('')}|${Array.from(state.cage).join('')}|${state.score}|${state.collected.join('.')}|${state.ingredients_collected}|${state.time_bonus}`;
   }
 
@@ -2335,9 +2743,32 @@
         case 'frosting':
         case 'cocoa':
         case 'swirl':
+        case 'popcorn':
+        case 'chest':
+        case 'mixer':
           assertPiece(event.cell, event.piece_id, event.type);
           if (event.layers <= 0) cells[event.cell] = null;
           else cells[event.cell].layers = event.layers;
+          if (event.type === 'mixer' && cells[event.cell]) cells[event.cell].timer = MIXER_PERIOD + 1;
+          break;
+        case 'key':
+          if (cells[event.from]) delete cells[event.from].key;
+          break;
+        case 'mood':
+          event.changes.forEach((change) => {
+            assertPiece(change.cell, change.piece_id, 'mood');
+            cells[change.cell].color = change.color;
+          });
+          break;
+        case 'mixer_tick':
+          event.ticks.forEach((tick) => {
+            assertPiece(tick.cell, tick.piece_id, 'mixer_tick');
+            cells[tick.cell].timer = tick.timer;
+          });
+          break;
+        case 'mixer_spawn':
+          assertPiece(event.cell, event.old_piece_id, 'mixer_spawn');
+          cells[event.cell] = clonePiece(event.piece);
           break;
         case 'gift':
           assertPiece(event.cell, event.piece_id, 'gift');
@@ -2389,8 +2820,8 @@
       portal_to[pair.entrance] = pair.exit;
       portal_from[pair.exit] = pair.entrance;
     });
-    const isBlocked = (index) => layout.holes[index] || layout.frosting[index] || layout.cocoa[index] || layout.cage[index];
-    const sealedAbove = (index) => index < 0 || layout.holes[index] || layout.frosting[index] || layout.cocoa[index] || layout.cage[index];
+    const isBlocked = (index) => layout.holes[index] || layout.frosting[index] || layout.cocoa[index] || layout.cage[index] || layout.solid[index];
+    const sealedAbove = (index) => index < 0 || layout.holes[index] || layout.frosting[index] || layout.cocoa[index] || layout.cage[index] || layout.solid[index];
     for (let col = 0; col < cols; col += 1) {
       for (let row = 0; row < rows; row += 1) {
         const index = row * cols + col;
@@ -2470,7 +2901,7 @@
             if (symbol === '.') continue;
             const index = row * layout.cols + col;
             if (!(symbol >= '0' && symbol <= '5') || palette.indexOf(Number(symbol)) < 0) problems.push(`preset ${row},${col}: '${symbol}' is not a palette color`);
-            else if (layout.holes[index] || layout.frosting[index] || layout.cocoa[index] || layout.ingredients[index]) problems.push(`preset ${row},${col} sits on a hole or a non-candy cell`);
+            else if (layout.holes[index] || layout.frosting[index] || layout.cocoa[index] || layout.ingredients[index] || layout.solid[index]) problems.push(`preset ${row},${col} sits on a hole or a non-candy cell`);
           }
         });
       }
@@ -2478,7 +2909,7 @@
     (meta.specials || []).forEach((placement) => {
       const index = placement.at[0] * layout.cols + placement.at[1];
       if ([SPECIAL.STRIPE_ROW, SPECIAL.STRIPE_COL, SPECIAL.WRAPPED, SPECIAL.BOMB].indexOf(placement.special) < 0) problems.push(`unknown pre-placed special ${placement.special}`);
-      if (layout.holes[index] || layout.frosting[index] || layout.cocoa[index] || layout.ingredients[index] || layout.cage[index]) problems.push(`special at ${placement.at} must sit on a free candy cell`);
+      if (layout.holes[index] || layout.frosting[index] || layout.cocoa[index] || layout.ingredients[index] || layout.cage[index] || layout.solid[index]) problems.push(`special at ${placement.at} must sit on a free candy cell`);
     });
     if (!Array.isArray(level.stars) || level.stars.length !== 3 || !(level.stars[0] < level.stars[1] && level.stars[1] < level.stars[2])) {
       problems.push('stars must be three rising thresholds');
@@ -2488,7 +2919,7 @@
     });
     const reach = fallReachableCells(level);
     for (let index = 0; index < reach.reachable.length; index += 1) {
-      const blocked = layout.holes[index] || layout.frosting[index] || layout.cocoa[index] || layout.cage[index];
+      const blocked = layout.holes[index] || layout.frosting[index] || layout.cocoa[index] || layout.cage[index] || layout.solid[index];
       if (!blocked && !reach.reachable[index]) problems.push(`cell ${Math.floor(index / layout.cols)},${index % layout.cols} can never be refilled`);
     }
     if (problems.length === 0) {
@@ -2543,6 +2974,7 @@
     chooseRandomMove,
     playBotGame,
     findHint,
+    findGuideMove,
     hintRanks,
     compareRanks,
     hintFor,

@@ -583,6 +583,10 @@
     list.cage = cageRecipe();
     list.swirl = swirlRecipe(theme_id);
     list.gift = giftRecipe(theme_id);
+    for (let layers = 1; layers <= 3; layers += 1) list[`popcorn:${layers}`] = popcornRecipe(layers, theme_id);
+    list['chest:1'] = chestRecipe(1, theme_id);
+    list['chest:2'] = chestRecipe(2, theme_id);
+    list.mixer = mixerRecipe(theme_id);
     list['jelly:1'] = jellyRecipe(1);
     list['jelly:2'] = jellyRecipe(2);
     return list;
@@ -769,6 +773,98 @@
     };
   }
 
+
+  /**
+   * Popcorn: a red-and-white striped popcorn bucket. Each hit pops more corn: the heap on top grows from a small crown
+   * (3 hits left) to a big overflowing cloud (1 hit left); the next hit bursts it into a Rainbow Drop.
+   */
+  function popcornRecipe(layers, theme_id) {
+    const puff = lin('#fff6e2');
+    const butter = lin('#ffc93a');
+    const red = lin('#e8263f');
+    const white = lin('#fff8f4');
+    const heap_scale = [1.06, 0.92, 0.78][Math.max(1, Math.min(3, layers)) - 1];
+    const bucket_top = -0.02;
+    const bucket_bottom = 0.86;
+    const halfWidth = (y) => 0.66 - (0.18 * (y - bucket_top)) / (bucket_bottom - bucket_top);
+    const bucket = (x, y) => Math.max(Math.abs(x) - halfWidth(y), bucket_top - y, y - bucket_bottom) * 0.95;
+    const heap = (x, y) => {
+      let distance = Infinity;
+      [[0, -0.34, 0.34], [-0.38, -0.12, 0.29], [0.38, -0.12, 0.29], [-0.2, -0.52, 0.26], [0.22, -0.5, 0.27], [0, -0.04, 0.3]].forEach(([cx, cy, radius]) => {
+        const circle = sdCircle(x - cx * heap_scale, y - (cy - 0.04) * heap_scale, radius * heap_scale);
+        distance = distance === Infinity ? circle : smoothUnion(distance, circle, 0.08);
+      });
+      return distance;
+    };
+    return {
+      shape: (x, y) => smoothUnion(bucket(x, y), heap(x, y), 0.04), base: '#fff1dc', highlight: '#ffffff', shadow: '#c9a46a', theme: theme_id, seed: 101 + layers, bevel: 0.36,
+      material: { subsurface: 0.3, translucency: 0.08, spec_power: 40, spec_tight: 0.9, env: 0.45, detail: 'none' }, detail: 'none',
+      height_detail: (x, y) => (heap(x, y) < 0 && bucket(x, y) > 0 ? 0.05 * Math.sin(x * 19) * Math.sin(y * 17) : 0),
+      albedo: (x, y) => {
+        if (bucket(x, y) < 0 && heap(x, y) > 0.0) {
+          const across = x / halfWidth(y);
+          const stripe = Math.floor((across + 1) * 2.5) % 2 === 0;
+          const tone = stripe ? red : white;
+          return [tone[0], tone[1], tone[2], 1, 1.1];
+        }
+        // Round butter drops: some cells of a fine grid hold a soft dot.
+        const gx = x * 11;
+        const gy = y * 11;
+        const fleck = hash2(Math.round(gx), Math.round(gy), 31 + layers);
+        const spot = Math.hypot(gx - Math.round(gx), gy - Math.round(gy));
+        if (fleck > 0.72 && spot < 0.32) return [butter[0], butter[1], butter[2], 0.85 * smoothstep(0.32, 0.18, spot), 0.8];
+        return [puff[0], puff[1], puff[2], 0.6, 0.5];
+      },
+    };
+  }
+
+  /** Sugar Chest: a berry-pink treasure box with gold bands; one big gold padlock per lock still closed. */
+  function chestRecipe(locks, theme_id) {
+    const gold = lin('#ffd24a');
+    const gold_dark = lin('#c98a10');
+    const body = (x, y) => sdRoundBox(x, y - 0.06, 0.8, 0.68, 0.16);
+    const lock_centers = locks >= 2 ? [[-0.32, 0.12], [0.32, 0.12]] : [[0, 0.12]];
+    const padlock = (x, y) => Math.min(...lock_centers.map(([cx, cy]) => sdRoundBox(x - cx, y - cy, 0.2, 0.17, 0.06)));
+    const shackle = (x, y) => Math.min(...lock_centers.map(([cx, cy]) => Math.abs(sdCircle(x - cx, y - cy + 0.2, 0.13)) - 0.04));
+    return {
+      shape: (x, y) => Math.min(body(x, y), Math.max(shackle(x, y), y - 0.05)), base: '#d42a7a', highlight: '#ff8cc0', shadow: '#7a0f42', theme: theme_id, seed: 111 + locks, bevel: 0.3,
+      material: { subsurface: 0.15, translucency: 0.04, spec_power: 70, spec_tight: 1.3, env: 0.6, detail: 'none' }, detail: 'none',
+      height_detail: (x, y) => (padlock(x, y) < 0 ? 0.1 : Math.abs(y + 0.26) < 0.06 ? 0.04 : 0),
+      albedo: (x, y) => {
+        if (padlock(x, y) < 0) {
+          const keyhole = Math.min(...lock_centers.map(([cx, cy]) => Math.min(sdCircle(x - cx, y - cy + 0.03, 0.05), sdRoundBox(x - cx, y - cy - 0.06, 0.02, 0.07, 0.01))));
+          const tone = keyhole < 0 ? gold_dark : gold;
+          return [tone[0], tone[1], tone[2], 1, 1.2];
+        }
+        if (shackle(x, y) < 0 && body(x, y) > 0) return [gold[0], gold[1], gold[2], 1, 1.2];
+        if (Math.abs(y + 0.26) < 0.06 || Math.abs(x) > 0.66) return [gold[0], gold[1], gold[2], 1, 1.1];
+        return null;
+      },
+    };
+  }
+
+  /** Candy Mixer: a big steel mixing bowl brimming with pink-and-cream batter, a whisk standing in it. */
+  function mixerRecipe(theme_id) {
+    const cream = lin('#fff1e4');
+    const pink = lin('#ff8ec2');
+    const steel = lin('#dfe9f5');
+    const bowl = (x, y) => Math.max(sdCircle(x, y + 0.08, 0.94), -(y - 0.02));
+    const batter = (x, y) => sdCircle(x / 1.02, (y - 0.02) / 0.42, 0.9);
+    const whisk = (x, y) => Math.min(sdCapsule(x, y, 0.18, -0.12, 0.46, -0.86, 0.07), Math.abs(sdCircle((x - 0.2) / 0.55, (y + 0.1) / 1.0, 0.26)) - 0.035);
+    return {
+      shape: (x, y) => Math.min(smoothUnion(bowl(x, y), batter(x, y), 0.05), whisk(x, y)), base: '#7fa6cc', highlight: '#eef6ff', shadow: '#33506e', theme: 'hard', seed: 121, bevel: 0.32,
+      material: { subsurface: 0.05, translucency: 0.02, spec_power: 90, spec_tight: 1.8, env: 1.0, detail: 'none' }, detail: 'none',
+      height_detail: (x, y) => (y < 0.04 && batter(x, y) < 0 ? 0.06 * Math.sin(Math.atan2(y, x) * 3 + Math.sqrt(x * x + y * y) * 9) : 0),
+      albedo: (x, y) => {
+        if (whisk(x, y) < 0) return [steel[0], steel[1], steel[2], 1, 1.6];
+        if (!(y < 0.04 && batter(x, y) < 0)) return null;
+        const band = Math.sin(Math.atan2(y, x) * 3 + Math.sqrt(x * x + y * y) * 9);
+        const tone = band > 0 ? pink : cream;
+        return [tone[0], tone[1], tone[2], 1, 0.6];
+      },
+    };
+  }
+
   function cageRecipe() {
     const bars = (x, y) => {
       let distance = Infinity;
@@ -782,11 +878,14 @@
   }
 
   function jellyRecipe(layers) {
+    // Bright, glossy jelly that reads at a glance against the deep-blue board; thick jelly is deeper and has an inner rim.
     const deep = layers === 2;
+    const rim = lin('#ffffff');
     return {
-      shape: 'tile', base: deep ? '#ff4fa3' : '#ff8fc8', highlight: '#ffd0e8', shadow: deep ? '#c4206f' : '#e0569e', theme: 'gummy', seed: 21 + layers, no_shadow: true,
-      bevel: 0.25, height_scale: 0.3, detail: 'none', material: { spec_tight: 0.7, env: 0.3 },
-      opacity: () => (deep ? 0.78 : 0.55),
+      shape: 'tile', base: deep ? '#f0329a' : '#ff74c6', highlight: '#ffe0f1', shadow: deep ? '#a3105e' : '#d8418f', theme: 'gummy', seed: 21 + layers, no_shadow: true,
+      bevel: 0.3, height_scale: 0.45, detail: 'none', material: { spec_tight: 0.9, env: 0.55 },
+      albedo: deep ? (x, y) => (Math.abs(sdRoundBox(x, y, 0.66, 0.66, 0.16)) < 0.035 ? [rim[0], rim[1], rim[2], 0.55] : null) : undefined,
+      opacity: () => (deep ? 0.95 : 0.88),
     };
   }
 
@@ -897,6 +996,8 @@
         return `candy:${color}`;
       }
       if (kind === 'frosting') return `frosting:${Math.max(1, Math.min(5, layers || 1))}`;
+      if (kind === 'popcorn') return `popcorn:${Math.max(1, Math.min(3, layers || 3))}`;
+      if (kind === 'chest') return `chest:${layers >= 2 ? 2 : 1}`;
       if (kind === 'jelly') return `jelly:${layers >= 2 ? 2 : 1}`;
       return specs[kind] ? kind : 'candy:0';
     }

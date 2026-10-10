@@ -48,10 +48,24 @@ The repository is public, so you don't need to sign in to download.
   and a **Go to level** box. Only the nodes near the screen exist (at most about 60), so the map is as light at level
   19,000 as at level 1.
 * **Mechanics:** jelly (1–2 layers), frosting (1–5 layers), Sugar Cage, Cocoa Creep, Fuse Candy, portals,
-  Sugar Belts, cherries and hazelnuts with exit trays, and from Tier 2: **Taffy Swirl** (falls like a candy but never
-  matches; a match beside it or a blast breaks it, and it stops a striped candy's beam) and **Gift Box** (falls; a match
-  beside it or a blast opens it into a striped, wrapped or Rainbow candy). Like the original, from episode 4 a new piece
-  arrives at an episode's first level (Taffy Swirl at 46, Gift Box at 61).
+  Sugar Belts, cherries and hazelnuts with exit trays, **Taffy Swirl** (falls like a candy but never matches; a match
+  beside it or a blast breaks it, and it stops a striped candy's beam), **Gift Box** (falls; opens into a special
+  candy), **Popcorn** (a striped bucket that stays put: three hits and it bursts into a Rainbow Drop), **Sugar Chest**
+  (one or two locks that only golden keys open: match a candy carrying a key and the key flies to the nearest chest;
+  new keys drop in while a chest is locked), **Mood Candy** (a rainbow ring: it changes color after every move) and the
+  **Candy Mixer** (a steel bowl that frosts a nearby candy every 3 moves, its lights count down; a hit restarts it and
+  three hits break it). A new piece arrives every few levels: Popcorn at 15, Taffy Swirl 46, Sugar Chest 53, Gift Box
+  61, Mood Candy 68, Candy Mixer 76.
+* **Jelly you can see:** jelly is a bright glossy pink under the candies and a pink frame around every jelly square on
+  top of them (thick jelly has a double frame); a shimmer runs across it, it flashes when a jelly level starts, and the
+  last few squares pulse so they are easy to find.
+* **Guided first levels:** like the original, the first levels teach by doing. The first time you play a tutorial
+  level the board dims around the exact swap to make, a hand slides along it, and only that swap is allowed; then the
+  next step (make a striped candy, now fire it ...). Levels 1–25: matching, striped, jelly, wrapped, Color Bomb,
+  ingredients, combos, frosting, orders, thick jelly, cages, popcorn, portals, cocoa and fuses, one new idea per level.
+  Each new piece also gets a "New!" card on its level popup.
+* **More challenge:** past the opening almost every level has blockers in the way, two kinds mixed from level 40 and
+  three from 80, with chests, mood candies and gifts sprinkled in.
 * **Modes:** collect candies, jelly, ingredients, Candy Order (specials, blockers) and mixed goals, always with a move
   budget, and a goal tracker that pops when a goal completes. Like the original today there are no timed levels and no
   score on screen: the stars at the top fill as the goals do.
@@ -89,11 +103,16 @@ The repository is public, so you don't need to sign in to download.
 * **Episodes:** clearing an episode's last level for the first time shows the episode's stars and crowns and pays a
   reward (Gold Drops plus a booster), then the map moves on to the next episode.
 * **Level start and end:** the candies drop onto the board while a ribbon sweeps across with the goals. A win plays
-  "Sweet Victory!" ("Hard level beaten!" on a hard one) and then the **Sweet Finale** (moves left turn into striped
-  candies that fire). A loss pops "Out of moves!" over the board before the keep-going popup, and giving up cracks a
-  heart.
+  "Sweet Victory!" ("Hard level beaten!" on a hard one) and then the **Sweet Finale**, like the original's end-of-level
+  party: the special candies on the board go off, then each leftover move flies out of the moves counter as a spark,
+  turns a candy striped with a chime one note higher than the last, and they fire in quick groups (a tap fast-forwards
+  it). "5 moves left!" warns you when moves run low. A loss pops "Out of moves!" over the board before the keep-going
+  popup, and giving up cracks a heart.
+* **Daily Challenges** (from level 18): three new challenges every day (win levels, make striped or wrapped candies or
+  Color Bombs, swap specials together, clear jelly, break blockers, clear candies, big cascades, a first-try win), each
+  with a reward, and a bonus box for finishing all three. The clipboard button on the map shows how many rewards wait.
 * **Juice:** squash and stretch, gravity falls, pops with particles, beams and shockwaves, cascade banners
-  ("Tasty!" … "Sugar Storm!"), confetti, Pip's reactions and haptics. Animation speed: Normal, Snappy (default) or Fast.
+  ("Sweet!", "Tasty!", "Delicious!", "Divine!" … "Sugar Storm!"), confetti, Pip's reactions and haptics. Animation speed: Normal, Snappy (default) or Fast.
 * **Personal touches:** your name on the title and win screen, a background photo picked with the system photo picker
   (it stays on the phone), accent palettes and a custom level-complete message.
 * **Accessibility:** color-blind assist (a symbol on every candy), reduced motion (also follows the system setting),
@@ -101,13 +120,17 @@ The repository is public, so you don't need to sign in to download.
 * **Settings → Run self-test** runs the logic test suite and a 200-game bot simulation on the phone and shows a green or
   red report you can copy.
 
-### Gentle, ear-safe audio
+### Sound and music
 
-All sounds are soft sine and triangle tones that pass through a low-pass filter, a high-shelf cut, a compressor and a
-fixed −6 dB trim before the master volume, so nothing is sharp or loud even at full volume. Music plays about two loops,
-fades out, rests in silence and comes back later; it never loops endlessly. On first launch the game asks
-"Is this volume comfortable?". **Settings → Sound Check** plays a short sample of the main sounds one after another: use
-it to set Overall, Effects and Music volume, and turn on **Soft Sounds** for an extra-gentle mix.
+Every sound is synthesized live (no audio files) from a small band of instruments: a crisp bubble pop, marimba,
+glockenspiel and celesta (each partial rings and fades on its own), FM chimes, plucked strings, synth brass,
+filtered-noise swishes and crunches, and a soft sub "thump" under blasts, all through a small room reverb, a glue
+compressor and a limiter, so a pile-up of blasts never clips. Matches climb a bright pentatonic scale with every cascade
+step; each special has its own signature (striped "zing", wrapped "boom", Color Bomb "whirr"); every blocker breaks
+with its own sound (jelly "splotch", frosting "crunch", cage "clink", popcorn "pok" ...); wins get a brass fanfare.
+The music is a real arrangement that loops: a bouncy level tune (marimba lead, pizzicato bass, marimba chords, snaps
+and a shaker) and a gentle map tune (celesta, harp, pad). **Settings → Sound Check** plays a sample; Overall, Effects
+and Music volume have their own sliders, and **Soft Sounds** rounds off the top for a mellower mix.
 
 ## How it is built
 
@@ -136,10 +159,10 @@ on the starting board reproduces the final board exactly; this is tested on rand
 
 Every push, every `v*` tag and manual runs execute:
 
-1. **logic**: 57 Node tests (`node tests/logic.test.js`), then 500 fuzz games and 400 greedy-bot games on every shipped level, on boards the calibrator never tuned on (`node tests/simulate.js`; a level whose bot win rate drifts more than 15 points from its target fails).
+1. **logic**: 63 Node tests (`node tests/logic.test.js`), then 500 fuzz games and 400 greedy-bot games on every shipped level, on boards the calibrator never tuned on (`node tests/simulate.js`; a level whose bot win rate drifts more than 15 points from its target fails).
 2. **levels**: `node tests/levels.test.js`: shipped levels are valid and solvable, one new idea per level, complexity budget, the calibrated difficulty curve, and a scale test that generates levels 61–360 plus a sample up to 20,000.
    **levels-pipeline**: runs `levels.yml` end to end on levels 121–160 with a small bot budget (nothing is published).
-3. **audio**: `node tests/audio/run-audio-tests.mjs` renders every sound, a 6-sound + music stress mix and both music tracks offline in Chromium at maximum settings and checks peak level, clicks at the edges, sample jumps, energy above 4 and 6 kHz, spectral centroid, length, envelope and the loop seam.
+3. **audio**: `node tests/audio/run-audio-tests.mjs` renders every sound, an 8-sound + music stress mix and both music tracks offline in Chromium at maximum settings and checks clipping (peak), loudness (every sound audible), clicks at the edges, energy above 10 kHz, spectral centroid, length, envelope and the loop seam.
 4. **browser**: Playwright with Chromium mobile emulation (`npx playwright test`). It plays Level 1 to a win with real swipes and taps, and checks persistence, losing, +5 Moves, hearts, boosters, the goal stars and Sweet Mastery, pause/restart/quit mid-animation, Back, lifecycle, hints, settings, the self-test and reduced motion. It also captures screenshots of every screen at 360×640, 390×844, 412×915, 430×932, 673×841 and 768×1024 in all three themes (including the map at levels 1, 40, 5,000 and 19,000), plus landscape, desktop and the zoomed art sheets.
 5. **build**: Node 22, JDK 21, Android SDK, `npx cap sync android`, then Gradle `assembleDebug assembleRelease bundleRelease`.
 6. **apk-verify**: `aapt2 dump badging`, `apksigner verify` and a scan of the bundled assets (`tests/apk/verify-apk.mjs`). Right after it, the verified APK is attached to the `qa` pre-release as `SweetCascade-vX.Y.Z-preview.apk`.

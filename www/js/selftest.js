@@ -53,16 +53,29 @@
         } else if (token === 'o') state.cells[index] = piece(KIND.COCOA, -1, SPECIAL.NONE, 1);
         else if (token === 's') state.cells[index] = piece(KIND.SWIRL, -1, SPECIAL.NONE, 1);
         else if (token === 'g') state.cells[index] = piece(KIND.GIFT, -1, SPECIAL.NONE, 1);
+        else if (token === 'q') state.cells[index] = piece(KIND.POPCORN, -1, SPECIAL.NONE, 3);
+        else if (token === 'u' || token === 'U') {
+          state.cells[index] = piece(KIND.CHEST, -1, SPECIAL.NONE, token === 'U' ? 2 : 1);
+          state.has_chests = true;
+        } else if (token === 'X') {
+          state.cells[index] = piece(KIND.MIXER, -1, SPECIAL.NONE, 3);
+          state.cells[index].timer = 3;
+        }
         else if (token[0] === 'f' || token[0] === 'F') {
           const layers = token === 'f' ? 1 : token === 'F' ? 2 : parseInt(token.slice(1), 10);
           if (!(layers >= 1 && layers <= LOGIC.MAX_FROSTING_LAYERS)) throw new Error(`bad token ${token}`);
           state.cells[index] = piece(KIND.FROSTING, -1, SPECIAL.NONE, layers);
         } else {
-          const parsed_token = /^([0-5])([hvw]?)(k?)(?:b(\d+))?$/.exec(token);
+          const parsed_token = /^([0-5])([hvw]?)(k?)(y?)(m?)(?:b(\d+))?$/.exec(token);
           if (!parsed_token) throw new Error(`bad token ${token}`);
           const special = { h: SPECIAL.STRIPE_ROW, v: SPECIAL.STRIPE_COL, w: SPECIAL.WRAPPED }[parsed_token[2]] || SPECIAL.NONE;
           const candy = piece(KIND.CANDY, Number(parsed_token[1]), special, 0);
-          if (parsed_token[4]) candy.fuse = Number(parsed_token[4]);
+          if (parsed_token[4]) candy.key = true;
+          if (parsed_token[5]) {
+            candy.mood = true;
+            state.has_mood = true;
+          }
+          if (parsed_token[6]) candy.fuse = Number(parsed_token[6]);
           state.cells[index] = candy;
           if (parsed_token[3]) state.cage[index] = 1;
         }
@@ -211,11 +224,16 @@
             assert.strictEqual(piece.kind, KIND.COCOA);
           } else if (layout.swirl[cell] || layout.gift[cell]) {
             assert.strictEqual(piece.kind, layout.swirl[cell] ? KIND.SWIRL : KIND.GIFT);
+          } else if (layout.popcorn[cell] || layout.chest[cell] || layout.mixer[cell]) {
+            assert.strictEqual(piece.kind, layout.popcorn[cell] ? KIND.POPCORN : layout.chest[cell] ? KIND.CHEST : KIND.MIXER);
+            assert.strictEqual(piece.layers, layout.popcorn[cell] ? 3 : layout.chest[cell] || 3);
           } else if (layout.ingredients[cell]) {
             assert.strictEqual(piece.kind, layout.ingredients[cell] === 1 ? KIND.CHERRY : KIND.HAZELNUT);
           } else {
             assert.strictEqual(piece.kind, KIND.CANDY);
             assert.strictEqual(piece.fuse, layout.fuse[cell] ? level.meta.fuse : undefined, `fuse L${level.id}@${cell}`);
+            assert.strictEqual(!!piece.key, !!layout.key[cell], `key L${level.id}@${cell}`);
+            if (layout.mood[cell]) assert.ok(piece.mood || piece.special !== SPECIAL.NONE, `mood L${level.id}@${cell}`);
             if (piece.special === SPECIAL.BOMB) return;
             assert.ok(palette.indexOf(piece.color) >= 0, `color ${piece.color} outside palette on level ${level.id}`);
           }
@@ -237,7 +255,7 @@
       const reach = LOGIC.fallReachableCells(level);
       const layout = reach.layout;
       for (let index = 0; index < reach.reachable.length; index += 1) {
-        if (layout.holes[index] || layout.frosting[index] || layout.cocoa[index] || layout.cage[index]) continue;
+        if (layout.holes[index] || layout.frosting[index] || layout.cocoa[index] || layout.cage[index] || layout.solid[index]) continue;
         assert.ok(reach.reachable[index], `level ${level.id} cell ${index} unreachable`);
       }
       const ingredient_goal = level.goals.find((goal) => goal.type === 'ingredients');
@@ -755,6 +773,12 @@
     assert.deepStrictEqual(bonus_points.map((event) => event.points), [300, 300, 300]);
     assert.strictEqual(bonus.state.moves_left, 0);
     assert.ok(bonus.state.score > won_state.score + 900, 'plus the normal clear points');
+    // Each leftover move charges one candy, one after another, counting the moves down, before any of them fires.
+    const charges = bonus.events.filter((event) => event.type === 'transform' && event.bonus);
+    assert.deepStrictEqual(charges.map((event) => [event.step, event.moves_left]), [[0, 2], [1, 1], [2, 0]]);
+    const first_fire = bonus.events.findIndex((event) => event.type === 'activate');
+    assert.ok(first_fire > bonus.events.indexOf(charges[2]), 'all three are charged before the first one fires');
+    assert.deepStrictEqual(LOGIC.checkBoardInvariants(bonus.state).filter((problem) => problem.indexOf('valid move') < 0), []);
     assert.deepStrictEqual([0, 1499, 1500, 3000, 4600].map((score) => LOGIC.starsForScore(score, [1500, 3000, 4500], true)), [1, 1, 1, 2, 3]);
     assert.strictEqual(LOGIC.starsForScore(5000, [1500, 3000, 4500], false), 0);
   });
@@ -762,9 +786,113 @@
   // 14. Mechanics (Tier 1 plugins)
   test('mechanics', 'every layout symbol belongs to exactly one mechanic plugin', (assert) => {
     const symbols = Object.keys(LOGIC.LAYOUT_LEGEND).sort();
-    assert.deepStrictEqual(symbols, ['#', '.', '1', '2', '3', '4', '5', '<', '>', 'J', 'P', '^', 'b', 'c', 'g', 'h', 'j', 'k', 'o', 'p', 's', 'v', 'x'].sort());
+    assert.deepStrictEqual(symbols, ['#', '.', '1', '2', '3', '4', '5', '<', '>', 'J', 'P', '^', 'b', 'c', 'g', 'h', 'j', 'k', 'o', 'p', 's', 'v', 'x', 'n', 'u', 'U', 'y', 'm', 'X'].sort());
     const ids = LOGIC.MECHANICS.map((mechanic) => mechanic.id);
-    assert.deepStrictEqual(ids, ['jelly', 'frosting', 'cage', 'cocoa', 'swirl', 'gift', 'ingredients', 'portals', 'belt', 'fuse']);
+    assert.deepStrictEqual(ids, ['jelly', 'frosting', 'cage', 'cocoa', 'swirl', 'gift', 'popcorn', 'chest', 'mood', 'mixer', 'ingredients', 'portals', 'belt', 'fuse']);
+  });
+
+  test('mechanics', 'Sweet Finale: the specials on the board go off first, then the leftover moves charge and fire', (assert) => {
+    const state = makeTestState(['. . . . .', '. 0w . . .', '. . . 1h .', '. . . . .', '. . . . .'], { moves: 4 });
+    state.status = 'won';
+    state.moves_left = 4;
+    const finale = LOGIC.applyEndBonus(state);
+    const first_charge = finale.events.findIndex((event) => event.type === 'transform' && event.bonus);
+    const activations = finale.events.filter((event) => event.type === 'activate');
+    assert.ok(activations.length >= 2 && finale.events.indexOf(activations[0]) < first_charge, 'the wrapped and striped candies fire before any charge');
+    assert.strictEqual(finale.events.filter((event) => event.type === 'transform' && event.bonus).length, 4, 'one charge per leftover move');
+    assert.strictEqual(finale.state.moves_left, 0);
+    assert.ok(finale.state.cells.every((piece) => !piece || piece.special === SPECIAL.NONE || piece.special === SPECIAL.BOMB), 'nothing striped or wrapped is left waiting');
+    assert.strictEqual(LOGIC.boardSignature(LOGIC.replayEvents(state, finale.events)), LOGIC.boardSignature(finale.state), 'the finale replays');
+  });
+
+  test('mechanics', 'Popcorn: stays put, takes three hits from matches beside it or blasts, then bursts into a Rainbow Drop', (assert) => {
+    const state = makeTestState(['. . . . .', '. q . . .', '0 0 0 . .', '. . . . .']);
+    const popcorn_id = state.cells[at(state, 1, 1)].id;
+    runStageOnBoard(state, null);
+    assert.strictEqual(state.cells[at(state, 1, 1)].layers, 2, 'a match beside it takes one hit');
+    const hit = (cell) => {
+      const ctx = LOGIC.internals.createContext(state);
+      const stage = { hit: new Set(), blocker_hit: new Set(), jelly_hit: new Set(), next_wave: [], wave: 0, multiplier: 1 };
+      LOGIC.MECHANICS.find((mechanic) => mechanic.id === 'popcorn').absorbHit(ctx, stage, cell);
+      return ctx;
+    };
+    hit(at(state, 1, 1));
+    assert.strictEqual(state.cells[at(state, 1, 1)].id, popcorn_id);
+    const last = hit(at(state, 1, 1));
+    const bomb = state.cells[at(state, 1, 1)];
+    assert.strictEqual(bomb.kind, KIND.CANDY);
+    assert.strictEqual(bomb.special, SPECIAL.BOMB, 'the third hit bursts it into a Rainbow Drop');
+    assert.ok(last.events.some((event) => event.type === 'create' && event.popcorn));
+    assert.strictEqual(state.order.popcorn, 1);
+    const still = makeTestState(['. q .', '. _ .', '. . .']);
+    LOGIC.internals.settleBoard(LOGIC.internals.createContext(still));
+    assert.strictEqual(still.cells[1].kind, KIND.POPCORN, 'it never falls');
+  });
+
+  test('mechanics', 'Sugar Chest: only Sugar Keys open it, one lock per key; new keys arrive while locks remain', (assert) => {
+    const state = makeTestState(['U . . . .', '. . . . .', '0y 0 0 . .', '. . . . .']);
+    let ctx = runStageOnBoard(state, null);
+    assert.deepStrictEqual(ctx.events.filter((event) => event.type === 'chest').map((event) => event.layers), [1], 'a key opens one lock');
+    assert.ok(ctx.events.some((event) => event.type === 'key' && event.cell === 0));
+    assert.strictEqual(state.cells[0].kind, KIND.CHEST);
+    const blasted = makeTestState(['U 1 . . .', '1h 0 0 0 .', '. . . . .']);
+    ctx = runStageOnBoard(blasted, null);
+    assert.strictEqual(blasted.cells[0].layers, 2, 'matches beside it and blasts bounce off');
+    const last_lock = makeTestState(['u . . . .', '. . . . .', '0y 0 0 . .', '. . . . .']);
+    runStageOnBoard(last_lock, null);
+    assert.strictEqual(last_lock.cells[0], null, 'the last lock opens the chest');
+    assert.strictEqual(last_lock.order.chest, 1);
+    // Refill brings a new key while a lock is left and no key is on the board.
+    const waiting = makeTestState(['U _ _ _ _', '. _ _ _ _', '. . . . .']);
+    let keys = 0;
+    for (let round = 0; round < 40 && keys === 0; round += 1) {
+      [1, 2, 3, 4, 6, 7, 8, 9].forEach((cell) => { waiting.cells[cell] = null; });
+      LOGIC.internals.settleBoard(LOGIC.internals.createContext(waiting));
+      keys = waiting.cells.filter((piece) => piece && piece.key).length;
+    }
+    assert.ok(keys >= 1, 'a key arrives with the new candies');
+    assert.deepStrictEqual(LOGIC.validateLevel({ id: 't', name: 't', moves: 20, colors: 4, seed: 1, rows: 3, cols: 3, stars: [1, 2, 3], layout: ['U..', '...', '...'], goals: [{ type: 'order', item: 'chest', count: 1 }] }),
+      ['Sugar Chests need at least one key candy (y) to start with']);
+  });
+
+  test('mechanics', 'Mood Candy: changes color after every move and never into a ready-made match', (assert) => {
+    const state = makeTestState(['. . . . . .', '. . . . . .', '. . . 2m . .', '. . . . 1 .', '. . . 1 0 1'], { moves: 9 });
+    const mood_id = state.cells[at(state, 2, 3)].id;
+    const before = state.cells[at(state, 2, 3)].color;
+    const result = LOGIC.applySwap(state, at(state, 3, 4), at(state, 4, 4));
+    assert.ok(result.valid);
+    const mood_event = result.events.find((event) => event.type === 'mood');
+    assert.ok(mood_event, 'mood candies change after the move');
+    const mood_piece = result.state.cells.find((piece) => piece && piece.id === mood_id);
+    if (mood_piece) {
+      assert.notStrictEqual(mood_piece.color, before, 'a new color');
+      assert.strictEqual(LOGIC.findMatchGroups(result.state).length, 0, 'never a ready-made match');
+    }
+    assert.strictEqual(LOGIC.boardSignature(LOGIC.replayEvents(state, result.events)), LOGIC.boardSignature(result.state), 'mood changes replay');
+  });
+
+  test('mechanics', 'Candy Mixer: three hits break it; every third move it frosts a candy within two cells; a hit restarts its count', (assert) => {
+    let state = makeTestState(['. . . . . .', '. . . . . .', '. . X . . .', '. . . . 1 .', '. . . 1 0 1'], { moves: 20 });
+    let frosted = 0;
+    for (let move = 0; move < 3; move += 1) {
+      const quiet = LOGIC.listValidMoves(state).find((candidate) => {
+        const trial = LOGIC.applySwap(state, candidate.from, candidate.to);
+        return !trial.events.some((event) => event.type === 'mixer');
+      });
+      if (!quiet) break;
+      const result = LOGIC.applySwap(state, quiet.from, quiet.to);
+      frosted += result.events.filter((event) => event.type === 'mixer_spawn').length;
+      assert.strictEqual(LOGIC.boardSignature(LOGIC.replayEvents(state, result.events)), LOGIC.boardSignature(result.state), 'mixer moves replay');
+      state = result.state;
+    }
+    assert.strictEqual(frosted, 1, 'one frosting after three quiet moves');
+    const spawn_cell = state.cells.findIndex((piece) => piece && piece.kind === KIND.FROSTING);
+    assert.ok(Math.abs(Math.floor(spawn_cell / 6) - 2) <= 2 && Math.abs((spawn_cell % 6) - 2) <= 2, 'within two cells of the mixer');
+    const target = makeTestState(['. . . . .', '. X . . .', '0 0 0 . .', '. . . . .']);
+    runStageOnBoard(target, null);
+    const mixer = target.cells[at(target, 1, 1)];
+    assert.strictEqual(mixer.layers, 2, 'a match beside it is one hit');
+    assert.strictEqual(mixer.timer, 4, 'and restarts its countdown');
   });
 
   test('mechanics', 'Taffy Swirl: falls, never matches, breaks from a match beside it or a blast, stops a striped beam', (assert) => {
@@ -990,7 +1118,7 @@
 
   test('modes', 'every goal mode and the order items count what they say', (assert) => {
     assert.deepStrictEqual(LOGIC.GOAL_TYPES.slice().sort(), ['collect', 'ingredients', 'jelly', 'order', 'score']);
-    assert.deepStrictEqual(LOGIC.ORDER_ITEMS.slice().sort(), ['bomb', 'cage', 'cocoa', 'frosting', 'gift', 'striped', 'swirl', 'wrapped']);
+    assert.deepStrictEqual(LOGIC.ORDER_ITEMS.slice().sort(), ['bomb', 'cage', 'chest', 'cocoa', 'frosting', 'gift', 'mixer', 'popcorn', 'striped', 'swirl', 'wrapped']);
     const state = makeTestState(['. . . . . .', '. . . . . .', '. 0 0h 0 . .', '. . . . . .'], { goals: [{ type: 'order', item: 'striped', count: 1 }] });
     runStageOnBoard(state, null);
     assert.strictEqual(state.order.striped, 1, 'a striped candy counts when it fires');
@@ -1231,10 +1359,39 @@
     assert.strictEqual(META.chestProgress(save.meta, 40), 15);
   });
 
+  test('meta', 'Daily Challenges: three a day, progress from play, each reward once, the bonus box after all three', (assert) => {
+    const meta = STORAGE.defaultSave().meta;
+    meta.announced = ['hammer'];
+    const day = new Date(2026, 9, 10, 12, 0, 0).getTime();
+    const quests = META.dailyQuests(META.localDay(day));
+    assert.strictEqual(quests.length, 3);
+    assert.strictEqual(new Set(quests.map((quest) => quest.kind)).size, 3, 'three different challenges');
+    assert.deepStrictEqual(META.dailyQuests(META.localDay(day + 3600000)), quests, 'the same all day');
+    let status = META.dailyStatus(meta, day, 20);
+    assert.strictEqual(status.claimable, 0);
+    assert.strictEqual(META.claimDaily(meta, day, 0, 20), null, 'not finished yet');
+    const tallies = {};
+    quests.forEach((quest) => { tallies[quest.kind] = quest.target; });
+    const finished = META.trackDaily(meta, day, tallies);
+    assert.strictEqual(finished.length, 3, 'all three finished at once');
+    status = META.dailyStatus(meta, day, 20);
+    assert.strictEqual(status.claimable, 3);
+    const gold_before = meta.gold;
+    [0, 1, 2].forEach((index) => assert.ok(META.claimDaily(meta, day, index, 20), `reward ${index}`));
+    assert.strictEqual(META.claimDaily(meta, day, 0, 20), null, 'each reward once');
+    assert.ok(meta.gold > gold_before);
+    assert.ok(META.dailyStatus(meta, day, 20).bonus.ready);
+    const bonus = META.claimDailyBonus(meta, day, 20);
+    assert.ok(bonus && bonus.gold === 80);
+    assert.strictEqual(META.claimDailyBonus(meta, day, 20), null, 'the bonus box once');
+    const tomorrow = day + 24 * 3600000;
+    assert.deepStrictEqual(META.dailyStatus(meta, tomorrow, 20).quests.map((quest) => quest.progress), [0, 0, 0], 'a new day starts fresh');
+  });
+
   test('meta', 'progression: boosters and features unlock in order, each booster once with its gift; episode rewards once', (assert) => {
     const meta = STORAGE.defaultSave().meta;
     const ids = META.UNLOCKS.map((unlock) => unlock.id);
-    assert.deepStrictEqual(ids.slice().sort(), STORAGE.BOOSTERS.concat(['wheel', 'chest', 'streak']).sort(), 'every booster and feature has an unlock');
+    assert.deepStrictEqual(ids.slice().sort(), STORAGE.BOOSTERS.concat(['wheel', 'chest', 'streak', 'daily']).sort(), 'every booster and feature has an unlock');
     assert.ok(META.UNLOCKS.every((unlock, index) => index === 0 || unlock.level > META.UNLOCKS[index - 1].level), 'in level order, one per level');
     assert.strictEqual(META.unlockOf('hammer').level, 7, 'the hammer comes first, at level 7');
     assert.ok(!META.isUnlocked(meta, 6, 'hammer') && META.isUnlocked(meta, 7, 'hammer'));
@@ -1363,13 +1520,19 @@
     assert.deepStrictEqual(STORAGE.levelBest(migrated, 3), { stars: 1, score: 9000 });
     const v3 = STORAGE.parseSave(JSON.stringify({ version: 3, unlocked: 3, settings: { theme: 'classic', sfx_on: true, sfx_volume: 1, music_volume: 1 }, levels: { 2: { best_score: 5000, best_stars: 3, attempts: 4, wins: 1 } } })).save;
     assert.strictEqual(v3.settings.theme, 'gummy', 'the retired Classic theme maps to Gummy');
-    assert.strictEqual(v3.settings.master_volume, 0.7, 'old loud volumes reset to the gentle defaults');
-    assert.strictEqual(v3.settings.effects_volume, 0.6);
-    assert.strictEqual(v3.settings.music_volume, 0.35);
+    assert.strictEqual(v3.settings.master_volume, 0.8, 'old volumes start on the current defaults');
+    assert.strictEqual(v3.settings.effects_volume, 0.8);
+    assert.strictEqual(v3.settings.music_volume, 0.55);
     assert.deepStrictEqual(STORAGE.levelBest(v3, 2), { stars: 3, score: 5000 });
     assert.strictEqual(STORAGE.defaultSave().settings.theme, 'gummy');
     assert.strictEqual(STORAGE.defaultSave().settings.auto_hint, 'instant');
-    assert.strictEqual(STORAGE.defaultSave().settings.soft_sounds, true);
+    assert.strictEqual(STORAGE.defaultSave().settings.soft_sounds, false, 'the full, bright mix by default');
+    // v5 -> v6: the new sounds start on the new defaults (unless a slider was moved), and the rebuilt first 25 levels
+    // show their guided lessons once more.
+    const v5 = STORAGE.parseSave(JSON.stringify({ version: 5, unlocked: 30, settings: { master_volume: 0.7, effects_volume: 0.45, music_volume: 0.35, soft_sounds: true }, tutorials_seen: { 3: true, 26: true } })).save;
+    assert.deepStrictEqual([v5.settings.master_volume, v5.settings.effects_volume, v5.settings.music_volume, v5.settings.soft_sounds], [0.8, 0.45, 0.55, false]);
+    assert.deepStrictEqual(v5.tutorials_seen, { 26: true });
+    assert.deepStrictEqual(v5.meta.daily, { day: '', progress: [0, 0, 0], claimed: [false, false, false], bonus: false });
     assert.ok(STORAGE.BOOSTERS.every((booster) => STORAGE.defaultSave().meta.boosters[booster] === 0), 'boosters come with their unlocks, not at the start');
     // v4 -> v5: everything a v4 player already had stays unlocked (no gifts again); episodes already finished pay nothing.
     const v4 = STORAGE.parseSave(JSON.stringify({ version: 4, unlocked: 33, progress: STORAGE.encodeProgress({ stars: [3, 2, 1], scores: [100, 200, 300] }), meta: { boosters: { hammer: 2 }, streak: 7 } })).save;

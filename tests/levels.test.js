@@ -85,7 +85,7 @@ test(`one new idea per level and none before its unlock (levels 1-${SCALE_LAST})
   Object.keys(first_seen).forEach((idea) => {
     if (GENERATOR.UNLOCKS[idea] !== undefined) assert.ok(first_seen[idea] >= GENERATOR.UNLOCKS[idea], `${idea} appears at ${first_seen[idea]}, unlocks at ${GENERATOR.UNLOCKS[idea]}`);
   });
-  ['belt', 'frosting3', 'hazelnut'].forEach((idea) => assert.strictEqual(first_seen[idea], GENERATOR.UNLOCKS[idea], `${idea} is introduced exactly at its unlock level`));
+  ['belt', 'frosting3', 'hazelnut', 'swirl', 'chest', 'gift', 'mood', 'mixer', 'popcorn'].forEach((idea) => assert.strictEqual(first_seen[idea], GENERATOR.UNLOCKS[idea], `${idea} is introduced exactly at its unlock level`));
 });
 
 test('sensible goals: no generated level asks for more than about 3 candies of a colour goal per move, or 60 of one colour', () => {
@@ -135,7 +135,7 @@ test('generator schedule: colours, mixed goals, complexity budget and the 30% bl
     assert.ok(types.length <= GENERATOR.blockerBudget(level_number), `level ${level_number}: ${types.join('+')} over the budget`);
     assert.ok(blockerCells(level) <= Math.floor(activeCells(level) * 0.3), `level ${level_number}: more than 30% blockers`);
   }
-  assert.deepStrictEqual([59, 60, 199, 200, 599, 600].map(GENERATOR.blockerBudget), [1, 2, 2, 3, 3, 4]);
+  assert.deepStrictEqual([39, 40, 79, 80, 399, 400].map(GENERATOR.blockerBudget), [1, 2, 2, 3, 3, 4]);
   assert.ok(colourShare(SCALE_FIRST, 149, 5) > 0.8, 'five colours dominate from 40');
   assert.ok(colourShare(150, SCALE_LAST, 6) > 0.1, 'six colours appear from 150');
   let six_late = 0;

@@ -28,6 +28,7 @@
     { id: 'rainbow', kind: 'booster', level: 10, gift: 2, title: 'Rainbow Start', text: 'Start a level with a Rainbow Drop already on the board.' },
     { id: 'wheel', kind: 'feature', level: 12, title: 'Daily Wheel', text: 'Spin the wheel once a day for a free gift.' },
     { id: 'free_swap', kind: 'booster', level: 16, gift: 3, title: 'Free Swap', text: 'Swap any two neighbouring candies, even without a match. No move used.' },
+    { id: 'daily', kind: 'feature', level: 18, title: 'Daily Challenges', text: 'Three new challenges every day. Finish each one for a gift, and all three for a bonus box!' },
     { id: 'chest', kind: 'feature', level: 20, title: 'Star Chest', text: 'Every 25 stars you earn fill the chest with a gift.' },
     { id: 'lucky', kind: 'booster', level: 22, gift: 2, title: 'Lucky Start', text: 'Start a level with a striped and a wrapped candy on the board.' },
     { id: 'streak', kind: 'feature', level: 25, title: 'Sweet Streak', text: 'Win new levels on the first try, one after another: each win puts more special candies on your next new level. Losing a level ends the streak.' },
@@ -251,6 +252,115 @@
     return { index, reward: applyReward(meta, WHEEL[index], now) };
   }
 
+
+  // ---------------------------------------------------------------- Daily Challenges
+
+  // Three small challenges a day, picked by the date: progress counts in every level played that day (wins or not),
+  // each finished challenge pays its reward, and finishing all three opens a bonus box.
+  const DAILY_KINDS = Object.freeze([
+    { kind: 'win', range: [2, 3], text: (n) => `Win ${n} levels` },
+    { kind: 'striped', range: [8, 14], text: (n) => `Make ${n} striped candies` },
+    { kind: 'wrapped', range: [4, 7], text: (n) => `Make ${n} wrapped candies` },
+    { kind: 'bomb', range: [1, 3], text: (n) => `Make ${n} Color Bomb${n === 1 ? '' : 's'}` },
+    { kind: 'combo', range: [1, 3], text: (n) => `Swap two specials together ${n === 1 ? 'once' : `${n} times`}` },
+    { kind: 'jelly', range: [25, 45], text: (n) => `Clear ${n} jelly` },
+    { kind: 'blockers', range: [20, 40], text: (n) => `Break ${n} blockers` },
+    { kind: 'candies', range: [30, 50], scale: 10, text: (n) => `Clear ${n} candies` },
+    { kind: 'cascade', range: [3, 6], text: (n) => `Get "Delicious!" or better ${n} times` },
+    { kind: 'first_try', range: [1, 1], text: () => 'Win a level on the first try' },
+  ]);
+  const DAILY_SLOTS = 3;
+
+  function dayRng(day, salt) {
+    return UTIL.createRng(day.split('-').reduce((hash, part) => hash * 131 + Number(part), 17 + salt));
+  }
+
+  /** The three challenges of a local day ('YYYY-MM-DD'): distinct kinds and targets, the same for the whole day. */
+  function dailyQuests(day) {
+    const rng = dayRng(day, 0);
+    const pool = DAILY_KINDS.slice();
+    const quests = [];
+    while (quests.length < DAILY_SLOTS && pool.length) {
+      const entry = pool.splice(Math.floor(rng() * pool.length), 1)[0];
+      const target = (entry.range[0] + Math.floor(rng() * (entry.range[1] - entry.range[0] + 1))) * (entry.scale || 1);
+      quests.push({ kind: entry.kind, target, text: entry.text(target) });
+    }
+    return quests;
+  }
+
+  function dailyRewards(meta, reached_level, day) {
+    const boosters = IN_LEVEL.filter((booster) => isUnlocked(meta, reached_level, booster));
+    const rng = dayRng(day, 5);
+    const booster = boosters.length ? boosters[Math.floor(rng() * boosters.length)] : null;
+    return [
+      { kind: 'gold', amount: 25, label: '25 Gold Drops' },
+      booster ? { kind: 'booster', booster, label: BOOSTER_NAMES[booster] } : { kind: 'gold', amount: 40, label: '40 Gold Drops' },
+      { kind: 'gold', amount: 50, label: '50 Gold Drops' },
+    ];
+  }
+
+  function dailyBonus(meta, reached_level, day) {
+    const boosters = IN_LEVEL.filter((booster) => isUnlocked(meta, reached_level, booster));
+    const booster = boosters.length ? boosters[Math.floor(dayRng(day, 9)() * boosters.length)] : null;
+    return { gold: 80, booster, label: booster ? `80 Gold Drops and a ${BOOSTER_NAMES[booster]}` : '80 Gold Drops' };
+  }
+
+  /** Starts a fresh set of challenges when the local day changed. */
+  function refreshDaily(meta, now) {
+    const day = localDay(now);
+    if (!meta.daily || meta.daily.day !== day) meta.daily = { day, progress: [0, 0, 0], claimed: [false, false, false], bonus: false };
+    return meta.daily;
+  }
+
+  /**
+   * Adds a level's (or a move's) tallies, e.g. { striped: 2, candies: 31 }, to today's challenges. Returns the
+   * challenges this finished (for a "challenge complete" toast).
+   */
+  function trackDaily(meta, now, tallies) {
+    const daily = refreshDaily(meta, now);
+    const finished = [];
+    dailyQuests(daily.day).forEach((quest, index) => {
+      const add = tallies[quest.kind] || 0;
+      if (!add || daily.progress[index] >= quest.target) return;
+      daily.progress[index] = Math.min(quest.target, daily.progress[index] + add);
+      if (daily.progress[index] >= quest.target) finished.push(quest);
+    });
+    return finished;
+  }
+
+  /** Today's challenges with progress and rewards, the bonus box, and how many rewards wait to be claimed. */
+  function dailyStatus(meta, now, reached_level) {
+    const daily = refreshDaily(meta, now);
+    const rewards = dailyRewards(meta, reached_level, daily.day);
+    const quests = dailyQuests(daily.day).map((quest, index) => Object.assign({}, quest, {
+      progress: daily.progress[index], done: daily.progress[index] >= quest.target, claimed: daily.claimed[index], reward: rewards[index],
+    }));
+    const all_claimed = quests.every((quest) => quest.claimed);
+    const bonus = { ready: all_claimed && !daily.bonus, claimed: daily.bonus, reward: dailyBonus(meta, reached_level, daily.day) };
+    const claimable = quests.filter((quest) => quest.done && !quest.claimed).length + (bonus.ready ? 1 : 0);
+    return { day: daily.day, quests, bonus, claimable };
+  }
+
+  /** Claims a finished challenge's reward (once). Returns the reward, or null. */
+  function claimDaily(meta, now, index, reached_level) {
+    const status = dailyStatus(meta, now, reached_level);
+    const quest = status.quests[index];
+    if (!quest || !quest.done || quest.claimed) return null;
+    meta.daily.claimed[index] = true;
+    return applyReward(meta, quest.reward, now);
+  }
+
+  /** Opens the bonus box once all three rewards are claimed. Returns the reward, or null. */
+  function claimDailyBonus(meta, now, reached_level) {
+    const status = dailyStatus(meta, now, reached_level);
+    if (!status.bonus.ready) return null;
+    meta.daily.bonus = true;
+    const reward = status.bonus.reward;
+    meta.gold += reward.gold;
+    if (reward.booster) meta.boosters[reward.booster] = (meta.boosters[reward.booster] || 0) + 1;
+    return reward;
+  }
+
   // ---------------------------------------------------------------- results: streak, stars, chest
 
   /**
@@ -349,6 +459,7 @@
     continuePrice, unlockOf, isUnlocked, pendingUnlocks, announceUnlock, streakBag, episodeReward, claimEpisode,
     HARD_BONUS, TREASURE_EVERY, treasureAt, treasureReward,
     localDay, canSpin, spinWheel, recordOutcome, chestReady, chestProgress, openChest, createHintScheduler,
+    DAILY_KINDS, dailyQuests, refreshDaily, trackDaily, dailyStatus, claimDaily, claimDailyBonus,
   };
   SC.META = META;
   if (typeof module === 'object' && module.exports) module.exports = META;

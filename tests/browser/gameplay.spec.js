@@ -1,5 +1,5 @@
 // Browser QA (CI job "browser"): real pointer input, persistence, loss and +5 Moves, hearts, boosters, goal stars and mastery,
-// pause/restart/quit mid-animation, back navigation, lifecycle, instant hints, tutorial hints (any valid move is allowed), the 20,000-level
+// pause/restart/quit mid-animation, back navigation, lifecycle, instant hints, guided lessons (only the shown swap plays), the 20,000-level
 // map, the compact save, the Daily Wheel, reduced motion, settings, photo, self-test and accessibility.
 const { test, expect } = require('@playwright/test');
 const H = require('./helpers');
@@ -36,22 +36,26 @@ test('first launch plays Level 1 to a win with swipes and tap-taps; progress per
   H.expectClean(problems);
 });
 
-test('tutorial levels accept any valid move, not just the hinted one; selection rules; invalid swaps bounce back without using a move', async ({ page }) => {
+test('guided lessons: the hand shows the swap, the board dims around it, only that swap plays; invalid swaps bounce back without using a move', async ({ page }) => {
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });
   const moves = await H.levelMoves(page, 1);
   const cell = (index) => page.evaluate((cell_index) => window.SC.game.renderer.cellCenter(cell_index), index);
-  // Level 1 shows its hint at once (Instant auto hint) and Pip points at it.
-  await expect.poll(async () => (await H.snapshot(page)).hint, { timeout: 2000 }).toBe(true);
-  const first = await cell(24);
+  // Level 1's lesson starts once the candies are in: a hand slides along the swap and only that swap is allowed.
+  await expect.poll(() => page.evaluate(() => window.SC.game.guideMove), { timeout: 8000 }).not.toBeNull();
+  await expect(page.locator('#swipe-hand')).toHaveClass(/is-showing/);
+  await expect(page.locator('#tutorial-bubble')).toBeVisible();
+  const guided = await page.evaluate(() => window.SC.game.guideMove);
+  expect((await H.snapshot(page)).hint).toBe(false);
+  const first = await cell(guided.from);
   await page.touchscreen.tap(first.x, first.y);
-  await expect.poll(async () => (await H.snapshot(page)).selected).toBe(24);
+  await expect.poll(async () => (await H.snapshot(page)).selected).toBe(guided.from);
   await page.touchscreen.tap(first.x, first.y);
   await expect.poll(async () => (await H.snapshot(page)).selected).toBe(-1);
   const invalid = await page.evaluate(() => {
     const logic = window.SC.game.logic;
     for (let index = 0; index < logic.cells.length; index += 1) {
-      if ((index % logic.cols) + 1 < logic.cols && !window.SC.LOGIC.isValidSwap(logic, index, index + 1)) return [index, index + 1];
+      if ((index % logic.cols) + 1 < logic.cols && logic.cells[index] && logic.cells[index + 1] && !window.SC.LOGIC.isValidSwap(logic, index, index + 1)) return [index, index + 1];
     }
     return null;
   });
@@ -59,28 +63,23 @@ test('tutorial levels accept any valid move, not just the hinted one; selection 
   const to = await cell(invalid[1]);
   await H.tapTapMove(page, [from.x, from.y, to.x, to.y]);
   await page.waitForTimeout(700);
-  const after_invalid = await H.snapshot(page);
-  expect(after_invalid.moves_left).toBe(moves);
-  expect(after_invalid.state).toBe('PLAYING');
-  // A valid swap that is not the hinted one is played like any other move, even on a tutorial level.
-  const other = await page.evaluate(() => {
-    const game = window.SC.game;
-    const hint = game.currentHint;
-    const moves_list = window.SC.LOGIC.listValidMoves(game.logic);
-    return moves_list.find((move) => !(move.from === hint.from && move.to === hint.to) && !(move.from === hint.to && move.to === hint.from)) || null;
-  });
+  expect((await H.snapshot(page)).moves_left).toBe(moves);
+  // A valid swap that is not the lesson's is turned away: no move is used and the hand shows the swap again.
+  const other = await page.evaluate((lesson) => window.SC.LOGIC.listValidMoves(window.SC.game.logic)
+    .find((move) => !(move.from === lesson.from && move.to === lesson.to) && !(move.from === lesson.to && move.to === lesson.from)) || null, guided);
   expect(other).not.toBeNull();
   const other_from = await cell(other.from);
   const other_to = await cell(other.to);
   await H.swipeMove(page, [other_from.x, other_from.y, other_to.x, other_to.y]);
-  await expect.poll(async () => (await H.snapshot(page)).moves_left, { timeout: 30000 }).toBeLessThan(moves);
-  // Level 1 is easy: if that move already finished it, the hinted move has nothing left to prove.
-  await expect.poll(async () => { const s = await H.snapshot(page); return s.state === 'PLAYING' || s.state === 'WON' || s.modal === 'win'; }, { timeout: 30000 }).toBe(true);
-  if ((await H.snapshot(page)).state === 'PLAYING') {
-    const left = (await H.snapshot(page)).moves_left;
-    await H.tapTapMove(page, (await H.snapshot(page)).move);
-    await expect.poll(async () => (await H.snapshot(page)).moves_left, { timeout: 30000 }).toBeLessThan(left);
-  }
+  await page.waitForTimeout(700);
+  const after_other = await H.snapshot(page);
+  expect(after_other.moves_left).toBe(moves);
+  expect(after_other.state).toBe('PLAYING');
+  // The lesson's swap plays.
+  const lesson_from = await cell(guided.from);
+  const lesson_to = await cell(guided.to);
+  await H.swipeMove(page, [lesson_from.x, lesson_from.y, lesson_to.x, lesson_to.y]);
+  await expect.poll(async () => (await H.snapshot(page)).moves_left, { timeout: 30000 }).toBe(moves - 1);
   H.expectClean(problems);
 });
 
@@ -328,7 +327,7 @@ test('going to the background pauses audio and timers; coming back resumes clean
 test('hint: Instant shows within 400 ms of the board settling, clears on touch; the Hint button is immediate; Off waits', async ({ page }) => {
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });
-  await page.evaluate(() => window.SC.game.startLevel(4));
+  await page.evaluate(() => window.SC.game.startLevel(5)); // a level without a guided lesson
   await H.waitState(page, 'PLAYING');
   const shown_after = await page.evaluate(() => new Promise((resolve) => {
     const started = performance.now();

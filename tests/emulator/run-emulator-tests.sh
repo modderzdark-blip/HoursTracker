@@ -203,10 +203,6 @@ font_provider_link "title"
 
 # --- Play Level 1 to a win with real swipes
 tap_button "btn-name-skip"
-wait_for "s.modal === 'comfort'" 20 "the first-launch 'Is this volume comfortable?' check"
-shot "02b-comfort-check"
-tap_button "btn-comfort-ok"
-pass "first launch asks for a comfortable volume before Level 1"
 wait_for "s.state === 'PLAYING' && s.level === 1" 30 "Level 1 to start"
 sleep 1.5
 shot "03-gameplay-level1"

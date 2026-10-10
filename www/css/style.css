@@ -500,7 +500,39 @@ input[type="range"] { width: 130px; height: 36px; accent-color: var(--btn2); }
 @keyframes chip-glow { 50% { box-shadow: 0 0 0 4px #ffd36e, 0 3px 0 #d79ac0, 0 0 18px rgba(255, 211, 110, 0.9); } }
 .map-bar { justify-content: flex-start; }
 .map-bar .chip-hearts { margin-left: 4px; }
-.map-bar #btn-map-wheel { margin-left: auto; }
+.map-bar #btn-map-settings { margin-left: auto; }
+/* Daily Challenges and the Daily Wheel float down the left edge of the map, like the original's side buttons. */
+.map-side { position: absolute; left: calc(var(--safe-left) + 12px); top: calc(var(--safe-top) + 74px); z-index: 3; display: flex; flex-direction: column; gap: 12px; pointer-events: none; }
+.map-side > * { pointer-events: auto; }
+.map-side .round { position: relative; }
+.round.has-badge.is-ready[data-count]::after { content: attr(data-count); width: 18px; height: 18px; right: -2px; top: -2px; display: grid; place-items: center; font-size: 12px; font-weight: 900; color: #fff; background: #ff3b6b; }
+/* A new piece on the level popup. */
+.new-piece { position: relative; flex: none; width: 64px; height: 64px; border-radius: 18px; display: grid; place-items: center; background: radial-gradient(circle at 50% 40%, #ffffff, #ffe0f0); box-shadow: 0 0 0 3px #ffd34d, 0 4px 10px rgba(80, 10, 60, 0.25); }
+.new-piece img { width: 54px; height: 54px; }
+.new-piece-badge { position: absolute; top: -9px; right: -12px; padding: 2px 7px; border-radius: 10px; background: linear-gradient(180deg, #ff6f9e, #e0306e); color: #fff; font-size: 12px; font-weight: 900; transform: rotate(10deg); box-shadow: 0 2px 4px rgba(80, 10, 60, 0.35); }
+.app:not(.reduced-motion) .new-piece { animation: new-piece-bob 1.6s ease-in-out infinite; }
+@keyframes new-piece-bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-4px) rotate(3deg); } }
+/* Daily Challenges */
+.daily-modal { max-width: 420px; }
+.daily-sub { margin: 0 0 8px; text-align: center; font-size: 14px; font-weight: 800; opacity: 0.75; }
+.daily-list { display: flex; flex-direction: column; gap: 8px; }
+.daily-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 18px; background: linear-gradient(180deg, #ffffff, #fff1f8); box-shadow: inset 0 -3px 0 #f2c6dd, 0 3px 8px rgba(80, 10, 60, 0.12); }
+.daily-row.is-done:not(.is-claimed) { background: linear-gradient(180deg, #fffbe0, #ffefa8); box-shadow: inset 0 -3px 0 #e6c050, 0 0 0 2px #ffd34d, 0 4px 12px rgba(200, 140, 0, 0.3); }
+.daily-row.is-claimed { opacity: 0.7; }
+.daily-art { width: 40px; height: 40px; flex: none; }
+.daily-body { flex: 1; min-width: 0; text-align: left; }
+.daily-row .pill.small { flex: none; padding: 8px 14px; font-size: 16px; min-width: 0; }
+.daily-text { margin: 0; font-size: 15px; font-weight: 900; line-height: 1.2; }
+.daily-reward { margin: 2px 0 0; font-size: 12px; font-weight: 800; color: #b0306e; }
+.daily-bar { position: relative; height: 16px; margin-top: 4px; border-radius: 8px; background: #f3dcea; overflow: hidden; }
+.daily-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 8px; background: linear-gradient(180deg, #8ef0a8, #2fbf6b); }
+.daily-count { position: relative; display: block; text-align: center; font-size: 11px; line-height: 16px; font-weight: 900; color: #3b1a4a; }
+.daily-check { width: 30px; height: 30px; flex: none; }
+.daily-check svg { width: 30px; height: 30px; }
+.daily-bonus { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 10px 12px; border-radius: 18px; background: linear-gradient(180deg, #fff6d6, #ffe9a8); box-shadow: inset 0 -3px 0 rgba(199, 136, 0, 0.25); }
+.daily-bonus.is-ready { box-shadow: 0 0 0 3px #ffd34d, 0 0 18px rgba(255, 200, 60, 0.8); }
+.daily-bonus-art svg { width: 40px; height: 40px; }
+.daily-bonus-text { flex: 1; margin: 0; font-size: 14px; font-weight: 700; line-height: 1.25; }
 .round.has-badge.is-ready::after { content: ''; position: absolute; right: 2px; top: 2px; width: 14px; height: 14px; border-radius: 50%; background: #ffd36e; box-shadow: 0 0 0 2px #fff; }
 .map-actions { position: absolute; left: 0; right: 0; bottom: calc(var(--safe-bottom) + 14px); z-index: 3; display: flex; justify-content: center; align-items: center; gap: 10px; pointer-events: none; }
 .map-actions > * { pointer-events: auto; }
@@ -586,7 +618,6 @@ input[type="range"] { width: 130px; height: 36px; accent-color: var(--btn2); }
 .hearts-countdown { font-size: 24px !important; font-weight: 900 !important; font-variant-numeric: tabular-nums; }
 .wheel-canvas { display: block; margin: 6px auto; }
 .wheel-result { font-weight: 900 !important; min-height: 1.4em; }
-.comfort-slider { width: 100%; height: 44px; }
 .setting-row.is-stacked { flex-direction: column; align-items: stretch; }
 .setting-row.is-choice { flex-wrap: wrap; }
 .segmented { display: inline-flex; background: #ffe6f3; border-radius: 14px; padding: 3px; gap: 3px; }
@@ -634,6 +665,17 @@ input[type="range"] { width: 130px; height: 36px; accent-color: var(--btn2); }
 @keyframes tap-hand { 0%, 100% { transform: translate(14px, 18px); } 35% { transform: translate(0, 0) scale(0.92); } 50% { transform: translate(0, 0) scale(0.92); } }
 .tap-label { position: absolute; left: 0; bottom: 44px; white-space: nowrap; padding: 6px 12px; border-radius: 14px; background: #fff; color: var(--ink); font-size: 15px; font-weight: 900; box-shadow: 0 4px 12px rgba(40, 10, 40, 0.3), inset 0 -3px 0 #f2c6dd; }
 .tap-pointer:not(.is-low) .tap-label { bottom: auto; top: 64px; }
+
+/* Guided tutorial: a hand that slides along the swap to make. */
+.swipe-hand { position: absolute; z-index: 46; width: 0; height: 0; pointer-events: none !important; opacity: 0; transition: opacity 0.25s ease; }
+.swipe-hand.is-showing { opacity: 1; }
+.swipe-trail { position: absolute; left: 0; top: -7px; height: 14px; border-radius: 7px; transform-origin: 0 50%; background: linear-gradient(90deg, rgba(255, 255, 255, 0.95), rgba(255, 214, 102, 0.55)); box-shadow: 0 0 12px rgba(255, 230, 140, 0.9); }
+.swipe-glove { position: absolute; left: -10px; top: -2px; width: 58px; height: 58px; filter: drop-shadow(0 5px 5px rgba(40, 10, 40, 0.45)); }
+.swipe-glove svg { width: 58px; height: 58px; display: block; transform: rotate(-18deg); }
+.app:not(.reduced-motion) .swipe-hand.is-showing .swipe-glove { animation: swipe-glove 1.6s ease-in-out infinite; }
+.app:not(.reduced-motion) .swipe-hand.is-showing .swipe-trail { animation: swipe-trail 1.6s ease-in-out infinite; }
+@keyframes swipe-glove { 0% { transform: translate(0, 0) scale(1); opacity: 0; } 12% { opacity: 1; transform: translate(0, 0) scale(0.9); } 62% { transform: translate(var(--dx), var(--dy)) scale(0.9); opacity: 1; } 80% { transform: translate(var(--dx), var(--dy)) scale(1); opacity: 0; } 100% { opacity: 0; } }
+@keyframes swipe-trail { 0%, 12% { clip-path: inset(0 100% 0 0); opacity: 0.9; } 62% { clip-path: inset(0 0 0 0); opacity: 0.9; } 80%, 100% { clip-path: inset(0 0 0 0); opacity: 0; } }
 
 /* Unlock and episode popups. */
 .modal.unlock, .modal.episode-done { text-align: center; }

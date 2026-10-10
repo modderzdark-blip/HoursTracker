@@ -57,7 +57,8 @@
   function nextMove() {
     const game = root.SC && root.SC.game;
     if (!game || !game.logic || game.state !== 'PLAYING') return null;
-    const move = root.SC.LOGIC.findHint(game.logic);
+    // A guided tutorial step allows only the swap its hand shows; otherwise the hint move.
+    const move = game.guideMove || root.SC.LOGIC.findHint(game.logic);
     if (!move) return null;
     const from = game.renderer.cellCenter(move.from);
     const to = game.renderer.cellCenter(move.to);

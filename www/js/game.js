@@ -42,6 +42,7 @@
     let moves_played = 0;
     let armed_booster = null;
     let booster_lesson = null; // a booster just unlocked: the pointer shows how to use it in this level
+    let guide = null; // a guided tutorial in progress: { steps, index, move } (the first levels, like the original)
     let continues_used = 0; // +5 Moves bought in this attempt (each one costs more)
     let announcing = false;
     let time_used_ms = 0;
@@ -263,6 +264,7 @@
         const slot = dom.board_slot.getBoundingClientRect();
         renderer.placeBoard({ left: slot.left, top: slot.top, width: slot.width, height: slot.height });
         ui.placeTutorial(renderer.boardRect(), boardHasTrays());
+        if (guide && guide.move && machine === STATE.PLAYING) showGuideMove();
       }
       if (dom.screen_map.classList.contains('is-active')) map.layout();
     }
@@ -336,7 +338,7 @@
       };
     }
 
-    const ORDER_EVENT = { frosting: 'frosting', cocoa: 'cocoa', cage: 'cage' };
+    const ORDER_EVENT = { frosting: 'frosting', cocoa: 'cocoa', cage: 'cage', swirl: 'swirl', gift: 'gift', mixer: 'mixer' };
     function trackEvent(event) {
       if (!tracker) return;
       if (event.type === 'swap') tracker.moves_left = event.moves_left;
@@ -350,15 +352,25 @@
         const item = event.special === 'bomb' ? 'bomb' : event.special === 'wrapped' ? 'wrapped' : event.special === 'stripe_row' || event.special === 'stripe_col' ? 'striped' : null;
         if (item) tracker.order[item] += 1;
       } else if (ORDER_EVENT[event.type]) tracker.order[ORDER_EVENT[event.type]] += 1;
+      else if ((event.type === 'popcorn' || event.type === 'chest') && event.layers <= 0) tracker.order[event.type] += 1;
       else return;
       hud_dirty = true;
     }
 
+    let moves_shown = Infinity;
     function flushHud() {
       hud_dirty = false;
       if (!tracker || !logic_state) return;
       const view = Object.assign({}, logic_state, tracker, { cells: logic_state.cells, holes: logic_state.holes });
-      ui.updateHud({ moves: tracker.moves_left, time_left: logic_state.timed ? timeLeftMs() : undefined, progress: LOGIC.goalProgress(view) });
+      const progress = LOGIC.goalProgress(view);
+      ui.updateHud({ moves: tracker.moves_left, time_left: logic_state.timed ? timeLeftMs() : undefined, progress });
+      // Like the original: a warning when only five moves are left and the goals are not met yet.
+      const moves = tracker.moves_left;
+      if ((machine === STATE.PLAYING || machine === STATE.RESOLVING) && moves === 5 && moves_shown > 5 && !progress.every((goal) => goal.done)) {
+        ui.showBanner('5 moves left!', false, true);
+        sound('moves_low');
+      }
+      moves_shown = moves;
     }
 
     function playbackHooks() {
@@ -384,8 +396,12 @@
             ui.announce('No more moves, shuffling');
           }
         },
-        bonusTick() {
-          sound('bonus');
+        bonusTick(step) {
+          sound('bonus', { step });
+          haptic('light');
+        },
+        chargeOrigin() {
+          return ui.movesCenter();
         },
         timeBonus() {
           hud_dirty = true;
@@ -432,6 +448,9 @@
       tutorial_active = false;
       armed_booster = null;
       booster_lesson = null;
+      guide = null;
+      renderer.setSpotlight(null);
+      ui.swipeHint(null);
       ui.pointAt(null);
       ui.tutorial(null);
       ui.hidePip();
@@ -458,6 +477,58 @@
         hearts: meta.hearts, next_heart_ms: META.nextHeartIn(meta, now()), unlimited: !META.heartsEnabled(settings()), gold: meta.gold,
         wheel_ready: META.canSpin(meta, now()), chest_progress: META.chestProgress(meta, STORAGE.totalStars(save())),
         wheel_locked: !isUnlocked('wheel'), chest_locked: !isUnlocked('chest'),
+        daily_locked: !isUnlocked('daily'), daily_claimable: isUnlocked('daily') ? META.dailyStatus(meta, now(), save().unlocked).claimable : 0,
+      });
+    }
+
+    // ---------------------------------------------------------------- Daily Challenges
+    const BLOCKER_EVENTS = new Set(['frosting', 'cocoa', 'cage', 'swirl', 'gift', 'popcorn', 'chest', 'mixer']);
+
+    /** What a move did, in Daily Challenge terms. */
+    function dailyTallies(result) {
+      const stats = result.stats || {};
+      const created = stats.specials_created || { stripe: 0, wrapped: 0, bomb: 0 };
+      const tallies = {
+        striped: created.stripe || 0, wrapped: created.wrapped || 0, bomb: created.bomb || 0, combo: (stats.combos || []).length,
+        candies: stats.candies_cleared || 0, cascade: stats.cascades >= 4 ? 1 : 0, jelly: 0, blockers: 0,
+      };
+      result.events.forEach((event) => {
+        if (event.type === 'jelly') tallies.jelly += 1;
+        else if (BLOCKER_EVENTS.has(event.type)) tallies.blockers += 1;
+      });
+      return tallies;
+    }
+
+    function noteDaily(tallies) {
+      if (!isUnlocked('daily')) return;
+      META.trackDaily(save().meta, now(), tallies).forEach((quest) => {
+        ui.toast(`Daily Challenge done: ${quest.text}!`);
+        sound('goal');
+      });
+    }
+
+    function openDaily() {
+      sound('tap');
+      if (!isUnlocked('daily')) {
+        ui.toast(`Daily Challenges unlock at level ${META.unlockOf('daily').level}`);
+        return;
+      }
+      const status = () => META.dailyStatus(save().meta, now(), save().unlocked);
+      ui.showDaily(status(), {
+        status,
+        claim: (index) => {
+          const reward = META.claimDaily(save().meta, now(), index, save().unlocked);
+          persist();
+          refreshMapStatus();
+          return reward;
+        },
+        bonus: () => {
+          const reward = META.claimDailyBonus(save().meta, now(), save().unlocked);
+          persist();
+          refreshMapStatus();
+          return reward;
+        },
+        closed: () => refreshMapStatus(),
       });
     }
 
@@ -579,6 +650,7 @@
       layoutNow();
       ui.setupHud(level, logic_state);
       tracker = createTracker(logic_state);
+      moves_shown = Infinity;
       renderer.setVisible(true);
       renderer.markActivity();
       machine = STATE.PLAYING;
@@ -586,7 +658,7 @@
       paused_from = null;
       native.keepAwake(true);
       audio.setMusic('level');
-      if (level.tutorial && !save().tutorials_seen[level_id]) {
+      if (level.tutorial && !level.guide && !save().tutorials_seen[level_id]) {
         tutorial_active = true;
         ui.keepTutorial(false);
         ui.tutorial(level.tutorial);
@@ -605,19 +677,25 @@
       opening = true;
       const ribbon_ms = ui.showGoalIntro(level.goals, { timed: !!level.time, role: level.role });
       const dropped = await renderer.playEntrance(playbackHooks());
+      // Jelly levels: the jelly flashes once the candies are in, so you see at a glance where it all is.
+      if (dropped && token === opening_token && level.goals.some((goal) => goal.type === 'jelly')) {
+        renderer.flashJelly();
+        sound('jelly');
+      }
       const waited = dropped && token === opening_token ? await renderer.timeline.wait(Math.max(0, ribbon_ms - 900)) : false;
       if (token !== opening_token) return;
       opening = false;
       if (!waited || machine !== STATE.PLAYING) return;
       if (has_bag) ui.showBanner('Sweet Streak bonus!', true, true);
       else if (has_boosters) ui.showBanner('Boosters ready!', false, true);
+      if (startGuide()) return;
       boardIdle();
       showBoosterLesson();
     }
 
     /** A booster unlocked just before this level: the hand points at its button until it is used (or a move is made). */
     function showBoosterLesson() {
-      if (!booster_lesson || machine !== STATE.PLAYING || opening) return;
+      if (!booster_lesson || machine !== STATE.PLAYING || opening || (guide && guide.move)) return;
       const target = document.getElementById(`btn-booster-${booster_lesson}`);
       if (target) ui.pointAt(target, `Try your new ${META.BOOSTER_NAMES[booster_lesson]}!`);
     }
@@ -626,6 +704,69 @@
       if (!booster_lesson) return;
       booster_lesson = null;
       ui.pointAt(null);
+    }
+
+    // ---------------------------------------------------------------- guided tutorials
+    /**
+     * The first time a tutorial level is played, its guide walks through it step by step like the original: the board
+     * dims around the exact swap to make, a hand shows the move, and only that swap is allowed. A step whose kind of
+     * move is not on the board right now is skipped; a step without a move just shows its words until the next move.
+     */
+    function startGuide() {
+      guide = null;
+      if (!level || !Array.isArray(level.guide) || !level.guide.length || save().tutorials_seen[level.id]) return false;
+      guide = { steps: level.guide, index: -1, move: null };
+      advanceGuide();
+      return true;
+    }
+
+    function advanceGuide() {
+      if (!guide) return;
+      for (guide.index += 1; guide.index < guide.steps.length; guide.index += 1) {
+        const step = guide.steps[guide.index];
+        const move = step.find ? LOGIC.findGuideMove(logic_state, step.find, { color: step.color }) || (Number.isInteger(step.color) ? LOGIC.findGuideMove(logic_state, step.find) : null) : null;
+        if (step.find && !move) continue;
+        guide.move = move;
+        ui.keepTutorial(true);
+        ui.tutorial(step.text);
+        let avoid = null;
+        if (move) {
+          const rows = move.cells.map((cell) => renderer.cellCenter(cell).y);
+          const half = renderer.boardRect().cell / 2;
+          avoid = { top: Math.min(...rows) - half, bottom: Math.max(...rows) + half };
+        }
+        ui.placeTutorial(renderer.boardRect(), boardHasTrays(), avoid);
+        showGuideMove();
+        return;
+      }
+      endGuide();
+    }
+
+    function showGuideMove() {
+      if (!guide || !guide.move) {
+        renderer.setSpotlight(null);
+        ui.swipeHint(null);
+        return;
+      }
+      const shown = LOGIC.hintFor(logic_state, guide.move);
+      renderer.setSpotlight(guide.move.cells);
+      ui.swipeHint(renderer.cellCenter(shown.from), renderer.cellCenter(shown.to));
+    }
+
+    function endGuide() {
+      const had_guide = !!guide;
+      guide = null;
+      renderer.setSpotlight(null);
+      ui.swipeHint(null);
+      if (!had_guide) return;
+      ui.keepTutorial(false);
+      ui.tutorial(null);
+      if (level) {
+        save().tutorials_seen[level.id] = true;
+        persist();
+      }
+      // A booster unlocked just before this level gets its own pointer once the lesson is over.
+      if (machine === STATE.PLAYING && logic_state && logic_state.status === 'playing') showBoosterLesson();
     }
 
     // ---------------------------------------------------------------- hints
@@ -663,6 +804,10 @@
 
     function showHint(source) {
       if (machine !== STATE.PLAYING || opening || !logic_state || armed_booster) return;
+      if (guide && guide.move) {
+        if (source === 'button') showGuideMove();
+        return;
+      }
       const move = LOGIC.findHint(logic_state);
       if (!move) return;
       current_hint = move;
@@ -690,6 +835,10 @@
       clearHint();
       hint_scheduler.touch();
       select(-1);
+      if (guide) {
+        renderer.setSpotlight(null);
+        ui.swipeHint(null);
+      }
       if (tutorial_active) {
         tutorial_active = false;
         ui.tutorial(null);
@@ -706,16 +855,20 @@
       flushHud();
       renderer.markActivity();
       updateBoosterBar();
+      if (result.stats) noteDaily(dailyTallies(result));
       const progress = LOGIC.goalProgress(logic_state);
       ui.announce(`${logic_state.timed ? `${Math.ceil(timeLeftMs() / 1000)} seconds left` : `${logic_state.moves_left} moves left`}. ${progress.filter((goal) => goal.done).length} of ${progress.length} goals done.`);
+      if (logic_state.status !== 'playing') endGuide();
       if (logic_state.status === 'won') {
         await winSequence();
       } else if (logic_state.status === 'lost') {
         await loseSequence();
       } else if (machine === STATE.PAUSED) {
         paused_from = STATE.PLAYING;
+        if (guide) advanceGuide();
       } else {
         machine = STATE.PLAYING;
+        if (guide) advanceGuide();
         if (logic_state.timed && timeLeftMs() <= 0) timeUp();
         else boardIdle();
       }
@@ -724,6 +877,17 @@
     async function requestSwap(from_cell, to_cell) {
       if (machine !== STATE.PLAYING || !logic_state || invalid_swap_playing) return;
       renderer.markActivity();
+      if (guide && guide.move) {
+        // During a guided step only the swap the hand shows is allowed (either direction).
+        const move = guide.move;
+        const shown = (from_cell === move.from && to_cell === move.to) || (from_cell === move.to && to_cell === move.from);
+        if (!shown) {
+          select(-1);
+          await bounceBack(from_cell, to_cell);
+          showGuideMove();
+          return;
+        }
+      }
       const before = logic_state;
       if (armed_booster === 'free_swap') {
         const result = LOGIC.applyFreeSwap(before, from_cell, to_cell);
@@ -772,6 +936,10 @@
     async function onBoosterButton(name) {
       if (machine !== STATE.PLAYING || opening || !logic_state) return;
       sound('tap');
+      if (guide && guide.move) {
+        ui.toast('Make the move the hand shows first!');
+        return;
+      }
       if (!isUnlocked(name)) {
         ui.toast(`${META.BOOSTER_NAMES[name]} unlocks at level ${META.unlockOf(name).level}`);
         return;
@@ -870,17 +1038,20 @@
       ui.pip('cheer', 2600);
       if (!(await renderer.timeline.wait(900)) || level !== level_at_start) return;
       const seconds_left = logic_state.timed ? Math.floor(timeLeftMs() / 1000) : 0;
-      if (logic_state.moves_left > 0 && Number.isFinite(logic_state.moves_left) || seconds_left > 0) {
+      const specials_waiting = logic_state.cells.some((piece) => piece && piece.kind === 'candy' && piece.special && piece.special !== 'none');
+      if ((logic_state.moves_left > 0 && Number.isFinite(logic_state.moves_left)) || seconds_left > 0 || specials_waiting) {
+        // Sweet Finale, like the original's end-of-level party: the specials on the board go off, then each leftover
+        // move flies out of the moves counter and charges a candy into a striped candy, and they all fire. It plays at
+        // a pace you can enjoy (a little brisker with lots of moves); a tap anywhere fast-forwards it.
         ui.showBanner('Sweet Finale!', true);
-        if (!(await renderer.timeline.wait(500)) || level !== level_at_start) return;
+        sound('finale');
+        ui.pip('cheer', 1800);
+        if (!(await renderer.timeline.wait(950)) || level !== level_at_start) return;
         const bonus = LOGIC.applyEndBonus(logic_state, { seconds_left });
         tracker = createTracker(logic_state);
-        // The Finale plays fast and never drags: it speeds up with the number of strikes so that even 20 leftover
-        // moves take about six seconds (one strike is about 2.5 s of animation at normal speed). A tap anywhere
-        // fast-forwards it.
         const strikes = (bonus.events.find((event) => event.type === 'end') || {}).bonus_moves || 0;
-        renderer.setSpeed(speed_base * Math.min(7, Math.max(2.5, strikes * 0.42)));
-        const fastForward = () => renderer.setSpeed(speed_base * 10);
+        renderer.setSpeed(speed_base * (strikes > 15 ? 1.45 : strikes > 8 ? 1.25 : 1.1));
+        const fastForward = () => renderer.setSpeed(speed_base * 6);
         dom.app.addEventListener('pointerdown', fastForward);
         const finished = await renderer.playEvents(bonus.events, playbackHooks());
         dom.app.removeEventListener('pointerdown', fastForward);
@@ -902,6 +1073,7 @@
       }, STORAGE.totalStars(save()));
       save().meta.in_progress = 0;
       save().tutorials_seen[level.id] = true;
+      noteDaily({ win: 1, first_try: outcome.crown ? 1 : 0 });
       persist();
       ui.announce(`Level complete! ${outcome.mastery ? 'Sweet Mastery: first try with moves to spare!' : outcome.crown ? 'Gold Crown: won on the first try!' : ''}`);
       const finished_level = level;
@@ -1023,6 +1195,7 @@
       hint_scheduler.touch();
       native.keepAwake(false);
       ui.pointAt(null);
+      ui.swipeHint(null);
       const heart_note = META.heartsEnabled(settings()) ? ' You will lose a heart.' : '';
       const streak = streakOn() && isNewLevel(level.id) ? save().meta.streak : 0;
       const streak_note = streak > 0 ? ` Your Sweet Streak of ${streak} will end.` : '';
@@ -1066,7 +1239,8 @@
       renderer.markActivity();
       if (machine === STATE.PLAYING) {
         boardIdle();
-        showBoosterLesson();
+        if (guide && guide.move) showGuideMove();
+        else showBoosterLesson();
       }
     }
 
@@ -1327,6 +1501,7 @@
         openSettings();
       });
       by_id('btn-map-wheel').addEventListener('click', openWheel);
+      by_id('btn-map-daily').addEventListener('click', openDaily);
       by_id('btn-map-chest').addEventListener('click', openChest);
       by_id('btn-map-mine').addEventListener('click', () => {
         sound('tap');
@@ -1373,25 +1548,6 @@
       native.onResume(() => onAppVisible('app-resume'));
     }
 
-    function askComfort(after) {
-      if (settings().comfort_done) {
-        after();
-        return;
-      }
-      ui.showComfort(settings(), {
-        change: changeSetting,
-        soundCheck: () => {
-          audio.unlock();
-          audio.soundCheck();
-        },
-        done: () => {
-          settings().comfort_done = true;
-          persist();
-          after();
-        },
-      });
-    }
-
     const game = {
       STATE,
       start(load_result) {
@@ -1417,7 +1573,7 @@
               persist();
               ui.renderTitle(save().player_name);
               audio.unlock();
-              askComfort(() => startLevel(1)); // first launch goes straight into Level 1 with its tutorial
+              startLevel(1); // first launch goes straight into Level 1 and its guided lesson
             },
           });
         } else if (interrupted) {
@@ -1439,6 +1595,10 @@
       },
       get selected() {
         return selected_cell;
+      },
+      /** The swap the guided tutorial's hand shows right now (null when no guided step is waiting). */
+      get guideMove() {
+        return guide && guide.move ? { from: guide.move.from, to: guide.move.to } : null;
       },
       get hintVisible() {
         return hint_visible;

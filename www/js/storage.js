@@ -12,7 +12,7 @@
 
   const SAVE_KEY = 'sweet_cascade_save';
   const PHOTO_KEY = 'sweet_cascade_photo';
-  const SAVE_VERSION = 5;
+  const SAVE_VERSION = 6;
   const MAX_LEVEL = 99999;
   const THEMES = ['gummy', 'hard', 'sprinkle'];
   const ACCENTS = ['bubblegum', 'sunset', 'ocean', 'mint', 'grape', 'cherry', 'gold', 'midnight'];
@@ -26,16 +26,16 @@
   const MAX_MESSAGE_LENGTH = 80;
   // Everything a v4 (or older) save already had from the start: those players keep it unlocked without a new popup.
   const LEGACY_UNLOCKS = Object.freeze(['hammer', 'free_swap', 'whirl', 'lucky', 'rainbow', 'head_start', 'wheel', 'chest']);
-  const UNLOCK_IDS = Object.freeze(LEGACY_UNLOCKS.concat(['streak', 'brush', 'party']));
+  const UNLOCK_IDS = Object.freeze(LEGACY_UNLOCKS.concat(['streak', 'brush', 'party', 'daily']));
 
   function defaultSettings() {
     return {
       sound_on: true,
       music_on: true,
-      master_volume: 0.7,
-      effects_volume: 0.6,
-      music_volume: 0.35,
-      soft_sounds: true,
+      master_volume: 0.8,
+      effects_volume: 0.8,
+      music_volume: 0.55,
+      soft_sounds: false,
       comfort_done: false, // the first-launch comfort slider has been shown
       haptics: true,
       reduced_motion: false,
@@ -66,6 +66,7 @@
       announced: [], // unlocks (boosters and features) already announced, and so usable
       try_booster: '', // a booster just unlocked: the next level points at it once
       episodes_claimed: 0, // episodes whose completion reward has been given
+      daily: { day: '', progress: [0, 0, 0], claimed: [false, false, false], bonus: false }, // today's Daily Challenges
       in_progress: 0, // the level being played (restarted for free after the app was killed)
       total_attempts: 0,
       total_wins: 0,
@@ -152,6 +153,18 @@
       announced: Array.isArray(raw.announced) ? UNLOCK_IDS.filter((id) => raw.announced.indexOf(id) >= 0) : [],
       try_booster: BOOSTERS.indexOf(raw.try_booster) >= 0 ? raw.try_booster : '',
       episodes_claimed: clampInteger(raw.episodes_claimed, 0, MAX_LEVEL, 0),
+      daily: sanitizeDaily(raw.daily),
+    };
+  }
+
+  function sanitizeDaily(raw_daily) {
+    const raw = raw_daily && typeof raw_daily === 'object' ? raw_daily : {};
+    const list = (value, clean) => [0, 1, 2].map((index) => clean(Array.isArray(value) ? value[index] : undefined));
+    return {
+      day: typeof raw.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.day) ? raw.day : '',
+      progress: list(raw.progress, (value) => clampInteger(value, 0, 1e6, 0)),
+      claimed: list(raw.claimed, (value) => value === true),
+      bonus: raw.bonus === true,
     };
   }
 
@@ -391,9 +404,21 @@
     }
     // Episodes already finished before v5 do not pay their completion reward again (episodes are 15 levels long).
     if (legacy || source.version < 5) save.meta.episodes_claimed = Math.floor((save.unlocked - 1) / 15);
+    if (!legacy && source.version < 6) {
+      // v6 brought all-new sounds and music: the old "soft by design" mix is gone, so everyone starts on the new
+      // defaults unless they had moved a slider themselves.
+      const old_defaults = { master_volume: 0.7, effects_volume: 0.6, music_volume: 0.35 };
+      const fresh = defaultSettings();
+      Object.keys(old_defaults).forEach((key) => {
+        if (Math.abs(save.settings[key] - old_defaults[key]) < 1e-9) save.settings[key] = fresh[key];
+      });
+      save.settings.soft_sounds = false;
+    }
     if (source.tutorials_seen && typeof source.tutorials_seen === 'object') {
+      // v6 rebuilt the first 25 levels around guided lessons: those show once more for everyone.
+      const rebuilt = (level_key) => !legacy && source.version < 6 && Number(level_key) <= 25;
       Object.keys(source.tutorials_seen).forEach((level_key) => {
-        if (source.tutorials_seen[level_key] === true && /^\d+$/.test(level_key)) save.tutorials_seen[level_key] = true;
+        if (source.tutorials_seen[level_key] === true && /^\d+$/.test(level_key) && !rebuilt(level_key)) save.tutorials_seen[level_key] = true;
       });
     }
     return save;

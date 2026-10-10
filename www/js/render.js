@@ -172,6 +172,8 @@
     const popups = [];
     let board = null; // { rows, cols, holes, exits, spawn_rows }
     let display_jelly = null;
+    const jelly_flash = { until: 0 };
+    let spotlight = null; // guided tutorial: { cells: Set, since } - everything else on the board dims
     let layout = { cell: 48, origin_x: 0, origin_y: 0, width: 0, height: 0, dpr: 1, view_w: 0, view_h: 0 };
     let static_layer = null;
     let settings = { theme: 'gummy', colorblind: false, reduced_motion: false };
@@ -429,6 +431,7 @@
       const position = cellXY(cell_index);
       return {
         id: piece.id, kind: piece.kind, color: piece.color, special: piece.special, layers: piece.layers, max_layers: piece.layers, fuse: piece.fuse,
+        key: !!piece.key, mood: !!piece.mood, timer: piece.timer,
         x: position.col, y: position.row, scale_x: 1, scale_y: 1, scale: 1, alpha: 1, rotation: 0, flash: 0, lift: 0,
         wobble_seed: (piece.id * 0.618) % 1,
       };
@@ -446,7 +449,7 @@
           visual = makeVisual(piece, cell_index);
           visuals.set(piece.id, visual);
         }
-        Object.assign(visual, { kind: piece.kind, color: piece.color, special: piece.special, layers: piece.layers, max_layers: Math.max(visual.max_layers || 0, piece.layers), fuse: piece.fuse, x: position.col, y: position.row, scale_x: 1, scale_y: 1, scale: 1, alpha: 1, rotation: 0, flash: 0, lift: 0 });
+        Object.assign(visual, { kind: piece.kind, color: piece.color, special: piece.special, layers: piece.layers, max_layers: Math.max(visual.max_layers || 0, piece.layers), fuse: piece.fuse, key: !!piece.key, mood: !!piece.mood, timer: piece.timer, x: position.col, y: position.row, scale_x: 1, scale_y: 1, scale: 1, alpha: 1, rotation: 0, flash: 0, lift: 0 });
       });
       Array.from(visuals.keys()).forEach((piece_id) => {
         if (!seen.has(piece_id)) visuals.delete(piece_id);
@@ -467,6 +470,9 @@
       state.cells.forEach((piece) => {
         if (!piece) return;
         if (piece.kind === 'frosting') kinds.add(`frosting:${piece.layers}`);
+        else if (piece.kind === 'popcorn') kinds.add('popcorn:3').add('popcorn:2').add('popcorn:1');
+        else if (piece.kind === 'chest') kinds.add('chest:1').add('chest:2');
+        else if (piece.kind === 'mixer') kinds.add('mixer').add('frosting:1');
         else if (piece.kind !== 'candy') kinds.add(piece.kind);
       });
       if (Array.prototype.some.call(state.cage, (value) => value)) kinds.add('cage');
@@ -652,6 +658,9 @@
       if (visual.kind === 'frosting' && visual.max_layers > visual.layers) drawCracks(visual, cell);
       ctx.restore();
       if (visual.fuse !== undefined) drawFuse(visual, draw_x, draw_y, alpha, now);
+      if (visual.mood && visual.kind === 'candy') drawMoodHalo(draw_x, draw_y, cell * scale_x, alpha, now);
+      if (visual.key && visual.kind === 'candy') drawKeyBadge(draw_x, draw_y, cell, alpha);
+      if (visual.kind === 'mixer') drawMixerTimer(visual, draw_x, draw_y, cell, alpha, now);
       if (visual.special === 'bomb' && quality > 0) {
         for (let index = 0; index < 3; index += 1) {
           const angle = now / 600 + index * ((Math.PI * 2) / 3);
@@ -743,6 +752,136 @@
         const position = cellXY(cell_index);
         ctx.drawImage(sprites.get('cage'), layout.origin_x + position.col * cell, layout.origin_y + position.row * cell, cell, cell);
       }
+    }
+
+    /**
+     * Jelly shows on top of the candies too: a glossy pink frame around every jelly cell (two for thick jelly), with a
+     * shimmer that runs across the jelly now and then. When only a few jelly cells are left they pulse, so the last ones
+     * are easy to find; at the start of a level the frames flash once (jelly_flash).
+     */
+    function drawJellyFrames(now) {
+      if (!display_jelly) return;
+      const cell = layout.cell;
+      let remaining = 0;
+      for (let index = 0; index < display_jelly.length; index += 1) if (display_jelly[index]) remaining += 1;
+      if (remaining === 0) return;
+      const few = remaining <= 4 && !settings.reduced_motion;
+      const pulse = few ? 0.5 + 0.5 * Math.sin(now / 170) : 0;
+      const flash = jelly_flash.until > now ? (jelly_flash.until - now) / 1400 : 0;
+      const sweep = settings.reduced_motion ? -1 : ((now % 4200) / 4200) * (board.cols + board.rows + 6) - 3;
+      ctx.save();
+      for (let index = 0; index < display_jelly.length; index += 1) {
+        const layers = display_jelly[index];
+        if (!layers) continue;
+        const position = cellXY(index);
+        const x = layout.origin_x + position.col * cell;
+        const y = layout.origin_y + position.row * cell;
+        const shimmer = Math.max(0, 1 - Math.abs(position.col + position.row - sweep) / 1.6);
+        const strength = 0.62 + 0.25 * shimmer + 0.38 * pulse + 0.5 * flash;
+        ctx.lineWidth = Math.max(2, cell * 0.075);
+        ctx.strokeStyle = layers >= 2 ? `rgba(214,24,128,${Math.min(1, strength + 0.15)})` : `rgba(255,105,190,${Math.min(1, strength)})`;
+        ctx.stroke(SPRITES.roundedRectPath(new Path2D(), x + cell * 0.06, y + cell * 0.06, cell * 0.88, cell * 0.88, cell * 0.2));
+        ctx.lineWidth = Math.max(1, cell * 0.025);
+        ctx.strokeStyle = `rgba(255,236,248,${Math.min(1, 0.45 + 0.4 * shimmer + 0.4 * pulse + 0.5 * flash)})`;
+        ctx.stroke(SPRITES.roundedRectPath(new Path2D(), x + cell * 0.09, y + cell * 0.09, cell * 0.82, cell * 0.82, cell * 0.17));
+        if (layers >= 2) {
+          ctx.lineWidth = Math.max(1.5, cell * 0.045);
+          ctx.strokeStyle = `rgba(255,120,200,${Math.min(1, strength)})`;
+          ctx.stroke(SPRITES.roundedRectPath(new Path2D(), x + cell * 0.15, y + cell * 0.15, cell * 0.7, cell * 0.7, cell * 0.15));
+        }
+        if (few || flash > 0) {
+          const glow = ctx.createRadialGradient(x + cell / 2, y + cell / 2, cell * 0.2, x + cell / 2, y + cell / 2, cell * 0.75);
+          glow.addColorStop(0, 'rgba(255,140,210,0)');
+          glow.addColorStop(1, `rgba(255,120,200,${0.35 * pulse + 0.4 * flash})`);
+          ctx.fillStyle = glow;
+          ctx.fillRect(x - cell * 0.2, y - cell * 0.2, cell * 1.4, cell * 1.4);
+        }
+      }
+      ctx.restore();
+    }
+
+    /** Guided tutorial: the board dims except the candies of the move to make (hidden while pieces are moving). */
+    function drawSpotlight(now) {
+      if (!spotlight || timeline.busy) return;
+      const cell = layout.cell;
+      const fade = Math.min(1, (now - spotlight.since) / 250);
+      const path = new Path2D();
+      path.rect(layout.origin_x - cell * 0.5, layout.origin_y - cell * 0.5, layout.width + cell, layout.height + cell);
+      spotlight.cells.forEach((cell_index) => {
+        const position = cellXY(cell_index);
+        SPRITES.roundedRectPath(path, layout.origin_x + position.col * cell + 1, layout.origin_y + position.row * cell + 1, cell - 2, cell - 2, cell * 0.22);
+      });
+      ctx.save();
+      ctx.fillStyle = `rgba(16,4,40,${0.72 * fade})`;
+      ctx.fill(path, 'evenodd');
+      ctx.lineWidth = Math.max(2, cell * 0.05);
+      const pulse = settings.reduced_motion ? 0.8 : 0.6 + 0.4 * Math.sin(now / 200);
+      ctx.strokeStyle = `rgba(255,236,150,${pulse * fade})`;
+      spotlight.cells.forEach((cell_index) => {
+        const position = cellXY(cell_index);
+        ctx.stroke(SPRITES.roundedRectPath(new Path2D(), layout.origin_x + position.col * cell + 2, layout.origin_y + position.row * cell + 2, cell - 4, cell - 4, cell * 0.22));
+      });
+      ctx.restore();
+    }
+
+    /** A little golden key on a candy that carries one. */
+    function drawKeyBadge(x, y, cell, alpha) {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(x + cell * 0.22, y + cell * 0.22);
+      ctx.rotate(-0.6);
+      ctx.scale(1.35, 1.35);
+      ctx.shadowColor = 'rgba(255,255,255,0.95)';
+      ctx.shadowBlur = cell * 0.08;
+      ctx.fillStyle = '#ffd24a';
+      ctx.strokeStyle = '#8a5a00';
+      ctx.lineWidth = Math.max(1, cell * 0.025);
+      ctx.beginPath();
+      ctx.arc(-cell * 0.1, 0, cell * 0.08, 0, Math.PI * 2);
+      ctx.rect(-cell * 0.03, -cell * 0.025, cell * 0.2, cell * 0.05);
+      ctx.rect(cell * 0.11, 0, cell * 0.035, cell * 0.06);
+      ctx.rect(cell * 0.05, 0, cell * 0.03, cell * 0.05);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#8a5a00';
+      ctx.beginPath();
+      ctx.arc(-cell * 0.1, 0, cell * 0.028, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    /** Mood Candy: a soft rainbow halo turning around the candy. */
+    function drawMoodHalo(x, y, cell, alpha, now) {
+      const colors = ['#ff4f6d', '#ffb02e', '#ffe14d', '#3fd88a', '#43a8ff', '#b46bff'];
+      const turn = settings.reduced_motion ? 0 : now / 900;
+      ctx.save();
+      ctx.globalAlpha = alpha * 0.9;
+      ctx.lineWidth = Math.max(2, cell * 0.06);
+      colors.forEach((color, index) => {
+        ctx.strokeStyle = color;
+        ctx.beginPath();
+        const start = turn + (index * Math.PI * 2) / colors.length;
+        ctx.arc(x, y, cell * 0.46, start, start + (Math.PI * 2) / colors.length - 0.08);
+        ctx.stroke();
+      });
+      ctx.restore();
+    }
+
+    /** Candy Mixer: the moves left until it frosts a candy, as little pips under the bowl. */
+    function drawMixerTimer(visual, x, y, cell, alpha, now) {
+      const total = 3;
+      const left = Math.max(0, Math.min(total, visual.timer || total));
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      for (let index = 0; index < total; index += 1) {
+        const lit = index < left;
+        const urgent = left === 1 && !settings.reduced_motion ? 0.5 + 0.5 * Math.sin(now / 120) : 1;
+        ctx.fillStyle = lit ? (left === 1 ? `rgba(255,90,120,${0.6 + 0.4 * urgent})` : '#fff4c2') : 'rgba(40,30,70,0.55)';
+        ctx.beginPath();
+        ctx.arc(x + (index - 1) * cell * 0.16, y + cell * 0.36, cell * 0.055, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
     }
 
     /** Diagonal white sheen sweeping across a sprite (source-atop on a small scratch canvas). */
@@ -857,6 +996,26 @@
         } else if (effect.type === 'flash') {
           ctx.fillStyle = `rgba(255,255,255,${0.55 * fade})`;
           ctx.fillRect(layout.origin_x - cell, layout.origin_y - cell, layout.width + cell * 2, layout.height + cell * 2);
+        } else if (effect.type === 'spark') {
+          // A glowing star with a short tail, arcing from the moves counter to its candy.
+          const travel = EASE.inOutQuad(progress);
+          const control_x = (effect.from.x + effect.to.x) / 2;
+          const control_y = Math.min(effect.from.y, effect.to.y) - cell * 1.6;
+          for (let trail = 4; trail >= 0; trail -= 1) {
+            const p = Math.max(0, travel - trail * 0.07);
+            const u = 1 - p;
+            const x = u * u * effect.from.x + 2 * u * p * control_x + p * p * effect.to.x;
+            const y = u * u * effect.from.y + 2 * u * p * control_y + p * p * effect.to.y;
+            const radius = cell * (0.3 - trail * 0.05);
+            const glow = ctx.createRadialGradient(x, y, 0, x, y, radius);
+            glow.addColorStop(0, `rgba(255,255,255,${0.95 - trail * 0.17})`);
+            glow.addColorStop(0.4, `rgba(255,228,120,${0.75 - trail * 0.14})`);
+            glow.addColorStop(1, 'rgba(255,170,60,0)');
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+          }
         } else if (effect.type === 'transform_glow') {
           const center = cellCenter(effect.cell);
           const glow = ctx.createRadialGradient(center.x, center.y, 0, center.x, center.y, cell * 0.7);
@@ -965,6 +1124,8 @@
       const ordered = Array.from(visuals.values()).sort((first, second) => first.y - second.y || (first.lift || 0) - (second.lift || 0));
       ordered.forEach((visual) => drawPiece(visual, now));
       drawCages();
+      drawJellyFrames(now);
+      drawSpotlight(now);
       ctx.restore();
       drawEffects(now);
       ctx.restore();
@@ -1190,18 +1351,66 @@
             addTextPopup(event.cell, `+${event.seconds}s`, '#bff3ff');
           } else if (event.type === 'booster') {
             if (event.cell >= 0) addEffect({ type: 'ring', cell: event.cell, radius: 0.9, duration: 320 });
-            hooks.sound('hammer');
+            const booster_sounds = { hammer: ['hammer'], brush: ['create', { special: 'striped' }], party: ['combo'] };
+            const [booster_sound, booster_params] = booster_sounds[event.booster] || ['unlock'];
+            hooks.sound(booster_sound, booster_params);
             hooks.haptic('medium');
             addShake(layout.cell * 0.1, 200);
           } else if (event.type === 'gift') {
-            hooks.sound('cage');
             burst(event.cell, '#ffd54a', 16, 1);
             addEffect({ type: 'ring', cell: event.cell, radius: 0.9, duration: 320 });
             const gift_visual = visuals.get(event.piece_id);
             if (gift_visual) pending.push(popVisual(gift_visual, '#7ff0e6', 0, 14));
+          } else if (event.type === 'popcorn') {
+            hooks.sound('popcorn');
+            burst(event.cell, '#ffd36e', 10, 0.8);
+            const visual = visuals.get(event.piece_id);
+            if (visual) {
+              if (event.layers <= 0) pending.push(popVisual(visual, '#fff4d6', 0, 16));
+              else {
+                visual.layers = event.layers;
+                pending.push(timeline.tween(220, (t) => {
+                  visual.scale = 1 + Math.sin(t * Math.PI) * 0.2;
+                  visual.flash = Math.sin(t * Math.PI) * 0.5;
+                }));
+              }
+            }
+          } else if (event.type === 'key') {
+            // The key leaves its candy and flies to the chest it opens.
+            const holder = visualAtCell(event.from);
+            if (holder) holder.key = false;
+            hooks.sound('key');
+            if (event.cell >= 0) addEffect({ type: 'spark', from: cellCenter(event.from), to: cellCenter(event.cell), duration: 380 });
+          } else if (event.type === 'chest') {
+            const visual = visuals.get(event.piece_id);
+            pending.push(timeline.wait(380).then(() => {
+              hooks.sound(event.layers <= 0 ? 'chest' : 'cage');
+              burst(event.cell, '#ffd24a', event.layers <= 0 ? 18 : 8, 0.9);
+              addEffect({ type: 'ring', cell: event.cell, radius: 0.9, duration: 320 });
+              if (!visual) return null;
+              if (event.layers <= 0) return popVisual(visual, '#ff8cc0', 0, 16);
+              visual.layers = event.layers;
+              return timeline.tween(240, (t) => {
+                visual.rotation = Math.sin(t * Math.PI * 3) * 0.12 * (1 - t);
+              });
+            }));
+          } else if (event.type === 'mixer') {
+            hooks.sound('cage');
+            burst(event.cell, '#d7e8ff', 10, 0.8);
+            const visual = visuals.get(event.piece_id);
+            if (visual) {
+              visual.timer = 4;
+              if (event.layers <= 0) pending.push(popVisual(visual, '#8fb4d8', 0, 16));
+              else {
+                visual.layers = event.layers;
+                pending.push(timeline.tween(220, (t) => {
+                  visual.rotation = Math.sin(t * Math.PI * 2) * 0.15 * (1 - t);
+                }));
+              }
+            }
           } else if (event.type === 'frosting' || event.type === 'cocoa' || event.type === 'swirl') {
             const tones = { frosting: ['#fff0f8', '#ffd1e8'], cocoa: ['#8a4a25', '#b0683a'], swirl: ['#ff5f9e', '#fff4f8'] }[event.type];
-            hooks.sound(event.type === 'frosting' ? 'frosting' : 'cocoa');
+            hooks.sound(event.type);
             burst(event.cell, tones[0], 12, 0.8);
             const visual = visuals.get(event.piece_id);
             if (visual) {
@@ -1219,7 +1428,11 @@
         if (generation !== timeline.generation) return false;
       }
       if (creates.length) {
-        hooks.sound('create', { count: creates.filter((event) => event.type === 'create').length });
+        const made = creates.filter((event) => event.type === 'create');
+        const best = made.some((event) => event.piece.special === 'bomb') ? 'bomb' : made.some((event) => event.piece.special === 'wrapped') ? 'wrapped' : 'striped';
+        if (made.some((event) => event.popcorn)) hooks.sound('popcorn_burst');
+        else if (made.some((event) => event.gift)) hooks.sound('gift');
+        else hooks.sound('create', { count: made.length, special: best });
         const appearing = [];
         creates.forEach((event) => {
           hooks.event(event);
@@ -1403,25 +1616,102 @@
       return generation === timeline.generation;
     }
 
+    /**
+     * Sweet Finale charges: for each leftover move a spark flies from the moves counter to a candy, which turns striped
+     * with a glow and a chime one step higher than the last. The charges overlap in a quick, even rhythm.
+     */
     async function playBonusPhase(phase, hooks) {
       const generation = timeline.generation;
-      hooks.event({ type: 'bonus_move', moves_left: phase.header.moves_left });
+      const charges = phase.events.filter((event) => event.type === 'transform' && event.bonus);
+      const gap = UTIL.clamp(1500 / Math.max(1, charges.length), 85, 150);
+      const travel = 300;
+      const origin = hooks.chargeOrigin();
+      const pending = [];
       for (const event of phase.events) {
-        hooks.event(event);
-        if (event.type === 'transform') {
-          const visual = visuals.get(event.piece_id);
-          if (visual) {
-            visual.special = event.special;
-            addEffect({ type: 'transform_glow', cell: event.cell, duration: 360 });
-            hooks.sound('create', { count: 1 });
-            await timeline.tween(200, (t) => {
-              visual.scale = 1 + Math.sin(t * Math.PI) * 0.3;
-            });
-          }
-        } else if (event.type === 'score') {
-          hooks.bonusTick(event.points);
+        if (generation !== timeline.generation) return false;
+        if (event.type !== 'transform' || !event.bonus) {
+          hooks.event(event);
+          continue;
         }
+        hooks.event({ type: 'bonus_move', moves_left: event.moves_left });
+        hooks.bonusTick(event.step || 0);
+        const target = cellCenter(event.cell);
+        addEffect({ type: 'spark', from: origin || { x: target.x, y: layout.origin_y - layout.cell }, to: target, duration: travel });
+        pending.push(timeline.wait(travel).then((finished) => {
+          const visual = visuals.get(event.piece_id);
+          if (!finished || !visual) return null;
+          visual.special = event.special;
+          addEffect({ type: 'transform_glow', cell: event.cell, duration: 360 });
+          burst(event.cell, '#fff3b0', 7, 0.55);
+          return timeline.tween(220, (t) => {
+            visual.scale = 1 + Math.sin(t * Math.PI) * 0.3;
+            visual.flash = 1 - t;
+          });
+        }));
+        if (!(await timeline.wait(gap))) return false;
       }
+      await Promise.all(pending);
+      if (!(await timeline.wait(180))) return false;
+      return generation === timeline.generation;
+    }
+
+    /** Mood Candies take their new colors with a quick squeeze and shimmer. */
+    async function playMoodPhase(phase, hooks) {
+      const generation = timeline.generation;
+      const mood = phase.events.find((event) => event.type === 'mood');
+      if (mood) {
+        hooks.sound('mood');
+        await Promise.all(mood.changes.map((change) => {
+          const visual = visuals.get(change.piece_id);
+          if (!visual) return Promise.resolve(true);
+          return timeline.tween(260, (t) => {
+            if (t >= 0.5) visual.color = change.color;
+            visual.scale = 1 - Math.sin(t * Math.PI) * 0.22;
+            visual.flash = Math.sin(t * Math.PI) * 0.6;
+          }).then(() => {
+            visual.color = change.color;
+            visual.scale = 1;
+            visual.flash = 0;
+          });
+        }));
+      }
+      phase.events.forEach((event) => hooks.event(event));
+      return generation === timeline.generation;
+    }
+
+    /** Candy Mixers count down; when one goes off, a dollop flies out and frosts a nearby candy. */
+    async function playMixerPhase(phase, hooks) {
+      const generation = timeline.generation;
+      phase.events.forEach((event) => {
+        if (event.type !== 'mixer_tick') return;
+        event.ticks.forEach((tick) => {
+          const visual = visuals.get(tick.piece_id);
+          if (visual) visual.timer = tick.timer;
+        });
+      });
+      const spawns = phase.events.filter((event) => event.type === 'mixer_spawn');
+      if (spawns.length) {
+        hooks.sound('mixer');
+        await Promise.all(spawns.map((spawn) => {
+          const mixer_visual = visualAtCell(spawn.from);
+          if (mixer_visual) timeline.tween(300, (t) => {
+            mixer_visual.rotation = Math.sin(t * Math.PI * 4) * 0.12 * (1 - t);
+          });
+          addEffect({ type: 'spark', from: cellCenter(spawn.from), to: cellCenter(spawn.cell), duration: 320 });
+          return timeline.wait(320).then((finished) => {
+            if (!finished) return false;
+            visuals.delete(spawn.old_piece_id);
+            const visual = makeVisual(spawn.piece, spawn.cell);
+            visual.scale = 0;
+            visuals.set(visual.id, visual);
+            burst(spawn.cell, '#fff0f8', 10, 0.7);
+            return timeline.tween(240, (t) => {
+              visual.scale = EASE.outBack(t);
+            });
+          });
+        }));
+      }
+      phase.events.forEach((event) => hooks.event(event));
       return generation === timeline.generation;
     }
 
@@ -1517,7 +1807,7 @@
 
     /** Plays an event list from LOGIC. Resolves true when finished, false if cancelled (restart/quit). */
     async function playEvents(events, hook_overrides) {
-      const hooks = Object.assign({ sound: noop, haptic: noop, event: noop, cascade: noop, collect: noop, shuffle: noop, bonusTick: noop, timeBonus: noop, fuseOut: noop }, hook_overrides || {});
+      const hooks = Object.assign({ sound: noop, haptic: noop, event: noop, cascade: noop, collect: noop, shuffle: noop, bonusTick: noop, timeBonus: noop, fuseOut: noop, chargeOrigin: () => null }, hook_overrides || {});
       const generation = timeline.generation;
       selected_cell = -1;
       hint_move = null;
@@ -1557,6 +1847,10 @@
           completed = await playFusePhase(phase, hooks);
         } else if (phase.header.kind === 'cocoa') {
           completed = await playCocoaPhase(phase, hooks);
+        } else if (phase.header.kind === 'mood') {
+          completed = await playMoodPhase(phase, hooks);
+        } else if (phase.header.kind === 'mixer') {
+          completed = await playMixerPhase(phase, hooks);
         } else {
           phase.events.forEach((event) => hooks.event(event));
         }
@@ -1679,6 +1973,14 @@
       },
       flashBoard() {
         board_flash.alpha = 1;
+      },
+      /** Guided tutorial spotlight on a few cells (null clears it). */
+      setSpotlight(cells) {
+        spotlight = cells && cells.length ? { cells: new Set(cells), since: timeline.now } : null;
+      },
+      /** Makes the jelly frames flash once (the opening of a jelly level, so you see where it all is). */
+      flashJelly() {
+        jelly_flash.until = timeline.now + 1400;
       },
     };
     return renderer;
