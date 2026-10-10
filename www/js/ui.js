@@ -38,6 +38,9 @@
   ICONS.crown = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 8.5l4.2 3.6L12 5l4.3 7.1 4.2-3.6-1.6 9.5H5.1z" fill="#ffcf3f" stroke="#a5620a" stroke-width="1.4" stroke-linejoin="round"/><rect x="5" y="18.2" width="14" height="2.6" rx="1.1" fill="#ffb21f" stroke="#a5620a" stroke-width="1.2"/><circle cx="12" cy="13.6" r="1.5" fill="#ff5d8f"/></svg>';
   ICONS.brush = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="10.2" y="2.5" width="3.6" height="10" rx="1.6" fill="#ffd36e" stroke="#3b1a4a" stroke-width="1.4"/><rect x="9.4" y="11.2" width="5.2" height="2.8" rx="0.8" fill="#c9c2d6" stroke="#3b1a4a" stroke-width="1.3"/><path d="M8.6 14h6.8c.4 3.4-.6 6.2-3.4 7.5C9.2 20.2 8.2 17.4 8.6 14z" fill="#ff5d8f" stroke="#3b1a4a" stroke-width="1.4" stroke-linejoin="round"/><path d="M9.6 16.4l4.8-1.2M10 18.8l4-1" stroke="#fff" stroke-width="1.3" stroke-linecap="round"/></svg>';
   ICONS.party = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20.5l4.6-12.4 7.8 7.8z" fill="#ffb21f" stroke="#3b1a4a" stroke-width="1.5" stroke-linejoin="round"/><path d="M6 15.2l3.2 3.2M7.4 11.4l5.2 5.2" stroke="#ff5d8f" stroke-width="1.6" stroke-linecap="round"/><circle cx="16.5" cy="5" r="1.4" fill="#4cc3ff"/><circle cx="20" cy="9.5" r="1.3" fill="#ff5d8f"/><circle cx="12.6" cy="3.6" r="1.1" fill="#7be07b"/><path d="M14.5 9.5c1-2.2 3-3 5-2.6M12.5 7.8c.2-1.4.9-2.5 2-3.2" stroke="#a64dff" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>';
+  ICONS.skull = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8c-4.6 0-8 3.2-8 7.6 0 2.6 1.2 4.4 2.9 5.4v2.6c0 .9.7 1.6 1.6 1.6h.7v-1.8h1.4v1.8h2.8v-1.8h1.4v1.8h.7c.9 0 1.6-.7 1.6-1.6v-2.6c1.7-1 2.9-2.8 2.9-5.4 0-4.4-3.4-7.6-8-7.6z" fill="#ffffff" stroke="#3b1a4a" stroke-width="1.4" stroke-linejoin="round"/><ellipse cx="8.8" cy="11" rx="2" ry="2.3" fill="#7a2bd6"/><ellipse cx="15.2" cy="11" rx="2" ry="2.3" fill="#7a2bd6"/><path d="M12 13.6l-1.1 1.9h2.2z" fill="#3b1a4a"/></svg>';
+  ICONS.chest = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 10.5h17v8.5a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z" fill="#c9762b" stroke="#5a2a0a" stroke-width="1.4" stroke-linejoin="round"/><path d="M3.5 10.5V8.8C3.5 6 5.8 4 8.6 4h6.8c2.8 0 5.1 2 5.1 4.8v1.7z" fill="#e8963f" stroke="#5a2a0a" stroke-width="1.4" stroke-linejoin="round"/><rect x="3.5" y="10" width="17" height="2.2" fill="#ffcf3f" stroke="#5a2a0a" stroke-width="1.1"/><rect x="10.3" y="9.2" width="3.4" height="4.6" rx="0.8" fill="#ffe27a" stroke="#5a2a0a" stroke-width="1.1"/><path d="M8 4.2v16.3M16 4.2v16.3" stroke="#ffcf3f" stroke-width="1.3" opacity="0.8"/></svg>';
+  ICONS.sparkle = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.8l2.3 6.9 6.9 2.3-6.9 2.3L12 20.2l-2.3-6.9L2.8 11l6.9-2.3z" fill="#ff7fc4" stroke="#ffffff" stroke-width="1.4" stroke-linejoin="round"/><circle cx="19" cy="4.5" r="1.6" fill="#ffd34d"/><circle cx="5" cy="19" r="1.3" fill="#7fd8ff"/></svg>';
   ICONS.hand = '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M17.5 7.5c2.1 0 3.6 1.6 3.6 3.6v13.2l1.4-.3V20c0-2 1.6-3.5 3.5-3.5S29.5 18 29.5 20v3.6l1.2-.2c.3-1.8 1.8-3 3.5-3 2 0 3.5 1.6 3.5 3.6v.6c1.7.2 3 1.6 3 3.4v6.4c0 6.6-5.3 11.6-11.9 11.6h-3.5c-4 0-7.5-1.9-9.8-5.1L9.2 31.7c-1-1.5-.7-3.5.7-4.6 1.4-1.1 3.5-.9 4.6.5l-.5-.6V11.1c0-2 1.5-3.6 3.5-3.6z" fill="#fff" stroke="#3b1a4a" stroke-width="2.4" stroke-linejoin="round"/><path d="M21.1 24.3v6M29.5 23.6v6.4M37.7 24.6v5.6" stroke="#3b1a4a" stroke-width="2" stroke-linecap="round" opacity="0.35"/></svg>';
 
   function icon(name) {
@@ -160,32 +163,13 @@
     return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
   }
 
-  /**
-   * Star marker positions on the score meter (fractions of its width). Proportional to the thresholds, but the three
-   * stars never sit closer than STAR_MARK_GAP to each other (close thresholds would stack the markers into one blob).
-   */
-  const STAR_MARK_GAP = 0.22;
-  function starMarkPositions(stars) {
-    const top = stars[2] * 1.1;
-    const positions = stars.map((threshold) => threshold / top);
-    positions[2] = Math.min(positions[2], 0.94);
-    positions[1] = Math.min(positions[1], positions[2] - STAR_MARK_GAP);
-    positions[0] = Math.min(positions[0], positions[1] - STAR_MARK_GAP);
-    return positions;
+  /** Goal completion of a level in play, 0..1: the mean of each goal's share done (a done goal counts as 1). */
+  function goalFraction(progress) {
+    if (!progress || !progress.length) return 0;
+    const total = progress.reduce((sum, goal) => sum + (goal.done ? 1 : Math.min(1, Math.max(0, goal.current / Math.max(1, goal.target)))), 0);
+    return total / progress.length;
   }
 
-  /** Meter fill for a score, piecewise linear through the markers so each star lights exactly when the fill reaches it. */
-  function starFillFraction(score, stars, positions) {
-    const points = [[0, 0], [stars[0], positions[0]], [stars[1], positions[1]], [stars[2], positions[2]], [stars[2] * 1.1, 1]];
-    for (let index = 1; index < points.length; index += 1) {
-      const [score_b, at_b] = points[index];
-      if (score <= score_b) {
-        const [score_a, at_a] = points[index - 1];
-        return at_a + ((at_b - at_a) * (score - score_a)) / Math.max(1, score_b - score_a);
-      }
-    }
-    return 1;
-  }
 
   /**
    * Shrinks a modal's ribbon title until it fits beside the close button. Titles never wrap (the glossy overlay is a
@@ -217,11 +201,7 @@
     let toast_timer = null;
     let banner_timer = null;
     let hud_level = null;
-    let star_positions = [0.5, 0.7, 0.9];
     let hud_goal_nodes = [];
-    let displayed_score = 0;
-    let score_target = 0;
-    let score_animation = null;
     let tutorial_fade_timer = null;
     let options_keep_tutorial = false;
     let title_pip = null;
@@ -333,17 +313,12 @@
           dom.hud_goal_list.appendChild(node);
           return { node, count, goal };
         });
-        star_positions = starMarkPositions(level.stars);
-        level.stars.forEach((threshold, index) => {
+        [0, 1, 2].forEach((index) => {
           const mark = dom[`star_mark_${index}`];
-          mark.style.left = `${star_positions[index] * 100}%`;
           mark.dataset.reached = 'false';
           mark.innerHTML = icon('star_empty');
         });
-        displayed_score = state.score;
-        score_target = state.score;
-        dom.hud_score.textContent = String(state.score);
-        ui.updateHud({ moves: state.moves_left, time_left: state.timed ? (state.time_limit + state.time_bonus) * 1000 : undefined, score: state.score, progress: LOGIC.goalProgress(state) }, true);
+        ui.updateHud({ moves: state.moves_left, time_left: state.timed ? (state.time_limit + state.time_bonus) * 1000 : undefined, progress: LOGIC.goalProgress(state) }, true);
       },
       updateHud(values, immediate) {
         if (values.time_left !== undefined) {
@@ -353,8 +328,23 @@
           dom.hud_moves.textContent = String(values.moves);
           dom.hud_moves.classList.toggle('is-low', values.moves < 5);
         }
-        if (values.score !== undefined) ui.setScore(values.score, immediate);
         if (values.progress) {
+          // The star meter follows the goals (the original shows no score): each third of the way lights a star.
+          const fraction = goalFraction(values.progress);
+          dom.star_fill.style.width = `${Math.round(fraction * 100)}%`;
+          [1 / 3, 2 / 3, 1].forEach((at, index) => {
+            const mark = dom[`star_mark_${index}`];
+            const reached = fraction >= at - 1e-6;
+            if (mark.dataset.reached === String(reached)) return;
+            mark.dataset.reached = String(reached);
+            mark.innerHTML = icon(reached ? 'star' : 'star_empty');
+            if (reached && !immediate) {
+              mark.classList.remove('is-popping');
+              void mark.offsetWidth;
+              mark.classList.add('is-popping');
+              hooks.sound('star', { index });
+            }
+          });
           values.progress.forEach((progress, index) => {
             const entry = hud_goal_nodes[index];
             if (!entry) return;
@@ -377,38 +367,6 @@
             }
             entry.node.classList.toggle('is-done', progress.done);
             if (progress.done && !was_done && !immediate) hooks.sound('goal');
-          });
-        }
-      },
-      setScore(score, immediate) {
-        score_target = score;
-        if (immediate) {
-          displayed_score = score;
-          dom.hud_score.textContent = String(score);
-        } else if (!score_animation) {
-          const tick = () => {
-            const gap = score_target - displayed_score;
-            if (Math.abs(gap) < 1) {
-              displayed_score = score_target;
-              dom.hud_score.textContent = String(displayed_score);
-              score_animation = null;
-              return;
-            }
-            displayed_score += gap > 0 ? Math.max(1, Math.ceil(gap * 0.18)) : gap;
-            dom.hud_score.textContent = String(Math.round(displayed_score));
-            score_animation = requestAnimationFrame(tick);
-          };
-          score_animation = requestAnimationFrame(tick);
-        }
-        if (hud_level) {
-          dom.star_fill.style.width = `${starFillFraction(score, hud_level.stars, star_positions) * 100}%`;
-          hud_level.stars.forEach((threshold, index) => {
-            const mark = dom[`star_mark_${index}`];
-            const reached = score >= threshold;
-            if (mark.dataset.reached !== String(reached)) {
-              mark.dataset.reached = String(reached);
-              mark.innerHTML = icon(reached ? 'star' : 'star_empty');
-            }
           });
         }
       },
@@ -551,6 +509,9 @@
       showGoalIntro(goals, options) {
         const ribbon = dom.goal_ribbon;
         if (!ribbon) return 0;
+        const role = options && (options.role === 'hard' || options.role === 'superhard') ? options.role : '';
+        ribbon.classList.toggle('is-hard', role === 'hard');
+        ribbon.classList.toggle('is-superhard', role === 'superhard');
         const types = new Set(goals.map((goal) => goal.type));
         let title = 'Reach every goal!';
         if (types.size === 1) {
@@ -560,6 +521,7 @@
           else if (types.has('order')) title = 'Complete the order!';
         }
         ribbon.innerHTML = '';
+        if (role) ribbon.appendChild(element('div', 'goal-ribbon-kicker', { html: `${icon('skull')}<span>${role === 'hard' ? 'Hard level' : 'Super hard level'}</span>` }));
         ribbon.appendChild(element('div', 'goal-ribbon-title glossy-text', { 'data-text': title, text: title }));
         const counted = goals.filter((goal) => goal.type !== 'jelly');
         if (counted.length) {
@@ -716,12 +678,16 @@
               handle.close();
             }, 'round small modal-close'));
             const role = level.role === 'hard' || level.role === 'superhard' ? level.role : null;
-            if (role) modal.appendChild(element('div', `role-ribbon is-${role}`, { text: role === 'hard' ? 'Hard level' : 'Super hard level' }));
+            if (role) {
+              modal.classList.add(`is-${role}`);
+              modal.appendChild(element('div', `role-ribbon is-${role}`, { html: `${icon('skull')}<span>${role === 'hard' ? 'Hard level' : 'Super hard level'}</span>` }));
+            }
             modal.appendChild(element('p', 'intro-number', { text: `Level ${level.id}` }));
             modal.appendChild(glossyHeading('h2', level.name, 'modal-title'));
             const stars = element('div', 'star-row');
             for (let index = 0; index < 3; index += 1) stars.insertAdjacentHTML('beforeend', icon(data.best.stars > index ? 'star' : 'star_empty'));
             if (data.crown) stars.insertAdjacentHTML('beforeend', `<span class="intro-crown" title="Won on the first try">${icon('crown')}</span>`);
+            if (data.mastery) stars.insertAdjacentHTML('beforeend', `<span class="intro-crown" title="Sweet Mastery">${icon('sparkle')}</span>`);
             modal.appendChild(stars);
             const goals = element('div', 'intro-goals');
             level.goals.forEach((goal) => {
@@ -733,7 +699,7 @@
             modal.appendChild(goals);
             const meta = element('div', 'intro-meta');
             meta.appendChild(element('span', '', { html: level.time ? `${icon('clock')} ${level.time} seconds` : `${level.moves} moves` }));
-            if (data.best.score) meta.appendChild(element('span', '', { text: `Best ${data.best.score.toLocaleString('en-US')}` }));
+            if (data.treasure) meta.appendChild(element('span', 'intro-treasure', { html: `${icon('chest')}Treasure inside!` }));
             modal.appendChild(meta);
             if (level.tutorial && level.newMechanic) {
               const tip = element('div', 'pip-tip');
@@ -917,18 +883,17 @@
       },
 
       /**
-       * data: { score, stars, is_new_best, player_name, win_message, has_next, crown, rewards: {gold, chest_ready},
-       * streak: the Sweet Streak after this win (0 = none shown), streak_on }
+       * data: { stars, player_name, win_message, has_next, role, crown, mastery, rewards: {gold, hard_bonus, treasure,
+       * chest_ready}, streak: the Sweet Streak after this win (0 = none shown), streak_on }. No score: like the original
+       * today, the win shows stars, the crown, mastery and the rewards.
        */
       showWin(data, actions) {
         const timers = [];
-        let count_frame = 0;
         return ui.openModal({
           id: 'win',
           back: () => actions.map(),
           on_close: () => {
             timers.forEach((timer) => clearTimeout(timer));
-            cancelAnimationFrame(count_frame);
           },
           build(modal) {
             modal.classList.add('win');
@@ -944,15 +909,14 @@
               slots.push(slot);
             }
             modal.appendChild(stars);
-            const score_line = element('div', 'final-score', { text: '0' });
-            score_line.id = 'win-score';
-            modal.appendChild(score_line);
-            const best = element('div', 'new-best', { text: 'New best!' });
-            best.hidden = true;
-            modal.appendChild(best);
+            if (data.mastery) modal.appendChild(element('p', 'win-mastery', { html: `${icon('sparkle')}<span>Sweet Combo! Mastery on the first try!</span>` }));
             const rewards = element('div', 'reward-row');
             if (data.rewards.gold) rewards.appendChild(element('span', 'reward', { html: `<img src="${SPRITES.iconUrl('gold', 48)}" alt="">+${data.rewards.gold}` }));
-            if (data.crown) rewards.appendChild(element('span', 'reward is-crown', { html: `${icon('crown')}First try!` }));
+            if (data.mastery) rewards.appendChild(element('span', 'reward is-mastery', { html: `${icon('sparkle')}Sweet Mastery` }));
+            else if (data.crown) rewards.appendChild(element('span', 'reward is-crown', { html: `${icon('crown')}First try!` }));
+            if (data.rewards.hard_bonus) rewards.appendChild(element('span', 'reward is-hard', { html: `${icon('skull')}${data.role === 'superhard' ? 'Super hard' : 'Hard level'} beaten!` }));
+            const treasure = data.rewards.treasure;
+            if (treasure) rewards.appendChild(element('span', 'reward is-treasure', { html: `${icon('chest')}${treasure.booster ? `+${treasure.amount} ${META.BOOSTER_NAMES[treasure.booster]}` : `Treasure +${treasure.gold}`}` }));
             if (data.streak_on && data.streak > 0) rewards.appendChild(element('span', 'reward is-streak', { html: `Sweet Streak ${data.streak}! <span class="bag">${bagHtml(META.streakBag(data.streak), 20)}</span>` }));
             if (data.rewards.chest_ready) rewards.appendChild(element('span', 'reward', { text: 'Star Chest ready!' }));
             modal.appendChild(rewards);
@@ -981,13 +945,6 @@
             row.appendChild(map);
             column.appendChild(row);
             modal.appendChild(column);
-            const start = performance.now();
-            const count_up = (time) => {
-              const progress = Math.min(1, (time - start) / 700);
-              score_line.textContent = Math.round(data.score * UTIL.EASE.outCubic(progress)).toLocaleString('en-US');
-              if (progress < 1) count_frame = requestAnimationFrame(count_up);
-            };
-            count_frame = requestAnimationFrame(count_up);
             slots.forEach((slot, index) => {
               if (index >= data.stars) return;
               timers.push(setTimeout(() => {
@@ -997,9 +954,6 @@
                 hooks.haptic('medium');
               }, 450 + index * 380));
             });
-            timers.push(setTimeout(() => {
-              best.hidden = !data.is_new_best;
-            }, 450 + data.stars * 380));
           },
         });
       },
@@ -1517,7 +1471,7 @@
               modal.appendChild(node);
             };
             modal.appendChild(element('h3', '', { text: 'Basics' }));
-            row(candyImage(0, 'none', 48), 'Swap two neighboring candies (tap one, then the other, or swipe) to line up <b>3 or more</b> of the same kind. Meet every goal before your moves (or the clock) run out.');
+            row(candyImage(0, 'none', 48), 'Swap two neighboring candies (tap one, then the other, or swipe) to line up <b>3 or more</b> of the same kind. Meet every goal before your moves run out.');
             row(candyImage(4, 'none', 48), 'Every candy has its own color <b>and</b> shape. Turn on <b>Color-blind assist</b> in Settings for white symbols too.');
             row(SPRITES.iconUrl('star', 96), 'The light bulb shows the best move at once. Auto hint (Settings) can show it by itself: Instant, after 3 s, after 8 s, or Off.');
             modal.appendChild(element('h3', '', { text: 'Special candies' }));
@@ -1552,19 +1506,16 @@
               ['Sugar Party', 'One blast over the whole board'],
               ['Lucky / Rainbow / Head Start', 'Begin with specials, a Color Bomb, or +3 moves'],
               ['Hearts', 'A loss costs one; one refills every 30 minutes (or turn on Unlimited hearts)'],
-              ['Gold Drops', 'Earned from wins, stars, the Daily Wheel and Star Chests'],
+              ['Gold Drops', 'Earned from wins, crowns, hard levels, treasure, the Daily Wheel and Star Chests'],
             ]);
-            modal.appendChild(element('h3', '', { text: 'Scoring' }));
-            const points = LOGIC.SCORING;
+            modal.appendChild(element('h3', '', { text: 'Stars, crowns and mastery' }));
             table([
-              ['Match of 3 / 4 / 5 / 6', `${LOGIC.matchPoints(3)} / ${LOGIC.matchPoints(4)} / ${LOGIC.matchPoints(5)} / ${LOGIC.matchPoints(6)}`],
-              ['Make striped / wrapped / bomb', `${points.CREATE_STRIPE} / ${points.CREATE_WRAPPED} / ${points.CREATE_BOMB}`],
-              ['Each candy cleared by a special', String(points.ACTIVATION_PER_CANDY)],
-              ['Each special set off', String(points.ACTIVATION_PER_SPECIAL)],
-              ['Cascades', '×1, ×1.5, ×2, ×2.5 … up to ×4'],
-              ['Ingredient delivered', String(points.INGREDIENT)],
-              ['Jelly layer / frosting layer', `${points.JELLY_LAYER} / ${points.FROSTING_LAYER}`],
-              ['Sweet Finale: each move left', `${points.END_BONUS_PER_MOVE} + a striped candy that fires`],
+              ['3 stars', 'Meet every goal: the stars at the top fill as you go'],
+              ['Gold Crown', 'Win a level on your very first try'],
+              ['Sweet Mastery', 'A first-try win with 5 or more moves to spare'],
+              ['Hard / Super Hard', 'Purple and crimson levels: tough, and worth a Gold Drop bonus'],
+              ['Treasure', 'A chest on every 5th level opens when you first beat it'],
+              ['Sweet Finale', 'Moves you have left fire as striped candies'],
             ]);
             modal.appendChild(element('p', 'help-footer', { text: 'No moves left? The board reshuffles by itself. New levels are data: the "Levels" workflow generates and calibrates them into level packs.' }));
           },

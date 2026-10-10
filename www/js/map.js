@@ -118,7 +118,9 @@
         html += '</span>';
       }
       if (crowned) html += `<span class="node-crown">${hooks.icon('crown')}</span>`;
-      else if (role === 'hard' || role === 'superhard') html += `<span class="node-ribbon">${role === 'hard' ? 'Hard' : 'Super Hard'}</span>`;
+      else if (role === 'hard' || role === 'superhard') html += `<span class="node-ribbon">${hooks.icon('skull')}${role === 'hard' ? 'Hard' : 'Super Hard'}</span>`;
+      if (crowned && hooks.hasMastery && hooks.hasMastery(level_number)) html += `<span class="node-mastery">${hooks.icon('sparkle')}</span>`;
+      if (hooks.hasTreasure && hooks.hasTreasure(level_number)) html += `<span class="node-treasure">${hooks.icon('chest')}</span>`;
       if (is_current && hooks.heartsOn()) html += `<span class="node-cost">${hooks.icon('heart')}1</span>`;
       node.innerHTML = html;
       node.setAttribute('aria-label', unlocked

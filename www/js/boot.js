@@ -72,7 +72,6 @@
       hud_moves: by_id('hud-moves'),
       hud_level: by_id('hud-level'),
       hud_goal_list: by_id('hud-goal-list'),
-      hud_score: by_id('hud-score'),
       star_fill: by_id('star-fill'),
       star_mark_0: by_id('star-mark-0'),
       star_mark_1: by_id('star-mark-1'),

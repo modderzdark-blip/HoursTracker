@@ -1256,6 +1256,19 @@
     assert.strictEqual(meta.gold, gold + 50);
     assert.strictEqual(META.claimEpisode(meta, 1, 15), null, 'once per episode');
     assert.strictEqual(META.episodeReward({ announced: [] }, 1, 3).booster, null, 'no booster before any is unlocked');
+    // Treasure every 5th level except finales; hard levels pay a first-win bonus; replays pay neither.
+    assert.deepStrictEqual([5, 10, 15, 20, 30, 35].map(META.treasureAt), [true, true, false, true, false, true]);
+    const save = STORAGE.defaultSave();
+    save.unlocked = 31;
+    META.announceUnlock(save.meta, 'hammer');
+    const first = META.recordOutcome(save, { won: true, new_stars: 3, crown: true, mastery: true, new_level: true, role: 'hard', level_id: 30 }, 3);
+    assert.strictEqual(first.hard_bonus, 20);
+    assert.strictEqual(first.treasure, null, 'no chest on a finale');
+    assert.strictEqual(first.gold, 5 + 30 + 5 + 10 + 20, 'win, stars, crown, mastery and the hard bonus');
+    const chest = META.recordOutcome(save, { won: true, new_stars: 3, crown: false, new_level: true, role: 'normal', level_id: 20 }, 6);
+    assert.ok(chest.treasure && (chest.treasure.gold || chest.treasure.booster), 'level 20 holds a chest');
+    const replay = META.recordOutcome(save, { won: true, new_stars: 0, crown: false, new_level: false, role: 'hard', level_id: 20 }, 6);
+    assert.deepStrictEqual([replay.hard_bonus, replay.treasure, replay.gold], [0, null, 5], 'a replay pays only the win');
   });
 
   test('hint', 'auto hint: Instant shows within 400 ms of idle, 3 s and 8 s wait, Off never; the button is immediate (fake timers)', (assert) => {
@@ -1367,14 +1380,17 @@
     assert.ok(!STORAGE.hasCrown(v4, 1), 'no crowns for old wins');
     // Gold Crowns: only a win on the very first finished attempt.
     const crowned = STORAGE.defaultSave();
-    assert.deepStrictEqual(STORAGE.recordResult(crowned, 1, { won: true, score: 100, stars: 1 }), { is_new_best: true, unlocked_next: true, crown: true, new_level: true });
+    assert.deepStrictEqual(STORAGE.recordResult(crowned, 1, { won: true, score: 100, stars: 1, moves_left: 5 }), { is_new_best: true, unlocked_next: true, crown: true, mastery: true, new_level: true });
+    assert.ok(STORAGE.hasMastery(crowned, 1), 'a first-try win with 5 moves left is Sweet Mastery');
+    assert.ok(!STORAGE.recordResult(crowned, 3, { won: true, score: 100, stars: 3, moves_left: 4 }).mastery, '4 moves left is a crown only');
     assert.strictEqual(STORAGE.recordResult(crowned, 2, { won: false, score: 0 }).crown, false);
     const late = STORAGE.recordResult(crowned, 2, { won: true, score: 100, stars: 1 });
     assert.ok(!late.crown && late.new_level, 'a win after a lost try is new but not crowned');
     assert.ok(!STORAGE.recordResult(crowned, 1, { won: true, score: 100, stars: 1 }).new_level, 'a replay is not new');
     const reloaded = STORAGE.parseSave(STORAGE.serializeSave(crowned)).save;
     assert.ok(STORAGE.hasCrown(reloaded, 1) && !STORAGE.hasCrown(reloaded, 2), 'crowns survive a reload');
-    assert.strictEqual(STORAGE.totalCrowns(reloaded), 1);
+    assert.ok(STORAGE.hasMastery(reloaded, 1) && !STORAGE.hasMastery(reloaded, 3), 'mastery survives a reload');
+    assert.strictEqual(STORAGE.totalCrowns(reloaded), 2);
     const partial = STORAGE.parseSave(JSON.stringify({ version: 4, settings: { theme: 'sprinkle', effects_volume: 7, accent: 'neon', auto_hint: 'sometimes' }, meta: { hearts: 99, gold: -5 } })).save;
     assert.strictEqual(partial.settings.theme, 'sprinkle');
     assert.strictEqual(partial.settings.effects_volume, 1, 'clamped');

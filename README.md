@@ -52,14 +52,22 @@ The repository is public, so you don't need to sign in to download.
   matches; a match beside it or a blast breaks it, and it stops a striped candy's beam) and **Gift Box** (falls; a match
   beside it or a blast opens it into a striped, wrapped or Rainbow candy). Like the original, from episode 4 a new piece
   arrives at an episode's first level (Taffy Swirl at 46, Gift Box at 61).
-* **Modes:** collect candies, jelly, ingredients, Candy Order (specials, blockers), timed (collect candies before the clock runs out; each special adds 2 seconds)
-  and mixed goals, with a goal tracker that pops when a goal completes.
+* **Modes:** collect candies, jelly, ingredients, Candy Order (specials, blockers) and mixed goals, always with a move
+  budget, and a goal tracker that pops when a goal completes. Like the original today there are no timed levels and no
+  score on screen: the stars at the top fill as the goals do.
+* **Stars, crowns and mastery:** meeting the goals is worth 3 stars. A first-try win earns a **Gold Crown**; a first-try
+  win with 5 or more moves to spare is **Sweet Mastery** ("Sweet Combo! Mastery on the first try!", a sparkle on the
+  map). **Hard** levels are purple and **Super Hard** ones crimson (skull badge on the map, the level popup and the start
+  ribbon); beating one for the first time says so and pays +20 / +50 Gold Drops. Every 5th level (not the episode
+  finales, which have their own reward) holds a **treasure chest** on the map that opens on the first win.
 * **Difficulty:** matched to Candy Crush Saga player data (attempt logs for one 15-level episode: openers passed on
   about 62% of tries, ordinary levels 20–45%, hard ones 4–14%, the episode's last level about 4%). Levels 1–30 are the
   gentle on-ramp. After that every episode opens with an easy level, has one to three **Hard levels** in the middle
   with an easier one after each, and ends on a hard gate (a **Super hard level** every 5th episode). Measured with the
   greedy bot, one game per try: ordinary levels ease from about 60% down to 27%, hard ones about 10–20%, super hard
-  about 5–9% (`LEVELS.targetWinRate`, report in `docs/difficulty/`).
+  about 5–9% (`LEVELS.targetWinRate`, report in `docs/difficulty/`). Levels get harder the way the original's do, with
+  more candy colours (5 on most levels from 20, 6 from 150) and fewer moves, never with absurd goals: the calibrator keeps
+  every colour goal at 60 or fewer and about 3 candies per move at most, and tries another board if it cannot.
 * **Hints:** the suggested move glows and its candy nudges toward its spot. Settings → Auto hint: **Instant** (default),
   3 s, 8 s or Off; the bulb button shows it any time. Hints prefer the move that wins, then goal progress, then specials.
 * **Meta game:** Hearts (5, one refills every 30 minutes; Settings → Unlimited hearts turns them off), Gold Drops
@@ -81,8 +89,9 @@ The repository is public, so you don't need to sign in to download.
 * **Episodes:** clearing an episode's last level for the first time shows the episode's stars and crowns and pays a
   reward (Gold Drops plus a booster), then the map moves on to the next episode.
 * **Level start and end:** the candies drop onto the board while a ribbon sweeps across with the goals. A win plays
-  "Sweet Victory!" and then the **Sweet Finale** (moves left turn into striped candies that fire for bonus points). A
-  loss pops "Out of moves!" (or "Time's up!") over the board before the keep-going popup, and giving up cracks a heart.
+  "Sweet Victory!" ("Hard level beaten!" on a hard one) and then the **Sweet Finale** (moves left turn into striped
+  candies that fire). A loss pops "Out of moves!" over the board before the keep-going popup, and giving up cracks a
+  heart.
 * **Juice:** squash and stretch, gravity falls, pops with particles, beams and shockwaves, cascade banners
   ("Tasty!" … "Sugar Storm!"), confetti, Pip's reactions and haptics. Animation speed: Normal, Snappy (default) or Fast.
 * **Personal touches:** your name on the title and win screen, a background photo picked with the system photo picker
@@ -127,11 +136,11 @@ on the starting board reproduces the final board exactly; this is tested on rand
 
 Every push, every `v*` tag and manual runs execute:
 
-1. **logic**: 52 Node tests (`node tests/logic.test.js`), then fuzz games and greedy-bot games on every shipped level (`node tests/simulate.js`).
+1. **logic**: 57 Node tests (`node tests/logic.test.js`), then 500 fuzz games and 400 greedy-bot games on every shipped level, on boards the calibrator never tuned on (`node tests/simulate.js`; a level whose bot win rate drifts more than 15 points from its target fails).
 2. **levels**: `node tests/levels.test.js`: shipped levels are valid and solvable, one new idea per level, complexity budget, the calibrated difficulty curve, and a scale test that generates levels 61–360 plus a sample up to 20,000.
    **levels-pipeline**: runs `levels.yml` end to end on levels 121–160 with a small bot budget (nothing is published).
 3. **audio**: `node tests/audio/run-audio-tests.mjs` renders every sound, a 6-sound + music stress mix and both music tracks offline in Chromium at maximum settings and checks peak level, clicks at the edges, sample jumps, energy above 4 and 6 kHz, spectral centroid, length, envelope and the loop seam.
-4. **browser**: Playwright with Chromium mobile emulation (`npx playwright test`). It plays Level 1 to a win with real swipes and taps, and checks persistence, losing, +5 Moves, hearts, boosters, the timed clock, pause/restart/quit mid-animation, Back, lifecycle, hints, settings, the self-test and reduced motion. It also captures screenshots of every screen at 360×640, 390×844, 412×915, 430×932, 673×841 and 768×1024 in all three themes (including the map at levels 1, 40, 5,000 and 19,000), plus landscape, desktop and the zoomed art sheets.
+4. **browser**: Playwright with Chromium mobile emulation (`npx playwright test`). It plays Level 1 to a win with real swipes and taps, and checks persistence, losing, +5 Moves, hearts, boosters, the goal stars and Sweet Mastery, pause/restart/quit mid-animation, Back, lifecycle, hints, settings, the self-test and reduced motion. It also captures screenshots of every screen at 360×640, 390×844, 412×915, 430×932, 673×841 and 768×1024 in all three themes (including the map at levels 1, 40, 5,000 and 19,000), plus landscape, desktop and the zoomed art sheets.
 5. **build**: Node 22, JDK 21, Android SDK, `npx cap sync android`, then Gradle `assembleDebug assembleRelease bundleRelease`.
 6. **apk-verify**: `aapt2 dump badging`, `apksigner verify` and a scan of the bundled assets (`tests/apk/verify-apk.mjs`). Right after it, the verified APK is attached to the `qa` pre-release as `SweetCascade-vX.Y.Z-preview.apk`.
 7. **emulator**: Android 14 (API 34) emulator, Pixel 6 profile (`tests/emulator/run-emulator-tests.sh`). It installs the APK, wins Level 1 with real `adb` swipes, and tests Back at every screen, Home and resume, the portrait lock, the photo picker, the on-device self-test, airplane mode, 3 minutes of play (frame pacing and memory), the map at a seeded level-19,000 save, release cold start and a 3,000-event monkey run.
@@ -161,11 +170,9 @@ signed with a different key), which resets local progress.
 * **JDK 21 instead of 17:** Capacitor 8's Android library is compiled for Java 21, so CI uses Temurin 21.
 * **Native shell plugin:** keep-awake, the system photo picker (`PickVisualMedia`, no storage permission), display-cutout insets and app info come from one small app plugin (`NativeShellPlugin.java`) instead of extra third-party dependencies. Immersive fullscreen is applied natively in `MainActivity`; Capacitor 8's core `SystemBars` replaces the status-bar plugin.
 * **Save format v4:** per-level stars as 2-bit values plus best scores (stored as score/10 in varints), base64-encoded. A save with 20,000 cleared levels is about 58 KB and parses in a few milliseconds. Older saves migrate automatically.
-* **No points-only levels:** every level is won by candy goals (collect, jelly, ingredients, orders); points only decide 2 and 3 stars. `tests/levels.test.js` fails if a score goal ever appears, in the shipped levels or anywhere the generator reaches.
-* **Star thresholds:** 1 star is winning the level. 2 and 3 stars start from 1.6× and 2.4× of a near-minimum winning score but are capped by the bot calibration (3 stars at most the 20th-percentile greedy-bot winning score and the 10th-percentile random-bot score), so an ordinary win usually earns 3 stars.
+* **No points-only levels, no timed levels:** every level is won by candy goals (collect, jelly, ingredients, orders) within a move budget. `tests/levels.test.js` fails if a score goal or a timed level ever appears, in the shipped levels or anywhere the generator reaches. The engine still counts points behind the scenes (the calibrator's star thresholds are kept in the level records), but the game never shows them.
 * **Packs:** the game ships levels 1–120 (25 hand-authored, the rest generated and calibrated) in `www/levels/pack-0001.js` and `pack-0002.js`. `getLevel(n)` accepts 1–99,999; after the last shipped level the map shows "More levels coming soon!".
 * **Cocoa cap and no-move loss:** Cocoa Creep never covers more than half the board; if a board ever has no possible move even after a reshuffle, the level ends with "No more moves!" instead of soft-locking.
-* **Timed levels:** the clock pauses during every popup and while the app is in the background; each special candy created adds 2 seconds.
 * **Retries:** each attempt uses a fresh deterministic seed derived from the level seed, so retries show new boards.
 * **Branch:** development happened on the session branch, and CI runs there, so `latest` and `v1.0.0` were published from it.
 
@@ -179,7 +186,7 @@ Open **Actions → Levels - generate and calibrate → Run workflow** and fill i
 |---|---|
 | `from` | first level to add; must be exactly one past the last shipped level (121 today) |
 | `to` | last level to add |
-| `games` / `random_games` | greedy-bot and random-bot games per calibration step (300 / 100 by default) |
+| `games` / `random_games` | greedy-bot and random-bot games per calibration step (300 / 100 by default; the boards alternate between two far-apart seed ranges, and the chosen setting is re-checked on a third, unseen range before a level is accepted) |
 | `shard_size` | levels per parallel calibration job |
 | `open_pr` | also open a pull request (otherwise only a branch is pushed) |
 
@@ -212,7 +219,7 @@ Layout legend (`LOGIC.LAYOUT_LEGEND`): `.` normal, `#` hole, `j`/`J` single/doub
 `p`/`P` portal entrance/exit (pairs in `meta.portals`), `>` `<` `^` `v` Sugar Belt direction, `s` Taffy Swirl, `g` Gift Box.
 
 Mechanics unlock gradually (one new idea per level): collect 2, jelly 5, ingredients 9, Candy Order 12, frosting 13,
-double jelly 15, timed 17, Sugar Cage 19, portals 21, Cocoa Creep 22, Fuse Candy 24, mixed goals 25, Sugar Belt 31,
+double jelly 15, Sugar Cage 19, portals 21, Cocoa Creep 22, Fuse Candy 24, mixed goals 25, Sugar Belt 31,
 thick frosting 36, hazelnut 41, Taffy Swirl 46, Gift Box 61.
 
 ## Adding a Tier 2 mechanic

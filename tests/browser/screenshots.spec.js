@@ -15,7 +15,7 @@ const SIZES = [
 ];
 const THEMES = ['gummy', 'hard', 'sprinkle'];
 // Real shipped levels that show each board piece: cages, portals, cocoa, fuse, belt, thick frosting, hazelnuts, jelly.
-const FEATURE_LEVELS = [[19, 'cage'], [21, 'portals'], [22, 'cocoa'], [24, 'fuse'], [31, 'belt'], [36, 'frosting-3plus'], [41, 'hazelnut'], [46, 'taffy-swirl'], [61, 'gift-box'], [14, 'jelly-frosting'], [17, 'timed']];
+const FEATURE_LEVELS = [[19, 'cage'], [21, 'portals'], [22, 'cocoa'], [24, 'fuse'], [31, 'belt'], [36, 'frosting-3plus'], [41, 'hazelnut'], [46, 'taffy-swirl'], [61, 'gift-box'], [14, 'jelly-frosting'], [30, 'hard']];
 
 test.describe.configure({ mode: 'parallel' });
 
@@ -100,7 +100,7 @@ for (const size of SIZES) {
       await page.evaluate(() => {
         const game = window.SC.game;
         game.ui.closeAllModals();
-        game.ui.showWin({ score: 34560, stars: 3, is_new_best: true, player_name: 'Sam', win_message: 'You are amazing!', has_next: true, rewards: { gold: 30, chest_ready: true }, crown: true, streak: 3, streak_on: true }, { next() {}, replay() {}, map() {} });
+        game.ui.showWin({ stars: 3, player_name: 'Sam', win_message: 'You are amazing!', has_next: true, role: 'hard', rewards: { gold: 70, hard_bonus: 20, treasure: { booster: 'hammer', amount: 1 }, chest_ready: true }, crown: true, mastery: true, streak: 3, streak_on: true }, { next() {}, replay() {}, map() {} });
       });
       await page.waitForTimeout(2200);
       await shot('09-win');

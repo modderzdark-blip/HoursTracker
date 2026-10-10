@@ -81,6 +81,7 @@
       progress: { stars: [], scores: [] }, // index = level - 1; scores are best scores rounded down to tens
       tried: [], // bitset bytes: levels with at least one finished attempt
       crowns: [], // bitset bytes: Gold Crowns (won on the very first attempt)
+      mastered: [], // bitset bytes: Sweet Mastery (a Gold Crown with 5 or more moves left)
       tutorials_seen: {},
       settings: defaultSettings(),
       meta: defaultMeta(),
@@ -370,6 +371,7 @@
     }
     save.tried = sanitizeBits(source.tried);
     save.crowns = sanitizeBits(source.crowns);
+    save.mastered = sanitizeBits(source.mastered);
     if (legacy || source.version < 5) {
       // Saves from before v5 had every booster, the wheel and the chest from the start, and no crowns or tries.
       save.meta.announced = LEGACY_UNLOCKS.slice();
@@ -415,6 +417,7 @@
       progress: encodeProgress(normal.progress),
       tried: normal.tried.length ? bytesToBase64(normal.tried) : '',
       crowns: normal.crowns.length ? bytesToBase64(normal.crowns) : '',
+      mastered: normal.mastered.length ? bytesToBase64(normal.mastered) : '',
     }));
   }
 
@@ -440,9 +443,17 @@
     return bitCount(save.crowns);
   }
 
+  function hasMastery(save, level_id) {
+    return bitGet(save.mastered, level_id) === 1;
+  }
+
+  /** Moves left that turn a Gold Crown into Sweet Mastery (the original's Sugar Stars ask for the same). */
+  const MASTERY_MOVES = 5;
+
   /**
-   * Records a finished attempt; returns {is_new_best, unlocked_next, crown, new_level}. crown: won on the level's very
-   * first attempt (a Gold Crown); new_level: the level had not been won before this attempt.
+   * Records a finished attempt; returns {is_new_best, unlocked_next, crown, mastery, new_level}. crown: won on the
+   * level's very first attempt (a Gold Crown); mastery: a crown with result.moves_left of MASTERY_MOVES or more;
+   * new_level: the level had not been won before this attempt.
    */
   function recordResult(save, level_id, result) {
     save.meta.total_attempts += 1;
@@ -455,6 +466,8 @@
     const crown = !!result.won && !bitGet(save.tried, level_id);
     bitSet(save.tried, level_id);
     if (crown) bitSet(save.crowns, level_id);
+    const mastery = crown && (result.moves_left || 0) >= MASTERY_MOVES;
+    if (mastery) bitSet(save.mastered, level_id);
     const stored_score = Math.floor(Math.max(0, result.score || 0) / 10) * 10;
     const is_new_best = !!result.won && stored_score > save.progress.scores[index];
     if (result.won) {
@@ -467,7 +480,7 @@
       save.unlocked = level_id + 1;
       unlocked_next = true;
     }
-    return { is_new_best, unlocked_next, crown, new_level };
+    return { is_new_best, unlocked_next, crown, mastery, new_level };
   }
 
   // ------------------------------------------------------------------ backends
@@ -613,6 +626,8 @@
     totalStars,
     hasCrown,
     totalCrowns,
+    hasMastery,
+    MASTERY_MOVES,
     recordResult,
     LEGACY_UNLOCKS,
     cleanText,

@@ -11,7 +11,7 @@
 
   // First level that uses each idea (1-25 are hand-authored; 31, 36 and 41 are generated introductions).
   const UNLOCKS = Object.freeze({
-    collect: 1, jelly: 5, ingredients: 9, order: 12, frosting: 13, jelly2: 15, timed: 17, cage: 19,
+    collect: 1, jelly: 5, ingredients: 9, order: 12, frosting: 13, jelly2: 15, cage: 19,
     portals: 21, cocoa: 22, fuse: 24, mixed: 25, belt: 31, frosting3: 36, hazelnut: 41, swirl: 46, gift: 61,
   });
   // Like the original, from episode 4 a new piece arrives at an episode's first level (episodes start at 16, 31, 46 ...).
@@ -96,11 +96,14 @@
     return low + Math.floor(rng() * (high - low + 1));
   }
 
-  /** Colors used by level n: 4 early, 5 in about half of levels from 20 (dominant from 80), 6 from 150 (dominant from 400). */
+  /**
+   * Colors used by level n: 4 early, 5 in most levels from 20 and nearly all from 40, 6 from 150 (dominant from 400).
+   * More colors mean fewer free cascades: like the original, a harder level asks for more thought, not a bigger goal.
+   */
   function colorsFor(level_number, rng) {
     if (level_number < 20) return 4;
-    if (level_number < 80) return chance(rng, 0.5) ? 5 : 4;
-    if (level_number < 150) return chance(rng, 0.88) ? 5 : 4;
+    if (level_number < 40) return chance(rng, 0.7) ? 5 : 4;
+    if (level_number < 150) return chance(rng, 0.92) ? 5 : 4;
     if (level_number < 400) return chance(rng, 0.2 + (0.35 * (level_number - 150)) / 250) ? 6 : 5;
     return chance(rng, 0.8) ? 6 : 5;
   }
@@ -131,15 +134,14 @@
   }
 
   // ---------------------------------------------------------------- goal modes (no mode more than 3 times in a row)
-  // Every level is won by candy goals, never by points alone (owner's rule): there is no score mode, and timed levels
-  // ask for candies before the clock runs out.
+  // Every level is won by candy goals with a move budget, as in the original today: no score mode and no timed levels.
 
   const MODE_CACHE = new Map();
 
   function rawMode(level_number) {
     const rng = createRng(level_number, 9999);
     const mixed_weight = level_number >= 40 ? 0.2 : 0; // mixed goals from level 40
-    const table = [['collect', 0.26], ['jelly', 0.28], ['ingredients', 0.16], ['order', 0.12], ['timed', 0.06], ['mixed', mixed_weight]];
+    const table = [['collect', 0.28], ['jelly', 0.3], ['ingredients', 0.17], ['order', 0.14], ['mixed', mixed_weight]];
     const total = table.reduce((sum, entry) => sum + entry[1], 0);
     let roll = rng() * total;
     for (const [mode, weight] of table) {
@@ -325,7 +327,6 @@
       const shuffled = allowed_blockers.slice().sort(() => rng() - 0.5);
       blocker_types = shuffled.slice(0, count);
     }
-    if (mode === 'timed') blocker_types = blocker_types.filter((type) => type !== 'fuse' && type !== 'cocoa');
     const active_cells = grid.reduce((sum, row) => sum + row.filter((symbol) => symbol !== '#').length, 0);
     const blocker_cap = Math.floor(active_cells * 0.3);
     let blocker_count = 0;
@@ -360,7 +361,7 @@
     });
     // Gift Boxes are a treat, not a blocker: a few now and then once unlocked (always on their intro and practice).
     const gift_level = intro === 'gift' || practice === 'gift' || (!intro && !practice && unlocked('gift', level_number) && chance(rng, 0.25));
-    if (gift_level && mode !== 'timed') placeBlocker('g', pick(rng, ['corners', 'pillars', 'diamond', 'ring']), intro === 'gift' ? 4 : between(rng, 2, 4));
+    if (gift_level) placeBlocker('g', pick(rng, ['corners', 'pillars', 'diamond', 'ring']), intro === 'gift' ? 4 : between(rng, 2, 4));
 
     // Goals.
     const goals = [];
@@ -386,7 +387,7 @@
       if (placed < 2) return null;
       goals.push({ type: 'ingredients', count: placed });
     }
-    if (mode === 'collect' || mode === 'timed' || (mode === 'mixed' && goals.length < 2)) {
+    if (mode === 'collect' || (mode === 'mixed' && goals.length < 2)) {
       const color_count = chance(rng, 0.5) ? 2 : 1;
       const picked = palette.slice().sort(() => rng() - 0.5).slice(0, color_count);
       picked.forEach((color) => goals.push({ type: 'collect', color, count: Math.min(45, Math.round(active_cells * 0.22 + level_number / 60 + between(rng, 0, 6))) }));
@@ -417,8 +418,7 @@
       stars: [1000, 2000, 3000],
       newMechanic: intro,
     };
-    if (mode === 'timed') level.time = 90;
-    else level.moves = 26;
+    level.moves = 26;
     if (Object.keys(meta).length) level.meta = meta;
     if (intro) {
       level.tutorial = INTRO_TEXT[intro].tutorial;

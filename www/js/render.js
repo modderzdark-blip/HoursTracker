@@ -555,12 +555,6 @@
       }
     }
 
-    function addPopup(cell_index, points) {
-      const center = cell_index >= 0 ? cellCenter(cell_index) : { x: layout.origin_x + layout.width / 2, y: layout.origin_y + layout.height / 2 };
-      const size = Math.min(layout.cell * 0.9, layout.cell * (0.36 + Math.min(0.5, points / 2000)));
-      popups.push({ x: center.x, y: center.y, text: `+${points}`, size, born: timeline.now, life: 900 });
-    }
-
     function addTextPopup(cell_index, text, color) {
       const center = cell_index >= 0 ? cellCenter(cell_index) : { x: layout.origin_x + layout.width / 2, y: layout.origin_y + layout.height / 2 };
       popups.push({ x: center.x, y: center.y - layout.cell * 0.3, text, size: layout.cell * 0.42, born: timeline.now, life: 1000, color });
@@ -1147,13 +1141,7 @@
           }
           playActivationEffect(event, hooks);
         });
-        const wave_scores = wave_events.filter((event) => event.type === 'score' && event.reason !== 'jelly' && event.reason !== 'frosting');
-        if (wave_scores.length > 4) {
-          // Big chains: one large total instead of a pile of overlapping popups.
-          addPopup(-1, wave_scores.reduce((sum, event) => sum + event.points, 0));
-        } else {
-          wave_scores.forEach((event) => addPopup(event.cell, event.points));
-        }
+        // No floating points: like the original today, the game shows goals and stars, not a score.
         wave_events.forEach((event) => {
           hooks.event(event);
           if (event.type === 'clear') {
@@ -1235,10 +1223,7 @@
         const appearing = [];
         creates.forEach((event) => {
           hooks.event(event);
-          if (event.type === 'score') {
-            addPopup(event.cell, event.points);
-            return;
-          }
+          if (event.type === 'score') return;
           const visual = makeVisual(event.piece, event.cell);
           visual.scale = 0;
           visuals.set(visual.id, visual);
@@ -1376,10 +1361,7 @@
         if (mover) visuals.delete(mover.visual.id);
         hooks.event(event);
       });
-      phase.events.filter((event) => event.type === 'score').forEach((event) => {
-        hooks.event(event);
-        addPopup(event.cell, event.points);
-      });
+      phase.events.filter((event) => event.type === 'score').forEach((event) => hooks.event(event));
       phase.events.filter((event) => event.type === 'cascade').forEach((event) => hooks.cascade(event.depth));
       await timeline.wait(settings.reduced_motion ? 30 : 70);
       return generation === timeline.generation;

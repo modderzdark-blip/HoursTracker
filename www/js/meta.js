@@ -32,7 +32,7 @@
     { id: 'lucky', kind: 'booster', level: 22, gift: 2, title: 'Lucky Start', text: 'Start a level with a striped and a wrapped candy on the board.' },
     { id: 'streak', kind: 'feature', level: 25, title: 'Sweet Streak', text: 'Win new levels on the first try, one after another: each win puts more special candies on your next new level. Losing a level ends the streak.' },
     { id: 'whirl', kind: 'booster', level: 28, gift: 3, title: 'Candy Whirl', text: 'Stuck? Mix up the whole board. No move used.' },
-    { id: 'head_start', kind: 'booster', level: 35, gift: 2, title: 'Head Start', text: 'Start a level with 3 extra moves (10 extra seconds on timed levels).' },
+    { id: 'head_start', kind: 'booster', level: 35, gift: 2, title: 'Head Start', text: 'Start a level with 3 extra moves.' },
     { id: 'brush', kind: 'booster', level: 40, gift: 3, title: 'Candy Brush', text: 'Paint any candy into a striped candy. It never uses a move.' },
     { id: 'party', kind: 'booster', level: 55, gift: 2, title: 'Sugar Party', text: 'Throw a party: one blast over the whole board! Every candy pops and every blocker loses a layer. No move used.' },
   ]);
@@ -188,6 +188,26 @@
     return unlock;
   }
 
+  // Beating a Hard or Super Hard level for the first time pays a bonus (the original fills its rewards faster there too).
+  const HARD_BONUS = Object.freeze({ hard: 20, superhard: 50 });
+
+  // Treasure on the map: every 5th level (except episode finales, which have their own reward) holds a chest that opens
+  // when the level is beaten for the first time.
+  const TREASURE_EVERY = 5;
+
+  function treasureAt(level_id) {
+    return level_id % TREASURE_EVERY === 0 && level_id % 15 !== 0;
+  }
+
+  /** The chest on level n: Gold Drops and boosters in turn (a booster only once one is unlocked). */
+  function treasureReward(meta, level_id, reached_level) {
+    if (!treasureAt(level_id)) return null;
+    const turn = Math.floor(level_id / TREASURE_EVERY);
+    const boosters = IN_LEVEL.filter((booster) => isUnlocked(meta, reached_level, booster));
+    if (turn % 2 === 1 || boosters.length === 0) return { gold: 30 + 10 * Math.min(5, Math.floor(level_id / 30)) };
+    return { booster: boosters[Math.floor(turn / 2) % boosters.length], amount: 1 };
+  }
+
   /** The Sweet Streak bag for a streak length (null at 0). */
   function streakBag(streak) {
     return STREAK_BAGS[Math.min(STREAK_MAX, Math.max(0, streak || 0))] || null;
@@ -234,15 +254,24 @@
   // ---------------------------------------------------------------- results: streak, stars, chest
 
   /**
-   * Applies a finished level to the meta game. outcome: {won, new_stars, crown, new_level, streak_on} (new_stars = stars
-   * above the previous best; crown = won on the very first attempt; new_level = not won before; streak_on = the Sweet
-   * Streak is unlocked). Replays never touch the streak. Returns { gold, streak, streak_lost, chest_ready }.
+   * Applies a finished level to the meta game. outcome: {won, new_stars, crown, mastery, new_level, streak_on, role,
+   * level_id} (new_stars = stars above the previous best; crown = won on the very first attempt; mastery = a crown with
+   * 5+ moves left; new_level = not won before; streak_on = the Sweet Streak is unlocked). Replays never touch the
+   * streak, and the hard-level bonus and map treasure pay only on the first win.
+   * Returns { gold, hard_bonus, treasure, streak, streak_lost, chest_ready } (gold includes the bonus and treasure gold).
    */
   function recordOutcome(save, outcome, total_stars) {
     const meta = save.meta;
-    const rewards = { gold: 0, streak: meta.streak, streak_lost: 0, chest_ready: false };
+    const rewards = { gold: 0, hard_bonus: 0, treasure: null, streak: meta.streak, streak_lost: 0, chest_ready: false };
     if (outcome.won) {
-      rewards.gold = 5 + 10 * Math.max(0, outcome.new_stars || 0) + (outcome.crown ? 5 : 0);
+      rewards.gold = 5 + 10 * Math.max(0, outcome.new_stars || 0) + (outcome.crown ? 5 : 0) + (outcome.mastery ? 10 : 0);
+      if (outcome.new_level) {
+        rewards.hard_bonus = HARD_BONUS[outcome.role] || 0;
+        rewards.gold += rewards.hard_bonus;
+        rewards.treasure = treasureReward(meta, outcome.level_id, save.unlocked);
+        if (rewards.treasure && rewards.treasure.gold) rewards.gold += rewards.treasure.gold;
+        if (rewards.treasure && rewards.treasure.booster) meta.boosters[rewards.treasure.booster] = (meta.boosters[rewards.treasure.booster] || 0) + rewards.treasure.amount;
+      }
       meta.gold += rewards.gold;
       if (outcome.streak_on && outcome.new_level) meta.streak = outcome.crown ? meta.streak + 1 : 0;
     } else if (outcome.streak_on && outcome.new_level && meta.streak > 0) {
@@ -318,6 +347,7 @@
     MAX_HEARTS, HEART_REFILL_MS, CHEST_STARS, PRICES, CONTINUE_PRICES, BOOSTER_NAMES, WHEEL, CHEST, UNLOCKS, STREAK_MAX, STREAK_BAGS,
     refreshHearts, nextHeartIn, heartsEnabled, canPlay, spendHeart, grantHearts, boosterCount, useBooster, buy, applyReward,
     continuePrice, unlockOf, isUnlocked, pendingUnlocks, announceUnlock, streakBag, episodeReward, claimEpisode,
+    HARD_BONUS, TREASURE_EVERY, treasureAt, treasureReward,
     localDay, canSpin, spinWheel, recordOutcome, chestReady, chestProgress, openChest, createHintScheduler,
   };
   SC.META = META;

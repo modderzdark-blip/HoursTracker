@@ -268,7 +268,6 @@ button:focus-visible, input:focus-visible, .map-node:focus-visible {
 }
 .hud-label { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; color: #d4e6ff; }
 .hud-number { font-size: 32px; font-weight: 900; line-height: 1.05; color: #fff3b0; font-variant-numeric: tabular-nums; text-shadow: 0 2px 0 #10225e, 0 -1px 0 #10225e, 2px 0 0 #10225e, -2px 0 0 #10225e; }
-.hud-score-number { font-size: 22px; }
 .hud-moves .hud-number.is-low { color: #ff6b8a; }
 .app:not(.reduced-motion) .hud-moves .hud-number.is-low { animation: pulse-low 0.9s ease-in-out infinite; }
 @keyframes pulse-low { 50% { transform: scale(1.15); } }
@@ -280,10 +279,13 @@ button:focus-visible, input:focus-visible, .map-node:focus-visible {
 .goal .goal-check { width: 18px; height: 18px; }
 .app:not(.reduced-motion) .goal.is-bumped { animation: goal-bump 0.35s var(--spring); }
 @keyframes goal-bump { 50% { transform: scale(1.25); } }
-.star-bar { position: relative; width: 100%; height: 10px; margin-top: 6px; border-radius: 6px; background: rgba(8, 20, 70, 0.5); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35); }
+.star-bar { position: relative; width: 100%; height: 8px; margin-top: 4px; border-radius: 6px; background: rgba(8, 20, 70, 0.5); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35); }
 .star-fill { height: 100%; width: 0; border-radius: 6px; background: linear-gradient(90deg, #ffd34d, #ff9a1f); transition: width 0.35s ease; }
-.star-mark { position: absolute; top: -5px; width: 18px; height: 18px; margin-left: -9px; }
-.star-mark svg { width: 18px; height: 18px; }
+.hud-star-row { display: flex; justify-content: center; gap: 2px; margin-top: 2px; }
+.star-mark { display: block; width: 26px; height: 26px; }
+.star-mark svg { width: 26px; height: 26px; display: block; }
+.app:not(.reduced-motion) .star-mark.is-popping { animation: star-pop 0.5s var(--spring); }
+@keyframes star-pop { 0% { transform: scale(0.3) rotate(-30deg); } 60% { transform: scale(1.35) rotate(8deg); } 100% { transform: scale(1); } }
 
 .board-slot { flex: 1; min-height: 0; margin: 6px 8px; pointer-events: none !important; }
 .game-bar { display: flex; justify-content: center; gap: 26px; padding: 4px 12px 12px; }
@@ -509,10 +511,12 @@ input[type="range"] { width: 130px; height: 36px; accent-color: var(--btn2); }
 .episode-title strong { font-size: 20px; font-weight: 900; }
 .episode-title small { font-size: 12px; font-weight: 800; opacity: 0.75; }
 .map-node .node-number { position: relative; }
-.map-node .node-ribbon { position: absolute; left: 50%; top: -18px; transform: translateX(-50%); white-space: nowrap; padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.04em; color: #fff; background: #ff8a1f; box-shadow: 0 2px 0 #9c4a00; text-shadow: none; }
-.map-node.is-superhard .node-ribbon { background: #e0284a; box-shadow: 0 2px 0 #7a0a20; }
-.map-node.is-hard { --node1: #ffb36b; --node2: #f0701c; --node3: #9c4a00; }
-.map-node.is-superhard { --node1: #ff7a8e; --node2: #d01f45; --node3: #7a0a20; }
+.map-node .node-ribbon { position: absolute; left: 50%; top: -20px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; padding: 2px 8px 2px 4px; border-radius: 8px; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.04em; color: #fff; background: #7a2bd6; box-shadow: 0 2px 0 #3f0f7a; text-shadow: none; }
+.map-node .node-ribbon svg { width: 16px; height: 16px; }
+.map-node.is-superhard .node-ribbon { background: #b0123f; box-shadow: 0 2px 0 #5e0420; }
+/* Hard levels are purple and Super Hard ones crimson, like the original's labels. */
+.map-node.is-hard { --node1: #c690ff; --node2: #7a2bd6; --node3: #3f0f7a; }
+.map-node.is-superhard { --node1: #ff6f92; --node2: #b0123f; --node3: #5e0420; }
 .map-node.is-locked.is-hard, .map-node.is-locked.is-superhard { --node1: #e8dff0; --node2: #b9a6c9; --node3: #7d6a8f; }
 .map-node .node-cost { position: absolute; left: 50%; top: 64px; transform: translateX(-50%); display: flex; align-items: center; gap: 2px; font-size: 14px; padding: 1px 8px; border-radius: 10px; background: #fff; color: var(--ink); text-shadow: none; }
 .map-node .node-cost svg { width: 16px; height: 16px; }
@@ -556,7 +560,11 @@ input[type="range"] { width: 130px; height: 36px; accent-color: var(--btn2); }
 .pip-tip.is-small p { font-size: 14px; opacity: 0.9; }
 .intro-number { margin: 0 !important; font-weight: 900 !important; opacity: 0.75; }
 .role-ribbon { display: inline-block; margin-bottom: 4px; padding: 3px 12px; border-radius: 10px; font-size: 13px; font-weight: 900; text-transform: uppercase; color: #fff; background: #ff8a1f; box-shadow: 0 2px 0 #9c4a00; }
-.role-ribbon.is-superhard { background: #e0284a; box-shadow: 0 2px 0 #7a0a20; }
+.role-ribbon.is-superhard { background: #b0123f; box-shadow: 0 2px 0 #5e0420; }
+.role-ribbon { display: inline-flex; align-items: center; gap: 4px; background: #7a2bd6; box-shadow: 0 2px 0 #3f0f7a; }
+.role-ribbon svg { width: 18px; height: 18px; }
+.modal.intro.is-hard { box-shadow: 0 0 0 5px #7a2bd6, 0 18px 40px rgba(40, 0, 80, 0.45); }
+.modal.intro.is-superhard { box-shadow: 0 0 0 5px #b0123f, 0 18px 40px rgba(80, 0, 20, 0.5); }
 .intro-meta svg { width: 18px; height: 18px; vertical-align: -3px; }
 .intro-boosters { display: flex; justify-content: center; gap: 10px; margin: 10px 0 0; }
 .intro-booster { position: relative; width: 92px; min-height: 84px; border: 3px solid transparent; border-radius: 18px; background: #ffffff; box-shadow: 0 3px 0 #f2c6dd; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 6px 4px; cursor: pointer; color: var(--ink); }
@@ -664,3 +672,23 @@ input[type="range"] { width: 130px; height: 36px; accent-color: var(--btn2); }
 .reward.is-crown svg { width: 22px; height: 22px; }
 .reward.is-streak { background: linear-gradient(180deg, #ffe0f0, #ffc4e2); box-shadow: 0 2px 0 #e08ab4; }
 .streak-warning { margin: 10px 4px 0; padding: 8px 12px; border-radius: 14px; background: #ffe3ec; color: #a3123f; font-weight: 800; }
+
+/* ---------------------------------------------------------------- v1.6: hardness, mastery, treasure */
+.goal-ribbon.is-hard { background: linear-gradient(180deg, #a35cf0, #6a1fc4); }
+.goal-ribbon.is-superhard { background: linear-gradient(180deg, #e0385f, #8c0a30); }
+.goal-ribbon-kicker { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 2px; padding: 2px 12px; border-radius: 12px; background: rgba(0, 0, 0, 0.25); font-size: 15px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; }
+.goal-ribbon-kicker svg { width: 22px; height: 22px; }
+.map-node .node-mastery { position: absolute; right: -10px; top: -8px; width: 26px; height: 26px; filter: drop-shadow(0 2px 2px rgba(90, 20, 60, 0.4)); }
+.map-node .node-mastery svg { width: 26px; height: 26px; display: block; }
+.map-node .node-treasure { position: absolute; right: -24px; bottom: -6px; width: 34px; height: 34px; filter: drop-shadow(0 3px 3px rgba(60, 20, 0, 0.45)); }
+.map-node .node-treasure svg { width: 34px; height: 34px; display: block; }
+.app:not(.reduced-motion) .map-node .node-treasure { animation: treasure-bob 1.8s ease-in-out infinite; }
+@keyframes treasure-bob { 0%, 100% { transform: translateY(0) rotate(-6deg); } 50% { transform: translateY(-4px) rotate(4deg); } }
+.intro-treasure { display: inline-flex; align-items: center; gap: 4px; color: #9a4a00; }
+.intro-treasure svg { width: 24px; height: 24px; }
+.win-mastery { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 6px 0 0; font-weight: 900; color: #c2186b; }
+.win-mastery svg { width: 26px; height: 26px; }
+.reward.is-mastery { background: linear-gradient(180deg, #ffe0f0, #ffb8dc); box-shadow: 0 2px 0 #d2709f; }
+.reward.is-mastery svg, .reward.is-hard svg, .reward.is-treasure svg { width: 22px; height: 22px; }
+.reward.is-hard { background: linear-gradient(180deg, #ead6ff, #c9a2ff); box-shadow: 0 2px 0 #7a2bd6; }
+.reward.is-treasure { background: linear-gradient(180deg, #ffe8c2, #ffc978); box-shadow: 0 2px 0 #b36a00; }

@@ -61,6 +61,8 @@
       iconUrl: (kind, size) => SC.SPRITES.iconUrl(kind, size),
       heartsOn: () => META.heartsEnabled(settings()),
       hasCrown: (level_id) => STORAGE.hasCrown(save(), level_id),
+      hasMastery: (level_id) => STORAGE.hasMastery(save(), level_id),
+      hasTreasure: (level_id) => META.treasureAt(level_id) && !(STORAGE.levelBest(save(), level_id).stars > 0),
     });
     const hint_scheduler = META.createHintScheduler({ set: (run, ms) => setTimeout(run, ms), clear: (handle) => clearTimeout(handle) }, CONFIG.AUTO_HINT_DELAYS, (source) => showHint(source));
 
@@ -356,7 +358,7 @@
       hud_dirty = false;
       if (!tracker || !logic_state) return;
       const view = Object.assign({}, logic_state, tracker, { cells: logic_state.cells, holes: logic_state.holes });
-      ui.updateHud({ moves: tracker.moves_left, time_left: logic_state.timed ? timeLeftMs() : undefined, score: tracker.score, progress: LOGIC.goalProgress(view) });
+      ui.updateHud({ moves: tracker.moves_left, time_left: logic_state.timed ? timeLeftMs() : undefined, progress: LOGIC.goalProgress(view) });
     }
 
     function playbackHooks() {
@@ -512,7 +514,8 @@
       ui.showIntro(intro_level, {
         best: STORAGE.levelBest(save(), level_id), boosters: Object.assign({}, meta.boosters), hearts_on: META.heartsEnabled(settings()),
         locks: boosterLocks(), try_booster: STORAGE.PRE_LEVEL_BOOSTERS.indexOf(meta.try_booster) >= 0 ? meta.try_booster : '',
-        crown: STORAGE.hasCrown(save(), level_id),
+        crown: STORAGE.hasCrown(save(), level_id), mastery: STORAGE.hasMastery(save(), level_id),
+        treasure: META.treasureAt(level_id) && new_level,
         streak: streakOn() ? { on: true, count: meta.streak, bag: META.streakBag(meta.streak), new_level } : null,
       }, {
         play: (chosen) => startLevel(level_id, chosen),
@@ -600,7 +603,7 @@
       opening_token += 1;
       const token = opening_token;
       opening = true;
-      const ribbon_ms = ui.showGoalIntro(level.goals, { timed: !!level.time });
+      const ribbon_ms = ui.showGoalIntro(level.goals, { timed: !!level.time, role: level.role });
       const dropped = await renderer.playEntrance(playbackHooks());
       const waited = dropped && token === opening_token ? await renderer.timeline.wait(Math.max(0, ribbon_ms - 900)) : false;
       if (token !== opening_token) return;
@@ -704,7 +707,7 @@
       renderer.markActivity();
       updateBoosterBar();
       const progress = LOGIC.goalProgress(logic_state);
-      ui.announce(`${logic_state.timed ? `${Math.ceil(timeLeftMs() / 1000)} seconds left` : `${logic_state.moves_left} moves left`}. Score ${logic_state.score}. ${progress.filter((goal) => goal.done).length} of ${progress.length} goals done.`);
+      ui.announce(`${logic_state.timed ? `${Math.ceil(timeLeftMs() / 1000)} seconds left` : `${logic_state.moves_left} moves left`}. ${progress.filter((goal) => goal.done).length} of ${progress.length} goals done.`);
       if (logic_state.status === 'won') {
         await winSequence();
       } else if (logic_state.status === 'lost') {
@@ -858,10 +861,12 @@
       clearHint();
       hint_scheduler.touch();
       const level_at_start = level;
+      // Moves left when the goals are met (the Sweet Finale spends them): 5 or more on a first try is Sweet Mastery.
+      const moves_left_at_win = Number.isFinite(logic_state.moves_left) ? logic_state.moves_left : 0;
       sound('win');
       haptic('heavy');
       renderer.confetti(root.innerWidth);
-      ui.showBanner('Sweet Victory!', true);
+      ui.showBanner(level.role === 'superhard' ? 'Super hard beaten!' : level.role === 'hard' ? 'Hard level beaten!' : 'Sweet Victory!', true);
       ui.pip('cheer', 2600);
       if (!(await renderer.timeline.wait(900)) || level !== level_at_start) return;
       const seconds_left = logic_state.timed ? Math.floor(timeLeftMs() / 1000) : 0;
@@ -886,17 +891,19 @@
         tracker = createTracker(logic_state);
         flushHud();
       }
-      const stars = LOGIC.starsForScore(logic_state.score, level.stars, true);
+      // Like the original today, meeting the goals is worth all three stars; the score stays behind the scenes.
+      const stars = 3;
       const previous = STORAGE.levelBest(save(), level.id);
-      const outcome = STORAGE.recordResult(save(), level.id, { won: true, score: logic_state.score, stars });
+      const outcome = STORAGE.recordResult(save(), level.id, { won: true, score: logic_state.score, stars, moves_left: moves_left_at_win });
       const streak_on = streakOn();
       const rewards = META.recordOutcome(save(), {
-        won: true, new_stars: Math.max(0, stars - previous.stars), crown: outcome.crown, new_level: outcome.new_level, streak_on,
+        won: true, new_stars: Math.max(0, stars - previous.stars), crown: outcome.crown, mastery: outcome.mastery, new_level: outcome.new_level,
+        streak_on, role: level.role, level_id: level.id,
       }, STORAGE.totalStars(save()));
       save().meta.in_progress = 0;
       save().tutorials_seen[level.id] = true;
       persist();
-      ui.announce(`Level complete! ${stars} stars, score ${logic_state.score}.${outcome.crown ? ' Gold Crown: won on the first try!' : ''}`);
+      ui.announce(`Level complete! ${outcome.mastery ? 'Sweet Mastery: first try with moves to spare!' : outcome.crown ? 'Gold Crown: won on the first try!' : ''}`);
       const finished_level = level;
       const has_next = finished_level.id < LEVELS.shippedCount();
       // The last level of an episode, won for the first time: the episode celebration comes before the map.
@@ -904,9 +911,8 @@
       const finale = finished_level.id === LEVELS.episodeRange(episode).last && outcome.new_level && episode > save().meta.episodes_claimed;
       const afterWin = (then) => (finale ? celebrateEpisode(episode).then(then) : then());
       ui.showWin({
-        score: logic_state.score, stars, is_new_best: outcome.is_new_best, player_name: save().player_name,
-        win_message: settings().win_message, has_next, rewards, crown: outcome.crown,
-        streak: rewards.streak, streak_on: streak_on && outcome.new_level,
+        stars, player_name: save().player_name, win_message: settings().win_message, has_next, rewards, role: level.role,
+        crown: outcome.crown, mastery: outcome.mastery, streak: rewards.streak, streak_on: streak_on && outcome.new_level,
       }, {
         next: () => afterWin(() => goMap({ advance: { from: finished_level.id, to: finished_level.id + 1, open_next: true } })),
         replay: () => afterWin(() => openIntroFrom(finished_level.id)),

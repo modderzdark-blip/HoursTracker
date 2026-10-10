@@ -56,9 +56,16 @@ function withParameter(level, value) {
   return copy;
 }
 
-function runGames(level, games, policy) {
+/**
+ * Plays `games` bot games. Without `first_attempt` the boards alternate between two far-apart ranges (attempts 0, 1, 2 ...
+ * and 100,000 + 0, 1, 2 ...), so a level is tuned to its typical boards rather than to one lucky or unlucky run of seeds.
+ */
+function runGames(level, games, policy, first_attempt) {
   const results = [];
-  for (let attempt = 0; attempt < games; attempt += 1) results.push(LOGIC.playBotGame(level, { attempt, policy }));
+  for (let index = 0; index < games; index += 1) {
+    const attempt = first_attempt !== undefined ? first_attempt + index : (index % 2 === 0 ? index / 2 : 100000 + (index - 1) / 2);
+    results.push(LOGIC.playBotGame(level, { attempt, policy }));
+  }
   const wins = results.filter((result) => result.won);
   return {
     games,
@@ -144,23 +151,39 @@ function applyRandomFloor(level, role, target, tuned, random_games) {
   return { value, greedy, random, evaluations: tuned.evaluations };
 }
 
+// Goals stay believable: at most 60 of one colour, and about 3 candies of colour goals per move once tuned.
+const MAX_COLLECT = 60;
+const MAX_COLLECT_PER_MOVE = 3.2;
+const MIXED_FROM = 40; // the generator's own schedule: two kinds of goal in one level from level 40
+// Verification: the tuned setting is replayed on boards the search never saw (attempts from 200,000). A level whose win
+// rate there differs from the target by more than this was tuned to its sample, not to the level: another board is tried.
+const VERIFY_FIRST_ATTEMPT = 200000;
+const VERIFY_LIMIT = 0.09;
+
+/** Whether a tuned level's goals look like a real level's (not "collect 99 in 10 moves"). */
+function plausible(level) {
+  const collect = level.goals.filter((goal) => goal.type === 'collect');
+  const total = collect.reduce((sum, goal) => sum + goal.count, 0);
+  return collect.every((goal) => goal.count <= MAX_COLLECT) && (level.time || total <= MAX_COLLECT_PER_MOVE * level.moves);
+}
+
 /**
- * A copy of the level with bigger goals (collect counts and special-candy orders grow by `factor`). A level whose goals
- * are all fixed by the layout (jelly, ingredients, blocker orders) gets a small collect goal beside them instead, once.
- * Null when nothing can grow.
+ * A copy of the level with bigger goals (collect counts and special-candy orders grow by `factor`, within the limits
+ * above). From level 40, a level whose goals are all fixed by the layout (jelly, ingredients, blocker orders) gets a
+ * small collect goal beside them instead, once. Null when nothing can grow.
  */
 function withBiggerGoals(level, factor) {
   let grew = false;
   const copy = JSON.parse(JSON.stringify(level));
   if (!copy.goals.some((goal) => goal.type === 'collect' || (goal.type === 'order' && ['striped', 'wrapped', 'bomb'].indexOf(goal.item) >= 0))) {
-    if (copy.goals.length >= 2) return null;
+    if (copy.goals.length >= 2 || copy.id < MIXED_FROM) return null;
     const palette = copy.palette || Array.from({ length: copy.colors }, (unused, color) => color);
     copy.goals.push({ type: 'collect', color: palette[copy.id % palette.length], count: 12 });
     return copy;
   }
   copy.goals.forEach((goal) => {
-    if (goal.type === 'collect' && goal.count < 99) {
-      goal.count = Math.min(99, Math.max(goal.count + 1, Math.round(goal.count * factor)));
+    if (goal.type === 'collect' && goal.count < MAX_COLLECT) {
+      goal.count = Math.min(MAX_COLLECT, Math.max(goal.count + 1, Math.round(goal.count * factor)));
       grew = true;
     } else if (goal.type === 'order' && ['striped', 'wrapped', 'bomb'].indexOf(goal.item) >= 0 && goal.count < 12) {
       goal.count = Math.min(12, Math.max(goal.count + 1, Math.round(goal.count * factor)));
@@ -197,7 +220,13 @@ function calibrateLevel(level_number, options) {
       candidate = bigger;
       tuned = retuned;
     }
-    const error = Math.abs(tuned.greedy.win_rate - target);
+    // A variant whose goals ended up unbelievable counts as missing the target, so another board is tried.
+    const believable = plausible(withParameter(candidate, tuned.value));
+    let error = Math.abs(tuned.greedy.win_rate - target) + (believable ? 0 : 1);
+    if (error <= TOLERANCE(target) && !authored) {
+      const fresh = runGames(withParameter(candidate, tuned.value), games, 'greedy', VERIFY_FIRST_ATTEMPT);
+      if (Math.abs(fresh.win_rate - target) > VERIFY_LIMIT) error += 0.5;
+    }
     if (!best || error < best.error) best = { candidate, role, target, tuned, error, variant };
     if (error <= TOLERANCE(target)) break;
   }

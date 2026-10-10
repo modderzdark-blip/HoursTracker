@@ -1,4 +1,4 @@
-// Browser QA (CI job "browser"): real pointer input, persistence, loss and +5 Moves, hearts, boosters, timed levels,
+// Browser QA (CI job "browser"): real pointer input, persistence, loss and +5 Moves, hearts, boosters, goal stars and mastery,
 // pause/restart/quit mid-animation, back navigation, lifecycle, instant hints, tutorial hints (any valid move is allowed), the 20,000-level
 // map, the compact save, the Daily Wheel, reduced motion, settings, photo, self-test and accessibility.
 const { test, expect } = require('@playwright/test');
@@ -196,24 +196,26 @@ test('boosters: Sweet Hammer, Free Swap, Candy Whirl, Candy Brush and Sugar Part
   H.expectClean(problems);
 });
 
-test('timed level: the clock counts down, pauses during Pause, and specials add seconds', async ({ page }) => {
+test('no score: the star meter follows the goals; a first-try win with moves to spare is Sweet Mastery and opens the treasure', async ({ page }) => {
+  test.setTimeout(240000);
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });
-  await page.evaluate(() => window.SC.game.startLevel(17));
-  await H.waitState(page, 'PLAYING');
-  await expect(page.locator('#hud-moves-label')).toHaveText('Time');
-  const first = (await H.snapshot(page)).time_left_ms;
-  await page.waitForTimeout(1500);
-  const second = (await H.snapshot(page)).time_left_ms;
-  expect(second).toBeLessThan(first - 800);
-  await page.click('#btn-pause');
-  await H.waitForModal(page, 'pause');
-  const paused_at = (await H.snapshot(page)).time_left_ms;
-  await page.waitForTimeout(1200);
-  expect((await H.snapshot(page)).time_left_ms).toBe(paused_at);
-  await page.click('#btn-resume');
-  await H.waitState(page, 'PLAYING');
-  expect(await page.locator('#hud-moves').textContent()).toMatch(/^\d+:\d\d$/);
+  await H.seedSave(page, { unlocked: 20, stars_upto: 19 });
+  await page.evaluate(() => window.SC.game.startLevel(20));
+  await H.waitState(page, 'PLAYING', 15000);
+  await expect(page.locator('#hud-score')).toHaveCount(0);
+  await expect(page.locator('#hud-moves-label')).toHaveText('Moves');
+  await expect(page.locator('.hud-stars .star-mark[data-reached="true"]')).toHaveCount(0);
+  await page.evaluate(() => { window.SC.game.logic.moves_left = 60; });
+  await H.playLevel(page, { max_moves: 60 });
+  await H.waitForModal(page, 'win', 180000);
+  await expect(page.locator('.hud-stars .star-mark[data-reached="true"]')).toHaveCount(3);
+  const win = page.locator('[data-modal="win"]');
+  await expect(win).toContainText('Sweet Mastery');
+  await expect(win).toContainText('+1 Sweet Hammer');
+  await expect(win).not.toContainText(/\d,\d{3}/);
+  const saved = await page.evaluate(() => ({ mastery: window.SC.STORAGE.hasMastery(window.SC.game.store.save, 20), stars: window.SC.STORAGE.levelBest(window.SC.game.store.save, 20).stars }));
+  expect(saved).toEqual({ mastery: true, stars: 3 });
   H.expectClean(problems);
 });
 
@@ -783,7 +785,7 @@ test('progression: a booster unlocks with a popup, free copies and a pointer; fi
   await page.evaluate(() => { window.SC.game.logic.moves_left = 99; });
   await H.playLevel(page, { max_moves: 99 });
   await H.waitForModal(page, 'win', 180000);
-  await expect(page.locator('[data-modal="win"]')).toContainText('First try!');
+  await expect(page.locator('[data-modal="win"]')).toContainText(/First try!|Sweet Mastery/);
   const after = await page.evaluate(() => ({ streak: window.SC.game.store.save.meta.streak, crown: window.SC.STORAGE.hasCrown(window.SC.game.store.save, 26) }));
   expect(after).toEqual({ streak: 3, crown: true });
   H.expectClean(problems);

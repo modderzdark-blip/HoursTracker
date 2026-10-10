@@ -88,6 +88,27 @@ test(`one new idea per level and none before its unlock (levels 1-${SCALE_LAST})
   ['belt', 'frosting3', 'hazelnut'].forEach((idea) => assert.strictEqual(first_seen[idea], GENERATOR.UNLOCKS[idea], `${idea} is introduced exactly at its unlock level`));
 });
 
+test('sensible goals: no generated level asks for more than about 3 candies of a colour goal per move, or 60 of one colour', () => {
+  for (let level_number = 26; level_number <= LEVELS.shippedCount(); level_number += 1) {
+    const level = LEVELS.getLevel(level_number);
+    const collect = level.goals.filter((goal) => goal.type === 'collect');
+    const total = collect.reduce((sum, goal) => sum + goal.count, 0);
+    assert.ok(collect.every((goal) => goal.count <= 60), `level ${level_number} asks for over 60 of one colour`);
+    assert.ok(total <= 3.2 * level.moves, `level ${level_number}: ${total} candies in ${level.moves} moves`);
+  }
+});
+
+test('no timed levels: every shipped and generated level has a move budget, as in the original today', () => {
+  for (let level_number = 1; level_number <= LEVELS.shippedCount(); level_number += 1) {
+    const level = LEVELS.getLevel(level_number);
+    assert.ok(!level.time && level.moves > 0, `shipped level ${level_number} is timed`);
+  }
+  for (let level_number = 26; level_number <= 20000; level_number += level_number < 600 ? 1 : 97) {
+    const level = GENERATOR.generateLevel(level_number);
+    assert.ok(!level.time && level.moves > 0, `generated level ${level_number} is timed`);
+  }
+});
+
 test('no level is won by points alone: no score goals in the shipped levels or anywhere the generator reaches', () => {
   const scoreGoal = (level) => level.goals.some((goal) => goal.type === 'score');
   for (let level_number = 1; level_number <= LEVELS.shippedCount(); level_number += 1) {
@@ -115,8 +136,7 @@ test('generator schedule: colours, mixed goals, complexity budget and the 30% bl
     assert.ok(blockerCells(level) <= Math.floor(activeCells(level) * 0.3), `level ${level_number}: more than 30% blockers`);
   }
   assert.deepStrictEqual([59, 60, 199, 200, 599, 600].map(GENERATOR.blockerBudget), [1, 2, 2, 3, 3, 4]);
-  assert.ok(colourShare(80, 149, 5) > 0.75, 'five colours dominate from 80');
-  assert.ok(colourShare(SCALE_FIRST, 79, 5) > 0.25 && colourShare(SCALE_FIRST, 79, 5) < 0.85, 'five colours in about half of the levels before 80');
+  assert.ok(colourShare(SCALE_FIRST, 149, 5) > 0.8, 'five colours dominate from 40');
   assert.ok(colourShare(150, SCALE_LAST, 6) > 0.1, 'six colours appear from 150');
   let six_late = 0;
   for (let level_number = 400; level_number < 500; level_number += 1) if (GENERATOR.generateLevel(level_number, 0).colors === 6) six_late += 1;

@@ -77,7 +77,7 @@ if (!isMainThread) {
     return index > 0 ? process.argv[index + 1] : fallback;
   };
   const fuzz_games = Number(argument('--fuzz', 500));
-  const bot_games = Number(argument('--bot', 200));
+  const bot_games = Number(argument('--bot', 400));
   const report_path = argument('--report', null);
   const { LEVELS } = loadGame();
   const levels = [];
