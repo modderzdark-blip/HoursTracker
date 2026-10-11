@@ -511,6 +511,9 @@ grep -q DEBUGGABLE "$OUT/release-package.txt" && fail "release build is debuggab
 pass "release build is not debuggable"
 
 log "Monkey: 3,000 random events on the release build"
+# Let the freshly launched release build finish starting first: on the emulator's software GPU its first frames take
+# seconds, and random events fired into that start-up can time out input dispatch without anything being wrong.
+sleep 8
 adb logcat -c
 adb shell monkey -p "$PKG" --throttle 60 --pct-syskeys 3 --pct-appswitch 2 -v -v 3000 > "$OUT/monkey.txt" 2>&1
 grep -q "Monkey finished" "$OUT/monkey.txt" || fail "monkey did not finish"

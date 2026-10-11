@@ -1301,14 +1301,21 @@
     }
 
 
+    let canvas_blank = false;
     function draw(now) {
       const ratio = layout.dpr;
+      const hidden = !board_visible || !board || !static_layer;
+      // Off the board (title, map) the canvas is usually empty: leave it alone instead of clearing it every frame, so the
+      // browser does not re-upload a full-screen texture 60 times a second for nothing (slow GPUs, battery).
+      if (hidden && canvas_blank && particles.activeCount === 0) return;
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
       ctx.clearRect(0, 0, layout.view_w, layout.view_h);
-      if (!board_visible || !board || !static_layer) {
+      if (hidden) {
         particles.draw(ctx);
+        canvas_blank = particles.activeCount === 0;
         return;
       }
+      canvas_blank = false;
       let shake_x = 0;
       let shake_y = 0;
       if (shake.amplitude > 0 && now < shake.until) {
