@@ -766,7 +766,11 @@ test('after a win, Next level goes to the map, the marker hops to the new level 
   await expect(page.locator('.map-node[data-level-id="1"]')).not.toHaveClass(/is-current/);
   const marker = await page.locator('.map-marker').boundingBox();
   const node = await page.locator('.map-node[data-level-id="2"]').boundingBox();
-  expect(Math.abs(marker.x + marker.width / 2 - (node.x + node.width / 2))).toBeLessThan(4);
+  // The avatar stands right beside the new level (above it, on the side away from where the road goes next).
+  const beside = Math.abs(marker.x + marker.width / 2 - (node.x + node.width / 2));
+  expect(beside).toBeGreaterThan(30);
+  expect(beside).toBeLessThan(50);
+  expect(marker.y + marker.height / 2).toBeLessThan(node.y + node.height / 2);
   await page.click('#btn-intro-play');
   await H.waitState(page, 'PLAYING');
   expect((await H.snapshot(page)).level).toBe(2);

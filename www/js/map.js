@@ -1,8 +1,9 @@
 // MAP: the level map, virtualized for 20,000+ levels.
-// A vertically scrolling winding path, level 1 at the bottom, split into episodes of 15 levels. Each episode has a title
-// card with its generated name, its own scenery family and palette, and a gate banner where it begins. Only the nodes
-// near the viewport exist in the DOM (a recycled pool of about 60 buttons) and only the visible episodes' scenery is
-// painted, so memory and frame time are the same on level 20 and on level 19,000.
+// Like the original's map today: a candy road winding up through a painted land, level 1 at the bottom, split into
+// episodes of 15 levels. Each episode is its own piece of land (a scenery family: meadow, lollipop forest, snowy peaks
+// ...) full of round, shaded props, with clouds and a ribbon banner where it begins. Round glossy level buttons sit on
+// the road. Only the nodes near the viewport exist in the DOM (a recycled pool of about 60 buttons) and only the visible
+// episodes' land is painted, so memory and frame time are the same on level 20 and on level 19,000.
 (function attachMap(root) {
   'use strict';
   const SC = root.SC || (root.SC = {});
@@ -12,13 +13,15 @@
   const STORAGE = SC.STORAGE;
   const UTIL = SC.UTIL;
 
-  const NODE_SPACING = 104;
-  const EPISODE_GAP = 150;
+  const NODE_SPACING = 86;
+  const EPISODE_GAP = 230;
   const TOP_PADDING = 260;
-  const BOTTOM_PADDING = 185;
+  const BOTTOM_PADDING = 250;
   const OVERSCAN_PX = 700;
   const MAX_LIVE_NODES = 60;
-  const SCENERY_CACHE = 6;
+  const SCENERY_CACHE = 4;
+  const ROAD_HALF_WIDTH = 21;
+  const ROAD_CANDIES = ['#ff5c8a', '#ffb347', '#ffe066', '#5fe0a8', '#6cb8ff', '#b57bff'];
 
   function createMap(dom, hooks) {
     const EPISODE = LEVELS.EPISODE_SIZE;
@@ -51,9 +54,34 @@
       return BOTTOM_PADDING + episode_index * blockHeight() + EPISODE_GAP * 0.5 + in_episode * NODE_SPACING;
     }
 
+    /** The road winds left and right in long, smooth bends (a few levels per crossing), like the original's. */
     function pointOf(level_number) {
-      const swing = Math.sin(level_number * 0.9 + 0.4) * 0.27 + Math.sin(level_number * 0.37) * 0.06;
+      const swing = Math.sin(level_number * 0.55 + 0.4) * 0.3 + Math.sin(level_number * 0.23 + 1.1) * 0.05;
       return { x: width / 2 + swing * width, y: total_height - heightOf(level_number) };
+    }
+
+    /** Points along the road from level `first` to `last` (the same curve the road is drawn with). */
+    function roadPoints(first, last, map_x, map_y) {
+      const points = [];
+      for (let level_number = first; level_number <= last; level_number += 1) {
+        const point = pointOf(level_number);
+        const current = { x: point.x + map_x, y: point.y + map_y };
+        if (points.length) {
+          const previous = points[points.length - 1];
+          const mid_y = (previous.y + current.y) / 2;
+          for (let step = 1; step <= 8; step += 1) {
+            const t = step / 8;
+            const u = 1 - t;
+            points.push({
+              x: u * u * u * previous.x + 3 * u * u * t * previous.x + 3 * u * t * t * current.x + t * t * t * current.x,
+              y: u * u * u * previous.y + 3 * u * u * t * mid_y + 3 * u * t * t * mid_y + t * t * t * current.y,
+            });
+          }
+        } else {
+          points.push(current);
+        }
+      }
+      return points;
     }
 
     /** Levels whose nodes fall inside [top, bottom] in map coordinates. */
@@ -111,7 +139,8 @@
       node.style.top = `${point.y}px`;
       const stars = starsOf(level_number);
       const digits = String(level_number).length;
-      let html = unlocked ? `<span class="node-number digits-${Math.min(5, digits)}">${level_number}</span>` : hooks.icon('lock');
+      // Like the original, levels ahead show their numbers too (in a pale, unlit button).
+      let html = `<span class="node-number digits-${Math.min(5, digits)}">${level_number}</span>`;
       if (unlocked && !is_current) {
         html += '<span class="node-stars">';
         for (let star = 0; star < 3; star += 1) html += hooks.icon(star < stars ? 'star' : 'star_empty');
@@ -139,8 +168,8 @@
       card.className = 'map-episode';
       const range = LEVELS.episodeRange(episode);
       card.innerHTML = `<div class="episode-gate" aria-hidden="true"></div><div class="episode-title"><small>Episode ${episode}</small><strong>${LEVELS.episodeName(episode)}</strong><small>Levels ${range.first}-${range.last}</small></div>`;
-      // Centred in the gap between the previous episode's last node and this episode's first node.
-      card.style.top = `${total_height - (BOTTOM_PADDING + (episode - 1) * blockHeight() - NODE_SPACING / 2)}px`;
+      // On the cloud seam where this episode's land begins (between the previous episode's last level and its first).
+      card.style.top = `${total_height - (BOTTOM_PADDING + (episode - 1) * blockHeight())}px`;
       return card;
     }
 
@@ -196,12 +225,16 @@
         return cached;
       }
       const block = blockHeight();
-      const canvas = SPRITES.createCanvas(Math.max(1, Math.round(width)), Math.max(1, Math.round(block)));
+      const ratio = Math.min(1.5, root.devicePixelRatio || 1);
+      const canvas = SPRITES.createCanvas(Math.max(1, Math.round(width * ratio)), Math.max(1, Math.round(block * ratio)));
       const ctx = canvas.getContext('2d');
+      ctx.scale(ratio, ratio);
       const scenery = LEVELS.sceneryOf(episode);
-      const colors = SCENERY.colorsFor(scenery, null);
-      SCENERY.paintSky(ctx, width, block, colors, scenery.seed);
-      ['far', 'mid', 'near'].forEach((layer) => SCENERY.paintLayer(ctx, width, block, colors, layer, scenery.seed));
+      // The road through this episode (one level beyond each end), in the land's own coordinates.
+      const block_top = total_height - (BOTTOM_PADDING + episode * block);
+      const range = LEVELS.episodeRange(episode);
+      const path = roadPoints(Math.max(1, range.first - 1), range.last + 1, 0, -block_top);
+      SCENERY.paintLand(ctx, width, block, scenery, path, ROAD_HALF_WIDTH);
       scenery_cache.set(episode, canvas);
       while (scenery_cache.size > SCENERY_CACHE) scenery_cache.delete(scenery_cache.keys().next().value);
       return canvas;
@@ -229,7 +262,7 @@
       const bottom_level = levelAtHeight(total_height - scroll_top - view_h);
       const first_episode = Math.max(1, LEVELS.episodeOf(Math.max(1, Math.floor(bottom_level))) - 1);
       const last_episode = LEVELS.episodeOf(Math.max(1, Math.ceil(top_level))) + 1;
-      ctx.fillStyle = '#ffd6ec';
+      ctx.fillStyle = SCENERY.landFor(LEVELS.sceneryOf(Math.max(1, LEVELS.episodeOf(Math.max(1, Math.round(top_level)))))).ground;
       ctx.fillRect(0, 0, view_w, view_h);
       for (let episode = first_episode; episode <= last_episode; episode += 1) {
         const block_bottom = total_height - (BOTTOM_PADDING + (episode - 1) * block);
@@ -240,50 +273,75 @@
       // Below level 1: the first episode's ground continues.
       const map_bottom = total_height - BOTTOM_PADDING;
       if (map_bottom < scroll_top + view_h) {
-        ctx.fillStyle = SCENERY.colorsFor(LEVELS.sceneryOf(1), null).near;
+        ctx.fillStyle = SCENERY.landFor(LEVELS.sceneryOf(1)).ground;
         ctx.fillRect(0, map_bottom - scroll_top, view_w, view_h);
       }
       paintPath(ctx, scroll_top, offset_x);
     }
 
-    /** The candy path between the visible nodes: a thick cream ribbon with sugar dots. */
+    /**
+     * The candy road between the visible nodes: a wide, raised biscuit road with a soft shadow, a rim and a row of little
+     * glossy candies down the middle.
+     */
     function paintPath(ctx, scroll_top, offset_x) {
       if (rendered.last < rendered.first) return;
       const first = Math.max(1, rendered.first - 1);
       const last = Math.min(last_level + 1, rendered.last + 1);
-      const points = [];
-      for (let level_number = first; level_number <= last; level_number += 1) {
-        const point = pointOf(level_number);
-        points.push({ x: point.x + offset_x, y: point.y - scroll_top, level_number });
-      }
-      if (points.length < 2) return;
-      const trace = () => {
+      if (last <= first) return;
+      const points = roadPoints(first, last, offset_x, -scroll_top);
+      const trace = (dy) => {
         ctx.beginPath();
-        ctx.moveTo(points[0].x, points[0].y);
-        for (let index = 1; index < points.length; index += 1) {
-          const previous = points[index - 1];
-          const current = points[index];
-          const mid_y = (previous.y + current.y) / 2;
-          ctx.bezierCurveTo(previous.x, mid_y, current.x, mid_y, current.x, current.y);
-        }
+        ctx.moveTo(points[0].x, points[0].y + dy);
+        for (let index = 1; index < points.length; index += 1) ctx.lineTo(points[index].x, points[index].y + dy);
       };
       ctx.save();
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      trace();
-      ctx.strokeStyle = 'rgba(59,26,74,0.28)';
-      ctx.lineWidth = 30;
+      trace(6);
+      ctx.strokeStyle = 'rgba(40,20,60,0.22)';
+      ctx.lineWidth = ROAD_HALF_WIDTH * 2 + 6;
       ctx.stroke();
-      trace();
-      ctx.strokeStyle = '#fff7e8';
-      ctx.lineWidth = 24;
+      trace(0);
+      ctx.strokeStyle = '#e8b47e';
+      ctx.lineWidth = ROAD_HALF_WIDTH * 2 + 6;
       ctx.stroke();
-      trace();
-      ctx.setLineDash([2, 16]);
-      ctx.strokeStyle = '#ff8fc8';
-      ctx.lineWidth = 7;
+      trace(0);
+      ctx.strokeStyle = '#fff1d8';
+      ctx.lineWidth = ROAD_HALF_WIDTH * 2 - 2;
+      ctx.stroke();
+      trace(-4);
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      ctx.lineWidth = ROAD_HALF_WIDTH * 0.7;
       ctx.stroke();
       ctx.restore();
+      // Little candies spaced evenly along each stretch of road between two levels (fixed to the stretch, so they stay in
+      // place while the map scrolls).
+      const view_bottom = (dom.map_scroll.clientHeight || 600) + 10;
+      for (let level_number = first; level_number < last; level_number += 1) {
+        const stretch = roadPoints(level_number, level_number + 1, offset_x, -scroll_top);
+        if (Math.max(stretch[0].y, stretch[stretch.length - 1].y) < -10 || Math.min(stretch[0].y, stretch[stretch.length - 1].y) > view_bottom) continue;
+        const lengths = [0];
+        for (let index = 1; index < stretch.length; index += 1) lengths.push(lengths[index - 1] + Math.hypot(stretch[index].x - stretch[index - 1].x, stretch[index].y - stretch[index - 1].y));
+        const total = lengths[lengths.length - 1];
+        const count = Math.max(1, Math.round(total / 24));
+        for (let candy = 1; candy < count; candy += 1) {
+          const target = (candy / count) * total;
+          let index = 1;
+          while (index < lengths.length - 1 && lengths[index] < target) index += 1;
+          const t = (target - lengths[index - 1]) / Math.max(0.001, lengths[index] - lengths[index - 1]);
+          const x = stretch[index - 1].x + (stretch[index].x - stretch[index - 1].x) * t;
+          const y = stretch[index - 1].y + (stretch[index].y - stretch[index - 1].y) * t;
+          const color = ROAD_CANDIES[(level_number * 5 + candy) % ROAD_CANDIES.length];
+          const glow = ctx.createRadialGradient(x - 1.6, y - 1.8, 0.4, x, y, 5);
+          glow.addColorStop(0, '#ffffff');
+          glow.addColorStop(0.35, color);
+          glow.addColorStop(1, SCENERY.shade(color, -0.2));
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(x, y, 4.6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
     }
 
     function onScroll() {
@@ -298,6 +356,13 @@
 
     // ---------------------------------------------------------------- marker (the player's avatar)
 
+    /** Where the avatar stands: beside its level, on the side away from where the road goes next. */
+    function markerPoint(level_number) {
+      const point = pointOf(level_number);
+      const side = pointOf(level_number + 1).x > point.x ? -1 : 1;
+      return { x: point.x + side * 40, y: point.y - 46 };
+    }
+
     function placeMarker(level_number) {
       if (!marker) {
         marker = document.createElement('div');
@@ -306,9 +371,9 @@
       }
       const initial = save && save.player_name ? save.player_name.trim().charAt(0).toUpperCase() : '';
       marker.innerHTML = initial ? `<span>${initial}</span>` : `<img src="${hooks.iconUrl('pip', 64)}" alt="">`;
-      const point = pointOf(level_number);
+      const point = markerPoint(level_number);
       marker.style.left = `${point.x}px`;
-      marker.style.top = `${point.y - 66}px`;
+      marker.style.top = `${point.y}px`;
       if (!marker.parentNode) dom.map_nodes.appendChild(marker);
       marker_level = level_number;
     }
@@ -420,8 +485,9 @@
         await animateScroll(scrollTopFor(advance.to), reduced ? 1 : 650);
         if (!alive()) return false;
         if (hop) {
-          const from_point = pointOf(advance.from);
-          const to_point = pointOf(advance.to);
+          const from_point = markerPoint(advance.from);
+          const to_point = markerPoint(advance.to);
+          const node_point = pointOf(advance.to);
           if (!reduced && marker.animate) {
             const frames = [];
             for (let index = 0; index <= 12; index += 1) {
@@ -445,8 +511,8 @@
           const burst = document.createElement('div');
           burst.className = 'map-burst';
           burst.setAttribute('aria-hidden', 'true');
-          burst.style.left = `${to_point.x}px`;
-          burst.style.top = `${to_point.y}px`;
+          burst.style.left = `${node_point.x}px`;
+          burst.style.top = `${node_point.y}px`;
           dom.map_nodes.appendChild(burst);
           setTimeout(() => burst.remove(), 900);
           hooks.sound('unlock');

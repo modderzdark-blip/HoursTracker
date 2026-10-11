@@ -734,3 +734,67 @@ input[type="range"] { width: 130px; height: 36px; accent-color: var(--btn2); }
 .reward.is-mastery svg, .reward.is-hard svg, .reward.is-treasure svg { width: 22px; height: 22px; }
 .reward.is-hard { background: linear-gradient(180deg, #ead6ff, #c9a2ff); box-shadow: 0 2px 0 #7a2bd6; }
 .reward.is-treasure { background: linear-gradient(180deg, #ffe8c2, #ffc978); box-shadow: 0 2px 0 #b36a00; }
+
+/* ---------------------------------------------------------------- map (v1.9): round candy buttons on a candy road */
+/* Like the original's map today: smaller glossy round buttons set close together on the road, blue for ordinary
+   levels, purple for hard, red for super hard, gold for a crown, pale and unlit for levels ahead (numbers shown);
+   the level to play is bigger, pink and ringed with a pulsing halo. */
+.map-node {
+  width: 60px; height: 60px; margin: -30px 0 0 -30px;
+  font-size: 24px;
+  --node1: #a6e6ff; --node2: #2f9ae6; --node3: #145a9c;
+  background:
+    radial-gradient(ellipse 58% 30% at 50% 19%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 72%),
+    radial-gradient(circle at 50% 32%, var(--node1) 0%, var(--node2) 64%, var(--node3) 100%);
+  box-shadow:
+    0 0 0 3px #ffffff,
+    0 0 0 5px rgba(40, 20, 60, 0.16),
+    0 5px 0 4px var(--node3),
+    0 11px 14px 3px rgba(30, 10, 40, 0.32),
+    inset 0 -6px 9px rgba(0, 0, 0, 0.16);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+.map-node.is-locked, .map-node.is-locked.is-hard, .map-node.is-locked.is-superhard { --node1: #ffffff; --node2: #e6e0f1; --node3: #aa9dc6; color: #9284b4; text-shadow: 0 1px 0 #ffffff; }
+.map-node.is-hard { --node1: #dcb0ff; --node2: #8a3ee0; --node3: #4a148c; }
+.map-node.is-superhard { --node1: #ff9ab8; --node2: #c8174b; --node3: #6a0624; }
+.map-node.is-crowned { --node1: #fff2ad; --node2: #f5ae0a; --node3: #9a6200; }
+.map-node.is-current { --node1: #ffc2e4; --node2: #ff3f9a; --node3: #9c0d55; width: 68px; height: 68px; margin: -34px 0 0 -34px; font-size: 27px; }
+.map-node.is-current::before {
+  content: ''; position: absolute; inset: -10px; border-radius: 50%;
+  border: 4px solid rgba(255, 255, 255, 0.95); box-shadow: 0 0 14px rgba(255, 120, 200, 0.9);
+  pointer-events: none;
+}
+.app:not(.reduced-motion) .map-node.is-current { animation: none; }
+.app:not(.reduced-motion) .map-node.is-current::before { animation: node-ring 1.6s ease-out infinite; }
+@keyframes node-ring { 0% { transform: scale(0.88); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }
+.map-node .node-number.digits-3 { font-size: 20px; }
+.map-node .node-number.digits-4 { font-size: 16px; }
+.map-node .node-number.digits-5 { font-size: 13px; letter-spacing: -0.02em; }
+/* Stars in a little smile under the button. */
+.map-node .node-stars { top: 49px; gap: 0; }
+.map-node .node-stars svg { width: 18px; height: 18px; }
+.map-node .node-stars svg:nth-child(1) { transform: translateY(-5px) rotate(-16deg); }
+.map-node .node-stars svg:nth-child(3) { transform: translateY(-5px) rotate(16deg); }
+.map-node .node-crown { top: -20px; width: 28px; height: 28px; }
+.map-node .node-crown svg { width: 28px; height: 28px; }
+.map-node .node-ribbon { top: -17px; font-size: 9px; padding: 1px 6px 1px 3px; }
+.map-node .node-ribbon svg { width: 13px; height: 13px; }
+.map-node .node-cost { top: 64px; font-size: 13px; }
+.map-node .node-treasure { right: -26px; bottom: -4px; width: 30px; height: 30px; }
+.map-node .node-treasure svg { width: 30px; height: 30px; }
+.map-node.is-soon { width: 124px; height: 64px; margin: -32px 0 0 -62px; border-radius: 32px; font-size: 13px; }
+/* The episode banner: a candy ribbon over the clouds where an episode's land begins. */
+.map-episode .episode-gate { display: none; }
+.map-episode .episode-title {
+  position: relative; margin-top: 0; padding: 7px 30px 9px; border-radius: 16px;
+  background: linear-gradient(180deg, #ff8cc6, #e8418f); color: #ffffff;
+  box-shadow: 0 4px 0 #a3205f, 0 10px 18px rgba(60, 10, 50, 0.35);
+  text-shadow: 0 2px 0 rgba(120, 10, 60, 0.35);
+}
+.map-episode .episode-title::before, .map-episode .episode-title::after {
+  content: ''; position: absolute; top: 12px; bottom: -10px; width: 30px; background: #c42c78; z-index: -1;
+}
+.map-episode .episode-title::before { left: -20px; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 34% 50%); }
+.map-episode .episode-title::after { right: -20px; clip-path: polygon(0 0, 100% 0, 66% 50%, 100% 100%, 0 100%); }
+.map-episode .episode-title strong { font-size: 19px; }
+.map-episode .episode-title small { opacity: 0.9; }

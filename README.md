@@ -43,9 +43,12 @@ The repository is public, so you don't need to sign in to download.
   wrap diffuse, two specular lobes, a studio-window reflection with Fresnel, subsurface glow, theme detail and a contact
   shadow. Three materials (Settings → Theme): **Gummy** (default), **Hard Candy** and **Sugar Sprinkle**. Sprites are
   shaded lazily into a cache sized to the board, so the first special of a level never stalls an animation.
-* **Map:** a winding path in episodes of 15 levels with title cards, 12 scenery families that repeat with palette
-  shifts, a marker that hops to the next level after a win (and then opens its intro by itself), **Jump to my level**
-  and a **Go to level** box. Only the nodes near the screen exist (at most about 60), so the map is as light at level
+* **Map:** a round, lush candy land in episodes of 15 levels: a candy-studded road winds through 12 scenery families
+  (meadows, lollipop forests, deserts, snowfields, lagoons, night groves and more) full of round trees, gumdrops,
+  ponds, houses and balloons, with cloud seams and a ribbon banner between episodes. Levels are glossy round buttons
+  (blue, purple for Hard, red for Super Hard, gold for a crown, pink with a pulsing ring for the current one) with
+  their stars in a smile above. Your avatar sits beside the current level and hops to the next after a win (and then
+  opens its intro by itself), **Jump to my level** and a **Go to level** box. Only the nodes near the screen exist (at most about 60), so the map is as light at level
   19,000 as at level 1.
 * **Mechanics:** jelly (1–2 layers), frosting (1–5 layers), Sugar Cage, Cocoa Creep, Fuse Candy, portals,
   Sugar Belts, cherries and hazelnuts with exit trays, **Taffy Swirl** (falls like a candy but never matches; a match
