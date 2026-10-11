@@ -1474,23 +1474,32 @@
     META.refreshHearts(save.meta, start + minutes(600) - minutes(24 * 60) + minutes(31));
     assert.strictEqual(save.meta.hearts, 1, 'refilling restarts from the new time');
     save.settings.unlimited_hearts = true;
-    assert.ok(META.canPlay(save, start), 'Unlimited hearts lets you always play');
-    assert.strictEqual(META.spendHeart(save, start), false, 'and never costs one');
+    assert.ok(STORAGE.normalizeSave(save).settings.unlimited_hearts === undefined, 'there is no unlimited-hearts setting any more');
   });
 
-  test('meta', 'Gold Drops, boosters, the Daily Wheel once per local day, Sweet Streak and the Star Chest', (assert) => {
+  test('meta', 'Gold, boosters, a heart refill, the Daily Wheel once per local day and the Sweet Streak', (assert) => {
     const save = STORAGE.defaultSave();
     const now = new Date(2026, 4, 3, 10, 0, 0).getTime();
-    assert.strictEqual(save.meta.gold, 100);
+    assert.strictEqual(save.meta.gold, 60, 'a new player starts with enough Gold for one +5 Moves');
     assert.ok(!META.useBooster(save.meta, 'hammer'), 'a new player has no boosters yet');
     save.meta.boosters.hammer = 3;
     save.meta.boosters.whirl = 3;
     assert.ok(META.useBooster(save.meta, 'hammer'));
     assert.strictEqual(save.meta.boosters.hammer, 2);
-    assert.ok(META.buy(save.meta, 'hammer'), 'buy a hammer for 60 drops');
-    assert.strictEqual(save.meta.gold, 40);
+    assert.ok(META.buy(save.meta, 'hammer'), 'buy a hammer for 60 Gold');
+    assert.strictEqual(save.meta.gold, 0);
     assert.strictEqual(save.meta.boosters.hammer, 3);
-    assert.ok(!META.buy(save.meta, 'rainbow'), 'not enough drops');
+    assert.ok(!META.buy(save.meta, 'rainbow'), 'not enough Gold');
+    // A heart refill costs Gold and only fills hearts that are missing.
+    save.meta.hearts = 2;
+    save.meta.last_seen = now;
+    save.meta.hearts_clock = now;
+    assert.ok(!META.refillHearts(save.meta, now), 'not enough Gold for a refill');
+    save.meta.gold = META.HEART_REFILL_PRICE + 5;
+    assert.ok(META.refillHearts(save.meta, now));
+    assert.deepStrictEqual([save.meta.hearts, save.meta.gold], [META.MAX_HEARTS, 5]);
+    assert.ok(!META.refillHearts(save.meta, now), 'full hearts are never refilled');
+    assert.strictEqual(save.meta.gold, 5);
     save.meta.boosters.whirl = 0;
     assert.ok(!META.useBooster(save.meta, 'whirl'), 'none left');
     const spin = META.spinWheel(save.meta, now);
@@ -1501,32 +1510,27 @@
     // Sweet Streak: only new levels won on the first try count; any lost attempt on a new level ends it.
     save.meta.streak = 0;
     const streak_on = true;
-    META.recordOutcome(save, { won: true, new_stars: 3, crown: true, new_level: true, streak_on }, 3);
-    META.recordOutcome(save, { won: true, new_stars: 0, crown: true, new_level: false, streak_on }, 3);
+    META.recordOutcome(save, { won: true, new_stars: 3, crown: true, new_level: true, streak_on });
+    META.recordOutcome(save, { won: true, new_stars: 0, crown: true, new_level: false, streak_on });
     assert.strictEqual(save.meta.streak, 1, 'a replay does not count');
-    const second = META.recordOutcome(save, { won: true, new_stars: 1, crown: true, new_level: true, streak_on }, 4);
+    const second = META.recordOutcome(save, { won: true, new_stars: 1, crown: true, new_level: true, streak_on });
     assert.strictEqual(second.streak, 2);
-    assert.strictEqual(second.gold, 20, '5 drops per win, 10 per new star, 5 for a Gold Crown');
+    assert.strictEqual(second.gold, 5, 'Gold is scarce: 1 per new star, 2 for a new level, 2 for a Gold Crown');
     assert.deepStrictEqual(META.streakBag(2), { striped: 1, wrapped: 1 });
     assert.deepStrictEqual(META.streakBag(9), META.streakBag(5), 'the bag stops growing at 5');
     assert.strictEqual(META.streakBag(0), null);
-    const replay_loss = META.recordOutcome(save, { won: false, new_level: false, streak_on }, 4);
+    const replay_loss = META.recordOutcome(save, { won: false, new_level: false, streak_on });
     assert.strictEqual(replay_loss.streak_lost, 0, 'losing a replay keeps the streak');
-    const lost = META.recordOutcome(save, { won: false, new_level: true, streak_on }, 4);
+    const lost = META.recordOutcome(save, { won: false, new_level: true, streak_on });
     assert.strictEqual(lost.streak_lost, 2);
     assert.strictEqual(save.meta.streak, 0, 'a lost attempt on a new level ends the streak');
-    META.recordOutcome(save, { won: true, new_stars: 1, crown: false, new_level: true, streak_on }, 5);
+    META.recordOutcome(save, { won: true, new_stars: 1, crown: false, new_level: true, streak_on });
     assert.strictEqual(save.meta.streak, 0, 'a win after a lost try does not start a streak');
-    META.recordOutcome(save, { won: true, new_stars: 1, crown: true, new_level: true, streak_on: false }, 6);
+    META.recordOutcome(save, { won: true, new_stars: 1, crown: true, new_level: true, streak_on: false });
     assert.strictEqual(save.meta.streak, 0, 'no streak before it unlocks');
     // +5 Moves climbs in price within an attempt.
     assert.deepStrictEqual([0, 1, 2, 3, 4, 9].map(META.continuePrice), [60, 90, 140, 190, 240, 240]);
-    assert.ok(!META.chestReady(save.meta, 24));
-    assert.ok(META.chestReady(save.meta, 25));
-    const prize = META.openChest(save.meta, 26, now);
-    assert.ok(prize && META.CHEST.indexOf(prize) >= 0);
-    assert.strictEqual(META.openChest(save.meta, 26, now), null, 'the next chest needs 25 more stars');
-    assert.strictEqual(META.chestProgress(save.meta, 40), 15);
+    assert.ok(META.WHEEL.every((prize) => prize.kind !== 'gold' || prize.amount <= 20), 'the wheel pays little Gold');
   });
 
   test('meta', 'Daily Challenges: three a day, progress from play, each reward once, the bonus box after all three', (assert) => {
@@ -1552,7 +1556,7 @@
     assert.ok(meta.gold > gold_before);
     assert.ok(META.dailyStatus(meta, day, 20).bonus.ready);
     const bonus = META.claimDailyBonus(meta, day, 20);
-    assert.ok(bonus && bonus.gold === 80);
+    assert.ok(bonus && bonus.gold === 15);
     assert.strictEqual(META.claimDailyBonus(meta, day, 20), null, 'the bonus box once');
     const tomorrow = day + 24 * 3600000;
     assert.deepStrictEqual(META.dailyStatus(meta, tomorrow, 20).quests.map((quest) => quest.progress), [0, 0, 0], 'a new day starts fresh');
@@ -1561,7 +1565,7 @@
   test('meta', 'progression: boosters and features unlock in order, each booster once with its gift; episode rewards once', (assert) => {
     const meta = STORAGE.defaultSave().meta;
     const ids = META.UNLOCKS.map((unlock) => unlock.id);
-    assert.deepStrictEqual(ids.slice().sort(), STORAGE.BOOSTERS.concat(['wheel', 'chest', 'streak', 'daily']).sort(), 'every booster and feature has an unlock');
+    assert.deepStrictEqual(ids.slice().sort(), STORAGE.BOOSTERS.concat(['wheel', 'streak', 'daily']).sort(), 'every booster and feature has an unlock');
     assert.ok(META.UNLOCKS.every((unlock, index) => index === 0 || unlock.level > META.UNLOCKS[index - 1].level), 'in level order, one per level');
     assert.strictEqual(META.unlockOf('hammer').level, 7, 'the hammer comes first, at level 7');
     assert.ok(!META.isUnlocked(meta, 6, 'hammer') && META.isUnlocked(meta, 7, 'hammer'));
@@ -1578,9 +1582,9 @@
     assert.ok(META.isUnlocked({ announced: ['streak'] }, 1, 'streak'), 'kept unlocked once announced (older saves)');
     const gold = meta.gold;
     const reward = META.claimEpisode(meta, 1, 15);
-    assert.strictEqual(reward.gold, 50);
+    assert.strictEqual(reward.gold, 12);
     assert.strictEqual(reward.booster, 'hammer', 'a booster the player already has');
-    assert.strictEqual(meta.gold, gold + 50);
+    assert.strictEqual(meta.gold, gold + 12);
     assert.strictEqual(META.claimEpisode(meta, 1, 15), null, 'once per episode');
     assert.strictEqual(META.episodeReward({ announced: [] }, 1, 3).booster, null, 'no booster before any is unlocked');
     // Treasure every 5th level except finales; hard levels pay a first-win bonus; replays pay neither.
@@ -1588,14 +1592,14 @@
     const save = STORAGE.defaultSave();
     save.unlocked = 31;
     META.announceUnlock(save.meta, 'hammer');
-    const first = META.recordOutcome(save, { won: true, new_stars: 3, crown: true, mastery: true, new_level: true, role: 'hard', level_id: 30 }, 3);
-    assert.strictEqual(first.hard_bonus, 20);
+    const first = META.recordOutcome(save, { won: true, new_stars: 3, crown: true, mastery: true, new_level: true, role: 'hard', level_id: 30 });
+    assert.strictEqual(first.hard_bonus, 5);
     assert.strictEqual(first.treasure, null, 'no chest on a finale');
-    assert.strictEqual(first.gold, 5 + 30 + 5 + 10 + 20, 'win, stars, crown, mastery and the hard bonus');
-    const chest = META.recordOutcome(save, { won: true, new_stars: 3, crown: false, new_level: true, role: 'normal', level_id: 20 }, 6);
+    assert.strictEqual(first.gold, 3 + 2 + 2 + 3 + 5, 'stars, new level, crown, mastery and the hard bonus');
+    const chest = META.recordOutcome(save, { won: true, new_stars: 3, crown: false, new_level: true, role: 'normal', level_id: 20 });
     assert.ok(chest.treasure && (chest.treasure.gold || chest.treasure.booster), 'level 20 holds a chest');
-    const replay = META.recordOutcome(save, { won: true, new_stars: 0, crown: false, new_level: false, role: 'hard', level_id: 20 }, 6);
-    assert.deepStrictEqual([replay.hard_bonus, replay.treasure, replay.gold], [0, null, 5], 'a replay pays only the win');
+    const replay = META.recordOutcome(save, { won: true, new_stars: 0, crown: false, new_level: false, role: 'hard', level_id: 20 });
+    assert.deepStrictEqual([replay.hard_bonus, replay.treasure, replay.gold], [0, null, 0], 'a replay with no new stars pays nothing');
   });
 
   test('hint', 'auto hint: a possible move after 3, 5 or 8 idle seconds, Off never; the button is immediate (fake timers)', (assert) => {
@@ -1710,7 +1714,7 @@
     assert.ok(STORAGE.BOOSTERS.every((booster) => STORAGE.defaultSave().meta.boosters[booster] === 0), 'boosters come with their unlocks, not at the start');
     // v4 -> v5: everything a v4 player already had stays unlocked (no gifts again); episodes already finished pay nothing.
     const v4 = STORAGE.parseSave(JSON.stringify({ version: 4, unlocked: 33, progress: STORAGE.encodeProgress({ stars: [3, 2, 1], scores: [100, 200, 300] }), meta: { boosters: { hammer: 2 }, streak: 7 } })).save;
-    assert.deepStrictEqual(v4.meta.announced, STORAGE.LEGACY_UNLOCKS.slice(), 'boosters, wheel and chest kept; the streak is new');
+    assert.deepStrictEqual(v4.meta.announced, STORAGE.LEGACY_UNLOCKS.slice(), 'boosters and the wheel kept; the streak is new');
     assert.strictEqual(v4.meta.boosters.hammer, 2);
     assert.strictEqual(v4.meta.streak, 0, 'the old 3-win counter does not carry over');
     assert.strictEqual(v4.meta.episodes_claimed, 2);

@@ -25,10 +25,12 @@
   const MAX_LIVE_NODES = 60;
   const SCENERY_CACHE = 4;
   const SPRITE_CACHE = 3;
-  const SPRITE_REF = 40;
-  const SPRITE_VARIANTS = 4;
-  const ROAD_HALF_WIDTH = 21;
-  const ROAD_CANDIES = ['#ff5c8a', '#ffb347', '#ffe066', '#5fe0a8', '#6cb8ff', '#b57bff'];
+  const SPRITE_SMALL = 48; // props are drawn once at this size (and scaled on the curve)
+  const SPRITE_BIG = 104; // landmarks (caramel towers, candy shops ...) get their own, sharper sheet
+  const SPRITE_VARIANTS = 3;
+  // The road: a wide band of land winding up the map (a share of the road width either side of its middle), with the
+  // level buttons zigzagging a little inside it, like the original's map today.
+  const BAND = { half: 0.25, wobble: 0.06 };
   // The world's shape, in screen heights: the land is flat and full size at `anchor` (from the top of the screen); above
   // it the ground turns away over a drum of `radius`, seen from `camera` away, and things shrink with distance (`shrink`
   // makes far things smaller than true perspective, for a rounder look). Below the anchor it curves gently (`below`
@@ -97,7 +99,7 @@
       let high = low + 1;
       while (high < table.length - 1) {
         const next = high + 1;
-        if (table[low].y - table[next].y > 40 || Math.abs(table[low].k - table[next].k) > 0.008) break;
+        if (table[low].y - table[next].y > 28 || Math.abs(table[low].k - table[next].k) > 0.0035) break;
         const middle = (low + next) >> 1;
         const straight = table[low].y + (table[next].y - table[low].y) * ((middle - low) / (next - low));
         if (Math.abs(straight - table[middle].y) > 0.5) break;
@@ -149,34 +151,33 @@
       return BOTTOM_PADDING + episode_index * blockHeight() + EPISODE_GAP * 0.5 + in_episode * NODE_SPACING;
     }
 
-    /** The road winds left and right in long, smooth bends (a few levels per crossing), like the original's. */
-    function pointOf(level_number) {
-      const swing = Math.sin(level_number * 0.55 + 0.4) * 0.3 + Math.sin(level_number * 0.23 + 1.1) * 0.05;
-      return { x: width / 2 + swing * width, y: total_height - heightOf(level_number) };
+    /**
+     * A continuous level coordinate for a height above the bottom of the map: level n sits at n, and the gap between two
+     * episodes runs smoothly from the last level of one to the first of the next (below level 1 it keeps counting down).
+     */
+    function levelCoord(height_above_bottom) {
+      const offset = height_above_bottom - BOTTOM_PADDING - EPISODE_GAP * 0.5;
+      if (offset < 0) return 1 + offset / NODE_SPACING;
+      const block = blockHeight();
+      const episode_index = Math.floor(offset / block);
+      const inside = offset - episode_index * block;
+      const span = (EPISODE - 1) * NODE_SPACING;
+      if (inside <= span) return episode_index * EPISODE + inside / NODE_SPACING + 1;
+      return episode_index * EPISODE + EPISODE + (inside - span) / (block - span);
     }
 
-    /** Points along the road from level `first` to `last` (the same curve the road is drawn with). */
-    function roadPoints(first, last, map_x, map_y) {
-      const points = [];
-      for (let level_number = first; level_number <= last; level_number += 1) {
-        const point = pointOf(level_number);
-        const current = { x: point.x + map_x, y: point.y + map_y };
-        if (points.length) {
-          const previous = points[points.length - 1];
-          const mid_y = (previous.y + current.y) / 2;
-          for (let step = 1; step <= 8; step += 1) {
-            const t = step / 8;
-            const u = 1 - t;
-            points.push({
-              x: u * u * u * previous.x + 3 * u * u * t * previous.x + 3 * u * t * t * current.x + t * t * t * current.x,
-              y: u * u * u * previous.y + 3 * u * u * t * mid_y + 3 * u * t * t * mid_y + t * t * t * current.y,
-            });
-          }
-        } else {
-          points.push(current);
-        }
-      }
-      return points;
+    /** The middle of the road at level coordinate u: long, gentle bends. */
+    function bandX(u) {
+      return width / 2 + (Math.sin(u * 0.3 + 0.5) * 0.12 + Math.sin(u * 0.11 + 2.1) * 0.05) * width;
+    }
+
+    function bandHalf(u) {
+      return width * BAND.half * (1 + 0.05 * Math.sin(u * 0.47 + 1.3));
+    }
+
+    /** Each level sits on the road, a little left or right of its middle. */
+    function pointOf(level_number) {
+      return { x: bandX(level_number) + Math.sin(level_number * 1.7 + 0.3) * BAND.wobble * width, y: total_height - heightOf(level_number) };
     }
 
     /** Levels whose nodes fall inside [top, bottom] in map coordinates. */
@@ -264,7 +265,7 @@
       else if (role === 'hard' || role === 'superhard') html += `<span class="node-ribbon">${hooks.icon('skull')}${role === 'hard' ? 'Hard' : 'Super Hard'}</span>`;
       if (crowned && hooks.hasMastery && hooks.hasMastery(level_number)) html += `<span class="node-mastery">${hooks.icon('sparkle')}</span>`;
       if (hooks.hasTreasure && hooks.hasTreasure(level_number)) html += `<span class="node-treasure">${hooks.icon('chest')}</span>`;
-      if (is_current && hooks.heartsOn()) html += `<span class="node-cost">${hooks.icon('heart')}1</span>`;
+      if (is_current) html += `<span class="node-cost">${hooks.icon('heart')}1</span>`;
       node.innerHTML = html;
       node.setAttribute('aria-label', unlocked
         ? `Level ${level_number}${role === 'hard' ? ', hard' : role === 'superhard' ? ', super hard' : ''}, ${stars} of 3 stars${crowned ? ', won on the first try' : ''}${is_current ? ', next to play' : ''}`
@@ -353,22 +354,12 @@
       return Object.assign({}, first, { seed: (first.seed || 1) + 7777 });
     }
 
-    /** One family's props drawn once at a reference size (a few variants each) and a cloud puff, in one sheet. */
-    function spritesFor(scenery) {
-      const key = `${scenery.family}|${scenery.hue_shift || 0}`;
-      if (sprite_cache.has(key)) {
-        const cached = sprite_cache.get(key);
-        sprite_cache.delete(key);
-        sprite_cache.set(key, cached);
-        return cached;
-      }
-      const land = SCENERY.landFor(scenery);
-      const kinds = Array.from(new Set(land.props));
-      const size = SPRITE_REF;
+    /** Draws kinds into a sheet: each kind in a few variants at `size`, standing on a ground point in its cell. */
+    function buildSheet(land, kinds, size, variants, with_puff) {
       const cell_w = size * 2;
       const cell_h = size * 2.35;
-      const columns = 6;
-      const count = kinds.length * SPRITE_VARIANTS + 1;
+      const columns = Math.min(6, Math.max(1, kinds.length * variants + (with_puff ? 1 : 0)));
+      const count = kinds.length * variants + (with_puff ? 1 : 0);
       const ratio = Math.min(2, Math.max(1.5, root.devicePixelRatio || 1));
       const canvas = SPRITES.createCanvas(Math.ceil(columns * cell_w * ratio), Math.ceil(Math.ceil(count / columns) * cell_h * ratio));
       const ctx = canvas.getContext('2d');
@@ -382,7 +373,7 @@
       const cells = {};
       kinds.forEach((kind, kind_index) => {
         cells[kind] = [];
-        for (let variant = 0; variant < SPRITE_VARIANTS; variant += 1) {
+        for (let variant = 0; variant < variants; variant += 1) {
           const at = nextCell();
           ctx.save();
           ctx.beginPath();
@@ -393,69 +384,121 @@
           cells[kind].push({ sx: at.x * ratio, sy: at.y * ratio });
         }
       });
-      const puff_at = nextCell();
-      SCENERY.paintPuff(ctx, puff_at.x + cell_w / 2, puff_at.y + cell_h / 2, size * 0.98, !!land.night);
-      const sheet = { canvas, cells, puff: { sx: puff_at.x * ratio, sy: puff_at.y * ratio }, cell_w, cell_h, sw: cell_w * ratio, sh: cell_h * ratio, anchor_x: size, anchor_y: size * 2 };
-      sprite_cache.set(key, sheet);
-      while (sprite_cache.size > SPRITE_CACHE) sprite_cache.delete(sprite_cache.keys().next().value);
+      const sheet = { canvas, cells, size, variants, cell_w, cell_h, sw: cell_w * ratio, sh: cell_h * ratio, anchor_x: size, anchor_y: size * 2 };
+      if (with_puff) {
+        const puff_at = nextCell();
+        SCENERY.paintPuff(ctx, puff_at.x + cell_w / 2, puff_at.y + cell_h / 2, size * 0.98, !!land.night);
+        sheet.puff = { sx: puff_at.x * ratio, sy: puff_at.y * ratio };
+      }
       return sheet;
     }
 
-    /**
-     * The candy road: a wide, raised biscuit road with a soft shadow, a rim and a row of little glossy candies, spaced
-     * evenly along each stretch between two levels.
-     */
-    function paintRoad(ctx, first, last, map_x, map_y) {
-      const points = roadPoints(first, last, map_x, map_y);
-      const trace = (dy) => {
-        ctx.beginPath();
-        ctx.moveTo(points[0].x, points[0].y + dy);
-        for (let index = 1; index < points.length; index += 1) ctx.lineTo(points[index].x, points[index].y + dy);
+    /** One family's props (and a cloud puff) and its landmarks, each drawn once into a sprite sheet. */
+    function spritesFor(scenery) {
+      const key = `${scenery.family}|${scenery.hue_shift || 0}`;
+      if (sprite_cache.has(key)) {
+        const cached = sprite_cache.get(key);
+        sprite_cache.delete(key);
+        sprite_cache.set(key, cached);
+        return cached;
+      }
+      const land = SCENERY.landFor(scenery);
+      const sheets = {
+        small: buildSheet(land, Array.from(new Set(land.props)), SPRITE_SMALL, SPRITE_VARIANTS, true),
+        big: buildSheet(land, Array.from(new Set(land.landmarks || [])), SPRITE_BIG, 2, false),
       };
+      sprite_cache.set(key, sheets);
+      while (sprite_cache.size > SPRITE_CACHE) sprite_cache.delete(sprite_cache.keys().next().value);
+      return sheets;
+    }
+
+    /**
+     * The road through one episode's land (canvas coordinates): a wide pale band sunk between the land's slopes, with
+     * soft rows across it that show the curve as the world turns, shade under the slopes and a few sugar sprinkles.
+     * Returns its middle line (sorted top to bottom), so props and landmarks keep off it.
+     */
+    function paintBand(ctx, top, block, shift_x, land) {
+      const left = [];
+      const right = [];
+      const middle = [];
+      for (let cy = -36; cy <= block + 36; cy += 6) {
+        const u = levelCoord(total_height - (top + cy));
+        const center = bandX(u) + shift_x;
+        const half = bandHalf(u);
+        left.push([center - half, cy]);
+        right.push([center + half, cy]);
+        middle.push({ x: center, y: cy });
+      }
+      const outline = (grow) => {
+        ctx.beginPath();
+        left.forEach(([x, y], index) => (index ? ctx.lineTo(x - grow, y) : ctx.moveTo(x - grow, y)));
+        for (let index = right.length - 1; index >= 0; index -= 1) ctx.lineTo(right[index][0] + grow, right[index][1]);
+        ctx.closePath();
+      };
+      const edges = (inset) => {
+        ctx.beginPath();
+        left.forEach(([x, y], index) => (index ? ctx.lineTo(x + inset, y) : ctx.moveTo(x + inset, y)));
+        right.forEach(([x, y], index) => (index ? ctx.lineTo(x - inset, y) : ctx.moveTo(x - inset, y)));
+      };
+      const road = SPRITES.mixHex(land.light, '#fff8dc', 0.55);
+      const slope = SCENERY.shade(land.dark, -0.1);
+      // The land's slopes down to the road: a darker rim, lit along its top edge.
+      outline(22);
+      ctx.fillStyle = slope;
+      ctx.fill();
       ctx.save();
-      ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      trace(6);
-      ctx.strokeStyle = 'rgba(40,20,60,0.22)';
-      ctx.lineWidth = ROAD_HALF_WIDTH * 2 + 6;
-      ctx.stroke();
-      trace(0);
-      ctx.strokeStyle = '#e8b47e';
-      ctx.lineWidth = ROAD_HALF_WIDTH * 2 + 6;
-      ctx.stroke();
-      trace(0);
-      ctx.strokeStyle = '#fff1d8';
-      ctx.lineWidth = ROAD_HALF_WIDTH * 2 - 2;
-      ctx.stroke();
-      trace(-4);
-      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-      ctx.lineWidth = ROAD_HALF_WIDTH * 0.7;
+      ctx.strokeStyle = SCENERY.shade(land.light, 0.04);
+      ctx.lineWidth = 4;
+      edges(-22);
       ctx.stroke();
       ctx.restore();
-      for (let level_number = first; level_number < last; level_number += 1) {
-        const stretch = roadPoints(level_number, level_number + 1, map_x, map_y);
-        const lengths = [0];
-        for (let index = 1; index < stretch.length; index += 1) lengths.push(lengths[index - 1] + Math.hypot(stretch[index].x - stretch[index - 1].x, stretch[index].y - stretch[index - 1].y));
-        const total = lengths[lengths.length - 1];
-        const count = Math.max(1, Math.round(total / 24));
-        for (let candy = 1; candy < count; candy += 1) {
-          const target = (candy / count) * total;
-          let index = 1;
-          while (index < lengths.length - 1 && lengths[index] < target) index += 1;
-          const t = (target - lengths[index - 1]) / Math.max(0.001, lengths[index] - lengths[index - 1]);
-          const x = stretch[index - 1].x + (stretch[index].x - stretch[index - 1].x) * t;
-          const y = stretch[index - 1].y + (stretch[index].y - stretch[index - 1].y) * t;
-          const color = ROAD_CANDIES[(level_number * 5 + candy) % ROAD_CANDIES.length];
-          const glow = ctx.createRadialGradient(x - 1.6, y - 1.8, 0.4, x, y, 5);
-          glow.addColorStop(0, '#ffffff');
-          glow.addColorStop(0.35, color);
-          glow.addColorStop(1, SCENERY.shade(color, -0.2));
-          ctx.fillStyle = glow;
-          ctx.beginPath();
-          ctx.arc(x, y, 4.6, 0, Math.PI * 2);
-          ctx.fill();
-        }
+      outline(0);
+      ctx.fillStyle = road;
+      ctx.fill();
+      ctx.save();
+      outline(0);
+      ctx.clip();
+      // Soft rows across the road, every 72 map pixels (aligned across episodes).
+      const row = 72;
+      for (let y = -((top % row) + row) % row - row; y < block + row; y += row) {
+        if (Math.floor((top + y) / row) % 2) continue;
+        const band = ctx.createLinearGradient(0, y, 0, y + row);
+        band.addColorStop(0, 'rgba(255,255,255,0)');
+        band.addColorStop(0.5, 'rgba(255,255,255,0.32)');
+        band.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = band;
+        ctx.fillRect(0, y, ctx.canvas.width, row);
       }
+      // Shade under the slopes, and a bright lip where the road meets them.
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(110, 50, 20, 0.12)';
+      ctx.lineWidth = 34;
+      edges(0);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(110, 50, 20, 0.14)';
+      ctx.lineWidth = 12;
+      edges(0);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.lineWidth = 3;
+      edges(9);
+      ctx.stroke();
+      // Sugar sprinkles.
+      const rng = UTIL.createRng(Math.round(top) * 13 + 7);
+      const sprinkles = ['#ff7fb6', '#7fd0ff', '#ffe066', '#9ff0b8', '#ffffff'];
+      for (let index = 0; index < block / 14; index += 1) {
+        const at = middle[Math.floor(rng() * middle.length)];
+        const half = bandHalf(levelCoord(total_height - (top + at.y))) * 0.85;
+        ctx.fillStyle = sprinkles[Math.floor(rng() * sprinkles.length)];
+        ctx.globalAlpha = 0.55;
+        ctx.beginPath();
+        ctx.ellipse(at.x + (rng() * 2 - 1) * half, at.y + (rng() - 0.5) * 6, 2.6, 1.3, rng() * Math.PI, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.restore();
+      return middle;
     }
 
     /** One episode's ground and road (painted once, flat, wider than the screen) and its props, ready to stand up. */
@@ -477,18 +520,14 @@
       const scenery = landScenery(key);
       const top = blockTop(key);
       const shift_x = (land_w - width) / 2;
-      let first = 0;
-      let last = -1;
-      if (key >= 1) {
-        const range = LEVELS.episodeRange(key);
-        first = Math.max(1, range.first - 1);
-        last = Math.min(range.last + 1, last_level + 1);
-      }
-      const path = last > first ? roadPoints(first, last, shift_x, -top) : [{ x: -1e5, y: -1e5 }];
+      // The road's middle line first (for keeping props off it), then the land, then the road on top.
+      const middle = [];
+      for (let cy = -36; cy <= block + 36; cy += 12) middle.push({ x: bandX(levelCoord(total_height - (top + cy))) + shift_x, y: cy });
+      const half = width * BAND.half * 1.05;
       // Props sized for the screen (the land is wider than the screen, but the trees should not grow with it).
       const unit = Math.max(24, Math.min(40, world.view_w * 0.075));
-      const standing = SCENERY.paintLand(ctx, land_w, block, scenery, path, ROAD_HALF_WIDTH, { billboards: true, unit });
-      if (last > first) paintRoad(ctx, first, last, shift_x, -top);
+      const standing = SCENERY.paintLand(ctx, land_w, block, scenery, middle, half + 18, { billboards: true, unit, band: { half: half + 18 } });
+      paintBand(ctx, top, block, shift_x, SCENERY.landFor(scenery));
       const entry = { canvas, ratio, standing, shift_x, sprites: spritesFor(scenery), land: SCENERY.landFor(scenery) };
       scenery_cache.set(key, entry);
       while (scenery_cache.size > SCENERY_CACHE) scenery_cache.delete(scenery_cache.keys().next().value);
@@ -629,12 +668,12 @@
     function paintStanding(ctx, scroll_top) {
       const view_w = world.view_w;
       const span = visibleSpan();
-      const bottom = span.bottom + SPRITE_REF * 2.4;
+      const bottom = span.bottom + SPRITE_BIG * 2;
       const far = episodeAtY(span.top);
       const near = episodeAtY(span.bottom);
       for (let episode = far; episode >= near; episode -= 1) {
         const entry = sceneryFor(episode);
-        const sheet = entry.sprites;
+        const sheets = entry.sprites;
         const block_top = blockTop(episode);
         const items = entry.standing;
         for (let index = firstFrom(items, span.top - block_top - 40); index < items.length; index += 1) {
@@ -646,10 +685,13 @@
           const point = project(s);
           const x = view_w / 2 + (item.x - entry.shift_x - width / 2) * point.k;
           const puff = item.kind === 'puff';
-          const scale = (puff ? item.size / (SPRITE_REF * 0.98) : item.size / SPRITE_REF) * point.k;
+          const sheet = item.big ? sheets.big : sheets.small;
+          const scale = (puff ? item.size / (sheet.size * 0.98) : item.size / sheet.size) * point.k;
           const draw_w = sheet.cell_w * scale;
           if (x + draw_w < 0 || x - draw_w > view_w) continue;
-          const cell = puff ? sheet.puff : sheet.cells[item.kind][Math.min(SPRITE_VARIANTS - 1, Math.floor(item.seed * SPRITE_VARIANTS))];
+          const variants = sheet.cells[item.kind];
+          if (!puff && !variants) continue;
+          const cell = puff ? sheet.puff : variants[Math.min(sheet.variants - 1, Math.floor(item.seed * sheet.variants))];
           const anchor_x = puff ? sheet.cell_w / 2 : sheet.anchor_x;
           const anchor_y = puff ? sheet.cell_h / 2 : sheet.anchor_y;
           ctx.drawImage(sheet.canvas, cell.sx, cell.sy, sheet.sw, sheet.sh, x - anchor_x * scale, point.y - anchor_y * scale, draw_w, sheet.cell_h * scale);
@@ -744,7 +786,12 @@
         state.fade = fade;
       }
       // Buttons fading over the hill, or shrunk below a finger's size (about 44 px), cannot be tapped: scroll them closer.
-      const touch = opacity < 0.6 || Number(scale) < 0.75 ? 'none' : '';
+      // The unscaled size is measured once per look (a level's class changes when it is won or unlocked).
+      if (state.look !== element.className) {
+        state.look = element.className;
+        state.base = Math.min(element.offsetWidth, element.offsetHeight) || 44;
+      }
+      const touch = opacity < 0.6 || state.base * Number(scale) < 44 ? 'none' : '';
       if (state.touch !== touch) {
         element.style.pointerEvents = touch;
         state.touch = touch;
@@ -789,11 +836,11 @@
 
     // ---------------------------------------------------------------- marker (the player's avatar)
 
-    /** Where the avatar stands: beside its level, on the side away from where the road goes next. */
+    /** Where the avatar's pin floats: right above its level, pointing down at it, like the original's. */
     function markerPoint(level_number) {
       const point = pointOf(level_number);
-      const side = pointOf(level_number + 1).x > point.x ? -1 : 1;
-      return { x: point.x + side * 40, y: point.y - 46 };
+      const role = LEVELS.roleOf(level_number);
+      return { x: point.x, y: point.y - (role === 'hard' || role === 'superhard' ? 96 : 78) };
     }
 
     function placeMarker(level_number) {
@@ -803,8 +850,9 @@
         marker.setAttribute('aria-hidden', 'true');
         marker.style.zIndex = String(4 * Z_BASE);
       }
-      const initial = save && save.player_name ? save.player_name.trim().charAt(0).toUpperCase() : '';
-      marker.innerHTML = initial ? `<span>${initial}</span>` : `<img src="${hooks.iconUrl('pip', 64)}" alt="">`;
+      const face = hooks.avatar ? hooks.avatar() : { photo: null, initial: '' };
+      const inner = face.photo ? '' : face.initial ? face.initial : `<img src="${hooks.iconUrl('pip', 64)}" alt="">`;
+      marker.innerHTML = `<span class="marker-bob"><span class="marker-pin"></span><span class="marker-face"${face.photo ? ` style="background-image:url('${face.photo}')"` : ''}>${inner}</span></span>`;
       const point = markerPoint(level_number);
       marker_state = { x: point.x, y: point.y, lift: 0, grow: 1 };
       if (!marker.parentNode) dom.map_nodes.appendChild(marker);

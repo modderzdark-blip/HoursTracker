@@ -42,21 +42,23 @@
         </div>
       </div>
     </div>
-    <header class="top-bar map-bar">
-      <button id="btn-map-back" class="round small" type="button" aria-label="Back to title" data-icon="back"></button>
-      <button id="map-hearts" class="chip chip-hearts" type="button" aria-label="Hearts"><img id="map-hearts-icon" alt=""><span id="map-hearts-count">5</span><small id="map-hearts-timer"></small></button>
-      <button id="map-gold" class="chip chip-gold" type="button" aria-label="Gold Drops"><img id="map-gold-icon" alt=""><span id="map-gold-count">0</span></button>
-      <button id="btn-map-settings" class="round small" type="button" aria-label="Settings" data-icon="gear"></button>
+    <header class="map-topbar">
+      <button id="btn-map-back" class="topbar-round" type="button" aria-label="Back to title" data-icon="back"></button>
+      <button id="map-hearts" class="topbar-chip chip-hearts" type="button" aria-label="Hearts"><img id="map-hearts-icon" alt=""><span id="map-hearts-count" class="chip-heart-count">5</span><small id="map-hearts-timer">Full</small></button>
+      <button id="map-avatar" class="topbar-avatar" type="button" aria-label="Your progress"><span id="map-avatar-face" class="avatar-face"></span></button>
+      <button id="map-gold" class="topbar-chip chip-gold" type="button" aria-label="Gold"><img id="map-gold-icon" alt=""><span id="map-gold-count">0</span></button>
+      <button id="btn-map-settings" class="topbar-round" type="button" aria-label="Settings" data-icon="gear"></button>
     </header>
     <div class="map-side">
-      <button id="btn-map-daily" class="round small has-badge" type="button" aria-label="Daily Challenges" data-icon="daily"></button>
-      <button id="btn-map-wheel" class="round small has-badge" type="button" aria-label="Daily Wheel" data-icon="wheel"></button>
+      <button id="btn-map-wheel" class="side-event has-badge" type="button" aria-label="Daily Wheel"><span class="side-event-art" data-icon="wheel"></span><span id="map-wheel-caption" class="side-event-caption">Spin!</span></button>
     </div>
-    <div class="map-actions">
-      <button id="btn-map-chest" class="chip chip-chest" type="button" aria-label="Star Chest"><img id="map-chest-icon" alt=""><span id="map-chest-progress">0/25</span></button>
-      <button id="btn-map-mine" class="pill small" type="button">Jump to my level</button>
-      <button id="btn-map-goto" class="round small" type="button" aria-label="Go to level number" data-icon="search"></button>
-    </div>
+    <button id="btn-map-mine" class="map-mine" type="button" aria-label="Jump to my level"><span id="map-mine-face" class="avatar-face"></span><span class="map-mine-arrow" data-icon="up"></span></button>
+    <nav class="map-nav" aria-label="Map menu">
+      <button id="btn-map-tab-map" class="nav-tab is-active" type="button" aria-label="Map" aria-current="page"><span class="nav-glyph" data-icon="map"></span><span class="nav-label">Map</span></button>
+      <button id="btn-map-daily" class="nav-tab has-badge" type="button" aria-label="Daily Challenges"><span class="nav-glyph" data-icon="daily"></span><span class="nav-label">Daily</span></button>
+      <button id="btn-map-shop" class="nav-tab" type="button" aria-label="Shop"><span class="nav-glyph" data-icon="shop"></span><span class="nav-label">Shop</span></button>
+      <button id="btn-map-goto" class="nav-tab" type="button" aria-label="Go to level number"><span class="nav-glyph" data-icon="search"></span><span class="nav-label">Find</span></button>
+    </nav>
   </section>
 
   <section id="screen-game" class="screen screen-game" aria-label="Game">

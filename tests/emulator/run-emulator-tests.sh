@@ -138,6 +138,16 @@ make_move() { # one real swipe from the hook's suggested move; waits until it ha
   wait_for "s.moves_played > $before || s.state === 'WON' || s.state === 'LOST'" 60 "the move to resolve"
   return 0
 }
+refill_hearts_for_test() { # out of hearts and short of Gold in a long play loop: top the hearts up over DevTools (debug build)
+  local pid socket
+  pid=$(adb shell pidof "$PKG" | tr -d '\r')
+  socket=$(adb shell cat /proc/net/unix | grep -o "webview_devtools_remote_$pid" | head -1)
+  [ -n "$socket" ] || fail "the debug build's WebView DevTools socket was not found (refilling hearts)"
+  adb forward tcp:9334 "localabstract:$socket" > /dev/null
+  node tests/emulator/cdp-eval.mjs 9334 tests/emulator/refill-hearts.js > /dev/null || fail "refilling hearts for the test failed"
+  adb forward --remove tcp:9334 > /dev/null 2>&1
+  log "out of hearts and Gold: hearts topped up for the test"
+}
 play_step() { # one step of "keep playing" from whatever screen is showing (used by the offline and 3-minute loops)
   case "$(q 's.modal || s.state')" in
     PLAYING) make_move && return 0 ;;
@@ -145,7 +155,9 @@ play_step() { # one step of "keep playing" from whatever screen is showing (used
     intro) tap_button "btn-intro-play"; sleep 1.5 ;;
     lose) tap_button "btn-retry"; sleep 2 ;;
     pause) tap_button "btn-resume"; sleep 1 ;;
-    hearts) tap_button "btn-hearts-unlimited"; sleep 1.5 ;;
+    hearts)
+      if [ "$(q "!!s.buttons['btn-hearts-refill']")" = "true" ]; then tap_button "btn-hearts-refill"; else refill_hearts_for_test; tap_button "btn-hearts-ok"; fi
+      sleep 1.5 ;;
     MAP)
       if [ "$(q "px(s.map_nodes[String(s.unlocked)])")" = "none" ]; then tap_button "btn-map-mine"; else tap_map_node "$(q 's.unlocked')"; fi
       sleep 1.5 ;;

@@ -5,7 +5,7 @@
 
   const CONFIG = {
     GAME_TITLE: 'Sweet Cascade',
-    VERSION: '1.10.0',
+    VERSION: '1.11.0',
 
     // Candy set: the classic candy-shop six, each with a distinct color AND shape. SPRITES shades them (same table there).
     CANDIES: [
@@ -35,8 +35,11 @@
       { id: 'midnight', name: 'Midnight', background: ['#26336e', '#5b2c8f', '#a044ff'], button: ['#7a5cff', '#4b2fcf'], depth: '#24137a', ink: '#1a1046' },
     ],
 
-    CASCADE_BANNERS: { 2: 'Sweet!', 3: 'Tasty!', 4: 'Delicious!', 5: 'Divine!' },
+    // Our own praise words for chains of cascades, each spoken by the announcer (www/audio/voice).
+    CASCADE_BANNERS: { 2: 'Sweet!', 3: 'Yummy!', 4: 'Scrumptious!', 5: 'Sensational!' },
     CASCADE_BANNER_MAX: 'Sugar Storm!',
+    CASCADE_VOICE: { 2: 'sweet', 3: 'yummy', 4: 'scrumptious', 5: 'sensational' },
+    CASCADE_VOICE_MAX: 'sugarstorm',
 
     TIMING: {
       SWAP_MS: 140,

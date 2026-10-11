@@ -103,7 +103,7 @@ for (const size of SIZES) {
       await page.evaluate(() => {
         const game = window.SC.game;
         game.ui.closeAllModals();
-        game.ui.showWin({ stars: 3, player_name: 'Sam', win_message: 'You are amazing!', has_next: true, role: 'hard', rewards: { gold: 70, hard_bonus: 20, treasure: { booster: 'hammer', amount: 1 }, chest_ready: true }, crown: true, mastery: true, streak: 3, streak_on: true }, { next() {}, replay() {}, map() {} });
+        game.ui.showWin({ stars: 3, player_name: 'Sam', win_message: 'You are amazing!', has_next: true, role: 'hard', rewards: { gold: 15, hard_bonus: 5, treasure: { booster: 'hammer', amount: 1 } }, crown: true, mastery: true, streak: 3, streak_on: true }, { next() {}, replay() {}, map() {} });
       });
       await page.waitForTimeout(2200);
       await shot('09-win');
@@ -142,10 +142,22 @@ for (const size of SIZES) {
       await shot('14-how-to-play');
       await page.evaluate(() => {
         window.SC.game.ui.closeAllModals();
-        window.SC.game.ui.showHeartsEmpty({ nextHeartMs: () => 17 * 60 * 1000 + 42000 }, { unlimited() {} });
+        window.SC.game.ui.showHeartsEmpty({ nextHeartMs: () => 17 * 60 * 1000 + 42000, gold: 55, price: 40 }, { refill() {} });
       });
       await settle(page, 700);
       await shot('15-hearts-empty');
+      await page.evaluate(() => {
+        window.SC.game.ui.closeAllModals();
+        window.SC.game.openShop();
+      });
+      await settle(page, 700);
+      await shot('15b-shop');
+      await page.evaluate(() => {
+        window.SC.game.ui.closeAllModals();
+        window.SC.game.openProfile();
+      });
+      await settle(page, 700);
+      await shot('15c-profile');
       await page.evaluate(() => {
         window.SC.game.ui.closeAllModals();
         window.SC.game.ui.showWheel({ can_spin: true }, { spin: () => null, done() {} });

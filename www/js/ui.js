@@ -1,5 +1,5 @@
 // UI: DOM screens, HUD, modals, banners, toasts and the accessible live region (the map lives in MAP).
-// Every image comes from the SPRITES shader (candies, blockers, hearts, Gold Drops, stars) or from PIP; icons are
+// Every image comes from the SPRITES shader (candies, blockers, hearts, Gold bars, stars) or from PIP; icons are
 // inline SVG. All buttons are real <button> elements with labels.
 (function attachUi(root) {
   'use strict';
@@ -45,6 +45,16 @@
 
   ICONS.daily = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3.5" width="16" height="18" rx="3" fill="#ffffff" stroke="#3b1a4a" stroke-width="1.6"/><rect x="8.5" y="2" width="7" height="3.6" rx="1.6" fill="#ff6fb5" stroke="#3b1a4a" stroke-width="1.4"/><path d="M7.5 10.2l1.6 1.6 2.8-3M7.5 15.6l1.6 1.6 2.8-3" fill="none" stroke="#2fb36b" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.6 10.6h3.2M13.6 16h3.2" stroke="#3b1a4a" stroke-width="1.6" stroke-linecap="round"/></svg>';
 
+  ICONS.music = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17.5V6.2l10-2.2v11.4" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linejoin="round"/><ellipse cx="6.6" cy="17.6" rx="3" ry="2.4" fill="currentColor"/><ellipse cx="16.6" cy="15.5" rx="3" ry="2.4" fill="currentColor"/></svg>';
+  ICONS.voice = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h16a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-8.5L7 20.5v-3.5H4a2 2 0 0 1-2-2V7.5a2 2 0 0 1 2-2z" fill="currentColor"/><path d="M7.5 11.2h.01M12 11.2h.01M16.5 11.2h.01" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg>';
+  ICONS.vibrate = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7.5" y="3" width="9" height="18" rx="2.2" fill="currentColor"/><rect x="9.5" y="5.5" width="5" height="11" rx="0.8" fill="#fff" opacity="0.55"/><path d="M4.5 8v8M2 10v4M19.5 8v8M22 10v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  ICONS.shop = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5h16v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19.5z" fill="#ffffff" stroke="#3b1a4a" stroke-width="1.5"/><path d="M3 10.5l2-6h14l2 6z" fill="#ff6fb5" stroke="#3b1a4a" stroke-width="1.5" stroke-linejoin="round"/><path d="M7 4.5l-1 6M12 4.5v6M17 4.5l1 6" stroke="#ffffff" stroke-width="1.6"/><circle cx="8.5" cy="15.5" r="1.7" fill="#ffb21f"/><circle cx="12" cy="15.5" r="1.7" fill="#4cc3ff"/><circle cx="15.5" cy="15.5" r="1.7" fill="#7be07b"/></svg>';
+  ICONS.map = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5l5.5-2.5 7 2.5 5.5-2.5v13.5l-5.5 2.5-7-2.5L3 20z" fill="#8ee3ff" stroke="#3b1a4a" stroke-width="1.5" stroke-linejoin="round"/><path d="M8.5 4v13.5M15.5 6.5V20" stroke="#3b1a4a" stroke-width="1.2" opacity="0.5"/><path d="M5.5 15c2-1 3.5-4 6.5-3.5s3.5 3 6.5 1" stroke="#ff5d8f" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-dasharray="0.1 2.6"/><circle cx="12" cy="11.5" r="2.4" fill="#ff5d8f" stroke="#ffffff" stroke-width="1.2"/></svg>';
+  ICONS.up = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.5l-6.5 6.5M12 5.5l6.5 6.5M12 5.5v13" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  // The lives heart on the map's top bar: a glossy vector heart the count sits inside.
+  const HEART_BADGE_URL = `data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 46"><defs><radialGradient id="h" cx="36%" cy="28%" r="78%"><stop offset="0" stop-color="#ffb3cf"/><stop offset="0.5" stop-color="#ff3f7f"/><stop offset="1" stop-color="#c3104c"/></radialGradient></defs><path d="M24 43S3 30 3 15.5A11.2 11.2 0 0 1 24 9.6 11.2 11.2 0 0 1 45 15.5C45 30 24 43 24 43z" fill="url(#h)" stroke="#ffffff" stroke-width="2.6" stroke-linejoin="round"/><ellipse cx="14" cy="14" rx="6.5" ry="3.6" fill="#ffffff" opacity="0.65" transform="rotate(-32 14 14)"/></svg>')}`;
+
   function icon(name) {
     return ICONS[name] || '';
   }
@@ -60,7 +70,6 @@
     if (id === 'rainbow') return `<img src="${spriteUrl('bomb', 72)}" alt="">`;
     if (id === 'head_start') return '<span class="head-start big">+3</span>';
     if (id === 'wheel') return `<span class="unlock-glyph">${ICONS.wheel}</span>`;
-    if (id === 'chest') return `<img src="${SPRITES.iconUrl('star', 144)}" alt="">`;
     if (id === 'daily') return `<span class="unlock-glyph">${ICONS.daily}</span>`;
     if (id === 'streak') return `<span class="streak-art"><img src="${spriteUrl('stripe_row:0', 44)}" alt=""><img src="${spriteUrl('wrapped:4', 44)}" alt=""><img src="${spriteUrl('bomb', 44)}" alt=""></span>`;
     return '';
@@ -188,6 +197,26 @@
     return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
   }
 
+  /** Hours and minutes, like the original's event timers: "14h 21m" (or "21m"). */
+  function formatHours(ms) {
+    const minutes = Math.max(0, Math.ceil(ms / 60000));
+    const hours = Math.floor(minutes / 60);
+    return hours > 0 ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
+  }
+
+  /** Fills an avatar frame with the player's photo, else their initial, else Pip. avatar: {photo, initial}. */
+  function fillAvatar(face, avatar) {
+    if (!face) return;
+    const data = avatar || {};
+    const key = data.photo ? `photo:${data.photo.length}:${data.photo.slice(-24)}` : data.initial ? `initial:${data.initial}` : 'pip';
+    if (face.dataset.avatar === key) return;
+    face.dataset.avatar = key;
+    face.style.backgroundImage = data.photo ? `url("${data.photo}")` : '';
+    if (data.photo) face.innerHTML = '';
+    else if (data.initial) face.textContent = data.initial;
+    else face.innerHTML = `<img src="${SPRITES.iconUrl('pip', 96)}" alt="">`;
+  }
+
   /** Goal completion of a level in play, 0..1: the mean of each goal's share done (a done goal counts as 1). */
   function goalFraction(progress) {
     if (!progress || !progress.length) return 0;
@@ -295,38 +324,30 @@
         if (title_pip && dom.screen_title.classList.contains('is-active')) title_pip.set('wave');
       },
 
-      // ------------------------------------------------------------ map bar (hearts, Gold Drops, wheel, chest)
+      // ------------------------------------------------------------ map bar (hearts, Gold, wheel, daily)
       setMapStatus(status) {
         const hearts_chip = by_id('map-hearts');
-        by_id('map-hearts-icon').src = SPRITES.iconUrl('heart', 56);
+        by_id('map-hearts-icon').src = HEART_BADGE_URL;
         by_id('map-gold-icon').src = SPRITES.iconUrl('gold', 56);
-        by_id('map-chest-icon').src = SPRITES.iconUrl('star', 56);
-        if (status.unlimited) {
-          by_id('map-hearts-count').textContent = '∞';
-          by_id('map-hearts-timer').textContent = '';
-          hearts_chip.setAttribute('aria-label', 'Unlimited hearts');
-        } else {
-          by_id('map-hearts-count').textContent = String(status.hearts);
-          by_id('map-hearts-timer').textContent = status.hearts < META.MAX_HEARTS ? formatClock(status.next_heart_ms) : 'Full';
-          hearts_chip.setAttribute('aria-label', `${status.hearts} of ${META.MAX_HEARTS} hearts${status.hearts < META.MAX_HEARTS ? `, next in ${formatClock(status.next_heart_ms)}` : ''}`);
-        }
+        by_id('map-hearts-count').textContent = String(status.hearts);
+        by_id('map-hearts-timer').textContent = status.hearts < META.MAX_HEARTS ? formatClock(status.next_heart_ms) : 'Full';
+        hearts_chip.setAttribute('aria-label', `${status.hearts} of ${META.MAX_HEARTS} hearts${status.hearts < META.MAX_HEARTS ? `, next in ${formatClock(status.next_heart_ms)}` : ''}`);
         by_id('map-gold-count').textContent = String(status.gold);
-        by_id('map-gold').setAttribute('aria-label', `${status.gold} Gold Drops`);
+        by_id('map-gold').setAttribute('aria-label', `${status.gold} Gold`);
         const wheel = by_id('btn-map-wheel');
         wheel.hidden = !!status.wheel_locked;
         wheel.classList.toggle('is-ready', status.wheel_ready && !status.wheel_locked);
         wheel.setAttribute('aria-label', status.wheel_ready ? 'Daily Wheel: a free spin is ready' : 'Daily Wheel');
+        const caption = by_id('map-wheel-caption');
+        if (caption) caption.textContent = status.wheel_ready ? 'Spin!' : formatHours(status.wheel_next_ms || 0);
+        fillAvatar(by_id('map-avatar-face'), status.avatar);
+        fillAvatar(by_id('map-mine-face'), status.avatar);
         const daily = by_id('btn-map-daily');
-        daily.hidden = !!status.daily_locked;
+        daily.classList.toggle('is-locked', !!status.daily_locked);
         daily.classList.toggle('is-ready', status.daily_claimable > 0 && !status.daily_locked);
         if (status.daily_claimable > 0) daily.setAttribute('data-count', String(status.daily_claimable));
         else daily.removeAttribute('data-count');
         daily.setAttribute('aria-label', status.daily_claimable > 0 ? `Daily Challenges: ${status.daily_claimable} reward${status.daily_claimable === 1 ? '' : 's'} to collect` : 'Daily Challenges');
-        const chest = by_id('btn-map-chest');
-        chest.hidden = !!status.chest_locked;
-        by_id('map-chest-progress').textContent = `${status.chest_progress}/${META.CHEST_STARS}`;
-        chest.classList.toggle('is-ready', status.chest_progress >= META.CHEST_STARS);
-        chest.setAttribute('aria-label', `Star Chest: ${status.chest_progress} of ${META.CHEST_STARS} stars`);
       },
 
       // ------------------------------------------------------------ HUD
@@ -419,7 +440,7 @@
         dom.btn_sound.setAttribute('aria-label', sound_on ? 'Mute sound' : 'Turn sound on');
         dom.btn_sound.classList.toggle('is-off', !sound_on);
       },
-      /** Booster bar: counts (0 shows a "+" to buy with Gold Drops), the armed booster highlighted. */
+      /** Booster bar: counts (0 shows a "+" to buy with Gold), the armed booster highlighted. */
       /**
        * locks: { booster: unlock level } for the boosters not unlocked yet (hidden from the bar). Returns true when the
        * bar switched between one row and two (the board then needs a new layout).
@@ -441,7 +462,7 @@
           booster_button.classList.toggle('is-armed', armed === name);
           booster_button.disabled = !enabled;
           booster_button.setAttribute('aria-label', locked_at ? `${META.BOOSTER_NAMES[name]}, unlocks at level ${locked_at}`
-            : `${META.BOOSTER_NAMES[name]}, ${count > 0 ? `${count} left` : `buy for ${META.PRICES[name]} Gold Drops`}${armed === name ? ', selected' : ''}`);
+            : `${META.BOOSTER_NAMES[name]}, ${count > 0 ? `${count} left` : `buy for ${META.PRICES[name]} Gold`}${armed === name ? ', selected' : ''}`);
         });
         const bar = document.querySelector('.game-bar');
         const many = visible > 3;
@@ -729,7 +750,7 @@
 
       /**
        * Level intro: name, role ribbon, goals, moves or time, best stars, pre-level boosters, Pip's tip for a new idea,
-       * the Sweet Streak meter. data: { best: {stars, score}, boosters: {lucky, rainbow, head_start}, hearts_on,
+       * the Sweet Streak meter. data: { best: {stars, score}, boosters: {lucky, rainbow, head_start},
        * locks: {booster: unlock level}, try_booster, streak: {on, count, bag, new_level} | null, crown }.
        */
       showIntro(level, data, actions) {
@@ -812,7 +833,7 @@
               const toggle = element('button', `intro-booster${locked_at ? ' is-locked' : count ? '' : ' is-empty'}`, { type: 'button', role: 'switch', 'aria-checked': 'false', id: `intro-booster-${name}` });
               toggle.innerHTML = `${sprite_key ? `<img src="${spriteUrl(sprite_key, 40)}" alt="">` : `<span class="head-start">${level.time ? '+10s' : '+3'}</span>`}<small>${locked_at ? `Level ${locked_at}` : label}</small><b>${locked_at ? icon('lock') : count || '+'}</b>`;
               toggle.setAttribute('aria-label', locked_at ? `${META.BOOSTER_NAMES[name]}, unlocks at level ${locked_at}`
-                : `${META.BOOSTER_NAMES[name]}, ${count ? `${count} owned` : `buy for ${META.PRICES[name]} Gold Drops`}`);
+                : `${META.BOOSTER_NAMES[name]}, ${count ? `${count} owned` : `buy for ${META.PRICES[name]} Gold`}`);
               if (data.try_booster === name && !locked_at) {
                 pointer_timer = setTimeout(() => ui.pointAt(toggle, `Tap to use your free ${META.BOOSTER_NAMES[name]}!`), 450);
               }
@@ -840,12 +861,12 @@
             });
             modal.appendChild(booster_row);
             const column = element('div', 'button-column');
-            const play = button(data.hearts_on ? 'Play' : 'Play', 'pill pill-big', () => {
+            const play = button('Play', 'pill pill-big', () => {
               clickSound();
               handle.close();
               actions.play(Object.assign({}, chosen));
             });
-            if (data.hearts_on) play.innerHTML = `Play <span class="play-cost">${icon('heart')}1</span>`;
+            play.innerHTML = `Play <span class="play-cost">${icon('heart')}1</span>`;
             play.setAttribute('aria-label', 'Play');
             play.setAttribute('data-autofocus', '');
             play.id = 'btn-intro-play';
@@ -963,8 +984,8 @@
       },
 
       /**
-       * data: { stars, player_name, win_message, has_next, role, crown, mastery, rewards: {gold, hard_bonus, treasure,
-       * chest_ready}, streak: the Sweet Streak after this win (0 = none shown), streak_on }. No score: like the original
+       * data: { stars, player_name, win_message, has_next, role, crown, mastery, rewards: {gold, hard_bonus, treasure},
+       * streak: the Sweet Streak after this win (0 = none shown), streak_on }. No score: like the original
        * today, the win shows stars, the crown, mastery and the rewards.
        */
       showWin(data, actions) {
@@ -998,7 +1019,6 @@
             const treasure = data.rewards.treasure;
             if (treasure) rewards.appendChild(element('span', 'reward is-treasure', { html: `${icon('chest')}${treasure.booster ? `+${treasure.amount} ${META.BOOSTER_NAMES[treasure.booster]}` : `Treasure +${treasure.gold}`}` }));
             if (data.streak_on && data.streak > 0) rewards.appendChild(element('span', 'reward is-streak', { html: `Sweet Streak ${data.streak}! <span class="bag">${bagHtml(META.streakBag(data.streak), 20)}</span>` }));
-            if (data.rewards.chest_ready) rewards.appendChild(element('span', 'reward', { text: 'Star Chest ready!' }));
             modal.appendChild(rewards);
             const column = element('div', 'button-column');
             if (data.has_next) {
@@ -1075,7 +1095,7 @@
                 actions.plusFive();
               });
               plus.innerHTML = `${data.timed ? '+15 seconds' : '+5 Moves'} <span class="price"><img src="${SPRITES.iconUrl('gold', 40)}" alt="">${data.price}</span>`;
-              plus.setAttribute('aria-label', `${data.timed ? 'Add 15 seconds' : 'Add 5 moves'} for ${data.price} Gold Drops (you have ${data.gold})`);
+              plus.setAttribute('aria-label', `${data.timed ? 'Add 15 seconds' : 'Add 5 moves'} for ${data.price} Gold (you have ${data.gold})`);
               plus.id = 'btn-plus-five';
               plus.disabled = data.gold < data.price;
               column.appendChild(plus);
@@ -1098,7 +1118,7 @@
         });
       },
 
-      /** Out of hearts: a countdown to the next heart, Pip, and a shortcut to the Unlimited hearts setting. */
+      /** Out of hearts: a countdown to the next heart, Pip, and a full refill for Gold when the player has enough. */
       showHeartsEmpty(data, actions) {
         let timer = null;
         return ui.openModal({
@@ -1118,15 +1138,145 @@
             update();
             timer = setInterval(update, 1000);
             modal.appendChild(line);
-            modal.appendChild(element('p', '', { text: 'Hearts refill by themselves, one every 30 minutes. Prefer to play without them? Turn on Unlimited hearts.' }));
+            const affordable = data.gold >= data.price;
+            modal.appendChild(element('p', '', {
+              text: affordable ? 'Hearts refill by themselves, one every 30 minutes. Or fill them all up now:' : `Hearts refill by themselves, one every 30 minutes. A full refill costs ${data.price} Gold (you have ${data.gold}).`,
+            }));
             const column = element('div', 'button-column');
-            const settings_button = button('Unlimited hearts', 'pill', () => {
+            if (affordable) {
+              const refill = button('', 'pill pill-big gold', () => {
+                clickSound();
+                handle.close();
+                actions.refill();
+              });
+              refill.innerHTML = `Refill hearts <span class="price"><img src="${SPRITES.iconUrl('gold', 40)}" alt="">${data.price}</span>`;
+              refill.setAttribute('aria-label', `Refill hearts for ${data.price} Gold (you have ${data.gold})`);
+              refill.id = 'btn-hearts-refill';
+              column.appendChild(refill);
+            }
+            const ok = button('OK', 'pill secondary', () => {
               clickSound();
               handle.close();
-              actions.unlimited();
             });
-            settings_button.id = 'btn-hearts-unlimited';
-            column.appendChild(settings_button);
+            ok.id = 'btn-hearts-ok';
+            column.appendChild(ok);
+            modal.appendChild(column);
+          },
+        });
+      },
+
+      /**
+       * The Shop: spend Gold on a full set of hearts and on boosters (locked ones show the level they unlock at).
+       * status() returns {gold, hearts, max_hearts, refill_price, items: [{id, name, price, owned, locked_at}]};
+       * actions.buy(id) and actions.refill() return true when the purchase went through.
+       */
+      showShop(status, actions) {
+        return ui.openModal({
+          id: 'shop',
+          back: (handle) => handle.close(),
+          on_close: actions.closed,
+          build(modal, handle) {
+            modal.classList.add('shop');
+            modal.appendChild(iconButton('close', 'Close the shop', () => {
+              clickSound();
+              handle.close();
+            }, 'round small modal-close'));
+            modal.appendChild(glossyHeading('h2', 'Shop', 'modal-title'));
+            const wallet = element('div', 'shop-wallet');
+            const list = element('div', 'shop-list');
+            modal.appendChild(wallet);
+            modal.appendChild(list);
+            modal.appendChild(element('p', 'shop-note', { text: 'Gold comes from new levels won, Gold Crowns, hard levels, treasure, Daily Challenges and the Daily Wheel.' }));
+            const row = (spec) => {
+              const node = element('div', `shop-row${spec.locked ? ' is-locked' : ''}`);
+              node.appendChild(element('span', 'shop-art', { html: spec.art }));
+              const body = element('div', 'shop-body');
+              body.appendChild(element('p', 'shop-name', { text: spec.name }));
+              body.appendChild(element('p', 'shop-detail', { text: spec.detail }));
+              node.appendChild(body);
+              const buy = element('button', 'pill small gold shop-buy', { type: 'button', id: `shop-buy-${spec.id}` });
+              buy.innerHTML = spec.label || `<img src="${SPRITES.iconUrl('gold', 40)}" alt="">${spec.price}`;
+              buy.setAttribute('aria-label', spec.aria);
+              buy.disabled = !!spec.disabled;
+              buy.addEventListener('click', () => {
+                clickSound();
+                if (spec.buy()) {
+                  node.classList.remove('is-bought');
+                  void node.offsetWidth;
+                  node.classList.add('is-bought');
+                  render();
+                }
+              });
+              node.appendChild(buy);
+              return node;
+            };
+            const render = () => {
+              const data = status();
+              wallet.innerHTML = `<img src="${SPRITES.iconUrl('gold', 72)}" alt=""><span id="shop-gold">${data.gold}</span>`;
+              wallet.setAttribute('aria-label', `You have ${data.gold} Gold`);
+              const scroll = modal.scrollTop;
+              list.innerHTML = '';
+              const full = data.hearts >= data.max_hearts;
+              list.appendChild(row({
+                id: 'hearts', art: `<img src="${SPRITES.iconUrl('heart', 96)}" alt="">`, name: 'Full hearts',
+                detail: full ? 'Your hearts are full' : `Fill up all ${data.max_hearts} now (you have ${data.hearts})`,
+                price: data.refill_price, disabled: full, label: full ? 'Full' : '',
+                aria: full ? 'Hearts are full' : `Refill hearts for ${data.refill_price} Gold`, buy: () => actions.refill(),
+              }));
+              data.items.forEach((item) => {
+                list.appendChild(row({
+                  id: item.id, art: unlockArt(item.id), name: item.name, locked: item.locked_at > 0,
+                  detail: item.locked_at > 0 ? `Unlocks at level ${item.locked_at}` : `You have ${item.owned}`,
+                  price: item.price, label: item.locked_at > 0 ? `${icon('lock')}<span>${item.locked_at}</span>` : '',
+                  aria: item.locked_at > 0 ? `${item.name}, unlocks at level ${item.locked_at}` : `Buy a ${item.name} for ${item.price} Gold (you have ${item.owned})`,
+                  buy: () => actions.buy(item.id),
+                }));
+              });
+              modal.scrollTop = scroll;
+            };
+            render();
+          },
+        });
+      },
+
+      /** The player's progress card (tap the avatar on the map): levels, stars, crowns and the Sweet Streak. */
+      showProfile(data, actions) {
+        return ui.openModal({
+          id: 'profile',
+          back: (handle) => handle.close(),
+          build(modal, handle) {
+            modal.classList.add('profile');
+            modal.appendChild(iconButton('close', 'Close', () => {
+              clickSound();
+              handle.close();
+            }, 'round small modal-close'));
+            const face = element('div', 'avatar-face profile-face');
+            fillAvatar(face, data.avatar);
+            modal.appendChild(face);
+            modal.appendChild(glossyHeading('h2', data.name || 'Sweet Player', 'modal-title'));
+            const stats = element('div', 'profile-stats');
+            const stat = (value, label, art) => {
+              const cell = element('div', 'profile-stat');
+              cell.appendChild(element('span', 'profile-stat-art', { html: art }));
+              cell.appendChild(element('strong', '', { text: String(value) }));
+              cell.appendChild(element('span', 'profile-stat-label', { text: label }));
+              stats.appendChild(cell);
+            };
+            stat(data.level, 'Level', icon('map'));
+            stat(data.won, 'Levels won', icon('check'));
+            stat(data.stars, 'Stars', icon('star'));
+            stat(data.crowns, 'Gold Crowns', icon('crown'));
+            if (data.streak !== null) stat(data.streak, 'Sweet Streak', icon('sparkle'));
+            stat(data.gold, 'Gold', `<img src="${SPRITES.iconUrl('gold', 64)}" alt="">`);
+            modal.appendChild(stats);
+            const column = element('div', 'button-column');
+            const edit = button('Edit profile', 'pill', () => {
+              clickSound();
+              handle.close();
+              actions.edit();
+            });
+            edit.id = 'btn-profile-edit';
+            column.appendChild(edit);
             column.appendChild(button('OK', 'pill secondary', () => {
               clickSound();
               handle.close();
@@ -1181,7 +1331,7 @@
                 ctx.font = '800 11px system-ui, Roboto, sans-serif';
                 ctx.textAlign = flipped ? 'left' : 'right';
                 ctx.textBaseline = 'middle';
-                ctx.fillText(segment.kind === 'gold' ? `${segment.amount} drops` : segment.kind === 'heart' ? '1 heart' : segment.label, flipped ? -(radius - 10) : radius - 10, 0);
+                ctx.fillText(segment.kind === 'gold' ? `${segment.amount} gold` : segment.kind === 'heart' ? '1 heart' : segment.label, flipped ? -(radius - 10) : radius - 10, 0);
                 ctx.restore();
               });
               ctx.strokeStyle = '#3b1a4a';
@@ -1350,14 +1500,14 @@
         });
       },
 
-      /** Buy a booster (or +5 Moves) with Gold Drops. Resolves true when bought. */
+      /** Buy a booster (or +5 Moves) with Gold. Resolves true when bought. */
       confirmBuy(item, gold) {
         const price = META.PRICES[item];
         if (gold < price) {
-          ui.toast(`You need ${price} Gold Drops (you have ${gold}). Win levels and spin the Daily Wheel for more!`);
+          ui.toast(`You need ${price} Gold (you have ${gold}). Win new levels and finish Daily Challenges for more!`);
           return Promise.resolve(false);
         }
-        return ui.confirm({ id: 'confirm-buy', title: `Get ${META.BOOSTER_NAMES[item] || '+5 Moves'}?`, text: `${price} Gold Drops (you have ${gold}).`, yes: 'Buy', no: 'Not now' });
+        return ui.confirm({ id: 'confirm-buy', title: `Get ${META.BOOSTER_NAMES[item] || '+5 Moves'}?`, text: `${price} Gold (you have ${gold}).`, yes: 'Buy', no: 'Not now' });
       },
 
       showGoTo(max_level, actions) {
@@ -1442,7 +1592,29 @@
               handle.close();
             }, 'round small modal-close'));
             modal.appendChild(glossyHeading('h2', 'Settings', 'modal-title'));
-            const section = (title) => modal.appendChild(element('h3', '', { text: title }));
+            // Like the original: the four things people switch most, as big round buttons at the top.
+            const quick = element('div', 'big-toggles', { role: 'group', 'aria-label': 'Sound and vibration' });
+            [['music_on', 'Music', 'music'], ['sound_on', 'Sounds', 'sound'], ['voice_on', 'Voice', 'voice'], ['haptics', 'Vibration', 'vibrate']].forEach(([key, label, glyph]) => {
+              const tile = element('div', 'big-toggle');
+              const toggle = element('button', 'big-toggle-button', { type: 'button', role: 'switch', 'aria-checked': String(!!settings[key]), 'aria-label': label, id: `toggle-${key}` });
+              toggle.innerHTML = `${icon(glyph)}<span class="big-toggle-slash" aria-hidden="true"></span>`;
+              toggle.addEventListener('click', () => {
+                const next = toggle.getAttribute('aria-checked') !== 'true';
+                toggle.setAttribute('aria-checked', String(next));
+                actions.change(key, next);
+                clickSound();
+              });
+              tile.appendChild(toggle);
+              tile.appendChild(element('span', 'big-toggle-label', { text: label }));
+              quick.appendChild(tile);
+            });
+            modal.appendChild(quick);
+            let card = modal;
+            const section = (title) => {
+              card = element('section', 'settings-card');
+              card.appendChild(element('h3', '', { text: title }));
+              modal.appendChild(card);
+            };
             const toggleRow = (label, key, value) => {
               const row = element('div', 'setting-row');
               const toggle_id = `toggle-${key}`;
@@ -1455,7 +1627,7 @@
                 clickSound();
               });
               row.appendChild(toggle);
-              modal.appendChild(row);
+              card.appendChild(row);
             };
             const sliderRow = (label, key, value, minimum) => {
               const row = element('div', 'setting-row');
@@ -1463,7 +1635,7 @@
               const slider = element('input', '', { type: 'range', min: String(minimum || 0), max: '1', step: '0.05', value: String(value), id: `slider-${key}`, 'aria-label': label });
               slider.addEventListener('input', () => actions.change(key, parseFloat(slider.value)));
               row.appendChild(slider);
-              modal.appendChild(row);
+              card.appendChild(row);
             };
             const choiceRow = (label, key, value, options) => {
               const row = element('div', 'setting-row is-choice');
@@ -1479,26 +1651,20 @@
                 group.appendChild(option);
               });
               row.appendChild(group);
-              modal.appendChild(row);
+              card.appendChild(row);
             };
-            section('Sound');
-            toggleRow('Sound effects', 'sound_on', settings.sound_on);
-            toggleRow('Music', 'music_on', settings.music_on);
-            sliderRow('Overall volume', 'master_volume', settings.master_volume);
-            sliderRow('Effects volume', 'effects_volume', settings.effects_volume);
-            sliderRow('Music volume', 'music_volume', settings.music_volume);
-            toggleRow('Soft Sounds (extra gentle)', 'soft_sounds', settings.soft_sounds);
-            const check = button('Sound Check', 'pill secondary', () => actions.soundCheck());
-            check.id = 'btn-sound-check';
-            modal.appendChild(check);
-            section('Play');
+            const stackRow = (label, control) => {
+              const row = element('div', 'setting-row is-stacked');
+              row.appendChild(element('label', '', { text: label, for: control.id }));
+              row.appendChild(control);
+              card.appendChild(row);
+            };
+            section('Game');
             choiceRow('Auto hint', 'auto_hint', settings.auto_hint, [['3s', '3 s'], ['5s', '5 s'], ['8s', '8 s'], ['off', 'Off']]);
             choiceRow('Animation speed', 'animation_speed', settings.animation_speed, [['normal', 'Normal'], ['snappy', 'Snappy'], ['fast', 'Fast']]);
-            toggleRow('Unlimited hearts', 'unlimited_hearts', settings.unlimited_hearts);
-            toggleRow('Haptics (vibration)', 'haptics', settings.haptics);
-            toggleRow('Reduced motion', 'reduced_motion', settings.reduced_motion);
             toggleRow('Color-blind assist', 'colorblind', settings.colorblind);
-            section('Candy material');
+            toggleRow('Reduced motion', 'reduced_motion', settings.reduced_motion);
+            section('Candy look');
             const themes = element('div', 'choice-grid', { role: 'radiogroup', 'aria-label': 'Candy material' });
             CONFIG.THEMES.forEach((theme) => {
               const choice = element('button', 'choice', { type: 'button', role: 'radio', 'aria-checked': String(settings.theme === theme.id), 'aria-label': theme.name, 'data-theme': theme.id });
@@ -1510,8 +1676,8 @@
               });
               themes.appendChild(choice);
             });
-            modal.appendChild(themes);
-            section('Colors');
+            card.appendChild(themes);
+            card.appendChild(element('span', 'setting-label', { text: 'Colors' }));
             const swatches = element('div', 'swatch-grid', { role: 'radiogroup', 'aria-label': 'Accent palette' });
             CONFIG.ACCENTS.forEach((accent) => {
               const swatch = element('button', 'swatch', { type: 'button', role: 'radio', 'aria-checked': String(settings.accent === accent.id), 'aria-label': accent.name, 'data-accent': accent.id });
@@ -1524,19 +1690,13 @@
               });
               swatches.appendChild(swatch);
             });
-            modal.appendChild(swatches);
-            section('Make it mine');
-            const stackRow = (label, control) => {
-              const row = element('div', 'setting-row is-stacked');
-              row.appendChild(element('label', '', { text: label, for: control.id }));
-              row.appendChild(control);
-              modal.appendChild(row);
-            };
+            card.appendChild(swatches);
+            section('Profile');
             const name_input = element('input', 'text-input', { type: 'text', maxlength: '16', value: player.name || '', id: 'settings-name', placeholder: 'Your name', autocomplete: 'off' });
             name_input.addEventListener('change', () => actions.change('player_name', name_input.value));
             stackRow('Player name', name_input);
             const photo_row = element('div', 'setting-row is-stacked');
-            photo_row.appendChild(element('label', '', { text: 'Background photo (stays on this phone)' }));
+            photo_row.appendChild(element('label', '', { text: 'Your photo: your avatar and the background (stays on this phone)' }));
             const preview = element('div', 'photo-preview', { text: player.photo ? '' : 'No photo yet' });
             if (player.photo) preview.style.backgroundImage = `url("${player.photo}")`;
             photo_row.appendChild(preview);
@@ -1559,29 +1719,39 @@
               preview.textContent = 'No photo yet';
             }));
             photo_row.appendChild(photo_buttons);
-            modal.appendChild(photo_row);
+            card.appendChild(photo_row);
             sliderRow('Photo brightness', 'photo_brightness', settings.photo_brightness, 0.2);
             const message_input = element('input', 'text-input', { type: 'text', maxlength: '80', value: settings.win_message || '', id: 'settings-message', placeholder: 'e.g. You are amazing!', autocomplete: 'off' });
             message_input.addEventListener('change', () => actions.change('win_message', message_input.value));
             stackRow('Level-complete message (optional)', message_input);
-            section('Extras');
+            section('Sound mixer');
+            sliderRow('Overall volume', 'master_volume', settings.master_volume);
+            sliderRow('Effects volume', 'effects_volume', settings.effects_volume);
+            sliderRow('Music volume', 'music_volume', settings.music_volume);
+            toggleRow('Soft Sounds (extra gentle)', 'soft_sounds', settings.soft_sounds);
+            const check = button('Sound Check', 'pill secondary', () => actions.soundCheck());
+            check.id = 'btn-sound-check';
+            card.appendChild(check);
+            section('Help');
+            const help_buttons = element('div', 'button-column');
+            help_buttons.appendChild(button('How to play', 'pill', () => {
+              clickSound();
+              actions.help();
+            }));
             const self_test = button('Run self-test', 'pill secondary', () => {
               clickSound();
               actions.selfTest();
             });
             self_test.id = 'btn-self-test';
-            modal.appendChild(self_test);
-            modal.appendChild(button('How to play', 'pill secondary', () => {
-              clickSound();
-              actions.help();
-            }));
+            help_buttons.appendChild(self_test);
             const reset = button('Reset progress', 'pill danger', () => {
               clickSound();
               actions.reset();
             });
             reset.id = 'btn-reset';
-            modal.appendChild(reset);
-            modal.appendChild(element('p', 'help-footer', { text: `${CONFIG.GAME_TITLE} v${CONFIG.VERSION}. Everything is stored only on this device.` }));
+            help_buttons.appendChild(reset);
+            card.appendChild(help_buttons);
+            card.appendChild(element('p', 'help-footer', { text: `${CONFIG.GAME_TITLE} v${CONFIG.VERSION}. Everything is stored only on this device.` }));
           },
         });
       },
@@ -1652,7 +1822,7 @@
               ['Sugar Party', 'One blast over the whole board'],
               ['Lucky / Rainbow / Head Start', 'Begin with specials, a Color Bomb, or +3 moves'],
               ['Hearts', 'A loss costs one; one refills every 30 minutes (or turn on Unlimited hearts)'],
-              ['Gold Drops', 'Earned from wins, crowns, hard levels, treasure, the Daily Wheel and Star Chests'],
+              ['Gold', 'A few bars for every new level won (more for crowns and hard levels), treasure, Daily Challenges and the Daily Wheel. Spend it in the Shop.'],
             ]);
             modal.appendChild(element('h3', '', { text: 'Stars, crowns and mastery' }));
             table([

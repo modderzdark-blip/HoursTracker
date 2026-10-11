@@ -83,7 +83,7 @@ test('guided lessons: the hand shows the swap, the board dims around it, only th
   H.expectClean(problems);
 });
 
-test('a loss offers +5 Moves for Gold Drops; giving up costs a heart; Try again restarts', async ({ page }) => {
+test('a loss offers +5 Moves for Gold; giving up costs a heart; Try again restarts', async ({ page }) => {
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });
   await page.evaluate(() => window.SC.game.startLevel(10));
@@ -117,19 +117,26 @@ test('a loss offers +5 Moves for Gold Drops; giving up costs a heart; Try again 
   H.expectClean(problems);
 });
 
-test('hearts: out of hearts shows a countdown and the Unlimited hearts shortcut; the clock moving back gives none', async ({ page }) => {
+test('hearts: out of hearts shows a countdown, a refill for Gold only when affordable; no unlimited hearts', async ({ page }) => {
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });
-  await H.seedSave(page, { unlocked: 3, stars_upto: 2, meta: { hearts: 0, hearts_clock: Date.now(), last_seen: Date.now() } });
+  await H.seedSave(page, { unlocked: 3, stars_upto: 2, meta: { hearts: 0, hearts_clock: Date.now(), last_seen: Date.now(), gold: 10 } });
   await page.click('#btn-play');
   await H.waitState(page, 'MAP');
   await expect(page.locator('#map-hearts-count')).toHaveText('0');
   await page.click('.map-node[data-level-id="3"]', { force: true });
   await H.waitForModal(page, 'hearts');
   await expect(page.locator('#hearts-countdown')).toContainText('Next heart in');
-  await page.click('#btn-hearts-unlimited');
-  await expect.poll(() => page.evaluate(() => window.SC.game.store.save.settings.unlimited_hearts)).toBe(true);
-  await expect(page.locator('#map-hearts-count')).toHaveText('∞');
+  await expect(page.locator('#btn-hearts-refill')).toHaveCount(0);
+  await expect(page.locator('[data-modal="hearts"]')).toContainText('40 Gold');
+  await page.click('#btn-hearts-ok');
+  expect(await page.evaluate(() => window.SC.game.store.save.settings.unlimited_hearts)).toBeUndefined();
+  await page.evaluate(() => { window.SC.game.store.save.meta.gold = 55; });
+  await page.click('.map-node[data-level-id="3"]', { force: true });
+  await H.waitForModal(page, 'hearts');
+  await page.click('#btn-hearts-refill');
+  await expect(page.locator('#map-hearts-count')).toHaveText('5');
+  expect(await page.evaluate(() => window.SC.game.store.save.meta.gold)).toBe(15);
   await page.click('.map-node[data-level-id="3"]', { force: true });
   await H.waitForModal(page, 'intro');
   H.expectClean(problems);
@@ -452,7 +459,7 @@ test('the map handles 20,000 levels: at most 60 live nodes from level 1 to 19,00
   H.expectClean(problems);
 });
 
-test('Daily Wheel spins once per day; Star Chest opens at 25 stars', async ({ page }) => {
+test('Daily Wheel spins once per day; the Shop sells boosters for Gold; the avatar opens your progress', async ({ page }) => {
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });
   await H.seedSave(page, { unlocked: 21, stars_upto: 20 });
@@ -469,11 +476,36 @@ test('Daily Wheel spins once per day; Star Chest opens at 25 stars', async ({ pa
   await H.waitForModal(page, 'wheel');
   await expect(page.locator('#btn-wheel-spin').last()).toBeDisabled();
   await page.evaluate(() => window.SC.game.handleBack());
-  const stars = await page.evaluate(() => window.SC.STORAGE.totalStars(window.SC.game.store.save));
-  expect(stars).toBeGreaterThanOrEqual(25);
-  await page.click('#btn-map-chest');
-  await H.waitForModal(page, 'reward');
-  await expect(page.locator('[data-modal="reward"]')).toContainText('Star Chest');
+  await expect(page.locator('#btn-map-chest')).toHaveCount(0);
+  // The Shop: Gold buys a booster that is unlocked; a locked one only says when it unlocks.
+  await page.evaluate(() => { window.SC.game.store.save.meta.gold = 100; });
+  await page.click('#btn-map-shop');
+  await H.waitForModal(page, 'shop');
+  await expect(page.locator('#shop-gold')).toHaveText('100');
+  const hammers = await page.evaluate(() => window.SC.game.store.save.meta.boosters.hammer);
+  await page.click('#shop-buy-hammer');
+  await expect(page.locator('#shop-gold')).toHaveText('40');
+  expect(await page.evaluate(() => window.SC.game.store.save.meta.boosters.hammer)).toBe(hammers + 1);
+  await page.click('#shop-buy-party');
+  expect(await page.evaluate(() => window.SC.game.store.save.meta.gold)).toBe(40);
+  await page.evaluate(() => window.SC.game.handleBack());
+  await expect(page.locator('#map-gold-count')).toHaveText('40');
+  await page.click('#map-avatar');
+  await H.waitForModal(page, 'profile');
+  await expect(page.locator('[data-modal="profile"]')).toContainText('Levels won');
+  H.expectClean(problems);
+});
+
+test('the announcer: its voice clips load after the first tap, praise words are our own, and Settings → Voice turns it off', async ({ page }) => {
+  const problems = H.guardPage(page);
+  await H.bootGame(page, { name: '' });
+  await page.mouse.click(195, 420);
+  await expect.poll(async () => (await H.snapshot(page)).audio.voice_clips, { timeout: 15000 }).toBe(6);
+  expect(await page.evaluate(() => Object.values(window.SC.CONFIG.CASCADE_BANNERS))).toEqual(['Sweet!', 'Yummy!', 'Scrumptious!', 'Sensational!']);
+  expect(await page.evaluate(() => window.SC.game.audio.say('sweet'))).toBe(true);
+  await page.evaluate(() => window.SC.game.changeSetting('voice_on', false));
+  expect(await page.evaluate(() => window.SC.game.audio.say('sweet'))).toBe(false);
+  expect((await H.snapshot(page)).audio.voice_on).toBe(false);
   H.expectClean(problems);
 });
 
@@ -770,11 +802,9 @@ test('after a win, Next level goes to the map, the marker hops to the new level 
   await expect(page.locator('.map-node[data-level-id="1"]')).not.toHaveClass(/is-current/);
   const marker = await page.locator('.map-marker').boundingBox();
   const node = await page.locator('.map-node[data-level-id="2"]').boundingBox();
-  // The avatar stands right beside the new level (above it, on the side away from where the road goes next).
-  const beside = Math.abs(marker.x + marker.width / 2 - (node.x + node.width / 2));
-  expect(beside).toBeGreaterThan(30);
-  expect(beside).toBeLessThan(50);
-  expect(marker.y + marker.height / 2).toBeLessThan(node.y + node.height / 2);
+  // The avatar's pin floats right above the new level, pointing down at it.
+  expect(Math.abs(marker.x + marker.width / 2 - (node.x + node.width / 2))).toBeLessThan(6);
+  expect(marker.y + marker.height).toBeLessThan(node.y + node.height / 2);
   await page.click('#btn-intro-play');
   await H.waitState(page, 'PLAYING');
   expect((await H.snapshot(page)).level).toBe(2);

@@ -1,9 +1,10 @@
 // META: the offline meta game, as pure functions over save.meta (no DOM, no real clock: callers pass `now`).
-// Hearts (5, one refills every 30 minutes, guarded against the clock moving backwards), Gold Drops, booster inventory and
+// Hearts (5, one refills every 30 minutes, guarded against the clock moving backwards), Gold, booster inventory and
 // prices, the progression (boosters and features unlock one by one as the player advances, each booster with a few free),
 // the Sweet Streak (new levels won on the first try in a row start the next new level with special candies), episode
-// rewards, the Daily Wheel (one spin per local day), the Star Chest (every 25 new stars), win rewards, and the auto-hint
-// scheduler. Nothing here can be bought with money.
+// rewards, the Daily Wheel (one spin per local day), win rewards, and the auto-hint scheduler. Gold is scarce, like the
+// original's: a few bars per new level, so +5 Moves, boosters and a heart refill are worth saving for. Nothing here can
+// be bought with money.
 (function attachMeta(root) {
   'use strict';
   const SC = root.SC || (root.SC = {});
@@ -11,7 +12,7 @@
 
   const MAX_HEARTS = 5;
   const HEART_REFILL_MS = 30 * 60 * 1000;
-  const CHEST_STARS = 25;
+  const HEART_REFILL_PRICE = 40;
   const PRICES = Object.freeze({ hammer: 60, free_swap: 40, whirl: 30, brush: 50, party: 120, lucky: 50, rainbow: 80, head_start: 40, plus_five: 60 });
   // Each further +5 Moves in the same attempt costs more (the original's continues climb the same way).
   const CONTINUE_PRICES = Object.freeze([60, 90, 140, 190, 240]);
@@ -29,7 +30,6 @@
     { id: 'wheel', kind: 'feature', level: 12, title: 'Daily Wheel', text: 'Spin the wheel once a day for a free gift.' },
     { id: 'free_swap', kind: 'booster', level: 16, gift: 3, title: 'Free Swap', text: 'Swap any two neighbouring candies, even without a match. No move used.' },
     { id: 'daily', kind: 'feature', level: 18, title: 'Daily Challenges', text: 'Three new challenges every day. Finish each one for a gift, and all three for a bonus box!' },
-    { id: 'chest', kind: 'feature', level: 20, title: 'Star Chest', text: 'Every 25 stars you earn fill the chest with a gift.' },
     { id: 'lucky', kind: 'booster', level: 22, gift: 2, title: 'Lucky Start', text: 'Start a level with a striped and a wrapped candy on the board.' },
     { id: 'streak', kind: 'feature', level: 25, title: 'Sweet Streak', text: 'Win new levels on the first try, one after another: each win puts more special candies on your next new level. Losing a level ends the streak.' },
     { id: 'whirl', kind: 'booster', level: 28, gift: 3, title: 'Candy Whirl', text: 'Stuck? Mix up the whole board. No move used.' },
@@ -49,21 +49,14 @@
     Object.freeze({ striped: 2, wrapped: 2, bomb: 1, moves: 3 }),
   ]);
   const WHEEL = Object.freeze([
-    { kind: 'gold', amount: 25, label: '25 Gold Drops' },
+    { kind: 'gold', amount: 5, label: '5 Gold' },
     { kind: 'booster', booster: 'hammer', label: 'Sweet Hammer' },
-    { kind: 'gold', amount: 50, label: '50 Gold Drops' },
+    { kind: 'gold', amount: 10, label: '10 Gold' },
     { kind: 'booster', booster: 'lucky', label: 'Lucky Start' },
     { kind: 'heart', label: 'A heart' },
     { kind: 'booster', booster: 'free_swap', label: 'Free Swap' },
-    { kind: 'gold', amount: 100, label: '100 Gold Drops' },
+    { kind: 'gold', amount: 20, label: '20 Gold' },
     { kind: 'booster', booster: 'rainbow', label: 'Rainbow Start' },
-  ]);
-  const CHEST = Object.freeze([
-    { kind: 'gold', amount: 80, label: '80 Gold Drops' },
-    { kind: 'gold', amount: 150, label: '150 Gold Drops' },
-    { kind: 'booster', booster: 'whirl', amount: 2, label: '2 Candy Whirls' },
-    { kind: 'booster', booster: 'hammer', amount: 2, label: '2 Sweet Hammers' },
-    { kind: 'booster', booster: 'rainbow', amount: 1, label: 'Rainbow Start' },
   ]);
 
   // ---------------------------------------------------------------- hearts
@@ -99,20 +92,14 @@
     return Math.max(0, HEART_REFILL_MS - Math.max(0, now - meta.hearts_clock));
   }
 
-  function heartsEnabled(settings) {
-    return !(settings && settings.unlimited_hearts);
-  }
-
-  /** Whether a level may start: hearts off, or at least one heart. */
+  /** Whether a level may start: at least one heart. */
   function canPlay(save, now) {
-    if (!heartsEnabled(save.settings)) return true;
     refreshHearts(save.meta, now);
     return save.meta.hearts > 0;
   }
 
-  /** A loss (or restart, or quit) costs one heart when hearts are on. Returns true when a heart was spent. */
+  /** A loss (or restart, or quit) costs one heart. Returns true when a heart was spent. */
   function spendHeart(save, now) {
-    if (!heartsEnabled(save.settings)) return false;
     const meta = refreshHearts(save.meta, now);
     if (meta.hearts <= 0) return false;
     if (meta.hearts >= MAX_HEARTS) meta.hearts_clock = now;
@@ -126,7 +113,17 @@
     if (meta.hearts >= MAX_HEARTS) meta.hearts_clock = now;
   }
 
-  // ---------------------------------------------------------------- Gold Drops and boosters
+  /** Fills the hearts up for HEART_REFILL_PRICE Gold (the shop). False when they are full or the Gold is short. */
+  function refillHearts(meta, now) {
+    refreshHearts(meta, now);
+    if (meta.hearts >= MAX_HEARTS || meta.gold < HEART_REFILL_PRICE) return false;
+    meta.gold -= HEART_REFILL_PRICE;
+    meta.hearts = MAX_HEARTS;
+    meta.hearts_clock = now;
+    return true;
+  }
+
+  // ---------------------------------------------------------------- Gold and boosters
 
   function boosterCount(meta, booster) {
     return meta.boosters[booster] || 0;
@@ -139,7 +136,7 @@
     return true;
   }
 
-  /** Buys one booster (or +5 Moves, booster 'plus_five', which is used at once) for Gold Drops. */
+  /** Buys one booster (or +5 Moves, booster 'plus_five', which is used at once) for Gold. */
   function buy(meta, item) {
     const price = PRICES[item];
     if (!price || meta.gold < price) return false;
@@ -190,7 +187,7 @@
   }
 
   // Beating a Hard or Super Hard level for the first time pays a bonus (the original fills its rewards faster there too).
-  const HARD_BONUS = Object.freeze({ hard: 20, superhard: 50 });
+  const HARD_BONUS = Object.freeze({ hard: 5, superhard: 10 });
 
   // Treasure on the map: every 5th level (except episode finales, which have their own reward) holds a chest that opens
   // when the level is beaten for the first time.
@@ -200,12 +197,12 @@
     return level_id % TREASURE_EVERY === 0 && level_id % 15 !== 0;
   }
 
-  /** The chest on level n: Gold Drops and boosters in turn (a booster only once one is unlocked). */
+  /** The chest on level n: Gold and boosters in turn (a booster only once one is unlocked). */
   function treasureReward(meta, level_id, reached_level) {
     if (!treasureAt(level_id)) return null;
     const turn = Math.floor(level_id / TREASURE_EVERY);
     const boosters = IN_LEVEL.filter((booster) => isUnlocked(meta, reached_level, booster));
-    if (turn % 2 === 1 || boosters.length === 0) return { gold: 30 + 10 * Math.min(5, Math.floor(level_id / 30)) };
+    if (turn % 2 === 1 || boosters.length === 0) return { gold: 8 + 2 * Math.min(5, Math.floor(level_id / 30)) };
     return { booster: boosters[Math.floor(turn / 2) % boosters.length], amount: 1 };
   }
 
@@ -214,10 +211,10 @@
     return STREAK_BAGS[Math.min(STREAK_MAX, Math.max(0, streak || 0))] || null;
   }
 
-  /** Episode completion reward: Gold Drops growing with the episode, plus one of the unlocked in-level boosters. */
+  /** Episode completion reward: Gold growing with the episode, plus one of the unlocked in-level boosters. */
   function episodeReward(meta, episode, reached_level) {
     const boosters = IN_LEVEL.filter((booster) => isUnlocked(meta, reached_level, booster));
-    return { gold: 40 + 10 * Math.min(6, episode), booster: boosters.length ? boosters[(episode - 1) % boosters.length] : null };
+    return { gold: 10 + 2 * Math.min(5, episode), booster: boosters.length ? boosters[(episode - 1) % boosters.length] : null };
   }
 
   /** Gives an episode's completion reward once; returns it, or null when it was given before. */
@@ -266,7 +263,7 @@
     { kind: 'jelly', range: [25, 45], text: (n) => `Clear ${n} jelly` },
     { kind: 'blockers', range: [20, 40], text: (n) => `Break ${n} blockers` },
     { kind: 'candies', range: [30, 50], scale: 10, text: (n) => `Clear ${n} candies` },
-    { kind: 'cascade', range: [3, 6], text: (n) => `Get "Delicious!" or better ${n} times` },
+    { kind: 'cascade', range: [3, 6], text: (n) => `Get "Scrumptious!" or better ${n} times` },
     { kind: 'first_try', range: [1, 1], text: () => 'Win a level on the first try' },
   ]);
   const DAILY_SLOTS = 3;
@@ -293,16 +290,16 @@
     const rng = dayRng(day, 5);
     const booster = boosters.length ? boosters[Math.floor(rng() * boosters.length)] : null;
     return [
-      { kind: 'gold', amount: 25, label: '25 Gold Drops' },
-      booster ? { kind: 'booster', booster, label: BOOSTER_NAMES[booster] } : { kind: 'gold', amount: 40, label: '40 Gold Drops' },
-      { kind: 'gold', amount: 50, label: '50 Gold Drops' },
+      { kind: 'gold', amount: 5, label: '5 Gold' },
+      booster ? { kind: 'booster', booster, label: BOOSTER_NAMES[booster] } : { kind: 'gold', amount: 8, label: '8 Gold' },
+      { kind: 'gold', amount: 10, label: '10 Gold' },
     ];
   }
 
   function dailyBonus(meta, reached_level, day) {
     const boosters = IN_LEVEL.filter((booster) => isUnlocked(meta, reached_level, booster));
     const booster = boosters.length ? boosters[Math.floor(dayRng(day, 9)() * boosters.length)] : null;
-    return { gold: 80, booster, label: booster ? `80 Gold Drops and a ${BOOSTER_NAMES[booster]}` : '80 Gold Drops' };
+    return { gold: 15, booster, label: booster ? `15 Gold and a ${BOOSTER_NAMES[booster]}` : '15 Gold' };
   }
 
   /** Starts a fresh set of challenges when the local day changed. */
@@ -361,20 +358,21 @@
     return reward;
   }
 
-  // ---------------------------------------------------------------- results: streak, stars, chest
+  // ---------------------------------------------------------------- results: streak and rewards
 
   /**
    * Applies a finished level to the meta game. outcome: {won, new_stars, crown, mastery, new_level, streak_on, role,
    * level_id} (new_stars = stars above the previous best; crown = won on the very first attempt; mastery = a crown with
    * 5+ moves left; new_level = not won before; streak_on = the Sweet Streak is unlocked). Replays never touch the
-   * streak, and the hard-level bonus and map treasure pay only on the first win.
-   * Returns { gold, hard_bonus, treasure, streak, streak_lost, chest_ready } (gold includes the bonus and treasure gold).
+   * streak, and the hard-level bonus and map treasure pay only on the first win. Gold: 1 per new star, 2 for a new level,
+   * 2 for a Gold Crown, 3 for Sweet Mastery (a replay without new stars pays nothing).
+   * Returns { gold, hard_bonus, treasure, streak, streak_lost } (gold includes the bonus and treasure gold).
    */
-  function recordOutcome(save, outcome, total_stars) {
+  function recordOutcome(save, outcome) {
     const meta = save.meta;
-    const rewards = { gold: 0, hard_bonus: 0, treasure: null, streak: meta.streak, streak_lost: 0, chest_ready: false };
+    const rewards = { gold: 0, hard_bonus: 0, treasure: null, streak: meta.streak, streak_lost: 0 };
     if (outcome.won) {
-      rewards.gold = 5 + 10 * Math.max(0, outcome.new_stars || 0) + (outcome.crown ? 5 : 0) + (outcome.mastery ? 10 : 0);
+      rewards.gold = Math.max(0, outcome.new_stars || 0) + (outcome.new_level ? 2 : 0) + (outcome.crown ? 2 : 0) + (outcome.mastery ? 3 : 0);
       if (outcome.new_level) {
         rewards.hard_bonus = HARD_BONUS[outcome.role] || 0;
         rewards.gold += rewards.hard_bonus;
@@ -389,24 +387,7 @@
       meta.streak = 0;
     }
     rewards.streak = meta.streak;
-    rewards.chest_ready = chestReady(meta, total_stars);
     return rewards;
-  }
-
-  function chestReady(meta, total_stars) {
-    return total_stars - meta.chest_claimed >= CHEST_STARS;
-  }
-
-  function chestProgress(meta, total_stars) {
-    return Math.min(CHEST_STARS, Math.max(0, total_stars - meta.chest_claimed));
-  }
-
-  /** Opens the Star Chest when 25 new stars are in; the prize is seeded by how many chests were opened. */
-  function openChest(meta, total_stars, now) {
-    if (!chestReady(meta, total_stars)) return null;
-    meta.chest_claimed += CHEST_STARS;
-    const rng = UTIL.createRng(meta.chest_claimed * 977 + 3);
-    return applyReward(meta, CHEST[Math.floor(rng() * CHEST.length)], now);
   }
 
   // ---------------------------------------------------------------- auto-hint scheduler
@@ -454,11 +435,11 @@
   }
 
   const META = {
-    MAX_HEARTS, HEART_REFILL_MS, CHEST_STARS, PRICES, CONTINUE_PRICES, BOOSTER_NAMES, WHEEL, CHEST, UNLOCKS, STREAK_MAX, STREAK_BAGS,
-    refreshHearts, nextHeartIn, heartsEnabled, canPlay, spendHeart, grantHearts, boosterCount, useBooster, buy, applyReward,
+    MAX_HEARTS, HEART_REFILL_MS, HEART_REFILL_PRICE, PRICES, CONTINUE_PRICES, BOOSTER_NAMES, IN_LEVEL, WHEEL, UNLOCKS, STREAK_MAX, STREAK_BAGS,
+    refreshHearts, nextHeartIn, canPlay, spendHeart, grantHearts, refillHearts, boosterCount, useBooster, buy, applyReward,
     continuePrice, unlockOf, isUnlocked, pendingUnlocks, announceUnlock, streakBag, episodeReward, claimEpisode,
     HARD_BONUS, TREASURE_EVERY, treasureAt, treasureReward,
-    localDay, canSpin, spinWheel, recordOutcome, chestReady, chestProgress, openChest, createHintScheduler,
+    localDay, canSpin, spinWheel, recordOutcome, createHintScheduler,
     DAILY_KINDS, dailyQuests, refreshDaily, trackDaily, dailyStatus, claimDaily, claimDailyBonus,
   };
   SC.META = META;

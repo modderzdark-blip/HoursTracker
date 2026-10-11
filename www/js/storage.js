@@ -25,7 +25,7 @@
   const MAX_NAME_LENGTH = 16;
   const MAX_MESSAGE_LENGTH = 80;
   // Everything a v4 (or older) save already had from the start: those players keep it unlocked without a new popup.
-  const LEGACY_UNLOCKS = Object.freeze(['hammer', 'free_swap', 'whirl', 'lucky', 'rainbow', 'head_start', 'wheel', 'chest']);
+  const LEGACY_UNLOCKS = Object.freeze(['hammer', 'free_swap', 'whirl', 'lucky', 'rainbow', 'head_start', 'wheel']);
   const UNLOCK_IDS = Object.freeze(LEGACY_UNLOCKS.concat(['streak', 'brush', 'party', 'daily']));
 
   function defaultSettings() {
@@ -36,12 +36,12 @@
       effects_volume: 0.8,
       music_volume: 0.55,
       soft_sounds: false,
+      voice_on: true, // the announcer's voice on great moves
       comfort_done: false, // the first-launch comfort slider has been shown
       haptics: true,
       reduced_motion: false,
       animation_speed: 'snappy',
       auto_hint: '5s',
-      unlimited_hearts: false,
       colorblind: false,
       theme: 'gummy',
       accent: 'bubblegum',
@@ -58,11 +58,10 @@
       hearts: MAX_HEARTS,
       hearts_clock: 0, // when the oldest missing heart started refilling (ms since epoch)
       last_seen: 0, // the latest clock reading ever seen (clock-tamper guard)
-      gold: 100,
+      gold: 60,
       boosters,
       wheel_day: '', // local date of the last Daily Wheel spin (YYYY-MM-DD)
       streak: 0, // Sweet Streak: new levels won on the first try in a row
-      chest_claimed: 0, // total stars when the Star Chest was last opened
       announced: [], // unlocks (boosters and features) already announced, and so usable
       try_booster: '', // a booster just unlocked: the next level points at it once
       episodes_claimed: 0, // episodes whose completion reward has been given
@@ -118,12 +117,12 @@
       effects_volume: clampNumber(raw.effects_volume, 0, 1, defaults.effects_volume),
       music_volume: clampNumber(raw.music_volume, 0, 1, defaults.music_volume),
       soft_sounds: flag('soft_sounds'),
+      voice_on: flag('voice_on'),
       comfort_done: flag('comfort_done'),
       haptics: flag('haptics'),
       reduced_motion: flag('reduced_motion'),
       animation_speed: pickOne(raw.animation_speed, ANIMATION_SPEEDS, defaults.animation_speed),
       auto_hint: pickOne(raw.auto_hint, AUTO_HINT, defaults.auto_hint),
-      unlimited_hearts: flag('unlimited_hearts'),
       colorblind: flag('colorblind'),
       theme: pickOne(raw.theme, THEMES, defaults.theme),
       accent: pickOne(raw.accent, ACCENTS, defaults.accent),
@@ -146,7 +145,6 @@
       boosters,
       wheel_day: typeof raw.wheel_day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.wheel_day) ? raw.wheel_day : '',
       streak: clampInteger(raw.streak, 0, 1e6, 0),
-      chest_claimed: clampInteger(raw.chest_claimed, 0, 3 * MAX_LEVEL, 0),
       in_progress: clampInteger(raw.in_progress, 0, MAX_LEVEL, 0),
       total_attempts: clampInteger(raw.total_attempts, 0, 1e9, 0),
       total_wins: clampInteger(raw.total_wins, 0, 1e9, 0),
@@ -386,7 +384,7 @@
     save.crowns = sanitizeBits(source.crowns);
     save.mastered = sanitizeBits(source.mastered);
     if (legacy || source.version < 5) {
-      // Saves from before v5 had every booster, the wheel and the chest from the start, and no crowns or tries.
+      // Saves from before v5 had every booster and the wheel from the start, and no crowns or tries.
       save.meta.announced = LEGACY_UNLOCKS.slice();
       save.meta.try_booster = '';
       save.meta.streak = 0;

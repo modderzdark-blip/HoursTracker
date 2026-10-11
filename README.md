@@ -43,16 +43,17 @@ The repository is public, so you don't need to sign in to download.
   wrap diffuse, two specular lobes, a studio-window reflection with Fresnel, subsurface glow, theme detail and a contact
   shadow. Three materials (Settings → Theme): **Gummy** (default), **Hard Candy** and **Sugar Sprinkle**. Sprites are
   shaded lazily into a cache sized to the board, so the first special of a level never stalls an animation.
-* **Map:** a round candy world that rolls as you scroll, like the original's newest map: the land near you is big and
-  flat, and further up it curves away over a round horizon into the sky (clouds by day, moon and stars over the night
-  lands), so the next levels rise over the hill as you scroll up. A candy-studded road winds through 12 scenery families
-  (meadows, lollipop forests, deserts, snowfields, lagoons, night groves and more) full of round trees, gumdrops,
-  ponds, houses and balloons that stand upright and shrink with distance, with cloud seams and a ribbon banner between
-  episodes. Levels are glossy round buttons (blue, purple for Hard, red for Super Hard, gold for a crown, pink with a
-  pulsing ring for the current one) with their stars in a smile above. Your avatar sits beside the current level and
-  hops to the next after a win (and then opens its intro by itself), **Jump to my level** and a **Go to level** box.
-  Only the nodes near the screen exist (at most about 60) and only the visible lands are painted, so the map is as
-  light at level 19,000 as at level 1.
+* **Map:** like the original's map today: a wide candy road winds up a round world that rolls as you scroll (the land
+  near you is big and flat, further up it curves over a round horizon into the sky, with clouds by day and moon and stars
+  over the night lands). Big landmarks line the road (caramel towers, candy shops, chocolate stacks, giant lollipops and
+  candy canes) among round trees, gumdrops and ponds across 12 scenery families, with cloud seams and a ribbon banner
+  between episodes. Levels you have won are pink candy discs, first-try wins orange candy balls with a crown, the level
+  to play a big glowing ball, levels ahead pale discs; Hard levels are purple and Super Hard red, with stars in a smile
+  below. Your avatar (your photo, else your initial) floats on a pin above your level and hops to the next after a win.
+  A pink top bar shows hearts, your avatar (tap it for your progress: levels, stars, crowns, Sweet Streak) and Gold; the
+  Daily Wheel waits at the side with its timer; the bottom menu has Map, Daily, Shop and Find (go to any level), and a
+  round button brings you back to your level. Only the nodes near the screen exist (at most about 60) and only the
+  visible lands are painted, so the map is as light at level 19,000 as at level 1.
 * **Mechanics:** jelly (1–2 layers), frosting (1–5 layers), Sugar Cage, Cocoa Creep, Fuse Candy, portals,
   Sugar Belts, cherries and hazelnuts with exit trays, **Taffy Swirl** (falls like a candy but never matches; a match
   beside it or a blast breaks it, and it stops a striped candy's beam), **Gift Box** (falls; opens into a special
@@ -88,7 +89,7 @@ The repository is public, so you don't need to sign in to download.
 * **Stars, crowns and mastery:** meeting the goals is worth 3 stars. A first-try win earns a **Gold Crown**; a first-try
   win with 5 or more moves to spare is **Sweet Mastery** ("Sweet Combo! Mastery on the first try!", a sparkle on the
   map). **Hard** levels are purple and **Super Hard** ones crimson (skull badge on the map, the level popup and the start
-  ribbon); beating one for the first time says so and pays +20 / +50 Gold Drops. Every 5th level (not the episode
+  ribbon); beating one for the first time says so and pays +5 / +10 Gold. Every 5th level (not the episode
   finales, which have their own reward) holds a **treasure chest** on the map that opens on the first win.
 * **Difficulty:** made to grind, like the original (matched to Candy Crush Saga player data: openers passed on about
   62% of tries, ordinary levels 20–45%, hard ones 4–14%, the episode's last level about 4%). Episode 1 is the on-ramp;
@@ -103,20 +104,24 @@ The repository is public, so you don't need to sign in to download.
   colour goal at 60 or fewer and about 3 candies per move at most, and tries another board if it cannot.
 * **Hints:** like the original, a **possible** move (not the best one: planning is up to you) wiggles and glows after a
   few idle seconds. Settings → Auto hint: 3 s, **5 s** (default), 8 s or Off; the bulb button shows one any time.
+* **Jelly** is alive: every tile wobbles like gelatin with a shine sliding across it, jiggles when hit, and splats into
+  flying pink drops with a juicy sound when cleared.
 * **Animations:** candies sit still and only breathe gently (they never hop on their own), ingredients
   bob, swirls sway, popcorn gets jumpier the closer it is to bursting, chests rattle, cocoa bubbles, a mixer
   about to frost shakes, fuses at 3 or less tremble and chocolate drips from fountains; sugar sparkles drift over the
   board. Special candies appear with a turning starburst, blasts push the candies around them, striped beams leave
   sparkles, combos and bursting cakes punch the board in with a flash, every popped candy leaves a ring, and the candies
   and blockers a goal counts fly up to its counter.
-* **Meta game:** Hearts (5, one refills every 30 minutes; Settings → Unlimited hearts turns them off), Gold Drops
-  earned by winning, the boosters Sweet Hammer, Free Swap and Candy Whirl in a level, Lucky Start, Rainbow Start and
-  Head Start before a level, **+5 Moves** (or +15 seconds) when you run out (60, then 90, 140, 190, 240 Gold Drops
-  within one attempt), the Daily Wheel and the Star Chest (every 25 stars). Everything is earned in play; nothing is
-  sold.
+* **Meta game:** Hearts (5; a loss costs one and one refills every 30 minutes, like the original; there are no
+  unlimited hearts). **Gold** (a shiny gold bar) is scarce: a few bars for each new level won (1 per new star, 2 for the
+  win, 2 for a Gold Crown, 3 for Sweet Mastery, 5 / 10 for a Hard / Super Hard level), plus treasure, Daily Challenges
+  (5–15), the Daily Wheel (5–20) and episode rewards; a new player starts with 60. Spend it on **+5 Moves** when you run
+  out (60, then 90, 140, 190, 240 within one attempt) or in the **Shop**: a full set of hearts (40) and every booster
+  (Sweet Hammer, Free Swap, Candy Whirl, Candy Brush and Sugar Party in a level; Lucky Start, Rainbow Start and Head
+  Start before one). Everything is earned in play; nothing is sold for money.
 * **Progression** (paced on the original's first episodes, `META.UNLOCKS`): boosters and features unlock one at a time
   as you advance, with a popup, free boosters and a hand pointer that shows how to use each new booster in the next
-  level: Sweet Hammer at level 7 (3 free), Rainbow Start 10 (2), Daily Wheel 12, Free Swap 16 (3), Star Chest 20, Lucky
+  level: Sweet Hammer at level 7 (3 free), Rainbow Start 10 (2), Daily Wheel 12, Free Swap 16 (3), Lucky
   Start 22 (2), Sweet Streak 25, Candy Whirl 28 (3), Head Start 35 (2), **Candy Brush** 40 (3: paints a candy into a
   striped one), **Sugar Party** 55 (2: one blast over the whole board). Locked pre-level boosters show a lock and their
   level; the level's booster bar shows the boosters unlocked so far.
@@ -124,9 +129,9 @@ The repository is public, so you don't need to sign in to download.
   candies already on the board: 1 striped; then striped + wrapped; then + a Rainbow Drop; then 2 striped, wrapped,
   Rainbow Drop and +2 moves; from 5 wins on, 2 striped, 2 wrapped, a Rainbow Drop and +3 moves. Losing, restarting or
   quitting a new level ends the streak (the game warns you first); replays never count.
-* **Gold Crowns:** a level won on its very first attempt turns gold on the map with a crown (+5 Gold Drops).
+* **Gold Crowns:** a level won on its very first attempt becomes an orange candy ball with a crown on the map (+2 Gold).
 * **Episodes:** clearing an episode's last level for the first time shows the episode's stars and crowns and pays a
-  reward (Gold Drops plus a booster), then the map moves on to the next episode.
+  reward (Gold plus a booster), then the map moves on to the next episode.
 * **Level start and end:** the candies drop onto the board while a ribbon sweeps across with the goals. A win plays
   "Sweet Victory!" ("Hard level beaten!" on a hard one) and then the **Sweet Finale**, like the original's end-of-level
   party: the special candies on the board go off, then each leftover move flies out of the moves counter as a spark,
@@ -135,11 +140,14 @@ The repository is public, so you don't need to sign in to download.
   popup, and giving up cracks a heart.
 * **Daily Challenges** (from level 18): three new challenges every day (win levels, make striped or wrapped candies or
   Color Bombs, swap specials together, clear jelly, break blockers, clear candies, big cascades, a first-try win), each
-  with a reward, and a bonus box for finishing all three. The clipboard button on the map shows how many rewards wait.
-* **Juice:** squash and stretch, gravity falls, pops with particles, beams and shockwaves, cascade banners
-  ("Sweet!", "Tasty!", "Delicious!", "Divine!" … "Sugar Storm!"), confetti, Pip's reactions and haptics. Animation speed: Normal, Snappy (default) or Fast.
-* **Personal touches:** your name on the title and win screen, a background photo picked with the system photo picker
-  (it stays on the phone), accent palettes and a custom level-complete message.
+  with a reward, and a bonus box for finishing all three. The Daily tab on the map shows how many rewards wait.
+* **Juice:** squash and stretch, gravity falls, pops with particles, beams and shockwaves, big praise words for
+  cascades ("Sweet!", "Yummy!", "Scrumptious!", "Sensational!" … "Sugar Storm!", our own words), each **spoken by an
+  announcer's voice** (and "Sweet Finale!" at the end of a level), confetti, Pip's reactions and haptics. Animation speed: Normal, Snappy (default) or Fast.
+* **Settings:** big round switches for Music, Sounds, Voice and Vibration, then Game (auto hint, animation speed,
+  color-blind assist, reduced motion), Candy look (material and colors), Profile, a Sound mixer and Help.
+* **Personal touches:** your name on the title and win screen, your photo (your avatar on the map and the background,
+  picked with the system photo picker; it stays on the phone), accent palettes and a custom level-complete message.
 * **Accessibility:** color-blind assist (a symbol on every candy), reduced motion (also follows the system setting),
   labelled buttons, visible focus rings, a screen-reader live region, and keyboard play on desktop.
 * **Settings → Run self-test** runs the logic test suite and a 200-game bot simulation on the phone and shows a green or
@@ -147,7 +155,7 @@ The repository is public, so you don't need to sign in to download.
 
 ### Sound and music
 
-Every sound is synthesized live (no audio files) from a small band of instruments: a crisp bubble pop, marimba,
+Every sound is synthesized live from a small band of instruments: a crisp bubble pop, marimba,
 glockenspiel and celesta (each partial rings and fades on its own), FM chimes, plucked strings, synth brass,
 filtered-noise swishes and crunches, and a soft sub "thump" under blasts, all through a small room reverb, a glue
 compressor and a limiter, so a pile-up of blasts never clips. Matches climb a bright pentatonic scale with every cascade
@@ -155,7 +163,10 @@ step; each special has its own signature (striped "zing", wrapped "boom", Color 
 with its own sound (jelly "splotch", frosting "crunch", cage "clink", popcorn "pok" ...); wins get a brass fanfare.
 The music is a real arrangement that loops: a bouncy level tune (marimba lead, pizzicato bass, marimba chords, snaps
 and a shaker) and a gentle map tune (celesta, harp, pad). **Settings → Sound Check** plays a sample; Overall, Effects
-and Music volume have their own sliders, and **Soft Sounds** rounds off the top for a mellower mix.
+and Music volume have their own sliders, and **Soft Sounds** rounds off the top for a mellower mix. The only recorded
+audio is the announcer: six short clips of our praise words (`www/audio/voice`, about 40 KB in all), made with the
+open Kokoro-82M text-to-speech model (Apache-2.0) by `scripts/voice/make-voice.py` (a deep voice, a little room);
+Settings → Voice turns it off.
 
 ## How it is built
 

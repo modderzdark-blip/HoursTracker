@@ -368,7 +368,7 @@
       },
     },
     praise: {
-      // Sweet! Tasty! Delicious! Divine! A bell strum that grows brighter with the word.
+      // Sweet! Yummy! Scrumptious! Sensational! A bell strum that grows brighter with the word (the announcer says it too).
       duration_ms: 900,
       play(ctx, out, t, params) {
         const level = Math.min(4, Math.max(0, ((params && params.depth) || 2) - 2));
@@ -398,6 +398,21 @@
       play(ctx, out, t) {
         tone(ctx, out, { start: t, freq: 640, to: 170, glide: 0.09, attack: 0.003, release: 0.13, peak: 0.18 });
         return noise(ctx, out, { start: t, attack: 0.003, release: 0.11, peak: 0.13, filter: { type: 'bandpass', freq: 1500, to: 380, time: 0.1, q: 2.6 } });
+      },
+    },
+    // Clearing the last layer of jelly: a wet, juicy splat (a falling bloop, a soft splash and a few droplets).
+    jelly_splat: {
+      dry: true,
+      duration_ms: 320,
+      play(ctx, out, t) {
+        const ends = [
+          tone(ctx, out, { start: t, freq: 520, to: 120, glide: 0.12, attack: 0.002, release: 0.16, peak: 0.17 }),
+          noise(ctx, out, { start: t + 0.005, attack: 0.002, release: 0.14, peak: 0.14, filter: { type: 'lowpass', freq: 2200, to: 500, time: 0.12, q: 1.4 } }),
+        ];
+        [[0.06, 1480], [0.1, 1860], [0.15, 1320]].forEach(([offset, freq]) => {
+          ends.push(tone(ctx, out, { start: t + offset, freq, to: freq * 0.6, glide: 0.04, attack: 0.002, release: 0.05, peak: 0.05 }));
+        });
+        return Math.max(...ends);
       },
     },
     frosting: {
@@ -961,7 +976,7 @@
   function createAudio() {
     let context = null;
     let chain = null;
-    let settings = { sound_on: true, music_on: true, master_volume: 0.8, effects_volume: 0.8, music_volume: 0.55, soft_sounds: false };
+    let settings = { sound_on: true, music_on: true, voice_on: true, master_volume: 0.8, effects_volume: 0.8, music_volume: 0.55, soft_sounds: false };
     let lifecycle_paused = false;
     let music_mode = null;
     let music_timer = null;
@@ -999,7 +1014,55 @@
     function unlock() {
       if (!context && !createContext()) return;
       if (context.state === 'suspended' && !lifecycle_paused) context.resume().catch(() => {});
+      loadVoice();
       ensureMusic();
+    }
+
+    // The announcer: short recorded clips of our own praise words (www/audio/voice, made by scripts/voice), decoded once
+    // the audio is unlocked. One clip at a time; the music dips under it.
+    const VOICE_CLIPS = ['sweet', 'yummy', 'scrumptious', 'sensational', 'sugarstorm', 'finale'];
+    const voice_buffers = {};
+    let voice_loading = false;
+    let voice_source = null;
+
+    function loadVoice() {
+      if (voice_loading || !context || typeof fetch !== 'function') return;
+      voice_loading = true;
+      VOICE_CLIPS.forEach((clip) => {
+        fetch(`audio/voice/${clip}.ogg`)
+          .then((response) => (response.ok ? response.arrayBuffer() : Promise.reject(new Error(`voice ${clip}: ${response.status}`))))
+          .then((data) => new Promise((resolve, reject) => context.decodeAudioData(data, resolve, reject)))
+          .then((buffer) => {
+            voice_buffers[clip] = buffer;
+          })
+          .catch(() => {});
+      });
+    }
+
+    function say(clip) {
+      if (!context || !settings.sound_on || !settings.voice_on || lifecycle_paused || context.state !== 'running') return false;
+      const buffer = voice_buffers[clip];
+      if (!buffer) return false;
+      if (voice_source) {
+        try {
+          voice_source.stop();
+        } catch (stop_error) {
+          // already finished
+        }
+      }
+      const source = context.createBufferSource();
+      source.buffer = buffer;
+      const gain = context.createGain();
+      gain.gain.value = 0.85;
+      source.connect(gain);
+      gain.connect(chain.effects_dry);
+      source.start(context.currentTime + 0.01);
+      source.onended = () => {
+        if (voice_source === source) voice_source = null;
+      };
+      voice_source = source;
+      duckMusic(context.currentTime);
+      return true;
     }
 
     function play(name, params) {
@@ -1081,6 +1144,7 @@
     return {
       unlock,
       play,
+      say,
       soundCheck,
       setSettings(next_settings) {
         const music_was_on = settings.music_on;
@@ -1123,6 +1187,8 @@
           context: context ? context.state : 'none',
           sound_on: settings.sound_on,
           music_on: settings.music_on,
+          voice_on: settings.voice_on,
+          voice_clips: Object.keys(voice_buffers).length,
           soft_sounds: settings.soft_sounds,
           lifecycle_paused,
           music_scheduler: !!music_timer,

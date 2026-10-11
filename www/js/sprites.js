@@ -1003,10 +1003,9 @@
     };
   }
 
-  /** UI icons rendered by the same shader: heart (lives), Gold Drop, star. */
+  /** UI icons rendered by the same shader: heart (lives), star (the Gold bar is drawn by goldBarCanvas). */
   function iconRecipe(kind) {
     if (kind === 'heart') return { shape: 'heart', base: '#ff3b6b', highlight: '#ff9db5', shadow: '#b3123f', theme: 'gummy', seed: 5 };
-    if (kind === 'gold') return { shape: 'drop', base: '#ffc12e', highlight: '#fff0a6', shadow: '#c27a00', theme: 'hard', seed: 8, material: { env: 1.0, spec_tight: 1.8, subsurface: 0.3 } };
     if (kind === 'star') return { shape: 'star', base: '#ffd23f', highlight: '#fff3a8', shadow: '#d08a00', theme: 'hard', seed: 9, material: { env: 0.9, spec_tight: 1.6 } };
     if (kind === 'star_empty') return { shape: 'star', base: '#c9b8d6', highlight: '#efe6f5', shadow: '#8e7aa0', theme: 'sprinkle', seed: 10 };
     if (kind === 'pip') return { shape: 'gumdrop', base: '#46d6b4', highlight: '#b8f7e6', shadow: '#169378', theme: 'sprinkle', seed: 12, bevel: 0.5 };
@@ -1199,11 +1198,116 @@
     return path;
   }
 
+  /**
+   * The Gold icon: a shiny gold bar seen from above and to the right (bright top, a darker end, a shine across the front
+   * and a twinkle), drawn with canvas paths in a 100 x 100 box so it stays crisp at any size.
+   */
+  function goldBarCanvas(size) {
+    const canvas = createCanvas(size, size);
+    const ctx = canvas.getContext('2d');
+    ctx.scale(size / 100, size / 100);
+    // Fill the square: the bar is wider than tall.
+    ctx.translate(50, 50);
+    ctx.scale(1.12, 1.12);
+    ctx.translate(-50, -55);
+    const shape = (points) => {
+      ctx.beginPath();
+      points.forEach(([x, y], index) => (index ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+    };
+    const linear = (x0, y0, x1, y1, stops) => {
+      const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
+      stops.forEach(([at, color]) => gradient.addColorStop(at, color));
+      return gradient;
+    };
+    const front = [[9, 72], [75, 72], [68, 53], [17, 53]];
+    const top = [[17, 53], [68, 53], [83, 36], [31, 36]];
+    const end = [[75, 72], [91, 54], [83, 36], [68, 53]];
+    const outline = [[9, 72], [75, 72], [91, 54], [83, 36], [31, 36], [17, 53]];
+    ctx.fillStyle = 'rgba(90, 45, 0, 0.22)';
+    ctx.beginPath();
+    ctx.ellipse(52, 77, 42, 6.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    shape(front);
+    ctx.fillStyle = linear(0, 53, 0, 72, [[0, '#ffdc55'], [0.45, '#f7b21c'], [1, '#d4840a']]);
+    ctx.fill();
+    shape(top);
+    ctx.fillStyle = linear(17, 53, 83, 36, [[0, '#ffe57a'], [0.45, '#fff6c4'], [1, '#ffd84a']]);
+    ctx.fill();
+    shape(end);
+    ctx.fillStyle = linear(68, 53, 91, 54, [[0, '#f0a514'], [1, '#b8700a']]);
+    ctx.fill();
+    // A shine across the front face and a soft one on the top.
+    ctx.save();
+    shape(front);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    shape([[31, 53], [41, 53], [33, 72], [23, 72]]);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+    shape([[45, 53], [49, 53], [41, 72], [37, 72]]);
+    ctx.fill();
+    ctx.restore();
+    ctx.save();
+    shape(top);
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+    ctx.lineWidth = 2.2;
+    shape([[23, 51], [65, 51], [77, 38.5], [35, 38.5]]);
+    ctx.stroke();
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(19, 53.5);
+    ctx.lineTo(66, 53.5);
+    ctx.stroke();
+    shape(outline);
+    ctx.strokeStyle = '#8a4b00';
+    ctx.lineWidth = 3.4;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(138, 75, 0, 0.55)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(17, 53);
+    ctx.lineTo(68, 53);
+    ctx.lineTo(75, 72);
+    ctx.moveTo(68, 53);
+    ctx.lineTo(83, 36);
+    ctx.stroke();
+    // A twinkle on the corner.
+    const twinkle = (x, y, r) => {
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(x, y - r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.quadraticCurveTo(x, y, x, y + r);
+      ctx.quadraticCurveTo(x, y, x - r, y);
+      ctx.quadraticCurveTo(x, y, x, y - r);
+      ctx.fill();
+    };
+    const glow = ctx.createRadialGradient(80, 30, 0, 80, 30, 14);
+    glow.addColorStop(0, 'rgba(255, 255, 235, 0.95)');
+    glow.addColorStop(1, 'rgba(255, 255, 235, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(66, 16, 28, 28);
+    twinkle(80, 30, 11);
+    twinkle(22, 44, 5);
+    return canvas;
+  }
+
   const icon_cache = {};
   /** A data URL of a shaded icon (heart, gold, star, star_empty, pip, or any atlas key such as 'candy:3'). */
   function iconUrl(kind, size, theme_id) {
     const cache_key = `${kind}|${size}|${theme_id || 'gummy'}`;
     if (icon_cache[cache_key]) return icon_cache[cache_key];
+    if (kind === 'gold') {
+      const bar = goldBarCanvas(size);
+      icon_cache[cache_key] = bar.toDataURL ? bar.toDataURL('image/png') : '';
+      return icon_cache[cache_key];
+    }
     const spec = iconRecipe(kind) || recipes(theme_id || 'gummy', false)[kind];
     if (!spec) return '';
     const canvas = spriteToCanvas(spec, size);
@@ -1211,7 +1315,7 @@
     return icon_cache[cache_key];
   }
 
-  const SPRITES = { CANDIES, THEMES, THEME_IDS, SHAPE_SDF, shadeSprite, recipes, iconRecipe, drawSymbol, createSpriteCache, keysForLevel, spriteToCanvas, iconUrl, createCanvas, hexToLinear, hexToRgb, rgba, mixHex, roundedRectPath };
+  const SPRITES = { CANDIES, THEMES, THEME_IDS, SHAPE_SDF, shadeSprite, recipes, iconRecipe, drawSymbol, createSpriteCache, keysForLevel, spriteToCanvas, iconUrl, goldBarCanvas, createCanvas, hexToLinear, hexToRgb, rgba, mixHex, roundedRectPath };
   SC.SPRITES = SPRITES;
   if (typeof module === 'object' && module.exports) module.exports = SPRITES;
 })(typeof window !== 'undefined' ? window : globalThis);

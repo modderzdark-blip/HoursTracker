@@ -61,16 +61,19 @@
       announce: (text) => ui.announce(text),
       icon: ui.icon,
       iconUrl: (kind, size) => SC.SPRITES.iconUrl(kind, size),
-      heartsOn: () => META.heartsEnabled(settings()),
       hasCrown: (level_id) => STORAGE.hasCrown(save(), level_id),
       hasMastery: (level_id) => STORAGE.hasMastery(save(), level_id),
       hasTreasure: (level_id) => META.treasureAt(level_id) && !(STORAGE.levelBest(save(), level_id).stars > 0),
+      avatar: () => avatar(),
     });
     const hint_scheduler = META.createHintScheduler({ set: (run, ms) => setTimeout(run, ms), clear: (handle) => clearTimeout(handle) }, CONFIG.AUTO_HINT_DELAYS, (source) => showHint(source));
 
     const save = () => store.save;
     const settings = () => store.save.settings;
     const now = () => Date.now();
+
+    /** The player's face for the map: their photo, else the first letter of their name (else Pip). */
+    const avatar = () => ({ photo: photo_data_url, initial: save().player_name ? save().player_name.trim().charAt(0).toUpperCase() : '' });
 
     // ---------------------------------------------------------------- progression
     const isUnlocked = (id) => META.isUnlocked(save().meta, save().unlocked, id);
@@ -171,7 +174,6 @@
       applySettings();
       if ((key === 'theme' || key === 'colorblind') && level && logic_state) ui.setupHud(level, logic_state);
       if (key === 'theme' || key === 'colorblind') ui.renderTitle(save().player_name);
-      if (key === 'unlimited_hearts') refreshMapStatus();
       clearTimeout(persist_timer);
       persist_timer = setTimeout(persist, 250);
     }
@@ -385,6 +387,7 @@
           const text = CONFIG.CASCADE_BANNERS[depth] || CONFIG.CASCADE_BANNER_MAX;
           ui.showBanner(text, depth >= 6);
           sound('praise', { depth });
+          audio.say(CONFIG.CASCADE_VOICE[depth] || CONFIG.CASCADE_VOICE_MAX);
           if (depth >= 4) ui.pip('cheer', 1400);
         },
         collect(event, point) {
@@ -505,9 +508,8 @@
     function refreshMapStatus() {
       const meta = META.refreshHearts(save().meta, now());
       ui.setMapStatus({
-        hearts: meta.hearts, next_heart_ms: META.nextHeartIn(meta, now()), unlimited: !META.heartsEnabled(settings()), gold: meta.gold,
-        wheel_ready: META.canSpin(meta, now()), chest_progress: META.chestProgress(meta, STORAGE.totalStars(save())),
-        wheel_locked: !isUnlocked('wheel'), chest_locked: !isUnlocked('chest'),
+        hearts: meta.hearts, next_heart_ms: META.nextHeartIn(meta, now()), gold: meta.gold, avatar: avatar(),
+        wheel_ready: META.canSpin(meta, now()), wheel_locked: !isUnlocked('wheel'), wheel_next_ms: msToMidnight(),
         daily_locked: !isUnlocked('daily'), daily_claimable: isUnlocked('daily') ? META.dailyStatus(meta, now(), save().unlocked).claimable : 0,
       });
     }
@@ -598,12 +600,9 @@
       }
       if (machine !== STATE.MAP && machine !== STATE.INTRO) return;
       if (!META.canPlay(save(), now())) {
-        ui.showHeartsEmpty({ nextHeartMs: () => META.nextHeartIn(META.refreshHearts(save().meta, now()), now()) }, {
-          unlimited: () => {
-            changeSetting('unlimited_hearts', true);
-            ui.toast('Unlimited hearts is on');
-          },
-        });
+        ui.showHeartsEmpty({
+          nextHeartMs: () => META.nextHeartIn(META.refreshHearts(save().meta, now()), now()), gold: save().meta.gold, price: META.HEART_REFILL_PRICE,
+        }, { refill: refillHearts });
         return;
       }
       await announceUnlocks();
@@ -614,7 +613,7 @@
       const meta = save().meta;
       const new_level = isNewLevel(level_id);
       ui.showIntro(intro_level, {
-        best: STORAGE.levelBest(save(), level_id), boosters: Object.assign({}, meta.boosters), hearts_on: META.heartsEnabled(settings()),
+        best: STORAGE.levelBest(save(), level_id), boosters: Object.assign({}, meta.boosters),
         locks: boosterLocks(), try_booster: STORAGE.PRE_LEVEL_BOOSTERS.indexOf(meta.try_booster) >= 0 ? meta.try_booster : '',
         crown: STORAGE.hasCrown(save(), level_id), mastery: STORAGE.hasMastery(save(), level_id),
         treasure: META.treasureAt(level_id) && new_level,
@@ -626,6 +625,19 @@
           if (machine === STATE.INTRO) machine = STATE.MAP;
         },
       });
+    }
+
+    /** Fills the hearts for Gold (the out-of-hearts popup and the shop). Returns true when they were refilled. */
+    function refillHearts() {
+      if (!META.refillHearts(save().meta, now())) {
+        ui.toast(`A full set of hearts costs ${META.HEART_REFILL_PRICE} Gold.`);
+        return false;
+      }
+      sound('reward');
+      persist();
+      refreshMapStatus();
+      ui.toast('Hearts are full!');
+      return true;
     }
 
     function buyItem(item) {
@@ -1077,6 +1089,7 @@
         // a pace you can enjoy (a little brisker with lots of moves); a tap anywhere fast-forwards it.
         ui.showBanner('Sweet Finale!', true);
         sound('finale');
+        audio.say('finale');
         ui.pip('cheer', 1800);
         if (!(await renderer.timeline.wait(950)) || level !== level_at_start) return;
         const bonus = LOGIC.applyEndBonus(logic_state, { seconds_left });
@@ -1116,7 +1129,7 @@
       const rewards = META.recordOutcome(save(), {
         won: true, new_stars: Math.max(0, stars - previous.stars), crown: outcome.crown, mastery: outcome.mastery, new_level: outcome.new_level,
         streak_on, role: level.role, level_id: level.id,
-      }, STORAGE.totalStars(save()));
+      });
       save().meta.in_progress = 0;
       save().tutorials_seen[level.id] = true;
       noteDaily({ win: 1, first_try: outcome.crown ? 1 : 0 });
@@ -1153,7 +1166,7 @@
       }
       const levels = range.last - range.first + 1;
       const next = range.last < LEVELS.shippedCount() ? { episode: episode + 1, name: LEVELS.episodeName(episode + 1) } : null;
-      ui.announce(`Episode ${episode} complete! ${reward.gold} Gold Drops${reward.booster ? ` and a ${META.BOOSTER_NAMES[reward.booster]}` : ''}.`);
+      ui.announce(`Episode ${episode} complete! ${reward.gold} Gold${reward.booster ? ` and a ${META.BOOSTER_NAMES[reward.booster]}` : ''}.`);
       return ui.showEpisodeComplete({ episode, name: LEVELS.episodeName(episode), stars, max_stars: levels * 3, crowns, levels, reward, next });
     }
 
@@ -1187,9 +1200,9 @@
       const streak_at_risk = streakOn() && isNewLevel(lost_level.id) ? save().meta.streak : 0;
       const giveUp = () => {
         const outcome = STORAGE.recordResult(save(), lost_level.id, { won: false, score: logic_state.score, stars: 0 });
-        const result = META.recordOutcome(save(), { won: false, new_level: outcome.new_level, streak_on: streakOn() }, STORAGE.totalStars(save()));
+        const result = META.recordOutcome(save(), { won: false, new_level: outcome.new_level, streak_on: streakOn() });
         if (result.streak_lost) ui.toast(`Your Sweet Streak of ${result.streak_lost} ended`);
-        if (META.heartsEnabled(settings())) ui.heartBreak();
+        ui.heartBreak();
         META.spendHeart(save(), now());
         save().meta.in_progress = 0;
         persist();
@@ -1213,7 +1226,7 @@
         plusFive: () => {
           const price = META.continuePrice(continues_used);
           if (save().meta.gold < price) {
-            ui.toast('Not enough Gold Drops');
+            ui.toast('Not enough Gold');
             return;
           }
           save().meta.gold -= price;
@@ -1242,13 +1255,13 @@
       native.keepAwake(false);
       ui.pointAt(null);
       ui.swipeHint(null);
-      const heart_note = META.heartsEnabled(settings()) ? ' You will lose a heart.' : '';
+      const heart_note = ' You will lose a heart.';
       const streak = streakOn() && isNewLevel(level.id) ? save().meta.streak : 0;
       const streak_note = streak > 0 ? ` Your Sweet Streak of ${streak} will end.` : '';
       // Restarting or quitting counts as a lost attempt: no Gold Crown on this level, and the streak ends.
       const abandonAttempt = () => {
         const outcome = STORAGE.recordResult(save(), level.id, { won: false, score: logic_state ? logic_state.score : 0, stars: 0 });
-        META.recordOutcome(save(), { won: false, new_level: outcome.new_level, streak_on: streakOn() }, STORAGE.totalStars(save()));
+        META.recordOutcome(save(), { won: false, new_level: outcome.new_level, streak_on: streakOn() });
         META.spendHeart(save(), now());
         save().meta.in_progress = 0;
       };
@@ -1358,6 +1371,63 @@
     }
 
     // ---------------------------------------------------------------- map extras
+    /** Milliseconds until the next local midnight (when the Daily Wheel and the Daily Challenges reset). */
+    function msToMidnight() {
+      const midnight = new Date(now());
+      midnight.setHours(24, 0, 0, 0);
+      return Math.max(0, midnight.getTime() - now());
+    }
+
+    // ---------------------------------------------------------------- shop and profile
+    /** What the shop shows right now: Gold, hearts, and every booster with its price, count and lock. */
+    function shopStatus() {
+      const meta = META.refreshHearts(save().meta, now());
+      return {
+        gold: meta.gold, hearts: meta.hearts, max_hearts: META.MAX_HEARTS, refill_price: META.HEART_REFILL_PRICE,
+        items: STORAGE.BOOSTERS.map((id) => ({
+          id, name: META.BOOSTER_NAMES[id], price: META.PRICES[id], owned: META.boosterCount(meta, id),
+          locked_at: isUnlocked(id) ? 0 : META.unlockOf(id).level,
+        })),
+      };
+    }
+
+    function openShop() {
+      sound('tap');
+      ui.showShop(shopStatus, {
+        buy: (id) => {
+          if (!isUnlocked(id)) {
+            ui.toast(`${META.BOOSTER_NAMES[id]} unlocks at level ${META.unlockOf(id).level}`);
+            return false;
+          }
+          if (!META.buy(save().meta, id)) {
+            ui.toast(`You need ${META.PRICES[id]} Gold (you have ${save().meta.gold}).`);
+            return false;
+          }
+          sound('reward');
+          haptic('light');
+          persist();
+          refreshMapStatus();
+          return true;
+        },
+        refill: () => refillHearts(),
+        closed: () => refreshMapStatus(),
+      });
+    }
+
+    function openProfile() {
+      sound('tap');
+      let crowns = 0;
+      let won = 0;
+      for (let level_id = 1; level_id < save().unlocked; level_id += 1) {
+        if (STORAGE.levelBest(save(), level_id).stars > 0) won += 1;
+        if (STORAGE.hasCrown(save(), level_id)) crowns += 1;
+      }
+      ui.showProfile({
+        name: save().player_name, avatar: avatar(), level: Math.min(save().unlocked, LEVELS.shippedCount()), won, crowns,
+        stars: STORAGE.totalStars(save()), streak: streakOn() ? save().meta.streak : null, gold: save().meta.gold,
+      }, { edit: () => openSettings() });
+    }
+
     function openWheel() {
       sound('tap');
       if (!isUnlocked('wheel')) {
@@ -1372,23 +1442,6 @@
         },
         done: () => refreshMapStatus(),
       });
-    }
-
-    function openChest() {
-      sound('tap');
-      if (!isUnlocked('chest')) {
-        ui.toast(`The Star Chest unlocks at level ${META.unlockOf('chest').level}`);
-        return;
-      }
-      const total = STORAGE.totalStars(save());
-      if (!META.chestReady(save().meta, total)) {
-        ui.toast(`Star Chest: ${META.chestProgress(save().meta, total)} of ${META.CHEST_STARS} stars. Earn stars to open it!`);
-        return;
-      }
-      const prize = META.openChest(save().meta, total, now());
-      persist();
-      refreshMapStatus();
-      ui.showReward('Star Chest!', `You found ${prize.label}!`, 'cheer');
     }
 
     // ---------------------------------------------------------------- lifecycle
@@ -1552,7 +1605,12 @@
       });
       by_id('btn-map-wheel').addEventListener('click', openWheel);
       by_id('btn-map-daily').addEventListener('click', openDaily);
-      by_id('btn-map-chest').addEventListener('click', openChest);
+      by_id('btn-map-shop').addEventListener('click', openShop);
+      by_id('map-avatar').addEventListener('click', openProfile);
+      by_id('btn-map-tab-map').addEventListener('click', () => {
+        sound('tap');
+        map.jumpToMine();
+      });
       by_id('btn-map-mine').addEventListener('click', () => {
         sound('tap');
         map.jumpToMine();
@@ -1564,12 +1622,10 @@
       by_id('map-hearts').addEventListener('click', () => {
         sound('tap');
         const meta = META.refreshHearts(save().meta, now());
-        if (!META.heartsEnabled(settings())) ui.toast('Unlimited hearts is on (Settings)');
-        else ui.toast(meta.hearts >= META.MAX_HEARTS ? 'Hearts are full!' : `${meta.hearts} hearts. The next one arrives in ${ui.formatClock(META.nextHeartIn(meta, now()))}.`);
+        ui.toast(meta.hearts >= META.MAX_HEARTS ? 'Hearts are full!' : `${meta.hearts} hearts. The next one arrives in ${ui.formatClock(META.nextHeartIn(meta, now()))}.`);
       });
       by_id('map-gold').addEventListener('click', () => {
-        sound('tap');
-        ui.toast(`${save().meta.gold} Gold Drops. Earn more by winning levels, collecting stars and spinning the Daily Wheel.`);
+        openShop();
       });
       dom.btn_pause.addEventListener('click', () => {
         sound('tap');
@@ -1685,6 +1741,8 @@
       goMap,
       goTitle,
       openSettings,
+      openShop,
+      openProfile,
       changeSetting,
       applyPhoto,
       onAppHidden,

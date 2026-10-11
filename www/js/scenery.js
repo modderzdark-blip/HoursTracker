@@ -549,18 +549,18 @@
   // props (trees, gumdrops, lollipops, houses ...) that keep clear of the road, and fluffy clouds where one episode's
   // land meets the next. The map wraps the ground around a turning world and stands the props up on it.
   const LANDS = {
-    gumdrop_meadow: { ground: '#8fdc6c', light: '#b8ef8f', dark: '#6cc457', water: '#6fd3ff', tree: '#4cbf55', props: ['roundTree', 'gumdrop', 'flowers', 'mushroom', 'roundTree', 'bush'] },
-    lollipop_forest: { ground: '#d9b6f3', light: '#efdcff', dark: '#bb92e4', water: '#ff9fd6', tree: '#ff8fcf', props: ['lollipop', 'cottonTree', 'gumdrop', 'flowers', 'lollipop', 'mushroom'] },
-    frosted_peaks: { ground: '#eef5ff', light: '#ffffff', dark: '#cddcf5', water: '#9ed9ff', tree: '#ffffff', props: ['snowTree', 'cane', 'snowMound', 'crystal', 'snowTree'] },
-    caramel_canyon: { ground: '#f0c27c', light: '#ffdcaa', dark: '#d79f5b', water: '#ffae4f', tree: '#7fcf6a', props: ['rock', 'cactus', 'rock', 'iceCone', 'bush'] },
-    starlight_sky: { ground: '#3b2d7c', light: '#5643a6', dark: '#2a1f5e', water: '#2b78d8', tree: '#7f6cff', night: true, props: ['glowShroom', 'lamp', 'crystal', 'glowShroom', 'balloon'] },
-    jelly_lagoon: { ground: '#ffe7ae', light: '#fff4d2', dark: '#f2cf8a', water: '#46cbf0', tree: '#46c96a', lakes: 3, props: ['palm', 'jellyBlob', 'rock', 'palm', 'flowers'] },
-    cookie_town: { ground: '#a5db78', light: '#c6ee9c', dark: '#82c460', water: '#6fd3ff', tree: '#4cbf55', props: ['house', 'roundTree', 'lamp', 'house', 'fence', 'flowers'] },
-    sorbet_desert: { ground: '#ffcbb0', light: '#ffe3d2', dark: '#f4aa8c', water: '#7fe3f0', tree: '#5fd59b', props: ['cactus', 'iceCone', 'rock', 'cactus', 'gumdrop'] },
-    midnight_carnival: { ground: '#41297c', light: '#5a3d9e', dark: '#2c1b5c', water: '#3a8ae0', tree: '#ff6fb5', night: true, props: ['tent', 'balloon', 'lamp', 'tent', 'glowShroom'] },
-    cloud_kitchen: { ground: '#fbefff', light: '#ffffff', dark: '#ead6f6', water: '#bde9ff', tree: '#ffb3dc', props: ['cupcake', 'iceCone', 'cottonTree', 'cupcake', 'gumdrop'] },
-    glacier_gelato: { ground: '#d9f3ff', light: '#f2fbff', dark: '#b6e0f4', water: '#7fd0ff', tree: '#ffffff', props: ['iceCone', 'snowMound', 'snowTree', 'crystal', 'iceCone'] },
-    sunrise_orchard: { ground: '#a7d96f', light: '#c9ec95', dark: '#86c255', water: '#6fd3ff', tree: '#55bf4d', props: ['fruitTree', 'fruitTree', 'bush', 'flowers', 'fence', 'mushroom'] },
+    gumdrop_meadow: { ground: '#8fdc6c', light: '#b8ef8f', dark: '#6cc457', water: '#6fd3ff', tree: '#4cbf55', props: ['roundTree', 'gumdrop', 'flowers', 'mushroom', 'roundTree', 'bush'], landmarks: ['candyShop', 'giantLolly', 'roundTree'] },
+    lollipop_forest: { ground: '#d9b6f3', light: '#efdcff', dark: '#bb92e4', water: '#ff9fd6', tree: '#ff8fcf', props: ['lollipop', 'cottonTree', 'gumdrop', 'flowers', 'lollipop', 'mushroom'], landmarks: ['giantLolly', 'cottonTree', 'candyShop'] },
+    frosted_peaks: { ground: '#eef5ff', light: '#ffffff', dark: '#cddcf5', water: '#9ed9ff', tree: '#ffffff', props: ['snowTree', 'cane', 'snowMound', 'crystal', 'snowTree'], landmarks: ['giantCane', 'snowTree', 'chocoStack'] },
+    caramel_canyon: { ground: '#f0c27c', light: '#ffdcaa', dark: '#d79f5b', water: '#ffae4f', tree: '#7fcf6a', props: ['rock', 'cactus', 'rock', 'iceCone', 'bush'], landmarks: ['caramelTower', 'chocoStack', 'caramelTower'] },
+    starlight_sky: { ground: '#3b2d7c', light: '#5643a6', dark: '#2a1f5e', water: '#2b78d8', tree: '#7f6cff', night: true, props: ['glowShroom', 'lamp', 'crystal', 'glowShroom', 'balloon'], landmarks: ['caramelTower', 'lamp', 'giantLolly'] },
+    jelly_lagoon: { ground: '#ffe7ae', light: '#fff4d2', dark: '#f2cf8a', water: '#46cbf0', tree: '#46c96a', lakes: 3, props: ['palm', 'jellyBlob', 'rock', 'palm', 'flowers'], landmarks: ['palm', 'candyShop', 'giantLolly'] },
+    cookie_town: { ground: '#a5db78', light: '#c6ee9c', dark: '#82c460', water: '#6fd3ff', tree: '#4cbf55', props: ['house', 'roundTree', 'lamp', 'house', 'fence', 'flowers'], landmarks: ['candyShop', 'caramelTower', 'house'] },
+    sorbet_desert: { ground: '#ffcbb0', light: '#ffe3d2', dark: '#f4aa8c', water: '#7fe3f0', tree: '#5fd59b', props: ['cactus', 'iceCone', 'rock', 'cactus', 'gumdrop'], landmarks: ['caramelTower', 'cactus', 'giantLolly'] },
+    midnight_carnival: { ground: '#41297c', light: '#5a3d9e', dark: '#2c1b5c', water: '#3a8ae0', tree: '#ff6fb5', night: true, props: ['tent', 'balloon', 'lamp', 'tent', 'glowShroom'], landmarks: ['tent', 'giantLolly', 'caramelTower'] },
+    cloud_kitchen: { ground: '#fbefff', light: '#ffffff', dark: '#ead6f6', water: '#bde9ff', tree: '#ffb3dc', props: ['cupcake', 'iceCone', 'cottonTree', 'cupcake', 'gumdrop'], landmarks: ['chocoStack', 'candyShop', 'cupcake'] },
+    glacier_gelato: { ground: '#d9f3ff', light: '#f2fbff', dark: '#b6e0f4', water: '#7fd0ff', tree: '#ffffff', props: ['iceCone', 'snowMound', 'snowTree', 'crystal', 'iceCone'], landmarks: ['giantCane', 'iceCone', 'chocoStack'] },
+    sunrise_orchard: { ground: '#a7d96f', light: '#c9ec95', dark: '#86c255', water: '#6fd3ff', tree: '#55bf4d', props: ['fruitTree', 'fruitTree', 'bush', 'flowers', 'fence', 'mushroom'], landmarks: ['fruitTree', 'candyShop', 'giantLolly'] },
   };
 
   /** The land colors of one episode (with the cycle's hue shift). */
@@ -978,6 +978,254 @@
       ctx.restore();
       ball(ctx, x, y - height, s * 0.07, '#ffe27a', false);
     },
+    // ---- landmarks: big set pieces that line the road, like the original's caramel towers and candy shops.
+    caramelTower(ctx, x, y, s, rng) {
+      dropShadow(ctx, x, y, s * 1.2, 0.24);
+      const width = s * 0.86;
+      const top = y - s * 1.45;
+      const body = ctx.createLinearGradient(x - width / 2, 0, x + width / 2, 0);
+      body.addColorStop(0, '#d9822c');
+      body.addColorStop(0.32, '#ffc77a');
+      body.addColorStop(0.55, '#f6a446');
+      body.addColorStop(1, '#b4611a');
+      ctx.fillStyle = body;
+      ctx.beginPath();
+      ctx.moveTo(x - width / 2, top);
+      ctx.lineTo(x - width / 2, y - width * 0.12);
+      ctx.ellipse(x, y - width * 0.12, width / 2, width * 0.16, 0, Math.PI, 0, true);
+      ctx.lineTo(x + width / 2, top);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 236, 200, 0.45)';
+      ctx.lineWidth = s * 0.035;
+      for (let ridge = -1; ridge <= 1; ridge += 1) {
+        ctx.beginPath();
+        ctx.moveTo(x + ridge * width * 0.26, top + s * 0.2);
+        ctx.lineTo(x + ridge * width * 0.26, y - s * 0.12);
+        ctx.stroke();
+      }
+      // The caramel top, dripping down the sides.
+      ctx.fillStyle = '#ffb44a';
+      ctx.beginPath();
+      ctx.moveTo(x - width / 2 - s * 0.03, top);
+      const drips = 6;
+      for (let drip = 0; drip <= drips; drip += 1) {
+        const dx = x - width / 2 + (drip / drips) * width;
+        const reach = s * (0.12 + ((drip * 37) % 5) * 0.06);
+        ctx.lineTo(dx - width / drips * 0.35, top + s * 0.08);
+        ctx.quadraticCurveTo(dx, top + reach * 1.6, dx + width / drips * 0.35, top + s * 0.08);
+      }
+      ctx.lineTo(x + width / 2 + s * 0.03, top);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#ffd08a';
+      ctx.beginPath();
+      ctx.ellipse(x, top, width / 2 + s * 0.03, width * 0.17, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.beginPath();
+      ctx.ellipse(x - width * 0.15, top - width * 0.03, width * 0.22, width * 0.06, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Whipped cream and a cherry.
+      ball(ctx, x - width * 0.2, top - s * 0.1, s * 0.2, '#fff7ef', false);
+      ball(ctx, x + width * 0.2, top - s * 0.1, s * 0.2, '#fff3e8', false);
+      ball(ctx, x, top - s * 0.24, s * 0.24, '#ffffff');
+      ball(ctx, x + s * 0.04, top - s * 0.5, s * 0.11, '#ff2e4f');
+      ctx.strokeStyle = '#5a8a2a';
+      ctx.lineWidth = s * 0.025;
+      ctx.beginPath();
+      ctx.moveTo(x + s * 0.06, top - s * 0.58);
+      ctx.quadraticCurveTo(x + s * 0.12, top - s * 0.72, x + s * 0.2, top - s * 0.74);
+      ctx.stroke();
+    },
+    candyShop(ctx, x, y, s, rng) {
+      dropShadow(ctx, x, y, s * 1.5, 0.24);
+      const width = s * 1.36;
+      const height = s * 0.86;
+      const wall_color = ['#ffe3f0', '#e7f6ff', '#fff4d6', '#eafbe6'][Math.floor(rng() * 4)];
+      const wall = ctx.createLinearGradient(x - width / 2, 0, x + width / 2, 0);
+      wall.addColorStop(0, shade(wall_color, 0.03));
+      wall.addColorStop(1, shade(wall_color, -0.12));
+      ctx.fillStyle = wall;
+      ctx.fillRect(x - width / 2, y - height, width, height);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+      ctx.fillRect(x - width / 2, y - s * 0.08, width, s * 0.08);
+      // Door and a round shop window full of candies.
+      ctx.fillStyle = '#b5532f';
+      ctx.beginPath();
+      ctx.moveTo(x + width * 0.12, y);
+      ctx.lineTo(x + width * 0.12, y - height * 0.52);
+      ctx.arc(x + width * 0.25, y - height * 0.52, width * 0.13, Math.PI, 0);
+      ctx.lineTo(x + width * 0.38, y);
+      ctx.closePath();
+      ctx.fill();
+      ball(ctx, x + width * 0.33, y - height * 0.3, s * 0.035, '#ffd34d', false);
+      const window_x = x - width * 0.2;
+      const window_y = y - height * 0.45;
+      const window_r = s * 0.24;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(window_x, window_y, window_r + s * 0.05, 0, Math.PI * 2);
+      ctx.fill();
+      const glass = ctx.createRadialGradient(window_x - window_r * 0.3, window_y - window_r * 0.3, 1, window_x, window_y, window_r);
+      glass.addColorStop(0, '#d6f3ff');
+      glass.addColorStop(1, '#7fc6f0');
+      ctx.fillStyle = glass;
+      ctx.beginPath();
+      ctx.arc(window_x, window_y, window_r, 0, Math.PI * 2);
+      ctx.fill();
+      ball(ctx, window_x - window_r * 0.35, window_y + window_r * 0.3, window_r * 0.28, '#ff5c8a', false);
+      ball(ctx, window_x + window_r * 0.3, window_y + window_r * 0.32, window_r * 0.26, '#ffd34d', false);
+      ball(ctx, window_x, window_y - window_r * 0.15, window_r * 0.26, '#6cb8ff', false);
+      // A striped awning with scalloped edge.
+      const awning = pickColor(rng);
+      const awning_top = y - height - s * 0.3;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(x - width * 0.58, y - height + s * 0.02);
+      ctx.lineTo(x - width * 0.5, awning_top);
+      ctx.lineTo(x + width * 0.5, awning_top);
+      ctx.lineTo(x + width * 0.58, y - height + s * 0.02);
+      ctx.closePath();
+      ctx.clip();
+      for (let band = 0; band < 8; band += 1) {
+        ctx.fillStyle = band % 2 ? '#ffffff' : awning;
+        ctx.fillRect(x - width * 0.58 + (band / 8) * width * 1.16, awning_top, width * 1.16 / 8 + 0.5, s * 0.4);
+      }
+      ctx.restore();
+      for (let bump = 0; bump < 8; bump += 1) {
+        ctx.fillStyle = bump % 2 ? '#ffffff' : awning;
+        ctx.beginPath();
+        ctx.arc(x - width * 0.58 + ((bump + 0.5) / 8) * width * 1.16, y - height + s * 0.02, width * 1.16 / 16, 0, Math.PI);
+        ctx.fill();
+      }
+      // A giant wrapped candy on the roof.
+      const roof_y = awning_top - s * 0.32;
+      const candy = pickColor(rng);
+      ctx.fillStyle = shade(candy, -0.05);
+      ctx.beginPath();
+      ctx.moveTo(x - s * 0.28, roof_y);
+      ctx.lineTo(x - s * 0.52, roof_y - s * 0.16);
+      ctx.lineTo(x - s * 0.52, roof_y + s * 0.16);
+      ctx.closePath();
+      ctx.moveTo(x + s * 0.28, roof_y);
+      ctx.lineTo(x + s * 0.52, roof_y - s * 0.16);
+      ctx.lineTo(x + s * 0.52, roof_y + s * 0.16);
+      ctx.closePath();
+      ctx.fill();
+      ball(ctx, x, roof_y, s * 0.3, candy);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x - s * 0.04, awning_top - s * 0.06, s * 0.08, s * 0.08);
+    },
+    chocoStack(ctx, x, y, s) {
+      dropShadow(ctx, x, y, s * 1.3, 0.24);
+      const tiers = [[s * 1.2, s * 0.5], [s * 0.94, s * 0.46], [s * 0.66, s * 0.42]];
+      let base = y;
+      tiers.forEach(([width, height], index) => {
+        const block = ctx.createLinearGradient(x - width / 2, 0, x + width / 2, 0);
+        block.addColorStop(0, '#8a4b2a');
+        block.addColorStop(0.35, '#a8613a');
+        block.addColorStop(1, '#5e2f17');
+        ctx.fillStyle = block;
+        ctx.fillRect(x - width / 2, base - height, width, height);
+        ctx.fillStyle = 'rgba(255, 220, 190, 0.2)';
+        ctx.fillRect(x - width / 2, base - height, width, height * 0.16);
+        ctx.strokeStyle = 'rgba(40, 15, 5, 0.35)';
+        ctx.lineWidth = s * 0.03;
+        for (let line = 1; line < 3; line += 1) {
+          ctx.beginPath();
+          ctx.moveTo(x - width / 2 + (line / 3) * width, base - height + height * 0.18);
+          ctx.lineTo(x - width / 2 + (line / 3) * width, base);
+          ctx.stroke();
+        }
+        base -= height;
+        if (index === tiers.length - 1) {
+          // Pink frosting dripping over the top tier, and a strawberry.
+          ctx.fillStyle = '#ffb3d6';
+          ctx.beginPath();
+          ctx.moveTo(x - width / 2 - s * 0.03, base);
+          for (let drip = 0; drip <= 4; drip += 1) {
+            const dx = x - width / 2 + (drip / 4) * width;
+            ctx.quadraticCurveTo(dx - width / 8, base + s * (0.14 + (drip % 2) * 0.1), dx, base + s * 0.05);
+          }
+          ctx.lineTo(x + width / 2 + s * 0.03, base - s * 0.05);
+          ctx.lineTo(x - width / 2 - s * 0.03, base - s * 0.05);
+          ctx.closePath();
+          ctx.fill();
+          ball(ctx, x, base - s * 0.2, s * 0.2, '#ff3b5c');
+          ctx.fillStyle = '#3fbf5a';
+          ctx.beginPath();
+          ctx.ellipse(x, base - s * 0.38, s * 0.12, s * 0.05, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+    },
+    giantLolly(ctx, x, y, s, rng) {
+      dropShadow(ctx, x, y, s * 0.9, 0.22);
+      roundedBar(ctx, x, y, s * 0.12, s * 1.3, '#fff8f0');
+      const color = pickColor(rng);
+      const second = pickColor(rng) === color ? '#ffffff' : '#ffffff';
+      const cy = y - s * 1.4;
+      const radius = s * 0.58;
+      ball(ctx, x, cy, radius, color, false);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(x, cy, radius * 0.94, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.strokeStyle = second;
+      ctx.globalAlpha = 0.85;
+      ctx.lineWidth = radius * 0.2;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      for (let angle = 0; angle < Math.PI * 5; angle += 0.12) {
+        const r = (angle / (Math.PI * 5)) * radius * 0.95;
+        ctx.lineTo(x + Math.cos(angle) * r, cy + Math.sin(angle) * r);
+      }
+      ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.beginPath();
+      ctx.ellipse(x - radius * 0.38, cy - radius * 0.45, radius * 0.3, radius * 0.14, -0.6, 0, Math.PI * 2);
+      ctx.fill();
+      // A ribbon bow at the neck.
+      ctx.fillStyle = '#ff6fb5';
+      ctx.beginPath();
+      ctx.ellipse(x - s * 0.13, cy + radius + s * 0.05, s * 0.13, s * 0.07, 0.4, 0, Math.PI * 2);
+      ctx.ellipse(x + s * 0.13, cy + radius + s * 0.05, s * 0.13, s * 0.07, -0.4, 0, Math.PI * 2);
+      ctx.fill();
+    },
+    giantCane(ctx, x, y, s) {
+      dropShadow(ctx, x, y, s * 0.9, 0.22);
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineWidth = s * 0.26;
+      const trace = () => {
+        ctx.beginPath();
+        ctx.moveTo(x - s * 0.25, y);
+        ctx.lineTo(x - s * 0.25, y - s * 1.45);
+        ctx.arc(x + s * 0.12, y - s * 1.45, s * 0.37, Math.PI, 0.15);
+      };
+      trace();
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+      ctx.setLineDash([s * 0.16, s * 0.16]);
+      trace();
+      ctx.strokeStyle = '#ff2e4f';
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.lineWidth = s * 0.06;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.beginPath();
+      ctx.moveTo(x - s * 0.31, y - s * 0.1);
+      ctx.lineTo(x - s * 0.31, y - s * 1.4);
+      ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = '#3fbf5a';
+      ctx.beginPath();
+      ctx.ellipse(x - s * 0.1, y - s * 1.02, s * 0.2, s * 0.08, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ball(ctx, x - s * 0.25, y - s * 1.0, s * 0.09, '#ff2e4f');
+    },
     cupcake(ctx, x, y, s, rng) {
       dropShadow(ctx, x, y, s * 0.8);
       const width = s * 0.62;
@@ -1015,6 +1263,17 @@
       best = Math.min(best, px * px + py * py);
     }
     return Math.sqrt(best);
+  }
+
+  /** The x of a path ([{x, y}] sorted by y) at height y, or null outside it. */
+  function pathXAt(points, y) {
+    if (!points.length || y < points[0].y || y > points[points.length - 1].y) return null;
+    for (let index = 1; index < points.length; index += 1) {
+      const a = points[index - 1];
+      const b = points[index];
+      if (y <= b.y) return a.x + (b.x - a.x) * ((y - a.y) / Math.max(0.001, b.y - a.y));
+    }
+    return points[points.length - 1].x;
   }
 
   /** A soft, rounded blob made of overlapping circles (ponds, hills, ground patches). */
@@ -1135,9 +1394,23 @@
       ctx.ellipse(x, y, unit * 0.09, unit * 0.05, 0, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Props on a jittered grid, off the road, drawn back to front.
+    // Big landmarks along both sides of the road (the map's band), like the original's set pieces.
+    const landmarks = [];
+    if (billboards && options.band && land.landmarks) {
+      let side = rng() < 0.5 ? -1 : 1;
+      for (let at_y = unit * (1 + rng() * 2); at_y < height - unit; at_y += unit * (4 + rng() * 2.5)) {
+        const center = pathXAt(path, at_y);
+        if (center === null) continue;
+        const size = unit * (2.1 + rng() * 0.6);
+        const at_x = center + side * (options.band.half + size * 0.42 + rng() * unit * 0.5);
+        side = -side;
+        if (at_x < size * 0.7 || at_x > width - size * 0.7) continue;
+        landmarks.push({ x: at_x, y: at_y, size, kind: land.landmarks[Math.floor(rng() * land.landmarks.length)], seed: rng(), big: true });
+      }
+    }
+    // Props on a jittered grid, off the road, drawn back to front (sparser beside a wide road, so the landmarks show).
     const props = [];
-    const step = unit * 1.45;
+    const step = unit * (billboards ? 1.75 : 1.45);
     for (let gy = step * 0.6; gy < height - step * 0.3; gy += step) {
       for (let gx = step * 0.5; gx < width; gx += step) {
         if (rng() < 0.32) continue;
@@ -1146,9 +1419,11 @@
         const size = unit * (0.75 + rng() * 0.5);
         if (distanceToPath(path, x, y) < keep_clear + size * 0.55) continue;
         if (distanceToPath(path, x, y - size * 0.8) < keep_clear + size * 0.5) continue;
+        if (landmarks.some((mark) => Math.hypot(mark.x - x, mark.y - y) < mark.size * 0.75)) continue;
         props.push({ x, y, size, kind: land.props[Math.floor(rng() * land.props.length)], seed: rng() });
       }
     }
+    landmarks.forEach((mark) => props.push(mark));
     props.sort((first, second) => first.y - second.y);
     props.forEach((prop) => {
       if (billboards) {

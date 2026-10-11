@@ -172,6 +172,7 @@
     const popups = [];
     let board = null; // { rows, cols, holes, exits, spawn_rows }
     let display_jelly = null;
+    let jelly_hits = null; // per cell: when its jelly was last hit (it jiggles for a moment)
     const jelly_flash = { until: 0 };
     let spotlight = null; // guided tutorial: { cells: Set, since } - everything else on the board dims
     let layout = { cell: 48, origin_x: 0, origin_y: 0, width: 0, height: 0, dpr: 1, view_w: 0, view_h: 0 };
@@ -457,6 +458,7 @@
         if (!seen.has(piece_id)) visuals.delete(piece_id);
       });
       display_jelly = Uint8Array.from(state.jelly);
+      jelly_hits = new Float64Array(state.jelly.length);
       display_cage = Uint8Array.from(state.cage);
     }
 
@@ -914,6 +916,52 @@
     }
 
     /**
+     * The jelly under the candies is alive: every tile wobbles gently like gelatin (each a little out of step with its
+     * neighbours), jiggles hard for a moment when it is hit, and carries a glossy shine that slides as it wobbles.
+     */
+    function drawJelly(now) {
+      const cell = layout.cell;
+      const lively = !settings.reduced_motion && quality > 0;
+      for (let cell_index = 0; cell_index < display_jelly.length; cell_index += 1) {
+        const layers = display_jelly[cell_index];
+        if (!layers) continue;
+        const position = cellXY(cell_index);
+        const x = layout.origin_x + position.col * cell;
+        const y = layout.origin_y + position.row * cell;
+        const sprite = sprites.get('jelly', -1, 'none', layers);
+        if (!lively) {
+          ctx.drawImage(sprite, x, y, cell, cell);
+          continue;
+        }
+        const phase = position.col * 1.7 + position.row * 2.3;
+        let squash = Math.sin(now / 520 + phase) * 0.035;
+        const age = (now - jelly_hits[cell_index]) / 1000;
+        if (jelly_hits[cell_index] && age < 0.8) squash += Math.sin(age * 26) * 0.14 * Math.exp(-age * 5.5);
+        ctx.save();
+        ctx.translate(x + cell / 2, y + cell / 2);
+        ctx.scale(1 + squash, 1 - squash);
+        ctx.drawImage(sprite, -cell / 2, -cell / 2, cell, cell);
+        const shine = ctx.createRadialGradient(0, 0, 0, 0, 0, cell * 0.24);
+        shine.addColorStop(0, `rgba(255,255,255,${layers >= 2 ? 0.5 : 0.42})`);
+        shine.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.translate(-cell * 0.16 + Math.sin(now / 900 + phase) * cell * 0.07, -cell * 0.2 + squash * cell * 0.6);
+        ctx.scale(1.25, 0.55);
+        ctx.fillStyle = shine;
+        ctx.fillRect(-cell * 0.26, -cell * 0.26, cell * 0.52, cell * 0.52);
+        ctx.restore();
+      }
+    }
+
+    /** Pink jelly droplets thrown out of a jelly tile when it is hit or cleared. */
+    function jellyDrops(count) {
+      const drops = [];
+      for (let index = 0; index < count; index += 1) {
+        drops.push({ angle: (index / count) * Math.PI * 2 + Math.random() * 0.6, speed: 0.55 + Math.random() * 0.55, size: 0.07 + Math.random() * 0.06 });
+      }
+      return drops;
+    }
+
+    /**
      * Jelly shows on top of the candies too: a glossy pink frame around every jelly cell (two for thick jelly), with a
      * shimmer that runs across the jelly now and then. When only a few jelly cells are left they pulse, so the last ones
      * are easy to find; at the start of a level the frames flash once (jelly_flash).
@@ -1207,6 +1255,43 @@
           ctx.beginPath();
           ctx.arc(center.x, center.y, cell * (0.25 + 0.4 * EASE.outCubic(progress)), 0, Math.PI * 2);
           ctx.stroke();
+        } else if (effect.type === 'jelly_splat') {
+          ctx.globalCompositeOperation = 'source-over';
+          const center = cellCenter(effect.cell);
+          if (effect.layers > 0 && progress < 0.4) {
+            const swell = progress / 0.4;
+            const size = cell * (1 + 0.32 * EASE.outCubic(swell));
+            ctx.globalAlpha = (1 - swell) * 0.95;
+            ctx.drawImage(sprites.get('jelly', -1, 'none', effect.layers), center.x - size / 2, center.y - size / 2, size, size);
+          }
+          if (!settings.reduced_motion) {
+            effect.drops.forEach((drop) => {
+              const travel = drop.speed * cell * EASE.outCubic(progress);
+              const drop_x = center.x + Math.cos(drop.angle) * travel;
+              const drop_y = center.y + Math.sin(drop.angle) * travel + cell * 1.1 * progress * progress;
+              const radius = cell * drop.size * (1 - progress * 0.45);
+              ctx.globalAlpha = Math.min(1, fade * 1.5);
+              ctx.save();
+              ctx.translate(drop_x, drop_y);
+              ctx.rotate(drop.angle);
+              ctx.scale(1 + 0.45 * fade, 1 - 0.25 * fade);
+              const blob = ctx.createRadialGradient(-radius * 0.35, -radius * 0.35, radius * 0.1, 0, 0, radius);
+              blob.addColorStop(0, '#ffd1ec');
+              blob.addColorStop(0.45, '#ff6fc0');
+              blob.addColorStop(1, '#d02f88');
+              ctx.fillStyle = blob;
+              ctx.beginPath();
+              ctx.arc(0, 0, radius, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
+            });
+            ctx.globalAlpha = 1;
+            ctx.strokeStyle = `rgba(255,150,215,${0.75 * fade})`;
+            ctx.lineWidth = Math.max(1.5, cell * 0.07 * fade);
+            ctx.beginPath();
+            ctx.ellipse(center.x, center.y, cell * (0.3 + 0.55 * EASE.outCubic(progress)), cell * (0.24 + 0.42 * EASE.outCubic(progress)), 0, 0, Math.PI * 2);
+            ctx.stroke();
+          }
         } else if (effect.type === 'transform_glow') {
           const center = cellCenter(effect.cell);
           const glow = ctx.createRadialGradient(center.x, center.y, 0, center.x, center.y, cell * 0.7);
@@ -1314,12 +1399,7 @@
       }
       ctx.drawImage(static_layer, layout.origin_x - static_layer.pad, layout.origin_y - static_layer.pad, static_layer.css_w, static_layer.css_h);
       const cell = layout.cell;
-      for (let cell_index = 0; cell_index < display_jelly.length; cell_index += 1) {
-        const layers = display_jelly[cell_index];
-        if (!layers) continue;
-        const position = cellXY(cell_index);
-        ctx.drawImage(sprites.get('jelly', -1, 'none', layers), layout.origin_x + position.col * cell, layout.origin_y + position.row * cell, cell, cell);
-      }
+      drawJelly(now);
       drawBoardFeatures(now);
       drawHintAndSelection(now);
       ctx.save();
@@ -1563,9 +1643,14 @@
               }));
             }
           } else if (event.type === 'jelly') {
+            // Hit: the jelly jiggles and flicks a few drops. Cleared: the tile swells and bursts into a splash of drops.
+            const before = display_jelly[event.cell] || 1;
             display_jelly[event.cell] = event.layers;
-            hooks.sound('jelly');
-            burst(event.cell, '#ff7fd0', 6, 0.6);
+            if (jelly_hits) jelly_hits[event.cell] = timeline.now;
+            const cleared = event.layers <= 0;
+            hooks.sound(cleared ? 'jelly_splat' : 'jelly');
+            addEffect({ type: 'jelly_splat', cell: event.cell, layers: cleared ? before : 0, duration: cleared ? 600 : 420, drops: jellyDrops(cleared ? 9 : 4) });
+            burst(event.cell, '#ff7fd0', cleared ? 8 : 4, cleared ? 0.8 : 0.5);
           } else if (event.type === 'cage') {
             display_cage[event.cell] = 0;
             hooks.sound('cage');

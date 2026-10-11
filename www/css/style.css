@@ -808,3 +808,198 @@ input[type="range"] { width: 130px; height: 36px; accent-color: var(--btn2); }
 .map-stage .map-nodes { position: absolute; inset: 0; z-index: 1; }
 .map-node, .map-marker, .map-burst { left: 0; top: 0; }
 .map-episode { left: 0; right: auto; top: 0; width: 340px; margin: -34px 0 0 -170px; transform: none; }
+
+/* ---------------------------------------------------------------- settings (v1.11): big round switches, then cards */
+.settings .big-toggles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0 2px; }
+.big-toggle { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.big-toggle-button {
+  position: relative; width: 62px; height: 62px; border-radius: 50%; border: 0; display: grid; place-items: center; color: #fff; cursor: pointer;
+  background: radial-gradient(ellipse 60% 32% at 50% 22%, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 70%), radial-gradient(circle at 50% 35%, var(--btn1, #ff8cc6), var(--btn2, #e8418f));
+  box-shadow: 0 0 0 3px #ffffff, 0 5px 0 3px var(--btn-depth, #a3205f), 0 10px 14px rgba(60, 10, 50, 0.28), inset 0 -5px 8px rgba(0, 0, 0, 0.14);
+}
+.big-toggle-button svg { width: 32px; height: 32px; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.2)); }
+.big-toggle-button[aria-checked="false"] {
+  color: #7d6c92;
+  background: radial-gradient(ellipse 60% 32% at 50% 22%, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0) 70%), radial-gradient(circle at 50% 35%, #f2ecf6, #c4b6d2);
+  box-shadow: 0 0 0 3px #ffffff, 0 5px 0 3px #8f7da3, 0 10px 14px rgba(60, 10, 50, 0.2), inset 0 -5px 8px rgba(0, 0, 0, 0.1);
+}
+.big-toggle-slash { position: absolute; width: 44px; height: 6px; border-radius: 3px; background: #ff3b6b; box-shadow: 0 0 0 2px #ffffff; transform: rotate(-45deg) scale(0.2); opacity: 0; transition: transform 0.2s var(--spring), opacity 0.15s ease; }
+.big-toggle-button[aria-checked="false"] .big-toggle-slash { opacity: 1; transform: rotate(-45deg) scale(1); }
+.big-toggle-label { font-size: 14px; font-weight: 900; }
+.settings-card { margin-top: 14px; padding: 2px 14px 12px; border-radius: 20px; background: rgba(255, 255, 255, 0.72); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85), 0 3px 10px rgba(59, 26, 74, 0.12); }
+.settings-card h3 { margin: 12px 0 2px; }
+.settings-card .setting-row:last-of-type { border-bottom: 0; }
+.settings-card > .setting-label { display: block; margin: 12px 4px 6px; font-weight: 800; font-size: 15px; }
+.settings-card .button-column { margin-top: 10px; gap: 10px; }
+.settings-card .button-column .pill { margin-top: 0; }
+
+/* ---------------------------------------------------------------- map HUD (v1.11): a pink top panel with your avatar in
+   the middle, the Daily Wheel as a side event, and a bottom menu bar, like the original's map today. */
+.map-topbar {
+  position: absolute; left: 0; right: 0; top: 0; z-index: 4;
+  display: grid; grid-template-columns: 44px 1fr 64px 1fr 44px; align-items: center; gap: 8px;
+  padding: calc(var(--safe-top) + 8px) 10px 10px;
+  background: linear-gradient(180deg, #ffe3f1, #ffc4e1 70%, #ffb3d8);
+  border-radius: 0 0 24px 24px;
+  box-shadow: inset 0 -3px 0 rgba(255, 255, 255, 0.7), 0 4px 0 #e889bd, 0 8px 18px rgba(80, 10, 60, 0.25);
+}
+.topbar-round {
+  position: relative; width: 44px; height: 44px; border-radius: 50%; border: 0; display: grid; place-items: center; color: #fff; cursor: pointer;
+  background: radial-gradient(ellipse 60% 30% at 50% 22%, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 70%), radial-gradient(circle at 50% 35%, #ff8cc6, #e8418f);
+  box-shadow: 0 0 0 2px #ffffff, 0 3px 0 2px #a3205f, 0 6px 10px rgba(60, 10, 50, 0.25);
+}
+.topbar-round svg { width: 24px; height: 24px; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.2)); }
+.topbar-round:active { transform: translateY(2px); }
+.topbar-chip {
+  position: relative; min-width: 0; height: 44px; display: flex; align-items: center; justify-content: flex-end; gap: 4px;
+  padding: 0 12px 0 38px; border: 0; border-radius: 22px; cursor: pointer;
+  background: linear-gradient(180deg, #ffffff, #fff0f7); color: #6b2a4f; font-weight: 900; font-size: 20px; font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 -3px 0 #f2c6dd, 0 2px 0 rgba(163, 32, 95, 0.35);
+}
+.topbar-chip img { position: absolute; left: -8px; top: 50%; width: 48px; height: 48px; transform: translateY(-50%); filter: drop-shadow(0 2px 2px rgba(80, 10, 60, 0.3)); }
+.topbar-chip small { font-size: 15px; font-weight: 900; color: #b0306e; white-space: nowrap; }
+.topbar-chip:active { transform: translateY(2px); }
+.chip-hearts .chip-heart-count {
+  position: absolute; left: -8px; top: 50%; width: 48px; transform: translateY(-56%); text-align: center;
+  color: #fff; font-size: 19px; text-shadow: 0 2px 0 #a3123f, 0 0 3px #a3123f;
+}
+.chip-hearts { justify-content: center; padding-left: 40px; }
+.chip-gold img { left: -10px; width: 52px; height: 52px; }
+.topbar-avatar {
+  justify-self: center; position: relative; width: 62px; height: 62px; margin: -4px 0 -8px; border: 0; border-radius: 18px; padding: 4px; cursor: pointer;
+  background: linear-gradient(180deg, #8fd0ff, #2f8fe6); box-shadow: 0 0 0 3px #ffffff, 0 4px 0 3px #1c5fa8, 0 8px 14px rgba(20, 40, 90, 0.35);
+}
+.avatar-face {
+  display: grid; place-items: center; width: 100%; height: 100%; border-radius: 14px; overflow: hidden;
+  background: radial-gradient(circle at 50% 35%, #ffffff, #ffd9ec); background-size: cover; background-position: center;
+  color: #e8418f; font-size: 28px; font-weight: 900; text-shadow: 0 2px 0 rgba(255, 255, 255, 0.9);
+}
+.avatar-face img { width: 86%; height: 86%; object-fit: contain; }
+/* The Daily Wheel as a side event, with what it says underneath (Spin! or the time until the next spin). */
+.map-side { left: auto; right: calc(var(--safe-right) + 10px); top: calc(var(--safe-top) + 88px); align-items: center; }
+.side-event { position: relative; width: 64px; padding: 0; border: 0; background: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; }
+.side-event-art { width: 60px; height: 60px; display: grid; place-items: center; border-radius: 50%; background: radial-gradient(circle at 50% 35%, #fff7d6, #ffcf5a); box-shadow: 0 0 0 3px #ffffff, 0 4px 0 3px #c47a06, 0 8px 14px rgba(80, 40, 0, 0.3); }
+.side-event-art svg { width: 48px; height: 48px; }
+.app:not(.reduced-motion) .side-event.is-ready .side-event-art svg { animation: wheel-tease 2.4s ease-in-out infinite; }
+@keyframes wheel-tease { 0%, 70%, 100% { transform: rotate(0); } 80% { transform: rotate(-24deg); } 90% { transform: rotate(14deg); } }
+.side-event-caption {
+  margin-top: -6px; padding: 1px 8px 2px; border-radius: 10px; font-size: 13px; font-weight: 900; color: #ffffff; white-space: nowrap;
+  background: linear-gradient(180deg, #7a3bd6, #4a1c9a); box-shadow: 0 2px 0 #2b0d63; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3); position: relative;
+}
+.side-event.is-ready .side-event-caption { background: linear-gradient(180deg, #ff6f9e, #e0306e); box-shadow: 0 2px 0 #8a0f3d; }
+.side-event.has-badge.is-ready::after { content: '!'; position: absolute; right: -2px; top: -2px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 900; color: #fff; background: #ff3b3b; box-shadow: 0 0 0 2px #fff; }
+/* Bottom menu bar. */
+.map-nav {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; display: grid; grid-template-columns: repeat(4, 1fr);
+  padding: 6px 6px calc(var(--safe-bottom) + 6px); gap: 4px;
+  background: linear-gradient(180deg, #ffd0e8, #ffb3d8); border-radius: 24px 24px 0 0;
+  box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.75), 0 -4px 0 #e889bd, 0 -8px 18px rgba(80, 10, 60, 0.22);
+}
+.nav-tab { position: relative; min-height: 62px; border: 0; border-radius: 18px; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #7a2c58; cursor: pointer; }
+.nav-tab.is-active { background: linear-gradient(180deg, #fff6fb, #ffe0ef); box-shadow: inset 0 -3px 0 #f2b9d7, 0 2px 6px rgba(80, 10, 60, 0.15); }
+.nav-glyph { width: 36px; height: 36px; display: grid; place-items: center; }
+.nav-glyph svg { width: 34px; height: 34px; filter: drop-shadow(0 2px 1px rgba(80, 10, 60, 0.25)); }
+.nav-label { font-size: 13px; font-weight: 900; }
+.nav-tab:active { transform: translateY(2px); }
+.nav-tab.has-badge.is-ready[data-count]::after {
+  content: attr(data-count); position: absolute; right: calc(50% - 30px); top: 2px; min-width: 22px; height: 22px; padding: 0 4px; border-radius: 11px;
+  display: grid; place-items: center; font-size: 13px; font-weight: 900; color: #fff; background: #ff3b3b; box-shadow: 0 0 0 2px #fff;
+}
+/* Back to my level: a round button with your avatar and an arrow, just above the menu. */
+.map-mine {
+  position: absolute; right: calc(var(--safe-right) + 12px); bottom: calc(var(--safe-bottom) + 92px); z-index: 4; width: 56px; height: 56px; padding: 4px; border: 0; border-radius: 50%; cursor: pointer;
+  background: linear-gradient(180deg, #ff8cc6, #e8418f); box-shadow: 0 0 0 3px #ffffff, 0 4px 0 3px #a3205f, 0 8px 14px rgba(60, 10, 50, 0.3);
+}
+.map-mine .avatar-face { border-radius: 50%; font-size: 22px; }
+.map-mine-arrow { position: absolute; left: 50%; top: -14px; width: 26px; height: 26px; margin-left: -13px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: #2f9ae6; box-shadow: 0 0 0 2px #fff; }
+.map-mine-arrow svg { width: 18px; height: 18px; }
+.map-mine.is-below .map-mine-arrow { top: auto; bottom: -14px; transform: rotate(180deg); }
+.map-mine:active { transform: translateY(2px); }
+.side-event[hidden] { display: none; }
+.nav-tab.is-locked .nav-glyph { opacity: 0.45; filter: grayscale(0.6); }
+/* The Shop and the player's progress card. */
+.shop { max-width: 440px; }
+.shop-wallet {
+  display: flex; align-items: center; justify-content: center; gap: 4px; width: max-content; margin: -2px auto 12px; padding: 2px 20px 2px 6px;
+  border-radius: 26px; background: linear-gradient(180deg, #fff9df, #ffe39a); box-shadow: inset 0 -3px 0 #e6b84a, 0 3px 8px rgba(120, 70, 0, 0.18);
+  font-size: 26px; font-weight: 900; color: #6b3d00; font-variant-numeric: tabular-nums;
+}
+.shop-wallet img { width: 58px; height: 58px; margin: -8px 0; }
+.shop-list { display: flex; flex-direction: column; gap: 8px; }
+.shop-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 18px; background: linear-gradient(180deg, #ffffff, #fff1f8); box-shadow: inset 0 -3px 0 #f2c6dd, 0 3px 8px rgba(80, 10, 60, 0.12); }
+.shop-row.is-locked { opacity: 0.62; }
+.shop-art { width: 54px; height: 54px; flex: none; display: grid; place-items: center; }
+.shop-art img, .shop-art svg { width: 50px; height: 50px; }
+.shop-art .unlock-glyph { width: 50px; height: 50px; }
+.shop-art .head-start.big { font-size: 24px; }
+.shop-body { flex: 1; min-width: 0; text-align: left; }
+.modal p.shop-name { margin: 0; font-size: 16px; font-weight: 900; line-height: 1.2; }
+.modal p.shop-detail { margin: 2px 0 0; font-size: 13px; font-weight: 800; color: #b0306e; line-height: 1.2; }
+.shop-buy.pill { flex: none; min-width: 86px; min-height: 46px; display: inline-flex; align-items: center; justify-content: center; gap: 2px; padding: 6px 12px 8px; font-size: 18px; }
+.shop-buy img { width: 34px; height: 34px; margin: -6px 0 -6px -6px; }
+.shop-buy svg { width: 18px; height: 18px; }
+.shop-row.is-bought { animation: shop-bought 0.5s var(--spring); }
+@keyframes shop-bought { 40% { transform: scale(1.04); box-shadow: 0 0 0 3px #ffd34d, 0 0 18px rgba(255, 200, 60, 0.8); } }
+.modal p.shop-note { margin-top: 12px; font-size: 13px; font-weight: 700; opacity: 0.75; }
+.profile { max-width: 380px; text-align: center; }
+.profile-face { width: 96px; height: 96px; margin: 4px auto 6px; border-radius: 26px; box-shadow: 0 0 0 4px #ffffff, 0 0 0 8px #2f8fe6, 0 8px 16px rgba(20, 40, 90, 0.3); font-size: 44px; }
+.profile-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.profile-stat { display: flex; flex-direction: column; align-items: center; padding: 8px 4px; border-radius: 16px; background: linear-gradient(180deg, #ffffff, #fff1f8); box-shadow: inset 0 -3px 0 #f2c6dd; }
+.profile-stat-art svg, .profile-stat-art img { width: 30px; height: 30px; }
+.profile-stat strong { font-size: 22px; font-weight: 900; line-height: 1.1; }
+.profile-stat-label { font-size: 11px; font-weight: 800; opacity: 0.75; }
+.shop-art .unlock-glyph { border-radius: 14px; box-shadow: 0 3px 0 #f2c6dd; }
+.shop-art .unlock-glyph svg { width: 34px; height: 34px; }
+
+/* ---------------------------------------------------------------- map buttons (v1.11), like the original's today:
+   levels done are pink candy discs, first-try wins orange candy balls with a crown, the level to play a big pink ball
+   ringed with light, levels ahead pale discs; chunky outlined numbers and a smile of stars below. */
+.map-node {
+  width: 64px; height: 50px; margin: -25px 0 0 -32px; border-radius: 50%;
+  font-size: 23px; color: #ffffff;
+  --node1: #ffd4e8; --node2: #ff6fb0; --node3: #c2246e;
+  background:
+    radial-gradient(ellipse 52% 30% at 50% 22%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 76%),
+    radial-gradient(ellipse 80% 90% at 50% 32%, var(--node1) 0%, var(--node2) 62%, var(--node3) 100%);
+  box-shadow: 0 0 0 3px #ffffff, 0 7px 0 3px var(--node3), 0 13px 12px 2px rgba(30, 10, 40, 0.3), inset 0 -7px 9px rgba(0, 0, 0, 0.12);
+  text-shadow: 0 2px 0 var(--node3), 2px 0 0 var(--node3), -2px 0 0 var(--node3), 0 -2px 0 var(--node3), 1.5px 1.5px 0 var(--node3), -1.5px 1.5px 0 var(--node3), 0 4px 3px rgba(0, 0, 0, 0.3);
+}
+.map-node.is-hard { --node1: #e6c4ff; --node2: #9a4ff0; --node3: #561596; }
+.map-node.is-superhard { --node1: #ffb0c6; --node2: #e0285a; --node3: #7a0a2c; }
+.map-node.is-crowned { width: 60px; height: 60px; margin: -30px 0 0 -30px; --node1: #ffe6ad; --node2: #ff9c24; --node3: #b55a00; }
+.map-node.is-crowned.is-hard { --node1: #ffe6ad; --node2: #ff9c24; --node3: #b55a00; }
+.map-node.is-current { width: 72px; height: 72px; margin: -36px 0 0 -36px; font-size: 28px; --node1: #ffc6e6; --node2: #ff3f9a; --node3: #9c0d55; }
+.map-node.is-current.is-hard { --node1: #e6c4ff; --node2: #9a4ff0; --node3: #561596; }
+.map-node.is-current.is-superhard { --node1: #ffb0c6; --node2: #e0285a; --node3: #7a0a2c; }
+.map-node.is-locked, .map-node.is-locked.is-hard, .map-node.is-locked.is-superhard {
+  width: 58px; height: 44px; margin: -22px 0 0 -29px; font-size: 21px;
+  --node1: #ffffff; --node2: #efe8f8; --node3: #b4a5cf; color: #ffffff;
+  text-shadow: 0 2px 0 #9c8cc0, 2px 0 0 #9c8cc0, -2px 0 0 #9c8cc0, 0 -2px 0 #9c8cc0, 1.5px 1.5px 0 #9c8cc0, -1.5px 1.5px 0 #9c8cc0;
+}
+.map-node .node-number.digits-3 { font-size: 19px; }
+.map-node .node-number.digits-4 { font-size: 15px; }
+.map-node .node-number.digits-5 { font-size: 12px; }
+.map-node .node-stars { top: calc(100% - 9px); }
+.map-node.is-crowned .node-stars { top: calc(100% - 11px); }
+.map-node .node-crown { top: -22px; }
+.map-node.is-current .node-cost { top: calc(100% - 2px); }
+.map-node.is-soon { width: 124px; height: 64px; margin: -32px 0 0 -62px; border-radius: 32px; font-size: 13px; color: var(--ink); text-shadow: none; --node1: #ffffff; --node2: #f4ecff; --node3: #b4a5cf; }
+/* The avatar's pin above the level to play, bobbing gently. */
+.map-marker { width: 54px; height: 54px; margin: -27px 0 0 -27px; border: 0; border-radius: 0; background: none; box-shadow: none; display: block; color: #e8418f; }
+.map-marker::after { display: none; }
+.marker-bob { position: absolute; inset: 0; }
+.app:not(.reduced-motion) .marker-bob { animation: marker-bob 1.6s ease-in-out infinite; }
+@keyframes marker-bob { 50% { transform: translateY(-6px); } }
+.marker-pin {
+  position: absolute; inset: 0; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+  background: linear-gradient(135deg, #ff9fd0, #e8418f 60%, #b81f6e);
+  box-shadow: 0 0 0 3px #ffffff, -4px 6px 10px rgba(60, 10, 50, 0.35);
+}
+.marker-face {
+  position: absolute; inset: 7px; border-radius: 50%; overflow: hidden; display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 35%, #ffffff, #ffe0ef); background-size: cover; background-position: center;
+  font-size: 22px; font-weight: 900; color: #e8418f;
+}
+.marker-face img { width: 34px; height: 34px; }
+.chip-hearts img { left: -10px; width: 50px; height: 48px; }
+.chip-hearts .chip-heart-count { left: -10px; width: 50px; transform: translateY(-58%); font-size: 20px; text-shadow: 0 2px 0 #9c0d3f, 0 0 2px #9c0d3f; }
