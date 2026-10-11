@@ -178,7 +178,7 @@ on the starting board reproduces the final board exactly; this is tested on rand
 
 Every push, every `v*` tag and manual runs execute:
 
-1. **logic**: 71 Node tests (`node tests/logic.test.js`), then 500 fuzz games and 300 smart-bot games on every shipped level, on boards the calibrator never tuned on (`node tests/simulate.js`; a level whose bot win rate drifts more than 15 points from its target fails).
+1. **logic**: 72 Node tests (`node tests/logic.test.js`), then 500 fuzz games and 300 smart-bot games on every shipped level, on boards the calibrator never tuned on (`node tests/simulate.js`; a level whose bot win rate drifts more than 15 points from its target fails).
 2. **levels**: `node tests/levels.test.js`: shipped levels are valid and solvable, one new idea per level, complexity budget, the calibrated difficulty curve, and a scale test that generates levels 61–360 plus a sample up to 20,000.
    **levels-pipeline**: runs `levels.yml` end to end on levels 201–240 with a small bot budget (nothing is published).
 3. **audio**: `node tests/audio/run-audio-tests.mjs` renders every sound, an 8-sound + music stress mix and both music tracks offline in Chromium at maximum settings and checks clipping (peak), loudness (every sound audible), clicks at the edges, energy above 10 kHz, spectral centroid, length, envelope and the loop seam.

@@ -15,9 +15,10 @@ const SIZES = [
 ];
 const THEMES = ['gummy', 'hard', 'sprinkle'];
 // Real shipped levels that show each board piece: cages, portals, cocoa, fuse, belt, thick frosting, hazelnuts, jelly,
-// popcorn, Sugar Chests and keys, Mood Candies and the Candy Mixer.
-const FEATURE_LEVELS = [[14, 'cage'], [19, 'portals'], [20, 'cocoa'], [22, 'fuse'], [31, 'belt'], [36, 'frosting-3plus'], [41, 'hazelnut'], [46, 'taffy-swirl'], [61, 'gift-box'], [13, 'jelly-frosting'], [30, 'hard'],
-  [15, 'popcorn'], [53, 'sugar-chest'], [68, 'mood-candy'], [76, 'candy-mixer'], [3, 'jelly']];
+// popcorn, Sugar Chests and keys, Mood Candies, the Candy Mixer, Rock Candy, Cocoa Fountains, locked specials and the
+// Sugar Cake.
+const FEATURE_LEVELS = [[14, 'cage'], [19, 'portals'], [20, 'cocoa'], [22, 'fuse'], [31, 'belt'], [36, 'frosting-3plus'], [41, 'hazelnut'], [46, 'taffy-swirl'], [61, 'gift-box'], [13, 'jelly-under-frosting'], [30, 'hard'],
+  [15, 'popcorn'], [53, 'sugar-chest'], [68, 'mood-candy'], [76, 'candy-mixer'], [3, 'jelly'], [44, 'rock-candy'], [57, 'cocoa-fountain'], [64, 'locked-specials'], [72, 'sugar-cake']];
 
 test.describe.configure({ mode: 'parallel' });
 
@@ -193,7 +194,7 @@ test('landscape phone and desktop layouts (HUD beside the board)', async ({ brow
 });
 
 test('art quality sheet: every candy, special, blocker and Pip in all three themes, zoomed and at real size', async ({ page }) => {
-  await page.setViewportSize({ width: 960, height: 1520 });
+  await page.setViewportSize({ width: 960, height: 1680 });
   await H.bootGame(page, { name: '' });
   for (const theme of THEMES) {
     for (const colorblind of [false, true]) {
@@ -203,7 +204,7 @@ test('art quality sheet: every candy, special, blocker and Pip in all three them
         const canvas = document.createElement('canvas');
         canvas.id = 'art-sheet';
         canvas.width = 960;
-        canvas.height = 1520;
+        canvas.height = 1680;
         canvas.style.cssText = 'position:fixed;left:0;top:0;z-index:99;background:linear-gradient(135deg,#ff9ad5,#ffd36e 50%,#8ee3ff)';
         document.body.appendChild(canvas);
         const ctx = canvas.getContext('2d');
@@ -220,7 +221,8 @@ test('art quality sheet: every candy, special, blocker and Pip in all three them
         });
         const blockers = [['candy', 0, 'bomb', 0], ['frosting', -1, 'none', 1], ['frosting', -1, 'none', 3], ['frosting', -1, 'none', 5], ['cocoa', -1, 'none', 0], ['cherry', -1, 'none', 0],
           ['hazelnut', -1, 'none', 0], ['cage', -1, 'none', 0], ['jelly', -1, 'none', 1], ['jelly', -1, 'none', 2], ['swirl', -1, 'none', 1], ['gift', -1, 'none', 1],
-          ['popcorn', -1, 'none', 3], ['popcorn', -1, 'none', 2], ['popcorn', -1, 'none', 1], ['chest', -1, 'none', 2], ['chest', -1, 'none', 1], ['mixer', -1, 'none', 3]];
+          ['popcorn', -1, 'none', 3], ['popcorn', -1, 'none', 2], ['popcorn', -1, 'none', 1], ['chest', -1, 'none', 2], ['chest', -1, 'none', 1], ['mixer', -1, 'none', 3],
+          ['rock', -1, 'none', 1], ['rock', -1, 'none', 2], ['fountain', -1, 'none', 1], ['cake', -1, 'none', 8]];
         blockers.forEach((args, index) => {
           const x = 10 + (index % 6) * 158;
           const y = 650 + Math.floor(index / 6) * 158;
@@ -230,19 +232,19 @@ test('art quality sheet: every candy, special, blocker and Pip in all three them
           ctx.drawImage(cache.get(...args), x, y, 150, 150);
         });
         const elapsed = performance.now() - started;
-        window.SC.PIP.EXPRESSIONS.forEach((expression, index) => window.SC.PIP.drawPip(ctx, 60 + index * 112, 1210, 90, expression, 400, { angle: 0.5 }));
+        window.SC.PIP.EXPRESSIONS.forEach((expression, index) => window.SC.PIP.drawPip(ctx, 60 + index * 112, 1370, 90, expression, 400, { angle: 0.5 }));
         const small = window.SC.SPRITES.createSpriteCache();
         small.configure(36, theme_id, colorblind_on, 2);
         ctx.fillStyle = 'rgba(70,32,110,0.55)';
-        ctx.fillRect(10, 1310, 6 * 44, 44);
-        for (let color = 0; color < 6; color += 1) ctx.drawImage(small.get('candy', color, 'none', 0), 14 + color * 44, 1314, 36, 36);
+        ctx.fillRect(10, 1470, 6 * 44, 44);
+        for (let color = 0; color < 6; color += 1) ctx.drawImage(small.get('candy', color, 'none', 0), 14 + color * 44, 1474, 36, 36);
         ctx.font = '900 22px system-ui';
         ctx.fillStyle = '#3b1a4a';
-        ctx.fillText(`${theme_id}${colorblind_on ? ' + color-blind assist' : ''} · the small row is the real 36 px cell size`, 10, 1390);
+        ctx.fillText(`${theme_id}${colorblind_on ? ' + color-blind assist' : ''} · the small row is the real 36 px cell size`, 10, 1550);
         return elapsed;
       }, { theme_id: theme, colorblind_on: colorblind });
       await page.screenshot({ path: `qa/screenshots/art/${theme}${colorblind ? '-colorblind' : ''}.png` });
-      require('node:fs').appendFileSync('qa/sprite-build-ms.txt', `${theme}${colorblind ? ' colorblind' : ''}: ${build_ms.toFixed(0)} ms for 42 sprites at 256 px\n`);
+      require('node:fs').appendFileSync('qa/sprite-build-ms.txt', `${theme}${colorblind ? ' colorblind' : ''}: ${build_ms.toFixed(0)} ms for 46 sprites at 256 px\n`);
     }
   }
 });
