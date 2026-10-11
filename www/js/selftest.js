@@ -1431,11 +1431,13 @@
     close(LEVELS.baseWinRate(20000), 0.15, 'base(20000)');
     close(LEVELS.targetWinRate(400, 'breather'), Math.min(0.85, LEVELS.baseWinRate(400) + 0.2), 'breather +0.20');
     close(LEVELS.targetWinRate(400, 'hard'), LEVELS.baseWinRate(400) * 0.35, 'hard x0.35');
-    close(LEVELS.targetWinRate(20000, 'superhard'), LEVELS.baseWinRate(20000) * 0.15, 'superhard x0.15');
+    close(LEVELS.targetWinRate(100, 'superhard'), LEVELS.baseWinRate(100) * 0.15, 'superhard x0.15');
+    close(LEVELS.targetWinRate(20000, 'superhard'), 0.03, 'super hard never below 3%');
     close(LEVELS.targetWinRate(2, 'tutorial'), 0.95, 'the first lessons');
     close(LEVELS.targetWinRate(23, 'hard'), (0.7 - (0.25 * 12) / 14) * 0.35, 'the first hard level');
     close(LEVELS.calibrationTolerance(0.6), 0.08, 'tolerance 8 points');
     close(LEVELS.calibrationTolerance(0.05), 0.03, 'tolerance at least 3 points');
+    close(LEVELS.calibrationTolerance(0.03), 0.024, 'but never wide enough to pass a level that was never won');
     assert.deepStrictEqual([1, 15, 16, 20000].map(LEVELS.episodeOf), [1, 1, 2, 1334]);
     assert.deepStrictEqual(LEVELS.episodeRange(2), { first: 16, last: 30 });
     assert.strictEqual(LEVELS.SCENERY_FAMILIES.length, 12);

@@ -168,13 +168,17 @@
     const base = level_number <= 25 ? 0.7 - (0.25 * (level_number - 11)) / 14 : baseWinRate(level_number);
     if (level_role === 'breather') return Math.min(0.85, base + 0.2);
     if (level_role === 'hard') return base * 0.35;
-    if (level_role === 'superhard') return base * 0.15;
+    // Super hard bottoms out at 3% per try, about the original's hardest gates (never a level nobody can beat).
+    if (level_role === 'superhard') return Math.max(0.03, base * 0.15);
     return base;
   }
 
-  /** How close the calibrated win rate must land: 8 points, tighter for the rare-win hard levels (at least 3). */
+  /**
+   * How close the calibrated win rate must land: 8 points, tighter for the rare-win hard levels (at least 3), and never
+   * so wide that a level the bot did not win at all would pass (at most 80% of a very low target).
+   */
   function calibrationTolerance(target) {
-    return Math.min(0.08, Math.max(0.03, target * 0.3));
+    return Math.min(0.08, Math.max(0.03, target * 0.3), target * 0.8);
   }
 
   // ---------------------------------------------------------------- episodes and scenery

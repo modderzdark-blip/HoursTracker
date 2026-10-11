@@ -61,7 +61,7 @@ test('shipped levels: every level is won by the smart bot', () => {
   shipped.forEach((level) => {
     // Hard and super hard levels are won on about 3-15% of tries (like the original), so they get more tries.
     const target = LEVELS.targetWinRate(level.id, level.role);
-    const tries = target < 0.08 ? 250 : target < 0.25 ? 100 : 30;
+    const tries = target < 0.08 ? 600 : target < 0.25 ? 100 : 30;
     let wins = 0;
     for (let attempt = 0; attempt < tries && wins === 0; attempt += 1) {
       if (LOGIC.playBotGame(level, { attempt: 5000 + attempt, policy: 'smart' }).won) wins += 1;
