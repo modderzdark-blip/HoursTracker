@@ -63,6 +63,15 @@ wait_for() { # expression, timeout seconds, label
   log "last snapshot: $(q 'JSON.stringify({state: s.state, modal: s.modal, screen: s.screen, level: s.level, seq: s.seq})')"
   fail "timed out after ${timeout}s waiting for: $label"
 }
+wait_until() { # expression, timeout seconds: like wait_for, but answers 1 instead of failing
+  local expression="$1" timeout="$2" elapsed=0
+  while [ "$elapsed" -lt "$timeout" ]; do
+    if [ "$(q "$expression")" = "true" ]; then return 0; fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+  return 1
+}
 fresh() { q 's.seq'; }
 wait_fresh() { # wait until the hook reports a newer snapshot than $1
   local previous="$1"
@@ -115,8 +124,17 @@ make_move() { # one real swipe from the hook's suggested move; waits until it ha
   before=$(q 's.moves_played')
   swipe_points=$(q 'swipe(s.move)')
   [ "$swipe_points" = "none" ] && return 1
-  ensure_app_focused
-  adb shell input swipe $swipe_points 260
+  local attempt
+  for attempt in 1 2 3; do
+    ensure_app_focused
+    adb shell input swipe $swipe_points 260
+    # While the emulator stalls (100+ ms frames), a swipe can be lost on its way to the page: the game then stays idle
+    # on the very same suggested move. Only in that case is the swipe made again; a game that ignored swipes would
+    # still fail every attempt.
+    wait_until "s.moves_played > $before || s.state !== 'PLAYING' || s.busy || swipe(s.move) !== '$swipe_points'" 15 && break
+    log "the swipe $swipe_points was not played (the game still waits on the same move); swiping again"
+    echo "lost swipe $swipe_points (attempt $attempt)" >> "$OUT/dropped-taps.txt"
+  done
   wait_for "s.moves_played > $before || s.state === 'WON' || s.state === 'LOST'" 60 "the move to resolve"
   return 0
 }
