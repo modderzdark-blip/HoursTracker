@@ -48,7 +48,8 @@
   function mapNodes() {
     const nodes = {};
     document.querySelectorAll('#map-nodes .map-node[data-level-id]').forEach((node) => {
-      if (isVisible(node)) nodes[node.dataset.levelId] = center(node);
+      // Buttons far up the map's curved hill (faded or small) cannot be tapped: only the ones a finger can hit count.
+      if (isVisible(node) && node.style.pointerEvents !== 'none') nodes[node.dataset.levelId] = center(node);
     });
     return nodes;
   }

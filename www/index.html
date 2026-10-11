@@ -34,10 +34,12 @@
   </section>
 
   <section id="screen-map" class="screen screen-map" aria-label="Level map">
-    <canvas id="map-canvas" class="map-canvas" aria-hidden="true"></canvas>
     <div id="map-scroll" class="map-scroll">
       <div id="map-inner" class="map-inner">
-        <div id="map-nodes" class="map-nodes"></div>
+        <div id="map-stage" class="map-stage">
+          <canvas id="map-canvas" class="map-canvas" aria-hidden="true"></canvas>
+          <div id="map-nodes" class="map-nodes"></div>
+        </div>
       </div>
     </div>
     <header class="top-bar map-bar">

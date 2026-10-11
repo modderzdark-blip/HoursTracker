@@ -798,3 +798,13 @@ input[type="range"] { width: 130px; height: 36px; accent-color: var(--btn2); }
 .map-episode .episode-title::after { right: -20px; clip-path: polygon(0 0, 100% 0, 66% 50%, 100% 100%, 0 100%); }
 .map-episode .episode-title strong { font-size: 19px; }
 .map-episode .episode-title small { opacity: 0.9; }
+
+/* ---------------------------------------------------------------- map (v1.10): a round world that rolls as you scroll
+   The stage stays put while the page scrolls; the map draws the curved land on its canvas and places the buttons, the
+   avatar and the banners on the same curve (moved and scaled by script with the translate and scale properties). */
+.map-inner { width: 100%; max-width: none; margin: 0; }
+.map-stage { position: sticky; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; }
+.map-stage .map-canvas { position: absolute; left: 0; top: 0; z-index: 0; }
+.map-stage .map-nodes { position: absolute; inset: 0; z-index: 1; }
+.map-node, .map-marker, .map-burst { left: 0; top: 0; }
+.map-episode { left: 0; right: auto; top: 0; width: 340px; margin: -34px 0 0 -170px; transform: none; }

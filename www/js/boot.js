@@ -67,6 +67,7 @@
       btn_map_settings: by_id('btn-map-settings'),
       map_scroll: by_id('map-scroll'),
       map_inner: by_id('map-inner'),
+      map_stage: by_id('map-stage'),
       map_canvas: by_id('map-canvas'),
       map_nodes: by_id('map-nodes'),
       hud_moves: by_id('hud-moves'),

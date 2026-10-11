@@ -1,9 +1,13 @@
 // MAP: the level map, virtualized for 20,000+ levels.
-// Like the original's map today: a candy road winding up through a painted land, level 1 at the bottom, split into
-// episodes of 15 levels. Each episode is its own piece of land (a scenery family: meadow, lollipop forest, snowy peaks
-// ...) full of round, shaded props, with clouds and a ribbon banner where it begins. Round glossy level buttons sit on
-// the road. Only the nodes near the viewport exist in the DOM (a recycled pool of about 60 buttons) and only the visible
-// episodes' land is painted, so memory and frame time are the same on level 20 and on level 19,000.
+// Like the original's map today: a candy road winding up through a painted land on a round, turning world. The land
+// near you is big and flat; further up it curves away over a horizon into the sky, so scrolling rolls the world toward
+// you and the next levels rise over the hill. Level 1 is at the bottom; each episode of 15 levels has its own land
+// (meadow, lollipop forest, snowy peaks ...) with clouds and a ribbon banner where it begins. Trees, houses and the
+// round level buttons stand upright on the curve and shrink as they roll away.
+// Rendering: each visible episode's ground and road are painted once into a cached canvas; every frame the visible part
+// is drawn onto the screen in thin strips, each scaled for its place on the curve, and the props are stood up on it
+// from small per-family sprite sheets. The level buttons (a recycled pool of at most 60) live in a layer that stays put
+// while the page scrolls and are placed on the same curve, so taps and swipes work as on any scrolling page.
 (function attachMap(root) {
   'use strict';
   const SC = root.SC || (root.SC = {});
@@ -17,28 +21,119 @@
   const EPISODE_GAP = 230;
   const TOP_PADDING = 260;
   const BOTTOM_PADDING = 250;
-  const OVERSCAN_PX = 700;
+  const OVERSCAN_PX = 160;
   const MAX_LIVE_NODES = 60;
   const SCENERY_CACHE = 4;
+  const SPRITE_CACHE = 3;
+  const SPRITE_REF = 40;
+  const SPRITE_VARIANTS = 4;
   const ROAD_HALF_WIDTH = 21;
   const ROAD_CANDIES = ['#ff5c8a', '#ffb347', '#ffe066', '#5fe0a8', '#6cb8ff', '#b57bff'];
+  // The world's shape, in screen heights: the land is flat and full size at `anchor` (from the top of the screen); above
+  // it the ground turns away over a drum of `radius`, seen from `camera` away, and things shrink with distance (`shrink`
+  // makes far things smaller than true perspective, for a rounder look). Below the anchor it curves gently (`below`
+  // times the radius). The horizon is an arc `arc` screen widths in radius, so the world reads as a ball. Buttons shrink
+  // faster than the land (`button_shrink`), so the levels further up the hill never pile onto each other.
+  const WORLD = { anchor: 0.63, radius: 0.85, camera: 0.75, below: 2.5, shrink: 1.8, arc: 1.2, button_shrink: 1.7 };
+  const SKY = {
+    day: { top: '#56b4ff', middle: '#9bd6ff', horizon: '#e4f6ff' },
+    night: { top: '#120b38', middle: '#2c1d6e', horizon: '#7b5ec9' },
+  };
+  const TRANSFORM_PROPS = typeof CSS !== 'undefined' && !!CSS.supports && CSS.supports('translate', '1px 1px') && CSS.supports('scale', '1');
+  const Z_BASE = 200000;
+
+  function rgbOf(hex) {
+    const value = parseInt(hex.slice(1), 16);
+    return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+  }
+
+  function rgbaOf(hex, alpha) {
+    const rgb = rgbOf(hex);
+    return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
+  }
+
+  /** Where s (map pixels above the anchor) lands on the screen of world w: { y, k } (k = scale there). */
+  function projectWith(w, s) {
+    const radius = s >= 0 ? w.radius : w.radius_below;
+    const turn = s / radius;
+    const depth = radius * (1 - Math.cos(turn));
+    const perspective = w.camera / (w.camera + depth);
+    return { y: w.anchor - radius * Math.sin(turn) * perspective, k: s > 0 ? Math.pow(perspective, WORLD.shrink) : perspective };
+  }
+
+  /** The curve for one screen size, with the strips the land is drawn in (each thin enough to look smooth). */
+  function buildWorld(view_w, view_h) {
+    const w = { view_w, view_h, anchor: Math.round(view_h * WORLD.anchor), radius: view_h * WORLD.radius, camera: view_h * WORLD.camera, sky: {} };
+    w.radius_below = w.radius * WORLD.below;
+    // The land ends where it has turned so far that a map pixel would show as a sliver: the horizon.
+    let s_cut = 0;
+    let previous = projectWith(w, 0).y;
+    for (let s = 1; s < view_h * 3; s += 1) {
+      const y = projectWith(w, s).y;
+      if (previous - y < 0.15) break;
+      previous = y;
+      s_cut = s;
+    }
+    let s_min = 0;
+    while (projectWith(w, s_min).y < view_h + 1 && s_min > -view_h * 2) s_min -= 1;
+    const edge = projectWith(w, s_cut);
+    w.s_cut = s_cut;
+    w.s_min = s_min;
+    w.horizon_y = edge.y;
+    w.fade = s_cut * 0.3;
+    w.arc_r = view_w * WORLD.arc;
+    w.arc_cy = w.horizon_y + w.arc_r;
+    w.arc_drop = w.arc_r - Math.sqrt(Math.max(0, w.arc_r * w.arc_r - (view_w / 2) * (view_w / 2)));
+    w.haze = view_h * 0.17;
+    // The sky overlay reaches down past the horizon's lowest point far enough to hold the haze below it.
+    w.sky_h = Math.ceil(w.horizon_y + w.arc_drop + w.haze + 4);
+    // Wide enough that the land still fills the screen where it is smallest, at the horizon.
+    w.land_w = Math.ceil(view_w / edge.k) + 24;
+    const table = [];
+    for (let s = s_min; s <= s_cut; s += 1) table.push(projectWith(w, s));
+    w.strips = [];
+    let low = 0;
+    while (low < table.length - 1) {
+      let high = low + 1;
+      while (high < table.length - 1) {
+        const next = high + 1;
+        if (table[low].y - table[next].y > 40 || Math.abs(table[low].k - table[next].k) > 0.008) break;
+        const middle = (low + next) >> 1;
+        const straight = table[low].y + (table[next].y - table[low].y) * ((middle - low) / (next - low));
+        if (Math.abs(straight - table[middle].y) > 0.5) break;
+        high = next;
+      }
+      w.strips.push({ s_low: s_min + low, s_high: s_min + high, y_bottom: table[low].y, y_top: table[high].y, k: (table[low].k + table[high].k) / 2 });
+      low = high;
+    }
+    return w;
+  }
 
   function createMap(dom, hooks) {
     const EPISODE = LEVELS.EPISODE_SIZE;
     let save = null;
     let last_level = 1; // the highest node drawn (the end cap sits after it)
-    let width = 360;
+    let width = 360; // the road's width (content x runs 0..width, centered on the screen)
     let total_height = 1000;
+    let world = null;
     let rendered = { first: 0, last: -1 };
     let marker_level = 1;
+    let marker_state = { x: 0, y: 0, lift: 0, grow: 1 };
     let marker_override = null;
     let scroll_frame = 0;
-    let scenery_dirty = true;
+    let prefetch_timer = 0;
+    // Detail: on a phone too slow to scroll the curved world smoothly, the map canvas drops to one pixel per CSS pixel.
+    let light = false;
+    let slow_ms = 0;
+    let last_frame = 0;
     let generation = 0;
+    let glide = 0; // the running scroll glide (a new jump cancels it)
     const node_pool = [];
     const live_nodes = new Map(); // level -> button
     const episode_cards = new Map(); // episode -> element
-    const scenery_cache = new Map(); // episode -> canvas (LRU)
+    const scenery_cache = new Map(); // episode -> { canvas, standing, sprites, ... } (LRU)
+    const sprite_cache = new Map(); // land family -> sprite sheet (LRU)
+    const bursts = new Set();
     let end_cap = null;
     let marker = null;
 
@@ -102,6 +197,23 @@
       return Math.max(0, Math.min(total_height - dom.map_scroll.clientHeight, pointOf(level_number).y - dom.map_scroll.clientHeight * 0.58));
     }
 
+    function mapBottom() {
+      return total_height - BOTTOM_PADDING;
+    }
+
+    /** The episode whose land holds map height y (0 or less: the land below level 1). */
+    function episodeAtY(y) {
+      return Math.floor((mapBottom() - y) / blockHeight()) + 1;
+    }
+
+    function blockTop(episode) {
+      return mapBottom() - episode * blockHeight();
+    }
+
+    function project(s) {
+      return projectWith(world, s);
+    }
+
     function shipped() {
       return LEVELS.shippedCount();
     }
@@ -135,8 +247,10 @@
       node.className = `map-node${unlocked ? '' : ' is-locked'}${is_current ? ' is-current' : ''}${crowned ? ' is-crowned' : ''}${role === 'hard' ? ' is-hard' : role === 'superhard' ? ' is-superhard' : ''}`;
       node.dataset.levelId = String(level_number);
       const point = pointOf(level_number);
-      node.style.left = `${point.x}px`;
-      node.style.top = `${point.y}px`;
+      node.map_x = point.x;
+      node.map_y = point.y;
+      // Nearer levels (lower numbers) stand in front of the ones further up the hill.
+      node.style.zIndex = String(2 * (Z_BASE - level_number));
       const stars = starsOf(level_number);
       const digits = String(level_number).length;
       // Like the original, levels ahead show their numbers too (in a pale, unlit button).
@@ -169,17 +283,26 @@
       const range = LEVELS.episodeRange(episode);
       card.innerHTML = `<div class="episode-gate" aria-hidden="true"></div><div class="episode-title"><small>Episode ${episode}</small><strong>${LEVELS.episodeName(episode)}</strong><small>Levels ${range.first}-${range.last}</small></div>`;
       // On the cloud seam where this episode's land begins (between the previous episode's last level and its first).
-      card.style.top = `${total_height - (BOTTOM_PADDING + (episode - 1) * blockHeight())}px`;
+      card.map_x = width / 2;
+      card.map_y = blockTop(episode) + blockHeight();
+      card.style.zIndex = String(2 * (Z_BASE - range.first) + 1);
       return card;
     }
 
-    /** Creates, recycles and removes nodes so only the ones near the viewport exist. */
+    /** The map rows from the horizon to just below the screen. */
+    function visibleSpan() {
+      const scroll_top = dom.map_scroll.scrollTop;
+      return { top: scroll_top + world.anchor - world.s_cut, bottom: scroll_top + world.anchor - world.s_min };
+    }
+
+    /** Creates, recycles and removes nodes so only the ones on (or near) the screen exist. */
     function updateNodes() {
-      const top = dom.map_scroll.scrollTop - OVERSCAN_PX;
-      const bottom = dom.map_scroll.scrollTop + dom.map_scroll.clientHeight + OVERSCAN_PX;
+      const span = visibleSpan();
+      const top = span.top - OVERSCAN_PX;
+      const bottom = span.bottom + OVERSCAN_PX;
       let range = levelsInRange(top, bottom);
       if (range.last - range.first + 1 > MAX_LIVE_NODES) {
-        const center = Math.round(levelAtHeight(total_height - (dom.map_scroll.scrollTop + dom.map_scroll.clientHeight / 2)));
+        const center = Math.round(levelAtHeight(total_height - (dom.map_scroll.scrollTop + world.anchor)));
         range = { first: Math.max(1, center - MAX_LIVE_NODES / 2 + 1), last: center + MAX_LIVE_NODES / 2 };
       }
       range.last = Math.min(range.last, last_level);
@@ -198,16 +321,22 @@
         live_nodes.set(level_number, node);
         dom.map_nodes.appendChild(node);
       }
-      const first_episode = LEVELS.episodeOf(range.first);
-      const last_episode = LEVELS.episodeOf(Math.max(range.first, range.last));
+      // A banner for each episode seam on the screen (up to the last shipped episode).
+      const block = blockHeight();
+      const first_episode = Math.max(1, episodeAtY(bottom));
+      const last_episode = Math.min(LEVELS.episodeOf(Math.max(1, last_level)), episodeAtY(top));
+      const seamVisible = (episode) => {
+        const seam = blockTop(episode) + block;
+        return seam >= top && seam <= bottom;
+      };
       episode_cards.forEach((card, episode) => {
-        if (episode < first_episode || episode > last_episode) {
+        if (episode < first_episode || episode > last_episode || !seamVisible(episode)) {
           card.remove();
           episode_cards.delete(episode);
         }
       });
       for (let episode = first_episode; episode <= last_episode; episode += 1) {
-        if (episode_cards.has(episode)) continue;
+        if (episode_cards.has(episode) || !seamVisible(episode)) continue;
         const card = episodeCard(episode);
         episode_cards.set(episode, card);
         dom.map_nodes.appendChild(card);
@@ -215,80 +344,69 @@
       rendered = range;
     }
 
-    // ---------------------------------------------------------------- scenery (only the visible episodes)
+    // ---------------------------------------------------------------- the land (only the visible episodes)
 
-    function sceneryFor(episode) {
-      if (scenery_cache.has(episode)) {
-        const cached = scenery_cache.get(episode);
-        scenery_cache.delete(episode);
-        scenery_cache.set(episode, cached);
-        return cached;
-      }
-      const block = blockHeight();
-      const ratio = Math.min(1.5, root.devicePixelRatio || 1);
-      const canvas = SPRITES.createCanvas(Math.max(1, Math.round(width * ratio)), Math.max(1, Math.round(block * ratio)));
-      const ctx = canvas.getContext('2d');
-      ctx.scale(ratio, ratio);
-      const scenery = LEVELS.sceneryOf(episode);
-      // The road through this episode (one level beyond each end), in the land's own coordinates.
-      const block_top = total_height - (BOTTOM_PADDING + episode * block);
-      const range = LEVELS.episodeRange(episode);
-      const path = roadPoints(Math.max(1, range.first - 1), range.last + 1, 0, -block_top);
-      SCENERY.paintLand(ctx, width, block, scenery, path, ROAD_HALF_WIDTH);
-      scenery_cache.set(episode, canvas);
-      while (scenery_cache.size > SCENERY_CACHE) scenery_cache.delete(scenery_cache.keys().next().value);
-      return canvas;
+    /** Episode 0 and below is the land under level 1: the first episode's family with its own layout, no road. */
+    function landScenery(episode) {
+      if (episode >= 1) return LEVELS.sceneryOf(episode);
+      const first = LEVELS.sceneryOf(1);
+      return Object.assign({}, first, { seed: (first.seed || 1) + 7777 });
     }
 
-    function paintScenery() {
-      scenery_dirty = false;
-      const canvas = dom.map_canvas;
-      const view_w = dom.map_scroll.clientWidth || width;
-      const view_h = dom.map_scroll.clientHeight || 600;
-      const ratio = Math.min(2, root.devicePixelRatio || 1);
-      if (canvas.width !== Math.round(view_w * ratio) || canvas.height !== Math.round(view_h * ratio)) {
-        canvas.width = Math.round(view_w * ratio);
-        canvas.height = Math.round(view_h * ratio);
-        canvas.style.width = `${view_w}px`;
-        canvas.style.height = `${view_h}px`;
+    /** One family's props drawn once at a reference size (a few variants each) and a cloud puff, in one sheet. */
+    function spritesFor(scenery) {
+      const key = `${scenery.family}|${scenery.hue_shift || 0}`;
+      if (sprite_cache.has(key)) {
+        const cached = sprite_cache.get(key);
+        sprite_cache.delete(key);
+        sprite_cache.set(key, cached);
+        return cached;
       }
+      const land = SCENERY.landFor(scenery);
+      const kinds = Array.from(new Set(land.props));
+      const size = SPRITE_REF;
+      const cell_w = size * 2;
+      const cell_h = size * 2.35;
+      const columns = 6;
+      const count = kinds.length * SPRITE_VARIANTS + 1;
+      const ratio = Math.min(2, Math.max(1.5, root.devicePixelRatio || 1));
+      const canvas = SPRITES.createCanvas(Math.ceil(columns * cell_w * ratio), Math.ceil(Math.ceil(count / columns) * cell_h * ratio));
       const ctx = canvas.getContext('2d');
-      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-      ctx.clearRect(0, 0, view_w, view_h);
-      const scroll_top = dom.map_scroll.scrollTop;
-      const offset_x = (view_w - width) / 2;
-      const block = blockHeight();
-      const top_level = levelAtHeight(total_height - scroll_top);
-      const bottom_level = levelAtHeight(total_height - scroll_top - view_h);
-      const first_episode = Math.max(1, LEVELS.episodeOf(Math.max(1, Math.floor(bottom_level))) - 1);
-      const last_episode = LEVELS.episodeOf(Math.max(1, Math.ceil(top_level))) + 1;
-      ctx.fillStyle = SCENERY.landFor(LEVELS.sceneryOf(Math.max(1, LEVELS.episodeOf(Math.max(1, Math.round(top_level)))))).ground;
-      ctx.fillRect(0, 0, view_w, view_h);
-      for (let episode = first_episode; episode <= last_episode; episode += 1) {
-        const block_bottom = total_height - (BOTTOM_PADDING + (episode - 1) * block);
-        const block_top = block_bottom - block;
-        if (block_bottom < scroll_top || block_top > scroll_top + view_h) continue;
-        ctx.drawImage(sceneryFor(episode), offset_x, block_top - scroll_top, width, block);
-      }
-      // Below level 1: the first episode's ground continues.
-      const map_bottom = total_height - BOTTOM_PADDING;
-      if (map_bottom < scroll_top + view_h) {
-        ctx.fillStyle = SCENERY.landFor(LEVELS.sceneryOf(1)).ground;
-        ctx.fillRect(0, map_bottom - scroll_top, view_w, view_h);
-      }
-      paintPath(ctx, scroll_top, offset_x);
+      ctx.scale(ratio, ratio);
+      let index = 0;
+      const nextCell = () => {
+        const at = { x: (index % columns) * cell_w, y: Math.floor(index / columns) * cell_h };
+        index += 1;
+        return at;
+      };
+      const cells = {};
+      kinds.forEach((kind, kind_index) => {
+        cells[kind] = [];
+        for (let variant = 0; variant < SPRITE_VARIANTS; variant += 1) {
+          const at = nextCell();
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(at.x, at.y, cell_w, cell_h);
+          ctx.clip();
+          SCENERY.paintProp(ctx, kind, at.x + size, at.y + size * 2, size, UTIL.createRng(variant * 7919 + kind_index * 131 + 11), land);
+          ctx.restore();
+          cells[kind].push({ sx: at.x * ratio, sy: at.y * ratio });
+        }
+      });
+      const puff_at = nextCell();
+      SCENERY.paintPuff(ctx, puff_at.x + cell_w / 2, puff_at.y + cell_h / 2, size * 0.98, !!land.night);
+      const sheet = { canvas, cells, puff: { sx: puff_at.x * ratio, sy: puff_at.y * ratio }, cell_w, cell_h, sw: cell_w * ratio, sh: cell_h * ratio, anchor_x: size, anchor_y: size * 2 };
+      sprite_cache.set(key, sheet);
+      while (sprite_cache.size > SPRITE_CACHE) sprite_cache.delete(sprite_cache.keys().next().value);
+      return sheet;
     }
 
     /**
-     * The candy road between the visible nodes: a wide, raised biscuit road with a soft shadow, a rim and a row of little
-     * glossy candies down the middle.
+     * The candy road: a wide, raised biscuit road with a soft shadow, a rim and a row of little glossy candies, spaced
+     * evenly along each stretch between two levels.
      */
-    function paintPath(ctx, scroll_top, offset_x) {
-      if (rendered.last < rendered.first) return;
-      const first = Math.max(1, rendered.first - 1);
-      const last = Math.min(last_level + 1, rendered.last + 1);
-      if (last <= first) return;
-      const points = roadPoints(first, last, offset_x, -scroll_top);
+    function paintRoad(ctx, first, last, map_x, map_y) {
+      const points = roadPoints(first, last, map_x, map_y);
       const trace = (dy) => {
         ctx.beginPath();
         ctx.moveTo(points[0].x, points[0].y + dy);
@@ -314,12 +432,8 @@
       ctx.lineWidth = ROAD_HALF_WIDTH * 0.7;
       ctx.stroke();
       ctx.restore();
-      // Little candies spaced evenly along each stretch of road between two levels (fixed to the stretch, so they stay in
-      // place while the map scrolls).
-      const view_bottom = (dom.map_scroll.clientHeight || 600) + 10;
       for (let level_number = first; level_number < last; level_number += 1) {
-        const stretch = roadPoints(level_number, level_number + 1, offset_x, -scroll_top);
-        if (Math.max(stretch[0].y, stretch[stretch.length - 1].y) < -10 || Math.min(stretch[0].y, stretch[stretch.length - 1].y) > view_bottom) continue;
+        const stretch = roadPoints(level_number, level_number + 1, map_x, map_y);
         const lengths = [0];
         for (let index = 1; index < stretch.length; index += 1) lengths.push(lengths[index - 1] + Math.hypot(stretch[index].x - stretch[index - 1].x, stretch[index].y - stretch[index - 1].y));
         const total = lengths[lengths.length - 1];
@@ -344,12 +458,331 @@
       }
     }
 
+    /** One episode's ground and road (painted once, flat, wider than the screen) and its props, ready to stand up. */
+    function sceneryFor(episode) {
+      const key = Math.max(0, episode);
+      if (scenery_cache.has(key)) {
+        const cached = scenery_cache.get(key);
+        scenery_cache.delete(key);
+        scenery_cache.set(key, cached);
+        return cached;
+      }
+      const block = blockHeight();
+      const land_w = world.land_w;
+      // Sharp on phones; on wide screens the land is far wider than the screen, so it is kept lighter there.
+      const ratio = Math.min(1.25, root.devicePixelRatio || 1, 1100 / land_w);
+      const canvas = SPRITES.createCanvas(Math.max(1, Math.round(land_w * ratio)), Math.max(1, Math.round(block * ratio)));
+      const ctx = canvas.getContext('2d');
+      ctx.scale(ratio, ratio);
+      const scenery = landScenery(key);
+      const top = blockTop(key);
+      const shift_x = (land_w - width) / 2;
+      let first = 0;
+      let last = -1;
+      if (key >= 1) {
+        const range = LEVELS.episodeRange(key);
+        first = Math.max(1, range.first - 1);
+        last = Math.min(range.last + 1, last_level + 1);
+      }
+      const path = last > first ? roadPoints(first, last, shift_x, -top) : [{ x: -1e5, y: -1e5 }];
+      // Props sized for the screen (the land is wider than the screen, but the trees should not grow with it).
+      const unit = Math.max(24, Math.min(40, world.view_w * 0.075));
+      const standing = SCENERY.paintLand(ctx, land_w, block, scenery, path, ROAD_HALF_WIDTH, { billboards: true, unit });
+      if (last > first) paintRoad(ctx, first, last, shift_x, -top);
+      const entry = { canvas, ratio, standing, shift_x, sprites: spritesFor(scenery), land: SCENERY.landFor(scenery) };
+      scenery_cache.set(key, entry);
+      while (scenery_cache.size > SCENERY_CACHE) scenery_cache.delete(scenery_cache.keys().next().value);
+      return entry;
+    }
+
+    /** How much of a night land is at map height y (0..1), blending across the seams. */
+    function nightAt(y) {
+      const position = (mapBottom() - y) / blockHeight();
+      const episode = Math.floor(position) + 1;
+      const inside = position - Math.floor(position);
+      const nightOf = (index) => (SCENERY.landFor(landScenery(index)).night ? 1 : 0);
+      const here = nightOf(episode);
+      if (inside > 0.85) return here + (nightOf(episode + 1) - here) * ((inside - 0.85) / 0.15) * 0.5;
+      if (inside < 0.15) return here + (nightOf(episode - 1) - here) * ((0.15 - inside) / 0.15) * 0.5;
+      return here;
+    }
+
+    /**
+     * The sky, drawn over the land as one overlay: a soft gradient, high clouds and a bank of clouds resting on the hill
+     * (or stars and the moon), cut off along the curved horizon, with the haze that mists the far land just below it.
+     */
+    function skyFor(night) {
+      const key = night ? 'night' : 'day';
+      if (world.sky[key]) return world.sky[key];
+      const view_w = world.view_w;
+      const height = world.sky_h;
+      const ratio = Math.min(1.5, root.devicePixelRatio || 1);
+      const canvas = SPRITES.createCanvas(Math.max(1, Math.round(view_w * ratio)), Math.max(1, Math.round(height * ratio)));
+      const ctx = canvas.getContext('2d');
+      ctx.scale(ratio, ratio);
+      const colors = night ? SKY.night : SKY.day;
+      const fill = ctx.createLinearGradient(0, 0, 0, height);
+      fill.addColorStop(0, colors.top);
+      fill.addColorStop(UTIL.clamp((world.horizon_y * 0.55) / height, 0.05, 0.9), colors.middle);
+      fill.addColorStop(UTIL.clamp((world.horizon_y + world.arc_drop * 0.5) / height, 0.1, 1), colors.horizon);
+      fill.addColorStop(1, colors.horizon);
+      ctx.fillStyle = fill;
+      ctx.fillRect(0, 0, view_w, height);
+      const rng = UTIL.createRng(night ? 41 : 17);
+      if (night) {
+        ctx.fillStyle = '#ffffff';
+        for (let star = 0; star < 60; star += 1) {
+          ctx.globalAlpha = 0.35 + rng() * 0.6;
+          ctx.beginPath();
+          ctx.arc(rng() * view_w, rng() * world.horizon_y, rng() < 0.85 ? 0.9 : 1.7, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        const moon_x = view_w * 0.78;
+        const moon_y = world.horizon_y * 0.5;
+        const glow = ctx.createRadialGradient(moon_x, moon_y, 4, moon_x, moon_y, 42);
+        glow.addColorStop(0, 'rgba(255,246,200,0.55)');
+        glow.addColorStop(1, 'rgba(255,246,200,0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(moon_x - 42, moon_y - 42, 84, 84);
+        ctx.fillStyle = '#fff6cf';
+        ctx.beginPath();
+        ctx.arc(moon_x, moon_y, 13, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        const sun_x = view_w * 0.82;
+        const sun_y = world.horizon_y * 0.42;
+        const glow = ctx.createRadialGradient(sun_x, sun_y, 6, sun_x, sun_y, 70);
+        glow.addColorStop(0, 'rgba(255,255,236,0.9)');
+        glow.addColorStop(1, 'rgba(255,255,236,0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(sun_x - 70, sun_y - 70, 140, 140);
+      }
+      for (let cloud = 0; cloud < 3; cloud += 1) {
+        const cloud_x = view_w * (0.12 + cloud * 0.36 + (rng() - 0.5) * 0.08);
+        const cloud_y = world.horizon_y * (0.3 + rng() * 0.3);
+        const puff = 9 + rng() * 6;
+        ctx.globalAlpha = night ? 0.3 : 0.9;
+        for (let part = 0; part < 4; part += 1) SCENERY.paintPuff(ctx, cloud_x + (part - 1.5) * puff * 0.95, cloud_y + (part % 2 ? -puff * 0.35 : puff * 0.1), puff * (part % 2 ? 1 : 0.78), night);
+      }
+      // A bank of clouds resting on the horizon: the land hides their lower halves, so the hill rolls in front of them.
+      ctx.globalAlpha = night ? 0.45 : 0.95;
+      for (let x = -24; x < view_w + 36;) {
+        const ground = world.arc_cy - Math.sqrt(Math.max(0, world.arc_r * world.arc_r - (x - view_w / 2) * (x - view_w / 2)));
+        SCENERY.paintPuff(ctx, x, ground + 2 + rng() * 6, 15 + rng() * 13, night);
+        x += 24 + rng() * 12;
+      }
+      ctx.globalAlpha = 1;
+      // Below the horizon the land shows through: cut the sky away there, then lay the haze in the hole.
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();
+      ctx.arc(view_w / 2, world.arc_cy, world.arc_r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'destination-over';
+      const haze = ctx.createRadialGradient(view_w / 2, world.arc_cy, world.arc_r - world.haze, view_w / 2, world.arc_cy, world.arc_r);
+      haze.addColorStop(0, rgbaOf(colors.horizon, 0));
+      haze.addColorStop(0.65, rgbaOf(colors.horizon, 0.22));
+      haze.addColorStop(1, rgbaOf(colors.horizon, 0.92));
+      ctx.fillStyle = haze;
+      ctx.fillRect(0, 0, view_w, height);
+      ctx.globalCompositeOperation = 'source-over';
+      world.sky[key] = canvas;
+      return canvas;
+    }
+
+    /** One strip of the land, from the cached episode canvases onto its place on the curve. */
+    function paintStrip(ctx, strip, scroll_top) {
+      const top = scroll_top + world.anchor - strip.s_high;
+      const bottom = scroll_top + world.anchor - strip.s_low;
+      const span = bottom - top;
+      const block = blockHeight();
+      const half = Math.min(world.land_w / 2, world.view_w / (2 * strip.k));
+      let y = top;
+      for (let part = 0; part < 4 && y < bottom - 0.001; part += 1) {
+        const episode = episodeAtY(y + 0.001);
+        const block_top = blockTop(episode);
+        const part_bottom = Math.min(bottom, block_top + block);
+        const entry = sceneryFor(episode);
+        const ratio = entry.ratio;
+        const y0 = strip.y_top + (strip.y_bottom - strip.y_top) * ((y - top) / span);
+        const y1 = strip.y_top + (strip.y_bottom - strip.y_top) * ((part_bottom - top) / span);
+        const source_y = Math.max(0, (y - block_top) * ratio);
+        const source_h = Math.max(0.5, Math.min(entry.canvas.height - source_y, (part_bottom - y) * ratio));
+        ctx.drawImage(entry.canvas, (world.land_w / 2 - half) * ratio, source_y, half * 2 * ratio, source_h, world.view_w / 2 - half * strip.k, y0, half * 2 * strip.k, y1 - y0 + 0.6);
+        y = part_bottom;
+      }
+    }
+
+    /** The first item at or below map row y (items are sorted by y). */
+    function firstFrom(items, y) {
+      let low = 0;
+      let high = items.length;
+      while (low < high) {
+        const middle = (low + high) >> 1;
+        if (items[middle].y < y) low = middle + 1;
+        else high = middle;
+      }
+      return low;
+    }
+
+    /** Trees, houses, gumdrops and cloud puffs, stood upright on the curve, far ones first. */
+    function paintStanding(ctx, scroll_top) {
+      const view_w = world.view_w;
+      const span = visibleSpan();
+      const bottom = span.bottom + SPRITE_REF * 2.4;
+      const far = episodeAtY(span.top);
+      const near = episodeAtY(span.bottom);
+      for (let episode = far; episode >= near; episode -= 1) {
+        const entry = sceneryFor(episode);
+        const sheet = entry.sprites;
+        const block_top = blockTop(episode);
+        const items = entry.standing;
+        for (let index = firstFrom(items, span.top - block_top - 40); index < items.length; index += 1) {
+          const item = items[index];
+          const y = block_top + item.y;
+          if (y > bottom) break;
+          const s = world.anchor - (y - scroll_top);
+          if (s > world.s_cut) continue;
+          const point = project(s);
+          const x = view_w / 2 + (item.x - entry.shift_x - width / 2) * point.k;
+          const puff = item.kind === 'puff';
+          const scale = (puff ? item.size / (SPRITE_REF * 0.98) : item.size / SPRITE_REF) * point.k;
+          const draw_w = sheet.cell_w * scale;
+          if (x + draw_w < 0 || x - draw_w > view_w) continue;
+          const cell = puff ? sheet.puff : sheet.cells[item.kind][Math.min(SPRITE_VARIANTS - 1, Math.floor(item.seed * SPRITE_VARIANTS))];
+          const anchor_x = puff ? sheet.cell_w / 2 : sheet.anchor_x;
+          const anchor_y = puff ? sheet.cell_h / 2 : sheet.anchor_y;
+          ctx.drawImage(sheet.canvas, cell.sx, cell.sy, sheet.sw, sheet.sh, x - anchor_x * scale, point.y - anchor_y * scale, draw_w, sheet.cell_h * scale);
+        }
+      }
+    }
+
+    /** Draws the land wrapped around the world, then the sky over it (cut along the curved horizon, misted below it). */
+    function paintWorld() {
+      if (!world) return;
+      const canvas = dom.map_canvas;
+      const view_w = world.view_w;
+      const view_h = world.view_h;
+      const ratio = light ? 1 : Math.min(1.5, root.devicePixelRatio || 1);
+      if (canvas.width !== Math.round(view_w * ratio) || canvas.height !== Math.round(view_h * ratio)) {
+        canvas.width = Math.round(view_w * ratio);
+        canvas.height = Math.round(view_h * ratio);
+        canvas.style.width = `${view_w}px`;
+        canvas.style.height = `${view_h}px`;
+      }
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      const scroll_top = dom.map_scroll.scrollTop;
+      // No clear needed: the strips cover the land from the bottom edge to the horizon and the sky covers the rest.
+      world.strips.forEach((strip) => paintStrip(ctx, strip, scroll_top));
+      paintStanding(ctx, scroll_top);
+      const night = nightAt(scroll_top + world.anchor - world.s_cut * 0.8);
+      if (night < 1) ctx.drawImage(skyFor(false), 0, 0, view_w, world.sky_h);
+      if (night > 0) {
+        ctx.globalAlpha = night;
+        ctx.drawImage(skyFor(true), 0, 0, view_w, world.sky_h);
+        ctx.globalAlpha = 1;
+      }
+      schedulePrefetch();
+    }
+
+    /** While the map rests, paints the next episode up the hill so scrolling into it does not stall. */
+    function schedulePrefetch() {
+      clearTimeout(prefetch_timer);
+      prefetch_timer = setTimeout(() => {
+        prefetch_timer = 0;
+        if (!world || !dom.screen_map.classList.contains('is-active')) return;
+        const span = visibleSpan();
+        const ahead = episodeAtY(span.top) + 1;
+        const near = Math.max(0, episodeAtY(span.bottom));
+        // Only when it fits beside every visible land (never evict one the next frame needs).
+        if (scenery_cache.has(ahead) || ahead - near + 1 > SCENERY_CACHE) return;
+        sceneryFor(ahead);
+        // Keep the visible lands the most recently used.
+        for (let episode = near; episode <= ahead - 1; episode += 1) if (scenery_cache.has(episode)) sceneryFor(episode);
+      }, 220);
+    }
+
+    // ---------------------------------------------------------------- the buttons on the curve
+
+    /** Puts one element at map point (x, y) on the curve: moved, scaled, faded near the horizon, hidden past it. */
+    function placeItem(element, x, y, scroll_top, grow, lift) {
+      const state = element.map_state || (element.map_state = {});
+      const s = world.anchor - (y - scroll_top);
+      let visible = s <= world.s_cut && s >= world.s_min - 160;
+      let opacity = 1;
+      let translate = '';
+      let scale = '';
+      if (visible) {
+        const point = project(s);
+        opacity = UTIL.clamp((world.s_cut - s) / world.fade, 0, 1);
+        if (opacity < 0.04) visible = false;
+        translate = `${(world.view_w / 2 + (x - width / 2) * point.k).toFixed(1)}px ${(point.y + (lift || 0) * point.k).toFixed(1)}px`;
+        scale = (Math.pow(point.k, WORLD.button_shrink) * (grow || 1)).toFixed(3);
+      }
+      const shown = visible ? '' : 'hidden';
+      if (state.shown !== shown) {
+        element.style.visibility = shown;
+        state.shown = shown;
+      }
+      if (!visible) return;
+      if (state.translate !== translate || state.scale !== scale) {
+        if (TRANSFORM_PROPS) {
+          element.style.translate = translate;
+          element.style.scale = scale;
+        } else {
+          const parts = translate.split(' ');
+          element.style.left = parts[0];
+          element.style.top = parts[1];
+        }
+        state.translate = translate;
+        state.scale = scale;
+      }
+      const fade = opacity < 1 ? opacity.toFixed(2) : '';
+      if (state.fade !== fade) {
+        element.style.opacity = fade;
+        state.fade = fade;
+      }
+      // Buttons fading over the hill, or shrunk below a finger's size (about 44 px), cannot be tapped: scroll them closer.
+      const touch = opacity < 0.6 || Number(scale) < 0.75 ? 'none' : '';
+      if (state.touch !== touch) {
+        element.style.pointerEvents = touch;
+        state.touch = touch;
+      }
+    }
+
+    function positionOverlay() {
+      if (!world) return;
+      const scroll_top = dom.map_scroll.scrollTop;
+      live_nodes.forEach((node) => placeItem(node, node.map_x, node.map_y, scroll_top));
+      episode_cards.forEach((card) => placeItem(card, card.map_x, card.map_y, scroll_top));
+      if (end_cap && end_cap.parentNode) placeItem(end_cap, end_cap.map_x, end_cap.map_y, scroll_top);
+      if (marker && marker.parentNode) placeItem(marker, marker_state.x, marker_state.y, scroll_top, marker_state.grow, marker_state.lift);
+      bursts.forEach((burst) => placeItem(burst, burst.map_x, burst.map_y, scroll_top));
+    }
+
+    function redraw() {
+      if (!world) return;
+      updateNodes();
+      paintWorld();
+      positionOverlay();
+    }
+
+    /** Watches the frame pace while scrolling; after 1.5 s of frames slower than about 40 fps, goes light. */
+    function pace(time) {
+      const interval = time - last_frame;
+      last_frame = time;
+      if (light || interval <= 0 || interval > 250) return;
+      slow_ms = interval > 26 ? slow_ms + interval : Math.max(0, slow_ms - interval);
+      if (slow_ms > 1500) light = true;
+    }
+
     function onScroll() {
       if (scroll_frame) return;
-      scroll_frame = requestAnimationFrame(() => {
+      scroll_frame = requestAnimationFrame((time) => {
         scroll_frame = 0;
-        updateNodes();
-        paintScenery();
+        pace(time);
+        redraw();
       });
     }
     dom.map_scroll.addEventListener('scroll', onScroll, { passive: true });
@@ -368,14 +801,15 @@
         marker = document.createElement('div');
         marker.className = 'map-marker';
         marker.setAttribute('aria-hidden', 'true');
+        marker.style.zIndex = String(4 * Z_BASE);
       }
       const initial = save && save.player_name ? save.player_name.trim().charAt(0).toUpperCase() : '';
       marker.innerHTML = initial ? `<span>${initial}</span>` : `<img src="${hooks.iconUrl('pip', 64)}" alt="">`;
       const point = markerPoint(level_number);
-      marker.style.left = `${point.x}px`;
-      marker.style.top = `${point.y}px`;
+      marker_state = { x: point.x, y: point.y, lift: 0, grow: 1 };
       if (!marker.parentNode) dom.map_nodes.appendChild(marker);
       marker_level = level_number;
+      if (world) placeItem(marker, marker_state.x, marker_state.y, dom.map_scroll.scrollTop, 1, 0);
     }
 
     function placeEndCap() {
@@ -391,19 +825,24 @@
         });
       }
       const point = pointOf(last_level + 1);
-      end_cap.style.left = `${point.x}px`;
-      end_cap.style.top = `${point.y}px`;
+      end_cap.map_x = point.x;
+      end_cap.map_y = point.y;
+      end_cap.style.zIndex = String(2 * (Z_BASE - last_level - 1));
       if (!end_cap.parentNode) dom.map_nodes.appendChild(end_cap);
     }
 
     // ---------------------------------------------------------------- public
 
     function layout() {
-      width = Math.min(dom.map_scroll.clientWidth || 360, 760);
+      const view_w = dom.map_scroll.clientWidth || 360;
+      const view_h = dom.map_scroll.clientHeight || 640;
+      width = Math.min(view_w, 760);
+      world = buildWorld(view_w, view_h);
       last_level = Math.max(shipped(), save ? save.unlocked - 1 : 1, 1);
       total_height = TOP_PADDING + heightOf(last_level + 1) + BOTTOM_PADDING * 0.2;
-      dom.map_inner.style.width = `${width}px`;
+      dom.map_inner.style.width = '100%';
       dom.map_inner.style.height = `${total_height}px`;
+      if (dom.map_stage) dom.map_stage.style.height = `${view_h}px`;
       scenery_cache.clear();
       live_nodes.forEach((node) => {
         node.remove();
@@ -422,9 +861,9 @@
     function jumpTo(level_number, smooth) {
       const target = scrollTopFor(Math.max(1, Math.min(last_level, level_number)));
       if (!smooth || dom.app.classList.contains('reduced-motion')) {
+        glide += 1;
         dom.map_scroll.scrollTop = target;
-        updateNodes();
-        paintScenery();
+        redraw();
         return Promise.resolve(true);
       }
       return animateScroll(target, 650);
@@ -432,6 +871,8 @@
 
     function animateScroll(target, ms) {
       const my_generation = generation;
+      glide += 1;
+      const my_glide = glide;
       return new Promise((resolve) => {
         const from_top = dom.map_scroll.scrollTop;
         const distance = target - from_top;
@@ -444,7 +885,7 @@
         dom.map_scroll.scrollTop = glide_from;
         const begin = performance.now();
         const step = (time) => {
-          if (my_generation !== generation) return resolve(false);
+          if (my_generation !== generation || my_glide !== glide) return resolve(false);
           const progress = Math.min(1, (time - begin) / ms);
           dom.map_scroll.scrollTop = glide_from + (target - glide_from) * UTIL.EASE.inOutQuad(progress);
           if (progress < 1) requestAnimationFrame(step);
@@ -469,9 +910,8 @@
       const hop = !!advance && advance.to === reached && advance.from === advance.to - 1;
       marker_override = hop ? advance.from : null;
       dom.map_scroll.scrollTop = scrollTopFor(advance ? advance.from : Math.min(reached, last_level));
-      updateNodes();
       placeMarker(hop ? advance.from : Math.min(reached, last_level));
-      paintScenery();
+      redraw();
       if (!advance) return Promise.resolve(true);
       const reduced = dom.app.classList.contains('reduced-motion');
       const alive = () => my_generation === generation && dom.screen_map.classList.contains('is-active');
@@ -488,18 +928,26 @@
           const from_point = markerPoint(advance.from);
           const to_point = markerPoint(advance.to);
           const node_point = pointOf(advance.to);
-          if (!reduced && marker.animate) {
-            const frames = [];
-            for (let index = 0; index <= 12; index += 1) {
-              const t = index / 12;
-              const lift = -70 * 4 * t * (1 - t);
-              frames.push({ transform: `translate(${(to_point.x - from_point.x) * t}px, ${(to_point.y - from_point.y) * t + lift}px) scale(${1 + 0.12 * Math.sin(Math.PI * t)})` });
-            }
+          if (!reduced) {
             hooks.sound('hop');
+            // The avatar jumps along the curve: its spot on the map glides while it rises and lands.
             await new Promise((resolve) => {
-              const flight = marker.animate(frames, { duration: 720, easing: 'ease-in-out' });
-              flight.onfinish = resolve;
-              flight.oncancel = resolve;
+              const begin = performance.now();
+              const step = (time) => {
+                if (!alive()) return resolve();
+                const t = Math.min(1, (time - begin) / 720);
+                const eased = UTIL.EASE.inOutQuad(t);
+                marker_state = {
+                  x: from_point.x + (to_point.x - from_point.x) * eased,
+                  y: from_point.y + (to_point.y - from_point.y) * eased,
+                  lift: -70 * 4 * t * (1 - t),
+                  grow: 1 + 0.12 * Math.sin(Math.PI * t),
+                };
+                placeItem(marker, marker_state.x, marker_state.y, dom.map_scroll.scrollTop, marker_state.grow, marker_state.lift);
+                if (t < 1) requestAnimationFrame(step);
+                else resolve();
+              };
+              requestAnimationFrame(step);
             });
             if (!alive()) return false;
           }
@@ -511,10 +959,16 @@
           const burst = document.createElement('div');
           burst.className = 'map-burst';
           burst.setAttribute('aria-hidden', 'true');
-          burst.style.left = `${node_point.x}px`;
-          burst.style.top = `${node_point.y}px`;
+          burst.map_x = node_point.x;
+          burst.map_y = node_point.y;
+          burst.style.zIndex = String(4 * Z_BASE - 1);
+          bursts.add(burst);
           dom.map_nodes.appendChild(burst);
-          setTimeout(() => burst.remove(), 900);
+          placeItem(burst, burst.map_x, burst.map_y, dom.map_scroll.scrollTop);
+          setTimeout(() => {
+            bursts.delete(burst);
+            burst.remove();
+          }, 900);
           hooks.sound('unlock');
           hooks.haptic('medium');
           hooks.announce(`Level ${advance.to} unlocked!`);
@@ -539,9 +993,8 @@
         const keep = levelAtHeight(total_height - (dom.map_scroll.scrollTop + dom.map_scroll.clientHeight * 0.58));
         layout();
         dom.map_scroll.scrollTop = scrollTopFor(Math.round(keep));
-        updateNodes();
         placeMarker(marker_level);
-        paintScenery();
+        redraw();
       },
       refresh(next_save) {
         save = next_save || save;
@@ -554,6 +1007,7 @@
       },
       leave() {
         generation += 1;
+        clearTimeout(prefetch_timer);
         dom.map_scroll.classList.remove('is-advancing');
       },
       get liveNodeCount() {
@@ -574,5 +1028,5 @@
     };
   }
 
-  SC.MAP = { createMap, NODE_SPACING, EPISODE_GAP, MAX_LIVE_NODES };
+  SC.MAP = { createMap, NODE_SPACING, EPISODE_GAP, MAX_LIVE_NODES, WORLD, buildWorld };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -545,9 +545,9 @@
   }
 
   // ================================================================ the level map's land (Candy Crush style)
-  // Each episode of the map is a piece of land seen from above at a slant: a themed ground with soft hills and ponds,
-  // dotted with round, shaded props (trees, gumdrops, lollipops, houses ...) that keep clear of the road, and fluffy
-  // clouds where one episode's land meets the next.
+  // Each episode of the map is a piece of land: a themed ground with soft hills and ponds, dotted with round, shaded
+  // props (trees, gumdrops, lollipops, houses ...) that keep clear of the road, and fluffy clouds where one episode's
+  // land meets the next. The map wraps the ground around a turning world and stands the props up on it.
   const LANDS = {
     gumdrop_meadow: { ground: '#8fdc6c', light: '#b8ef8f', dark: '#6cc457', water: '#6fd3ff', tree: '#4cbf55', props: ['roundTree', 'gumdrop', 'flowers', 'mushroom', 'roundTree', 'bush'] },
     lollipop_forest: { ground: '#d9b6f3', light: '#efdcff', dark: '#bb92e4', water: '#ff9fd6', tree: '#ff8fcf', props: ['lollipop', 'cottonTree', 'gumdrop', 'flowers', 'lollipop', 'mushroom'] },
@@ -1036,16 +1036,35 @@
     ctx.fill();
   }
 
+  /** One fluffy cloud puff (the seam between two episodes' lands, and the sky's clouds). */
+  function paintPuff(ctx, x, y, radius, night) {
+    const puff_fill = ctx.createRadialGradient(x - radius * 0.3, y - radius * 0.4, radius * 0.1, x, y, radius);
+    puff_fill.addColorStop(0, '#ffffff');
+    puff_fill.addColorStop(1, night ? 'rgba(200,190,240,0.95)' : 'rgba(236,240,255,0.98)');
+    ctx.fillStyle = puff_fill;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /** One land prop standing on the ground at (x, y), about `size` across (see LAND_PROPS). */
+  function paintProp(ctx, kind, x, y, size, rng, land) {
+    (LAND_PROPS[kind] || LAND_PROPS.bush)(ctx, x, y, size, rng, land);
+  }
+
   /**
    * Paints one episode's land into ctx (width x height in CSS pixels). `path` is the road through it ([{x, y}] in the
    * same coordinates), so props stay off it. Clouds fill the top and bottom edges, where the land meets the episodes
-   * above and below.
+   * above and below. With options.billboards only the ground is painted, and the props and cloud puffs come back as a
+   * list ([{kind, x, y, size, seed}], back to front) for the caller to draw standing upright on a curved world.
    */
-  function paintLand(ctx, width, height, scenery, path, road_half_width) {
-    if (!(width >= 1 && height >= 1)) return;
+  function paintLand(ctx, width, height, scenery, path, road_half_width, options) {
+    const billboards = !!(options && options.billboards);
+    const standing = [];
+    if (!(width >= 1 && height >= 1)) return standing;
     const land = landFor(scenery);
     const rng = UTIL.createRng((scenery.seed || 1) * 7919 + 17);
-    const unit = Math.max(24, Math.min(40, width * 0.075));
+    const unit = options && options.unit ? options.unit : Math.max(24, Math.min(40, width * 0.075));
     const keep_clear = (road_half_width || 22) + 6;
     ctx.fillStyle = land.ground;
     ctx.fillRect(0, 0, width, height);
@@ -1132,6 +1151,10 @@
     }
     props.sort((first, second) => first.y - second.y);
     props.forEach((prop) => {
+      if (billboards) {
+        standing.push(prop);
+        return;
+      }
       const prop_rng = UTIL.createRng(Math.floor(prop.seed * 1e9) + 3);
       LAND_PROPS[prop.kind](ctx, prop.x, prop.y, prop.size, prop_rng, land);
     });
@@ -1151,18 +1174,15 @@
         const x = (puff - 0.5) * unit * 0.9 + (rng() - 0.5) * unit * 0.4;
         const radius = unit * (0.75 + rng() * 0.6);
         const y = edge + (rng() - 0.5) * unit * 0.4;
-        const puff_fill = ctx.createRadialGradient(x - radius * 0.3, y - radius * 0.4, radius * 0.1, x, y, radius);
-        puff_fill.addColorStop(0, '#ffffff');
-        puff_fill.addColorStop(1, land.night ? 'rgba(200,190,240,0.95)' : 'rgba(236,240,255,0.98)');
-        ctx.fillStyle = puff_fill;
-        ctx.beginPath();
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
-        ctx.fill();
+        if (billboards) standing.push({ kind: 'puff', x, y, size: radius, seed: 0 });
+        else paintPuff(ctx, x, y, radius, land.night);
       }
     });
+    if (billboards) standing.sort((first, second) => first.y - second.y);
+    return standing;
   }
 
-  const SCENERY = { FAMILIES, FAMILY_IDS, LANDS, colorsFor, landFor, paintSky, paintLayer, paintLand, shiftHue, shade };
+  const SCENERY = { FAMILIES, FAMILY_IDS, LANDS, colorsFor, landFor, paintSky, paintLayer, paintLand, paintProp, paintPuff, shiftHue, shade };
   SC.SCENERY = SCENERY;
   if (typeof module === 'object' && module.exports) module.exports = SCENERY;
 })(typeof window !== 'undefined' ? window : globalThis);

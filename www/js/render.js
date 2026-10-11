@@ -638,9 +638,9 @@
     const idle_motion = { sx: 1, sy: 1, dx: 0, dy: 0, rot: 0 };
 
     /**
-     * Idle life, per piece (in cells and radians): candies breathe and now and then do a little hop (more often when the
-     * player has been still for a while), ingredients bob, swirls sway, gifts jump, popcorn gets jumpier the closer it is
-     * to bursting, chests rattle, cocoa bubbles, a mixer about to frost shakes and a fuse at 3 or less trembles.
+     * Idle life, per piece (in cells and radians): candies only breathe gently (they never hop on their own), ingredients
+     * bob, swirls sway, popcorn gets jumpier the closer it is to bursting, chests rattle, cocoa bubbles, a mixer about to
+     * frost shakes and a fuse at 3 or less trembles.
      */
     function idleMotion(visual, now) {
       const motion = idle_motion;
@@ -656,22 +656,6 @@
         const breathing = Math.sin(now / 900 + seed * 6.28 + visual.x * 0.7 + visual.y * 0.5) * 0.018;
         motion.sx = 1 + breathing;
         motion.sy = 1 - breathing;
-        const period = now - idle_since > 6000 ? 7 : 12;
-        const hop = (seconds + seed * 97) % period;
-        if (hop < 0.44) {
-          const progress = hop / 0.44;
-          if (progress < 0.22) {
-            const crouch = Math.sin((progress / 0.22) * Math.PI) * 0.1;
-            motion.sy *= 1 - crouch;
-            motion.sx *= 1 + crouch * 0.8;
-          } else {
-            const air = Math.sin(((progress - 0.22) / 0.78) * Math.PI);
-            motion.dy -= air * 0.13;
-            motion.sy *= 1 + air * 0.06;
-            motion.sx *= 1 - air * 0.04;
-            motion.rot += Math.sin(((progress - 0.22) / 0.78) * Math.PI * 2) * 0.06 * (seed > 0.5 ? 1 : -1);
-          }
-        }
         if (visual.special === 'bomb') motion.rot += Math.sin(seconds * 1.4 + seed * 6) * 0.12;
         if (visual.fuse !== undefined && visual.fuse <= 3) motion.dx += Math.sin(now / 35 + seed * 20) * 0.02;
       } else if (kind === 'cherry' || kind === 'hazelnut') {
@@ -679,12 +663,6 @@
         motion.rot = Math.sin(seconds * 1.6 + seed * 6) * 0.09;
       } else if (kind === 'swirl') {
         motion.rot = Math.sin(seconds * 0.9 + seed * 6) * 0.14;
-      } else if (kind === 'gift') {
-        const hop = (seconds + seed * 31) % 5;
-        if (hop < 0.5) {
-          motion.dy = -Math.sin((hop / 0.5) * Math.PI) * 0.09;
-          motion.rot = Math.sin((hop / 0.5) * Math.PI * 2) * 0.08;
-        }
       } else if (kind === 'popcorn') {
         const agitation = (4 - Math.max(1, Math.min(3, visual.layers || 3))) / 3;
         motion.rot = Math.sin(now / (60 + (visual.layers || 3) * 45) + seed * 9) * 0.05 * agitation;

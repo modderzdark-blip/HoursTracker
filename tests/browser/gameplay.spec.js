@@ -444,7 +444,9 @@ test('the map handles 20,000 levels: at most 60 live nodes from level 1 to 19,00
   await expect(page.locator('.map-node[data-level-id="5000"]')).toBeVisible();
   await page.click('#btn-map-mine');
   await expect(page.locator('.map-node[data-level-id="19000"]')).toBeVisible({ timeout: 5000 });
-  await expect(page.locator('.map-episode').first()).toBeVisible();
+  // The banner of the episode that starts at level 18,991 stands on its cloud seam, in front of the horizon.
+  await page.evaluate(() => window.SC.game.map.jumpTo(18991, false));
+  await expect(page.locator('.map-episode').filter({ visible: true }).first()).toContainText('Levels 18991-19005');
   require('node:fs').mkdirSync('qa', { recursive: true });
   require('node:fs').writeFileSync('qa/map-scale.json', JSON.stringify({ save: load_ms, samples }, null, 2));
   H.expectClean(problems);
@@ -586,7 +588,9 @@ test('accessibility: every button is labelled, focus is visible, the live region
       await page.click('#btn-play');
       await H.waitState(page, 'MAP');
     }
-    const touch_targets = await page.evaluate(() => Array.from(document.querySelectorAll('.screen.is-active button')).filter((button) => button.getBoundingClientRect().width > 0).map((button) => {
+    // Level buttons far up the map's curved hill are drawn small and cannot be tapped (pointer-events: none) until
+    // the map scrolls them closer; every button that can be tapped is at least 44 px.
+    const touch_targets = await page.evaluate(() => Array.from(document.querySelectorAll('.screen.is-active button')).filter((button) => button.getBoundingClientRect().width > 0 && getComputedStyle(button).visibility !== 'hidden' && getComputedStyle(button).pointerEvents !== 'none').map((button) => {
       const rect = button.getBoundingClientRect();
       return { id: button.id || button.className, size: Math.min(rect.width, rect.height) };
     }));

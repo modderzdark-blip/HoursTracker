@@ -43,13 +43,16 @@ The repository is public, so you don't need to sign in to download.
   wrap diffuse, two specular lobes, a studio-window reflection with Fresnel, subsurface glow, theme detail and a contact
   shadow. Three materials (Settings → Theme): **Gummy** (default), **Hard Candy** and **Sugar Sprinkle**. Sprites are
   shaded lazily into a cache sized to the board, so the first special of a level never stalls an animation.
-* **Map:** a round, lush candy land in episodes of 15 levels: a candy-studded road winds through 12 scenery families
+* **Map:** a round candy world that rolls as you scroll, like the original's newest map: the land near you is big and
+  flat, and further up it curves away over a round horizon into the sky (clouds by day, moon and stars over the night
+  lands), so the next levels rise over the hill as you scroll up. A candy-studded road winds through 12 scenery families
   (meadows, lollipop forests, deserts, snowfields, lagoons, night groves and more) full of round trees, gumdrops,
-  ponds, houses and balloons, with cloud seams and a ribbon banner between episodes. Levels are glossy round buttons
-  (blue, purple for Hard, red for Super Hard, gold for a crown, pink with a pulsing ring for the current one) with
-  their stars in a smile above. Your avatar sits beside the current level and hops to the next after a win (and then
-  opens its intro by itself), **Jump to my level** and a **Go to level** box. Only the nodes near the screen exist (at most about 60), so the map is as light at level
-  19,000 as at level 1.
+  ponds, houses and balloons that stand upright and shrink with distance, with cloud seams and a ribbon banner between
+  episodes. Levels are glossy round buttons (blue, purple for Hard, red for Super Hard, gold for a crown, pink with a
+  pulsing ring for the current one) with their stars in a smile above. Your avatar sits beside the current level and
+  hops to the next after a win (and then opens its intro by itself), **Jump to my level** and a **Go to level** box.
+  Only the nodes near the screen exist (at most about 60) and only the visible lands are painted, so the map is as
+  light at level 19,000 as at level 1.
 * **Mechanics:** jelly (1–2 layers), frosting (1–5 layers), Sugar Cage, Cocoa Creep, Fuse Candy, portals,
   Sugar Belts, cherries and hazelnuts with exit trays, **Taffy Swirl** (falls like a candy but never matches; a match
   beside it or a blast breaks it, and it stops a striped candy's beam), **Gift Box** (falls; opens into a special
@@ -100,8 +103,8 @@ The repository is public, so you don't need to sign in to download.
   colour goal at 60 or fewer and about 3 candies per move at most, and tries another board if it cannot.
 * **Hints:** like the original, a **possible** move (not the best one: planning is up to you) wiggles and glows after a
   few idle seconds. Settings → Auto hint: 3 s, **5 s** (default), 8 s or Off; the bulb button shows one any time.
-* **Animations:** candies breathe and now and then hop on their own (more often when you stop to think), ingredients
-  bob, swirls sway, gifts jump, popcorn gets jumpier the closer it is to bursting, chests rattle, cocoa bubbles, a mixer
+* **Animations:** candies sit still and only breathe gently (they never hop on their own), ingredients
+  bob, swirls sway, popcorn gets jumpier the closer it is to bursting, chests rattle, cocoa bubbles, a mixer
   about to frost shakes, fuses at 3 or less tremble and chocolate drips from fountains; sugar sparkles drift over the
   board. Special candies appear with a turning starburst, blasts push the candies around them, striped beams leave
   sparkles, combos and bursting cakes punch the board in with a flash, every popped candy leaves a ring, and the candies
