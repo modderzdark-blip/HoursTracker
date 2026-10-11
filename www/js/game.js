@@ -339,7 +339,7 @@
       };
     }
 
-    const ORDER_EVENT = { frosting: 'frosting', cocoa: 'cocoa', cage: 'cage', swirl: 'swirl', gift: 'gift', mixer: 'mixer' };
+    const ORDER_EVENT = { frosting: 'frosting', rock: 'rock', cocoa: 'cocoa', cage: 'cage', swirl: 'swirl', gift: 'gift', mixer: 'mixer' };
     function trackEvent(event) {
       if (!tracker) return;
       if (event.type === 'swap') tracker.moves_left = event.moves_left;
@@ -352,8 +352,9 @@
       else if (event.type === 'activate' && event.kind !== 'wrapped_second' && event.kind !== 'wrapped_big_second') {
         const item = event.special === 'bomb' ? 'bomb' : event.special === 'wrapped' ? 'wrapped' : event.special === 'stripe_row' || event.special === 'stripe_col' ? 'striped' : null;
         if (item) tracker.order[item] += 1;
-      } else if (ORDER_EVENT[event.type]) tracker.order[ORDER_EVENT[event.type]] += 1;
-      else if ((event.type === 'popcorn' || event.type === 'chest') && event.layers <= 0) tracker.order[event.type] += 1;
+      } else if (event.type === 'combo' && tracker.order[event.combo] !== undefined) tracker.order[event.combo] += 1;
+      else if (ORDER_EVENT[event.type]) tracker.order[ORDER_EVENT[event.type]] += 1;
+      else if ((event.type === 'popcorn' || event.type === 'chest' || event.type === 'cake') && event.layers <= 0) tracker.order[event.type] += 1;
       else return;
       hud_dirty = true;
     }
@@ -389,6 +390,33 @@
         collect(event, point) {
           flyToGoal(ui.spriteUrl(event.kind === 'hazelnut' ? 'hazelnut' : 'cherry', 40), point, 'ingredients');
         },
+        goalPiece(event, point) {
+          // Like the original: the candies and blockers a goal counts fly up to it (a few at a time, so a big blast
+          // stays smooth).
+          if (!logic_state || reducedMotion()) return;
+          const goals = logic_state.goals;
+          let index = -1;
+          let art = null;
+          if (event.type === 'clear' && event.color >= 0) {
+            index = goals.findIndex((goal) => goal.type === 'collect' && goal.color === event.color);
+            art = `candy:${event.color}`;
+          } else {
+            const item = ORDER_EVENT[event.type] || ((event.type === 'popcorn' || event.type === 'chest' || event.type === 'cake') && event.layers <= 0 ? event.type : null);
+            if (item) {
+              index = goals.findIndex((goal) => goal.type === 'order' && goal.item === item);
+              art = ui.orderIconKey(item);
+            }
+          }
+          if (index < 0) return;
+          const now = Date.now();
+          if (now - goal_fly.window > 350) {
+            goal_fly.window = now;
+            goal_fly.count = 0;
+          }
+          if (goal_fly.count >= 5) return;
+          goal_fly.count += 1;
+          flyToGoal(ui.spriteUrl(art, 40), point, index);
+        },
         shuffle(reason) {
           if (reason === 'whirl') {
             ui.showBanner('Candy Whirl!', false, true);
@@ -413,6 +441,7 @@
       };
     }
 
+    const goal_fly = { window: 0, count: 0 };
     function flyToGoal(image_url, from_point, goal_type) {
       const target = ui.goalElementCenter(goal_type);
       const flyer = document.createElement('img');
@@ -484,7 +513,7 @@
     }
 
     // ---------------------------------------------------------------- Daily Challenges
-    const BLOCKER_EVENTS = new Set(['frosting', 'cocoa', 'cage', 'swirl', 'gift', 'popcorn', 'chest', 'mixer']);
+    const BLOCKER_EVENTS = new Set(['frosting', 'rock', 'cocoa', 'cage', 'swirl', 'gift', 'popcorn', 'chest', 'mixer', 'cake']);
 
     /** What a move did, in Daily Challenge terms. */
     function dailyTallies(result) {
@@ -810,7 +839,8 @@
         if (source === 'button') showGuideMove();
         return;
       }
-      const move = LOGIC.findHint(logic_state);
+      // Like the original: a possible move, not the best one (planning the big moves is the player's job).
+      const move = LOGIC.findPossibleMove(logic_state);
       if (!move) return;
       current_hint = move;
       hint_visible = true;

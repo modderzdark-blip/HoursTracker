@@ -16,7 +16,7 @@
   const PEAK_EFFECTS = 0.9;
   const MAX_VOICES = 14;
   const PRE_ROLL_S = 0.003; // every sound begins a few ms after its start time, so its first samples are silence
-  const RATE_LIMIT_MS = { land: 90, match: 35, bonus: 28, jelly: 45, frosting: 45, cocoa: 45, cage: 45, swirl: 45, popcorn: 45, key: 60, mood: 200 };
+  const RATE_LIMIT_MS = { land: 90, match: 35, bonus: 28, jelly: 45, frosting: 45, cocoa: 45, cage: 45, swirl: 45, popcorn: 45, key: 60, mood: 200, cake: 45, fountain: 90, rock: 45 };
   const DEFAULT_RATE_LIMIT_MS = 50;
 
   const db = (decibels) => Math.pow(10, decibels / 20);
@@ -491,6 +491,43 @@
         return tone(ctx, out, { start: t + 0.25, freq: 500, to: 260, glide: 0.08, attack: 0.003, release: 0.1, peak: 0.15 });
       },
     },
+    rock: {
+      dry: true,
+      duration_ms: 260,
+      play(ctx, out, t) {
+        // Glassy crystal cracking.
+        noise(ctx, out, { start: t, attack: 0.001, release: 0.05, peak: 0.12, filter: [{ type: 'highpass', freq: 2500 }, { type: 'lowpass', freq: 7000 }] });
+        mallet(ctx, out, { start: t, freq: 1568, partials: METAL, peak: 0.1, decay: 0.7 });
+        return mallet(ctx, out, { start: t + 0.03, freq: 2093, partials: GLOCK, peak: 0.08, decay: 0.25 });
+      },
+    },
+    cake: {
+      dry: true,
+      duration_ms: 220,
+      play(ctx, out, t, params) {
+        // A soft knife cut into sponge; a little higher with every slice gone.
+        const left = params && params.left !== undefined ? params.left : 4;
+        noise(ctx, out, { start: t, attack: 0.004, release: 0.07, peak: 0.12, filter: { type: 'bandpass', freq: 1200, to: 700, time: 0.08, q: 1.1 } });
+        return mallet(ctx, out, { start: t + 0.02, freq: mtof(76 + (8 - left)), partials: CELESTA, peak: 0.13, decay: 0.25 });
+      },
+    },
+    cake_burst: {
+      duration_ms: 900,
+      play(ctx, out, t) {
+        thump(ctx, out, t, 0.32, 0.4, 180, 50);
+        swish(ctx, out, t, 0.12, 0.45, 600, 6000);
+        sparkle(ctx, out, t + 0.1, 0.05, 0.5);
+        return arpeggio(ctx, out, t + 0.08, [79, 84, 88, 91, 96], 0.055, 0.12, CELESTA);
+      },
+    },
+    fountain: {
+      duration_ms: 320,
+      play(ctx, out, t) {
+        // A thick chocolate glug.
+        tone(ctx, out, { start: t, freq: 210, to: 120, glide: 0.12, attack: 0.01, release: 0.14, peak: 0.16, filter: { type: 'lowpass', freq: 700, q: 3 } });
+        return tone(ctx, out, { start: t + 0.12, freq: 160, to: 90, glide: 0.1, attack: 0.01, release: 0.14, peak: 0.13, filter: { type: 'lowpass', freq: 600, q: 3 } });
+      },
+    },
     mood: {
       duration_ms: 260,
       play(ctx, out, t) {
@@ -634,7 +671,7 @@
     },
   };
   SOUNDS.click = SOUNDS.tap;
-  const BIG_SOUNDS = new Set(['bomb', 'combo', 'wrapped', 'win', 'fuse_out', 'hammer', 'finale', 'popcorn_burst']);
+  const BIG_SOUNDS = new Set(['bomb', 'combo', 'wrapped', 'win', 'fuse_out', 'hammer', 'finale', 'popcorn_burst', 'cake_burst']);
 
   // ---------------------------------------------------------------- music
 

@@ -10,7 +10,7 @@
   const UTIL = SC.UTIL || require('./util.js');
   const rngNext = UTIL.rngNext;
 
-  const KIND = Object.freeze({ CANDY: 'candy', CHERRY: 'cherry', HAZELNUT: 'hazelnut', FROSTING: 'frosting', COCOA: 'cocoa', SWIRL: 'swirl', GIFT: 'gift', POPCORN: 'popcorn', CHEST: 'chest', MIXER: 'mixer' });
+  const KIND = Object.freeze({ CANDY: 'candy', CHERRY: 'cherry', HAZELNUT: 'hazelnut', FROSTING: 'frosting', COCOA: 'cocoa', SWIRL: 'swirl', GIFT: 'gift', POPCORN: 'popcorn', CHEST: 'chest', MIXER: 'mixer', FOUNTAIN: 'fountain', CAKE: 'cake', ROCK: 'rock' });
   const SPECIAL = Object.freeze({
     NONE: 'none',
     STRIPE_ROW: 'stripe_row', // horizontal stripes: clears its row (made by a vertical 4-match)
@@ -47,6 +47,8 @@
     POPCORN: 150,
     CHEST: 300,
     MIXER: 200,
+    CAKE: 250,
+    ROCK: 120,
     END_BONUS_PER_MOVE: 300,
     CASCADE_STEP: 0.5,
     CASCADE_CAP: 4,
@@ -75,7 +77,8 @@
   }
 
   function isBlocker(piece) {
-    return !!piece && (piece.kind === KIND.FROSTING || piece.kind === KIND.COCOA || piece.kind === KIND.POPCORN || piece.kind === KIND.CHEST || piece.kind === KIND.MIXER);
+    return !!piece && (piece.kind === KIND.FROSTING || piece.kind === KIND.COCOA || piece.kind === KIND.POPCORN || piece.kind === KIND.CHEST || piece.kind === KIND.MIXER ||
+      piece.kind === KIND.FOUNTAIN || piece.kind === KIND.CAKE || piece.kind === KIND.ROCK);
   }
 
   /** Pieces that fall but never match: Taffy Swirls and Gift Boxes (a match beside them or a blast breaks them). */
@@ -102,8 +105,8 @@
   //   onMoveEnd(ctx)                      after a player move's cascades (belts, fuses, cocoa), unless already won
   //   goalProgress(state, goal)           -> progress for goal types the mechanic owns, or null
   //   stopsBeam(state, cell)              -> true when a striped candy's beam stops at this cell (after hitting it)
-  //   orderCounter                        name of the order counter the mechanic feeds ('frosting', 'cocoa', 'cage', 'swirl', 'gift',
-  //                                       'popcorn', 'chest', 'mixer')
+  //   orderCounter                        name of the order counter the mechanic feeds ('frosting', 'rock', 'cocoa', 'cage', 'swirl',
+  //                                       'gift', 'popcorn', 'chest', 'mixer', 'cake')
 
   function damageBlocker(ctx, stage, cell, counter, points, event_type) {
     if (stage.blocker_hit.has(cell)) return;
@@ -114,8 +117,22 @@
     state.order[counter] += 1;
     if (event_type === 'cocoa') ctx.cocoa_cleared += 1;
     emit(ctx, { type: event_type, cell, piece_id: piece.id, layers: piece.layers, wave: stage.wave });
-    if (piece.layers <= 0) state.cells[cell] = null;
+    if (piece.layers <= 0) {
+      state.cells[cell] = null;
+      clearJellyAt(ctx, stage, cell); // jelly under a blocker goes with the blocker's last layer
+    }
     addScore(ctx, points, event_type, cell);
+  }
+
+  /** Takes one jelly layer off a cell (once per stage). Candies cleared on jelly and blockers destroyed on it both do. */
+  function clearJellyAt(ctx, stage, cell) {
+    if (stage.jelly_hit.has(cell)) return;
+    stage.jelly_hit.add(cell);
+    const state = ctx.state;
+    if (state.jelly[cell] === 0) return;
+    state.jelly[cell] -= 1;
+    emit(ctx, { type: 'jelly', cell, layers: state.jelly[cell], wave: stage.wave });
+    addScore(ctx, SCORING.JELLY_LAYER, 'jelly', cell);
   }
 
   const JELLY = {
@@ -125,13 +142,7 @@
       parsed.jelly[index] = symbol === 'J' ? 2 : 1;
     },
     onCleared(ctx, stage, cell) {
-      if (stage.jelly_hit.has(cell)) return;
-      stage.jelly_hit.add(cell);
-      const state = ctx.state;
-      if (state.jelly[cell] === 0) return;
-      state.jelly[cell] -= 1;
-      emit(ctx, { type: 'jelly', cell, layers: state.jelly[cell], wave: stage.wave });
-      addScore(ctx, SCORING.JELLY_LAYER, 'jelly', cell);
+      clearJellyAt(ctx, stage, cell);
     },
     goalProgress(state, goal) {
       if (goal.type !== 'jelly') return null;
@@ -164,6 +175,32 @@
     onAdjacentMatch(ctx, stage, cell) {
       const piece = ctx.state.cells[cell];
       if (piece && piece.kind === KIND.FROSTING) damageBlocker(ctx, stage, cell, 'frosting', SCORING.FROSTING_LAYER, 'frosting');
+    },
+  };
+
+  /**
+   * Rock Candy: a hard crystal block of one or two layers. Matches beside it do nothing; only blasts (striped, wrapped,
+   * Color Bomb, combos, boosters) crack it, so it asks for special candies, like the original's shell blockers.
+   */
+  const ROCK = {
+    id: 'rock',
+    symbols: { r: 'Rock Candy (1 layer; only blasts crack it)', R: 'Rock Candy (2 layers)' },
+    orderCounter: 'rock',
+    parseCell(parsed, index, symbol) {
+      parsed.rock[index] = symbol === 'R' ? 2 : 1;
+      parsed.solid[index] = 1;
+    },
+    validateLayout(level, parsed) {
+      return orderShortfall(level, 'rock', parsed.rock.reduce((sum, value) => sum + value, 0), 'Rock Candy layers');
+    },
+    populate(state, parsed, index) {
+      if (parsed.rock[index]) state.cells[index] = newPiece(state, KIND.ROCK, -1, SPECIAL.NONE, parsed.rock[index]);
+    },
+    absorbHit(ctx, stage, cell) {
+      const piece = ctx.state.cells[cell];
+      if (!piece || piece.kind !== KIND.ROCK) return false;
+      damageBlocker(ctx, stage, cell, 'rock', SCORING.ROCK, 'rock');
+      return true;
     },
   };
 
@@ -331,6 +368,7 @@
     stage.blocker_hit.add(cell);
     state.order.gift += 1;
     emit(ctx, { type: 'gift', cell, piece_id: piece.id, wave: stage.wave });
+    clearJellyAt(ctx, stage, cell);
     addScore(ctx, SCORING.GIFT, 'gift', cell);
     let roll = rngNext(state) * GIFT_PRIZES.reduce((sum, prize) => sum + prize[1], 0);
     let special = GIFT_PRIZES[0][0];
@@ -393,6 +431,7 @@
     addScore(ctx, SCORING.POPCORN, 'popcorn', cell);
     if (piece.layers > 0) return;
     state.order.popcorn += 1;
+    clearJellyAt(ctx, stage, cell);
     const bomb = newPiece(state, KIND.CANDY, -1, SPECIAL.BOMB, 0);
     state.cells[cell] = bomb;
     emit(ctx, { type: 'create', cell, piece: clonePiece(bomb), from_cells: [cell], popcorn: true, wave: stage.wave });
@@ -451,6 +490,7 @@
     if (chest.layers <= 0) {
       state.cells[target] = null;
       state.order.chest += 1;
+      clearJellyAt(ctx, stage, target);
     }
   }
 
@@ -622,6 +662,151 @@
     },
   };
 
+
+  /**
+   * Cocoa Fountain: an indestructible spout. After every move that clears no Cocoa, each fountain pours one Cocoa onto
+   * a candy next to it (all 8 neighbors), on top of the usual Cocoa spread. Keep clearing Cocoa to keep it quiet.
+   */
+  const FOUNTAIN = {
+    id: 'fountain',
+    symbols: { F: 'Cocoa Fountain (pours Cocoa after a move that clears none)' },
+    parseCell(parsed, index) {
+      parsed.fountain[index] = 1;
+      parsed.solid[index] = 1;
+    },
+    populate(state, parsed, index) {
+      if (parsed.fountain[index]) state.cells[index] = newPiece(state, KIND.FOUNTAIN, -1, SPECIAL.NONE, 1);
+    },
+    absorbHit(ctx, stage, cell) {
+      const piece = ctx.state.cells[cell];
+      return !!piece && piece.kind === KIND.FOUNTAIN; // nothing breaks it
+    },
+    onMoveEnd(ctx) {
+      const state = ctx.state;
+      if (ctx.cocoa_cleared > 0) return;
+      let cocoa_cells = 0;
+      let active_cells = 0;
+      const fountains = [];
+      state.cells.forEach((piece, cell) => {
+        if (state.holes[cell]) return;
+        active_cells += 1;
+        if (piece && piece.kind === KIND.COCOA) cocoa_cells += 1;
+        if (piece && piece.kind === KIND.FOUNTAIN) fountains.push(cell);
+      });
+      if (fountains.length === 0) return;
+      const pours = [];
+      fountains.forEach((fountain) => {
+        if (cocoa_cells >= Math.floor(active_cells * COCOA_MAX_SHARE)) return;
+        const options = squareCells(state, fountain, 1).filter((target) => {
+          const candy = state.cells[target];
+          return isRegularCandy(candy) && !state.cage[target] && !state.belt[target] && !candy.key && candy.fuse === undefined && state.portal_to[target] < 0 && state.portal_from[target] < 0;
+        });
+        if (options.length === 0) return;
+        const target = options[Math.floor(rngNext(state) * options.length)];
+        const old_piece = state.cells[target];
+        const cocoa_piece = newPiece(state, KIND.COCOA, -1, SPECIAL.NONE, 1);
+        state.cells[target] = cocoa_piece;
+        cocoa_cells += 1;
+        pours.push({ from: fountain, cell: target, old_piece_id: old_piece.id, piece: clonePiece(cocoa_piece) });
+      });
+      if (pours.length === 0) return;
+      beginPhase(ctx, 'cocoa', {});
+      pours.forEach((pour) => emit(ctx, Object.assign({ type: 'cocoa_spread', fountain: true }, pour)));
+    },
+  };
+
+  const CAKE_SLICES = 8;
+  const CAKE_PARTS = Object.freeze([[0, 0], [0, 1], [1, 0], [1, 1]]); // anchor, right, below, below-right
+
+  function cakeCells(state, anchor) {
+    return CAKE_PARTS.map(([row, col]) => anchor + row * state.cols + col);
+  }
+
+  /**
+   * One slice off a Sugar Cake (once per stage, whichever of its four squares was hit). The last slice bursts it: the
+   * cake vanishes and a blast sweeps the whole board, hitting every square once.
+   */
+  function hitCake(ctx, stage, cell) {
+    const state = ctx.state;
+    const piece = state.cells[cell];
+    if (!piece || piece.kind !== KIND.CAKE) return;
+    const [row_offset, col_offset] = CAKE_PARTS[piece.part];
+    const anchor = cell - row_offset * state.cols - col_offset;
+    if (stage.blocker_hit.has(anchor)) return;
+    stage.blocker_hit.add(anchor);
+    const cells = cakeCells(state, anchor);
+    cells.forEach((part_cell) => {
+      state.cells[part_cell].layers -= 1;
+    });
+    const layers = state.cells[anchor].layers;
+    emit(ctx, { type: 'cake', cell: anchor, cells, piece_id: state.cells[anchor].id, layers, wave: stage.wave });
+    addScore(ctx, SCORING.CAKE, 'cake', anchor);
+    if (layers > 0) return;
+    state.order.cake += 1;
+    cells.forEach((part_cell) => {
+      state.cells[part_cell] = null;
+      stage.hit.add(part_cell);
+      clearJellyAt(ctx, stage, part_cell);
+    });
+    emit(ctx, { type: 'cake_burst', cell: anchor, cells, wave: stage.wave });
+    allActiveCells(state).forEach((board_cell) => hitCell(ctx, stage, board_cell, 'blast'));
+  }
+
+  /**
+   * Sugar Cake: a big 2x2 cake of eight slices ('Q' on its top-left square, 'q' on the other three). Every match beside
+   * it or blast that reaches it takes one slice; the last slice bursts it over the whole board.
+   */
+  const CAKE = {
+    id: 'cake',
+    symbols: { Q: 'Sugar Cake (top-left of a 2x2 cake, 8 slices)', q: 'Sugar Cake (the other three squares)' },
+    orderCounter: 'cake',
+    parseCell(parsed, index, symbol) {
+      parsed.cake[index] = symbol === 'Q' ? 1 : 2;
+      parsed.solid[index] = 1;
+    },
+    validateLayout(level, parsed) {
+      const problems = [];
+      const cols = parsed.cols;
+      const owner = new Int32Array(parsed.cake.length).fill(-1);
+      parsed.cake.forEach((value, index) => {
+        if (value !== 1) return;
+        const row = Math.floor(index / cols);
+        const col = index % cols;
+        if (row + 1 >= parsed.rows || col + 1 >= cols) {
+          problems.push(`Sugar Cake at ${row},${col} needs a 2x2 space`);
+          return;
+        }
+        CAKE_PARTS.slice(1).forEach(([row_offset, col_offset]) => {
+          const part = index + row_offset * cols + col_offset;
+          if (parsed.cake[part] !== 2 || owner[part] >= 0) problems.push(`Sugar Cake at ${row},${col}: square ${row + row_offset},${col + col_offset} must be 'q'`);
+          owner[part] = index;
+        });
+      });
+      parsed.cake.forEach((value, index) => {
+        if (value === 2 && owner[index] < 0) problems.push(`'q' at ${Math.floor(index / cols)},${index % cols} is not part of a Sugar Cake`);
+      });
+      const cakes = parsed.cake.reduce((sum, value) => sum + (value === 1 ? 1 : 0), 0);
+      return problems.concat(orderShortfall(level, 'cake', cakes, 'Sugar Cakes'));
+    },
+    populate(state, parsed, index) {
+      if (parsed.cake[index] !== 1) return;
+      cakeCells(state, index).forEach((cell, part) => {
+        const piece = newPiece(state, KIND.CAKE, -1, SPECIAL.NONE, CAKE_SLICES);
+        piece.part = part;
+        state.cells[cell] = piece;
+      });
+    },
+    absorbHit(ctx, stage, cell) {
+      const piece = ctx.state.cells[cell];
+      if (!piece || piece.kind !== KIND.CAKE) return false;
+      hitCake(ctx, stage, cell);
+      return true;
+    },
+    onAdjacentMatch(ctx, stage, cell) {
+      hitCake(ctx, stage, cell);
+    },
+  };
+
   const INGREDIENTS = {
     id: 'ingredients',
     symbols: { c: 'cherry (ingredient)', h: 'hazelnut (ingredient)', x: 'exit tray (ingredients resting here are collected)' },
@@ -720,12 +905,12 @@
   };
 
   /** Registry order matters for onMoveEnd: belts shift first, then fuses tick, cocoa spreads, mixers whip, moods change. */
-  const MECHANICS = [JELLY, FROSTING, CAGE, COCOA, SWIRL, GIFT, POPCORN, CHEST, MOOD, MIXER, INGREDIENTS, PORTALS, BELT, FUSE];
+  const MECHANICS = [JELLY, FROSTING, ROCK, CAGE, COCOA, FOUNTAIN, SWIRL, GIFT, POPCORN, CHEST, MOOD, MIXER, CAKE, INGREDIENTS, PORTALS, BELT, FUSE];
   const MECHANIC_BY_SYMBOL = {};
   MECHANICS.forEach((mechanic) => Object.keys(mechanic.symbols).forEach((symbol) => {
     MECHANIC_BY_SYMBOL[symbol] = mechanic;
   }));
-  const MOVE_END_ORDER = [BELT, FUSE, COCOA, MIXER, MOOD];
+  const MOVE_END_ORDER = [BELT, FUSE, COCOA, FOUNTAIN, MIXER, MOOD];
 
   const LAYOUT_LEGEND = Object.freeze(Object.assign({ '.': 'normal cell', '#': 'hole' }, ...MECHANICS.map((mechanic) => mechanic.symbols)));
 
@@ -775,6 +960,7 @@
       holes: new Uint8Array(cell_count),
       jelly: new Uint8Array(cell_count),
       frosting: new Uint8Array(cell_count),
+      rock: new Uint8Array(cell_count),
       cage: new Uint8Array(cell_count),
       cocoa: new Uint8Array(cell_count),
       swirl: new Uint8Array(cell_count),
@@ -784,7 +970,9 @@
       key: new Uint8Array(cell_count),
       mood: new Uint8Array(cell_count),
       mixer: new Uint8Array(cell_count),
-      solid: new Uint8Array(cell_count), // pieces that never move (popcorn, chests, mixers)
+      fountain: new Uint8Array(cell_count),
+      cake: new Uint8Array(cell_count), // 1 = a cake's top-left square, 2 = its other squares
+      solid: new Uint8Array(cell_count), // pieces that never move (rock candy, popcorn, chests, mixers, fountains, cakes)
       fuse: new Uint8Array(cell_count),
       ingredients: new Uint8Array(cell_count),
       exits: new Uint8Array(cell_count),
@@ -810,6 +998,18 @@
         mechanic.parseCell(parsed, index, symbol);
       }
     });
+    // meta.under: jelly beneath anything ('j' or 'J' rows), like the original's jelly under icing, cages and chocolate.
+    const under = level.meta && level.meta.under;
+    if (Array.isArray(under)) {
+      under.forEach((row_text, row) => {
+        if (typeof row_text !== 'string') return;
+        for (let col = 0; col < Math.min(cols, row_text.length); col += 1) {
+          const index = row * cols + col;
+          if (parsed.holes[index] || (row_text[col] !== 'j' && row_text[col] !== 'J')) continue;
+          parsed.jelly[index] = Math.max(parsed.jelly[index], row_text[col] === 'J' ? 2 : 1);
+        }
+      });
+    }
     ((level.meta && level.meta.portals) || []).forEach((pair) => {
       parsed.portals.push({ entrance: pair.in[0] * cols + pair.in[1], exit: pair.out[0] * cols + pair.out[1] });
     });
@@ -843,6 +1043,7 @@
     if (piece.key) copy.key = true;
     if (piece.mood) copy.mood = true;
     if (piece.timer !== undefined) copy.timer = piece.timer;
+    if (piece.part !== undefined) copy.part = piece.part;
     return copy;
   }
 
@@ -888,7 +1089,10 @@
       moves_left: timed ? Infinity : level.moves,
       moves_made: 0,
       collected: new Array(MAX_COLORS).fill(0),
-      order: { striped: 0, wrapped: 0, bomb: 0, frosting: 0, cocoa: 0, cage: 0, swirl: 0, gift: 0, popcorn: 0, chest: 0, mixer: 0 },
+      order: {
+        striped: 0, wrapped: 0, bomb: 0, frosting: 0, rock: 0, cocoa: 0, cage: 0, swirl: 0, gift: 0, popcorn: 0, chest: 0, mixer: 0, cake: 0,
+        stripe_stripe: 0, wrapped_stripe: 0, bomb_stripe: 0, wrapped_wrapped: 0, bomb_wrapped: 0, bomb_bomb: 0,
+      },
       has_chests: false,
       has_mood: false,
       ingredients_collected: 0,
@@ -1012,6 +1216,10 @@
     }
   }
 
+  // Retries step far apart (a prime unrelated to the 7919 the game and the bots step by between tries), so two tries of
+  // a crowded level never fall back onto the same board.
+  const RETRY_SEED_STEP = 104729;
+
   /**
    * Creates the starting state for a level: seeded fill with no matches and at least one valid move.
    * If a seed produces no valid move, the next derived seed is tried (deterministically).
@@ -1021,7 +1229,7 @@
     const layout = parseLayout(level);
     const palette = resolvePalette(level);
     for (let attempt = 0; attempt < 500; attempt += 1) {
-      const state = buildEmptyState(level, layout, palette, (seed_base + attempt * 7919) | 0);
+      const state = buildEmptyState(level, layout, palette, (seed_base + attempt * RETRY_SEED_STEP) | 0);
       fillInitialBoard(state, layout, level);
       if (findMatchGroups(state).length === 0 && hasValidMove(state)) {
         state.generation_attempts = attempt + 1;
@@ -1336,7 +1544,9 @@
 
   // ------------------------------------------------------------------ goals and stars
 
-  const ORDER_ITEMS = Object.freeze(['striped', 'wrapped', 'bomb', 'frosting', 'cocoa', 'cage', 'swirl', 'gift', 'popcorn', 'chest', 'mixer']);
+  // Combo orders ('wrapped_stripe' ...) count two specials swapped together, like the original's combo orders.
+  const COMBO_ORDERS = Object.freeze(['stripe_stripe', 'wrapped_stripe', 'bomb_stripe', 'wrapped_wrapped', 'bomb_wrapped', 'bomb_bomb']);
+  const ORDER_ITEMS = Object.freeze(['striped', 'wrapped', 'bomb', 'frosting', 'rock', 'cocoa', 'cage', 'swirl', 'gift', 'popcorn', 'chest', 'mixer', 'cake'].concat(COMBO_ORDERS));
 
   function goalProgress(state) {
     return state.goals.map((goal) => {
@@ -1585,6 +1795,7 @@
     const stage = createStage(ctx);
     beginPhase(ctx, 'clear', { depth: ctx.cascade_depth, multiplier: stage.multiplier, source: 'combo', combo });
     ctx.stats.combos.push(combo);
+    if (state.order[combo] !== undefined) state.order[combo] += 1;
     const center = to_cell;
     emit(ctx, { type: 'combo', combo, cells: [from_cell, to_cell], center, wave: 0 });
     [from_cell, to_cell].forEach((cell) => {
@@ -2305,6 +2516,7 @@
       const plan = planCreation(group, [move.to, move.from]);
       if (plan) {
         value += plan.special === SPECIAL.BOMB ? 5000 : plan.special === SPECIAL.WRAPPED ? 3000 : 2000;
+        if (wants.order.has('rock')) value += 300;
         if ((plan.special === SPECIAL.BOMB && wants.order.has('bomb')) || (plan.special === SPECIAL.WRAPPED && wants.order.has('wrapped')) ||
           ((plan.special === SPECIAL.STRIPE_ROW || plan.special === SPECIAL.STRIPE_COL) && wants.order.has('striped'))) value += 500;
       }
@@ -2325,6 +2537,7 @@
           if (neighbor_piece && neighbor_piece.kind === KIND.GIFT) value += wants.order.has('gift') ? 40 : 25;
           if (neighbor_piece && neighbor_piece.kind === KIND.POPCORN) value += wants.order.has('popcorn') ? 40 : 22;
           if (neighbor_piece && neighbor_piece.kind === KIND.MIXER) value += 28;
+          if (neighbor_piece && neighbor_piece.kind === KIND.CAKE) value += wants.order.has('cake') ? 40 : 30;
         });
         if (wants.ingredients) {
           for (let above = cell - state.cols; above >= 0; above -= state.cols) {
@@ -2356,6 +2569,121 @@
     });
     if (!rng) return best_moves[0];
     return best_moves[Math.floor(rng() * best_moves.length)];
+  }
+
+  const SMART_SHORTLIST = 6;
+
+  const VISIBLE_ORDER_EVENTS = Object.freeze({ frosting: 1, rock: 1, cocoa: 1, cage: 1, swirl: 1, gift: 1, mixer: 1 });
+  const SPECIAL_POTENTIAL = Object.freeze({ stripe_row: 0.2, stripe_col: 0.2, wrapped: 0.28, bomb: 0.45 });
+
+  /**
+   * What a person can see a move do before new candies fall in: its matches, the specials it makes and fires and what
+   * their blasts reach (all of it fixed by the board; only the candies that drop in afterwards are luck). Returns the
+   * progress toward the goals (each goal counts 0..1), the specials made or fired, and the largest match.
+   */
+  function visibleOutcome(state, events) {
+    const collect = new Array(MAX_COLORS).fill(0);
+    const order = {};
+    const addOrder = (item, amount) => {
+      order[item] = (order[item] || 0) + amount;
+    };
+    let jelly = 0;
+    let below_ingredient = 0;
+    let fuses = 0;
+    let cocoa = 0;
+    let specials = 0;
+    let potential = 0;
+    let largest = 0;
+    const ingredient_rows = new Array(state.cols).fill(-1);
+    state.cells.forEach((piece, cell) => {
+      if (isIngredient(piece)) ingredient_rows[colOf(state, cell)] = Math.max(ingredient_rows[colOf(state, cell)], rowOf(state, cell));
+    });
+    const before = new Map();
+    state.cells.forEach((piece) => {
+      if (piece) before.set(piece.id, piece);
+    });
+    firstStageEvents(events).forEach((event) => {
+      const type = event.type;
+      if (type === 'jelly') jelly += 1;
+      else if (type === 'match') largest = Math.max(largest, event.size || (event.cells ? event.cells.length : 0));
+      else if (type === 'create' && event.piece && event.piece.special !== SPECIAL.NONE) {
+        // A special made now is progress later: about a row's worth for a striped candy, more for the others.
+        specials += 1;
+        potential += SPECIAL_POTENTIAL[event.piece.special] || 0;
+      }
+      else if (type === 'clear') {
+        if (event.color >= 0) collect[event.color] += 1;
+        const piece = before.get(event.piece_id);
+        if (piece && piece.fuse !== undefined && piece.fuse <= 3) fuses += 1;
+        const column = colOf(state, event.cell);
+        if (ingredient_rows[column] >= 0 && rowOf(state, event.cell) > ingredient_rows[column]) below_ingredient += 1;
+      } else if (type === 'activate' && event.kind !== 'wrapped_second' && event.kind !== 'wrapped_big_second') {
+        specials += 1;
+        const item = event.special === SPECIAL.BOMB ? 'bomb' : event.special === SPECIAL.WRAPPED ? 'wrapped' : event.special === SPECIAL.STRIPE_ROW || event.special === SPECIAL.STRIPE_COL ? 'striped' : null;
+        if (item) addOrder(item, 1);
+      } else if (type === 'combo') {
+        specials += 2;
+        addOrder(event.combo, 1);
+      } else if (VISIBLE_ORDER_EVENTS[type]) {
+        addOrder(type, 1);
+        if (type === 'cocoa') cocoa += 1;
+      } else if (type === 'popcorn') addOrder('popcorn', event.layers <= 0 ? 1 : 1 / 3);
+      else if (type === 'chest') addOrder('chest', event.layers <= 0 ? 1 : 0.5);
+      else if (type === 'cake') addOrder('cake', event.layers <= 0 ? 1 : 1 / 8);
+    });
+    let progress = fuses + (cocoa > 0 ? 0.12 : 0);
+    let complete = true;
+    goalProgress(state).forEach((goal) => {
+      const remaining = goal.target > 0 ? goal.target - goal.current : 0;
+      let gained = 0;
+      if (goal.type === 'jelly') gained = jelly;
+      else if (goal.type === 'collect') gained = collect[goal.color];
+      else if (goal.type === 'order') gained = order[goal.item] || 0;
+      else if (goal.type === 'ingredients') gained = (2.5 * below_ingredient) / Math.max(1, state.rows - 1);
+      if (goal.type === 'score' || goal.done) return;
+      if (goal.type === 'ingredients' || gained < remaining - 1e-9) complete = false;
+      // Like a person, it leans toward the goal that lags behind (the cherries when the jelly is nearly done).
+      const lagging = 0.5 + remaining / Math.max(1, goal.target);
+      progress += (lagging * Math.min(remaining, gained)) / Math.max(1, goal.target);
+    });
+    return { progress: Math.round(progress * 1000) / 1000, potential, specials, largest, complete };
+  }
+
+  /**
+   * A thoughtful bot, the reference for level difficulty (much closer to a real player than the greedy bot): it
+   * shortlists the best few moves by the cheap evaluation, plays each of them out and keeps the one that visibly does
+   * the most: [completes the goals, goal progress (with relief for fuses about to go off and for Cocoa) plus the future
+   * worth of the specials it makes, specials made and fired, the largest match, then the cheap evaluation]. Like a
+   * person, it judges a move by what it can see happen, not by the candies that drop in afterwards (no peeking).
+   */
+  function chooseSmartMove(state, rng) {
+    const moves = listValidMoves(state);
+    if (moves.length === 0) return null;
+    const shortlist = moves
+      .map((move) => ({ move, value: evaluateMove(state, move) + (rng ? rng() : 0) * 0.5 }))
+      .sort((first, second) => second.value - first.value)
+      .slice(0, SMART_SHORTLIST);
+    let best = null;
+    shortlist.forEach((entry) => {
+      const result = applySwap(state, entry.move.from, entry.move.to);
+      if (!result.valid) return;
+      const seen = visibleOutcome(state, result.events);
+      const rank = [seen.complete ? 1 : 0, Math.round((seen.progress + seen.potential) * 1000) / 1000, seen.specials, seen.largest, entry.value];
+      if (!best || compareRanks(rank, best.rank) > 0) best = { move: entry.move, rank };
+    });
+    return best ? best.move : moves[0];
+  }
+
+  /**
+   * The in-game hint, like the original's: just a possible move (a plain match where there is one), not the best one.
+   * Deterministic for a board, and it never draws from the game's random numbers.
+   */
+  function findPossibleMove(state) {
+    const moves = listValidMoves(state);
+    if (moves.length === 0) return null;
+    const plain = moves.filter((move) => !isActivatable(state.cells[move.from]) && !isActivatable(state.cells[move.to]));
+    const pool = plain.length ? plain : moves;
+    return pool[(state.moves_made * 7 + state.next_piece_id * 3) % pool.length];
   }
 
   function urgentFuses(state) {
@@ -2460,7 +2788,7 @@
         state = expireTime(state);
         break;
       }
-      const move = opts.policy === 'random' ? chooseRandomMove(state, rng) : chooseGreedyMove(state, rng);
+      const move = opts.policy === 'random' ? chooseRandomMove(state, rng) : opts.policy === 'smart' ? chooseSmartMove(state, rng) : chooseGreedyMove(state, rng);
       if (!move) break;
       const result = applySwap(state, move.from, move.to);
       if (!result.valid) break;
@@ -2500,7 +2828,7 @@
     return phases ? first : events;
   }
 
-  const GUIDE_EVENT = Object.freeze({ jelly: 'jelly', frosting: 'frosting', popcorn: 'popcorn', cocoa: 'cocoa', cage: 'cage', swirl: 'swirl', gift: 'gift', key: 'key', mixer: 'mixer' });
+  const GUIDE_EVENT = Object.freeze({ jelly: 'jelly', frosting: 'frosting', rock: 'rock', popcorn: 'popcorn', cocoa: 'cocoa', cage: 'cage', swirl: 'swirl', gift: 'gift', key: 'key', mixer: 'mixer', cake: 'cake' });
 
   /**
    * A move that shows off one idea, for the guided tutorials of the first levels (like the original, the hand shows the
@@ -2638,8 +2966,10 @@
       }
       if (piece.kind === KIND.FROSTING && (piece.layers < 1 || piece.layers > MAX_FROSTING_LAYERS)) problems.push(`bad frosting layers at ${index}`);
       if (piece.kind === KIND.COCOA && piece.layers !== 1) problems.push(`bad cocoa at ${index}`);
+      if (piece.kind === KIND.ROCK && (piece.layers < 1 || piece.layers > 2)) problems.push(`bad rock candy at ${index}`);
       if (piece.kind === KIND.POPCORN && (piece.layers < 1 || piece.layers > POPCORN_HITS)) problems.push(`bad popcorn at ${index}`);
       if (piece.kind === KIND.CHEST && (piece.layers < 1 || piece.layers > 2)) problems.push(`bad chest at ${index}`);
+      if (piece.kind === KIND.CAKE && (piece.layers < 1 || piece.layers > CAKE_SLICES || !(piece.part >= 0 && piece.part <= 3))) problems.push(`bad cake at ${index}`);
       if (piece.kind === KIND.MIXER && (piece.layers < 1 || piece.layers > MIXER_HITS || !(piece.timer >= 1 && piece.timer <= MIXER_PERIOD + 1))) problems.push(`bad mixer at ${index}`);
       if ((piece.key || piece.mood) && piece.kind !== KIND.CANDY) problems.push(`key or mood on a non-candy at ${index}`);
       if (state.cage[index] && piece.kind !== KIND.CANDY) problems.push(`cage on a non-candy at ${index}`);
@@ -2741,6 +3071,7 @@
           state.cage[event.cell] = 0;
           break;
         case 'frosting':
+        case 'rock':
         case 'cocoa':
         case 'swirl':
         case 'popcorn':
@@ -2753,6 +3084,17 @@
           break;
         case 'key':
           if (cells[event.from]) delete cells[event.from].key;
+          break;
+        case 'cake':
+          event.cells.forEach((cell) => {
+            if (!cells[cell] || cells[cell].kind !== KIND.CAKE) throw new Error(`replay: cake expected at ${cell}`);
+            cells[cell].layers = event.layers;
+          });
+          break;
+        case 'cake_burst':
+          event.cells.forEach((cell) => {
+            cells[cell] = null;
+          });
           break;
         case 'mood':
           event.changes.forEach((change) => {
@@ -2906,10 +3248,26 @@
         });
       }
     }
+    if (meta.under) {
+      if (!Array.isArray(meta.under) || meta.under.length !== layout.rows || meta.under.some((row_text) => typeof row_text !== 'string' || row_text.length !== layout.cols)) {
+        problems.push('meta.under must have the same shape as the layout');
+      } else {
+        meta.under.forEach((row_text, row) => {
+          for (let col = 0; col < layout.cols; col += 1) {
+            const symbol = row_text[col];
+            if (symbol === '.') continue;
+            if (symbol !== 'j' && symbol !== 'J') problems.push(`meta.under ${row},${col}: '${symbol}' is not jelly`);
+            else if (layout.holes[row * layout.cols + col]) problems.push(`meta.under ${row},${col}: jelly in a hole`);
+            else if (layout.fountain[row * layout.cols + col]) problems.push(`meta.under ${row},${col}: jelly under a Cocoa Fountain could never be cleared`);
+          }
+        });
+      }
+    }
     (meta.specials || []).forEach((placement) => {
       const index = placement.at[0] * layout.cols + placement.at[1];
       if ([SPECIAL.STRIPE_ROW, SPECIAL.STRIPE_COL, SPECIAL.WRAPPED, SPECIAL.BOMB].indexOf(placement.special) < 0) problems.push(`unknown pre-placed special ${placement.special}`);
-      if (layout.holes[index] || layout.frosting[index] || layout.cocoa[index] || layout.ingredients[index] || layout.cage[index] || layout.solid[index]) problems.push(`special at ${placement.at} must sit on a free candy cell`);
+      // A cage may hold a special (it waits locked until the cage breaks, like the original's marmalade).
+      if (layout.holes[index] || layout.frosting[index] || layout.cocoa[index] || layout.ingredients[index] || layout.solid[index]) problems.push(`special at ${placement.at} must sit on a candy cell`);
     });
     if (!Array.isArray(level.stars) || level.stars.length !== 3 || !(level.stars[0] < level.stars[1] && level.stars[1] < level.stars[2])) {
       problems.push('stars must be three rising thresholds');
@@ -2974,7 +3332,10 @@
     chooseRandomMove,
     playBotGame,
     findHint,
+    findPossibleMove,
+    chooseSmartMove,
     findGuideMove,
+    COMBO_ORDERS,
     hintRanks,
     compareRanks,
     hintFor,

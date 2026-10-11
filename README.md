@@ -54,36 +54,55 @@ The repository is public, so you don't need to sign in to download.
   (one or two locks that only golden keys open: match a candy carrying a key and the key flies to the nearest chest;
   new keys drop in while a chest is locked), **Mood Candy** (a rainbow ring: it changes color after every move) and the
   **Candy Mixer** (a steel bowl that frosts a nearby candy every 3 moves, its lights count down; a hit restarts it and
-  three hits break it). A new piece arrives every few levels: Popcorn at 15, Taffy Swirl 46, Sugar Chest 53, Gift Box
-  61, Mood Candy 68, Candy Mixer 76.
+  three hits break it), **Rock Candy** (a faceted crystal block, 1 or 2 layers: matches beside it do nothing, only
+  blasts from special candies crack it), **Cocoa Fountain** (never breaks; after every move that clears no Cocoa it
+  pours a new one beside it), **Sugar Cake** (a 2×2 cake of 8 slices: every match beside it or blast eats a slice, and
+  the last slice bursts it over the whole board), **jelly hidden under blockers** (it goes when the blocker's last layer
+  breaks) and **locked specials** (a striped or wrapped candy waiting in a cage). A new piece arrives every few levels:
+  hidden jelly at 13, Popcorn 15, combo orders 38, Rock Candy 44, Taffy Swirl 46, Sugar Chest 53, Cocoa Fountain 57,
+  Gift Box 61, locked specials 64, Mood Candy 68, Sugar Cake 72, Candy Mixer 76.
 * **Jelly you can see:** jelly is a bright glossy pink under the candies and a pink frame around every jelly square on
   top of them (thick jelly has a double frame); a shimmer runs across it, it flashes when a jelly level starts, and the
   last few squares pulse so they are easy to find.
 * **Guided first levels:** like the original, the first levels teach by doing. The first time you play a tutorial
   level the board dims around the exact swap to make, a hand slides along it, and only that swap is allowed; then the
   next step (make a striped candy, now fire it ...). Levels 1–25: matching, striped, jelly, wrapped, Color Bomb,
-  ingredients, combos, frosting, orders, thick jelly, cages, popcorn, portals, cocoa and fuses, one new idea per level.
-  Each new piece also gets a "New!" card on its level popup.
-* **More challenge:** past the opening almost every level has blockers in the way, two kinds mixed from level 40 and
-  three from 80, with chests, mood candies and gifts sprinkled in.
-* **Modes:** collect candies, jelly, ingredients, Candy Order (specials, blockers) and mixed goals, always with a move
-  budget, and a goal tracker that pops when a goal completes. Like the original today there are no timed levels and no
-  score on screen: the stars at the top fill as the goals do.
+  ingredients, combos, frosting, orders, thick jelly, hidden jelly, cages, popcorn, portals, cocoa and fuses, one new
+  idea per level, with the first Hard level at 23. Each new piece also gets a "New!" card on its level popup.
+* **Many kinds of challenge:** past the opening every level has blockers in the way: up to two kinds from level 30,
+  usually two or more from 45, three from 60 and four from 150, on boards that get more crowded (blockers may fill 30%
+  of a board early and 42% later). Levels mix jelly hidden under frosting, Rock Candy, cages, cocoa, chests and cakes
+  ("fortress" levels), frosting **walls** to dig through (ingredients wait behind them), Cocoa Fountains, Sugar Cakes,
+  caged specials, chests, mood candies and gifts.
+* **Modes:** collect candies, jelly, ingredients, Candy Order (specials, blockers, Rock Candy, cakes and **combo orders**:
+  striped + striped, striped + wrapped, wrapped + wrapped and the Color Bomb combos) and mixed levels with two goals
+  from level 30 (sometimes three from 100), always with a move budget, and a goal tracker that pops when a goal
+  completes. Like the original today there are no timed levels and no score on screen: the stars at the top fill as
+  the goals do.
 * **Stars, crowns and mastery:** meeting the goals is worth 3 stars. A first-try win earns a **Gold Crown**; a first-try
   win with 5 or more moves to spare is **Sweet Mastery** ("Sweet Combo! Mastery on the first try!", a sparkle on the
   map). **Hard** levels are purple and **Super Hard** ones crimson (skull badge on the map, the level popup and the start
   ribbon); beating one for the first time says so and pays +20 / +50 Gold Drops. Every 5th level (not the episode
   finales, which have their own reward) holds a **treasure chest** on the map that opens on the first win.
-* **Difficulty:** matched to Candy Crush Saga player data (attempt logs for one 15-level episode: openers passed on
-  about 62% of tries, ordinary levels 20–45%, hard ones 4–14%, the episode's last level about 4%). Levels 1–30 are the
-  gentle on-ramp. After that every episode opens with an easy level, has one to three **Hard levels** in the middle
-  with an easier one after each, and ends on a hard gate (a **Super hard level** every 5th episode). Measured with the
-  greedy bot, one game per try: ordinary levels ease from about 60% down to 27%, hard ones about 10–20%, super hard
-  about 5–9% (`LEVELS.targetWinRate`, report in `docs/difficulty/`). Levels get harder the way the original's do, with
-  more candy colours (5 on most levels from 20, 6 from 150) and fewer moves, never with absurd goals: the calibrator keeps
-  every colour goal at 60 or fewer and about 3 candies per move at most, and tries another board if it cannot.
-* **Hints:** the suggested move glows and its candy nudges toward its spot. Settings → Auto hint: **Instant** (default),
-  3 s, 8 s or Off; the bulb button shows it any time. Hints prefer the move that wins, then goal progress, then specials.
+* **Difficulty:** made to grind, like the original (matched to Candy Crush Saga player data: openers passed on about
+  62% of tries, ordinary levels 20–45%, hard ones 4–14%, the episode's last level about 4%). Episode 1 is the on-ramp;
+  episode 2 already has a Hard level (23) and a hard gate (30). After that every episode opens with an easier level,
+  has one to three **Hard levels** in the middle with an easier one after each, and ends on a hard gate (a **Super hard
+  level** every 5th episode). Every level is tuned with a **smart bot** that plays like a careful person: it plays out
+  its best few moves and judges each by what it can see happen (the matches, the specials made and fired, what their
+  blasts hit), never by the candies that will drop in afterwards. Its win rate per try: ordinary levels ease from about
+  45% down to 15%, hard ones about 5–16%, super hard about 2–7% (`LEVELS.targetWinRate`, report in
+  `docs/difficulty/`). Levels use five or six candy colours like the original (six on a third of the levels from 26,
+  over half from 60, most from 150; fewer colours mean free cascades), never absurd goals: the calibrator keeps every
+  colour goal at 60 or fewer and about 3 candies per move at most, and tries another board if it cannot.
+* **Hints:** like the original, a **possible** move (not the best one: planning is up to you) wiggles and glows after a
+  few idle seconds. Settings → Auto hint: 3 s, **5 s** (default), 8 s or Off; the bulb button shows one any time.
+* **Animations:** candies breathe and now and then hop on their own (more often when you stop to think), ingredients
+  bob, swirls sway, gifts jump, popcorn gets jumpier the closer it is to bursting, chests rattle, cocoa bubbles, a mixer
+  about to frost shakes, fuses at 3 or less tremble and chocolate drips from fountains; sugar sparkles drift over the
+  board. Special candies appear with a turning starburst, blasts push the candies around them, striped beams leave
+  sparkles, combos and bursting cakes punch the board in with a flash, every popped candy leaves a ring, and the candies
+  and blockers a goal counts fly up to its counter.
 * **Meta game:** Hearts (5, one refills every 30 minutes; Settings → Unlimited hearts turns them off), Gold Drops
   earned by winning, the boosters Sweet Hammer, Free Swap and Candy Whirl in a level, Lucky Start, Rainbow Start and
   Head Start before a level, **+5 Moves** (or +15 seconds) when you run out (60, then 90, 140, 190, 240 Gold Drops
@@ -159,9 +178,9 @@ on the starting board reproduces the final board exactly; this is tested on rand
 
 Every push, every `v*` tag and manual runs execute:
 
-1. **logic**: 63 Node tests (`node tests/logic.test.js`), then 500 fuzz games and 400 greedy-bot games on every shipped level, on boards the calibrator never tuned on (`node tests/simulate.js`; a level whose bot win rate drifts more than 15 points from its target fails).
+1. **logic**: 71 Node tests (`node tests/logic.test.js`), then 500 fuzz games and 300 smart-bot games on every shipped level, on boards the calibrator never tuned on (`node tests/simulate.js`; a level whose bot win rate drifts more than 15 points from its target fails).
 2. **levels**: `node tests/levels.test.js`: shipped levels are valid and solvable, one new idea per level, complexity budget, the calibrated difficulty curve, and a scale test that generates levels 61–360 plus a sample up to 20,000.
-   **levels-pipeline**: runs `levels.yml` end to end on levels 121–160 with a small bot budget (nothing is published).
+   **levels-pipeline**: runs `levels.yml` end to end on levels 201–240 with a small bot budget (nothing is published).
 3. **audio**: `node tests/audio/run-audio-tests.mjs` renders every sound, an 8-sound + music stress mix and both music tracks offline in Chromium at maximum settings and checks clipping (peak), loudness (every sound audible), clicks at the edges, energy above 10 kHz, spectral centroid, length, envelope and the loop seam.
 4. **browser**: Playwright with Chromium mobile emulation (`npx playwright test`). It plays Level 1 to a win with real swipes and taps, and checks persistence, losing, +5 Moves, hearts, boosters, the goal stars and Sweet Mastery, pause/restart/quit mid-animation, Back, lifecycle, hints, settings, the self-test and reduced motion. It also captures screenshots of every screen at 360×640, 390×844, 412×915, 430×932, 673×841 and 768×1024 in all three themes (including the map at levels 1, 40, 5,000 and 19,000), plus landscape, desktop and the zoomed art sheets.
 5. **build**: Node 22, JDK 21, Android SDK, `npx cap sync android`, then Gradle `assembleDebug assembleRelease bundleRelease`.
@@ -194,7 +213,7 @@ signed with a different key), which resets local progress.
 * **Native shell plugin:** keep-awake, the system photo picker (`PickVisualMedia`, no storage permission), display-cutout insets and app info come from one small app plugin (`NativeShellPlugin.java`) instead of extra third-party dependencies. Immersive fullscreen is applied natively in `MainActivity`; Capacitor 8's core `SystemBars` replaces the status-bar plugin.
 * **Save format v4:** per-level stars as 2-bit values plus best scores (stored as score/10 in varints), base64-encoded. A save with 20,000 cleared levels is about 58 KB and parses in a few milliseconds. Older saves migrate automatically.
 * **No points-only levels, no timed levels:** every level is won by candy goals (collect, jelly, ingredients, orders) within a move budget. `tests/levels.test.js` fails if a score goal or a timed level ever appears, in the shipped levels or anywhere the generator reaches. The engine still counts points behind the scenes (the calibrator's star thresholds are kept in the level records), but the game never shows them.
-* **Packs:** the game ships levels 1–120 (25 hand-authored, the rest generated and calibrated) in `www/levels/pack-0001.js` and `pack-0002.js`. `getLevel(n)` accepts 1–99,999; after the last shipped level the map shows "More levels coming soon!".
+* **Packs:** the game ships levels 1–200 (25 hand-authored, the rest generated and calibrated) in `www/levels/pack-0001.js` and `pack-0002.js`. `getLevel(n)` accepts 1–99,999; after the last shipped level the map shows "More levels coming soon!".
 * **Cocoa cap and no-move loss:** Cocoa Creep never covers more than half the board; if a board ever has no possible move even after a reshuffle, the level ends with "No more moves!" instead of soft-locking.
 * **Retries:** each attempt uses a fresh deterministic seed derived from the level seed, so retries show new boards.
 * **Branch:** development happened on the session branch, and CI runs there, so `latest` and `v1.0.0` were published from it.
@@ -207,9 +226,9 @@ Open **Actions → Levels - generate and calibrate → Run workflow** and fill i
 
 | Input | Meaning |
 |---|---|
-| `from` | first level to add; must be exactly one past the last shipped level (121 today) |
+| `from` | first level to add; must be exactly one past the last shipped level (201 today) |
 | `to` | last level to add |
-| `games` / `random_games` | greedy-bot and random-bot games per calibration step (300 / 100 by default; the boards alternate between two far-apart seed ranges, and the chosen setting is re-checked on a third, unseen range before a level is accepted) |
+| `games` / `random_games` | smart-bot and random-bot games per calibration step (300 / 100 by default; the boards alternate between two far-apart seed ranges, and the chosen setting is re-checked on a third, unseen range before a level is accepted) |
 | `shard_size` | levels per parallel calibration job |
 | `open_pr` | also open a pull request (otherwise only a branch is pushed) |
 
@@ -260,8 +279,9 @@ To add, for example, **Jam Jar**:
 4. Add its unlock level to `UNLOCKS` in the generator and tests in `www/js/selftest.js` (they run in Node, the browser
    and on the phone).
 
-Taffy Swirl (`s`) and Gift Box (`g`) are the first Tier 2 mechanics. Planned next: Jam Jar, Magic Mixer and Lucky
-Candy, each to arrive at a later episode's first level (one new idea per level, following the same unlock rules).
+Taffy Swirl (`s`), Gift Box (`g`), Rock Candy (`r`/`R`), Cocoa Fountain (`F`) and Sugar Cake (`Q` + `q`) are the
+Tier 2 mechanics so far. Planned next: Jam Jar and Lucky Candy, each to arrive at a later episode's first level (one new
+idea per level, following the same unlock rules).
 
 ## Running the tests yourself (optional)
 

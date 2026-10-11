@@ -1,5 +1,5 @@
 // Browser QA (CI job "browser"): real pointer input, persistence, loss and +5 Moves, hearts, boosters, goal stars and mastery,
-// pause/restart/quit mid-animation, back navigation, lifecycle, instant hints, guided lessons (only the shown swap plays), the 20,000-level
+// pause/restart/quit mid-animation, back navigation, lifecycle, auto hints, guided lessons (only the shown swap plays), the 20,000-level
 // map, the compact save, the Daily Wheel, reduced motion, settings, photo, self-test and accessibility.
 const { test, expect } = require('@playwright/test');
 const H = require('./helpers');
@@ -354,22 +354,31 @@ test('going to the background pauses audio and timers; coming back resumes clean
   H.expectClean(problems);
 });
 
-test('hint: Instant shows within 400 ms of the board settling, clears on touch; the Hint button is immediate; Off waits', async ({ page }) => {
+test('hint: like the original, a possible move shows after a few idle seconds and clears on touch; the Hint button is immediate; Off waits', async ({ page }) => {
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });
+  expect(await page.evaluate(() => window.SC.game.store.save.settings.auto_hint)).toBe('5s');
+  await page.evaluate(() => window.SC.game.changeSetting('auto_hint', '3s'));
   await page.evaluate(() => window.SC.game.startLevel(5)); // a level without a guided lesson
   await H.waitState(page, 'PLAYING');
   const shown_after = await page.evaluate(() => new Promise((resolve) => {
     const started = performance.now();
     const check = () => {
       if (window.SC.game.hintVisible) resolve(performance.now() - started);
-      else if (performance.now() - started > 3000) resolve(-1);
+      else if (performance.now() - started > 8000) resolve(-1);
       else requestAnimationFrame(check);
     };
     check();
   }));
-  expect(shown_after).toBeGreaterThanOrEqual(0);
-  expect(shown_after).toBeLessThan(400);
+  expect(shown_after).toBeGreaterThan(1500);
+  expect(shown_after).toBeLessThan(4500);
+  // The hint is a possible move, not the best one (planning is the player's job).
+  const shown = await page.evaluate(() => {
+    const game = window.SC.game;
+    const possible = window.SC.LOGIC.findPossibleMove(game.logic);
+    return { same: game.currentHint.from === possible.from && game.currentHint.to === possible.to, valid: window.SC.LOGIC.isValidSwap(game.logic, game.currentHint.from, game.currentHint.to) };
+  });
+  expect(shown).toEqual({ same: true, valid: true });
   const center = await page.evaluate(() => window.SC.game.renderer.cellCenter(0));
   await page.touchscreen.tap(center.x, center.y);
   await expect.poll(async () => (await H.snapshot(page)).hint).toBe(false);
@@ -391,7 +400,7 @@ test('hint: Instant shows within 400 ms of the board settling, clears on touch; 
     return [a.x, a.y, b.x, b.y];
   })));
   await H.waitState(page, 'PLAYING');
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(5500);
   expect((await H.snapshot(page)).hint).toBe(false);
   H.expectClean(problems);
 });

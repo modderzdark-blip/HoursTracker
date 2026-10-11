@@ -1,9 +1,10 @@
 // Fuzz and bot simulations (CI job "logic").
 //  - Fuzz: random-valid-move games per shipped level (500 by default); board invariants checked after every move and
 //    after the Sweet Finale; iteration caps.
-//  - Greedy bot: games per level (200 by default) on seeds the calibrator never used, so the check is not circular.
-// Fails on any exception or invariant break, if a level is never won, if the greedy win rate drifts more than 15 points
-// from the level's target (the calibrator holds it within 8 on its own seeds), or if Level 1 is not near-certain.
+//  - Smart bot (the difficulty reference): games per level (300 by default) on seeds the calibrator never used, so the
+//    check is not circular.
+// Fails on any exception or invariant break, if a level is never won, if the smart bot's win rate drifts more than 15
+// points from the level's target (the calibrator holds it within 8 on its own seeds), or if Level 1 is not near-certain.
 // Usage: node tests/simulate.js [--fuzz 500] [--bot 200] [--report sim-report.json]
 const { Worker, isMainThread, parentPort, workerData } = require('node:worker_threads');
 const os = require('node:os');
@@ -27,7 +28,7 @@ function playGame(LOGIC, level, mode, game_index) {
   let moves = 0;
   const result = LOGIC.playBotGame(level, {
     attempt: FRESH_SEEDS + game_index,
-    policy: mode === 'fuzz' ? 'random' : 'greedy',
+    policy: mode === 'fuzz' ? 'random' : 'smart',
     rng_seed: (mode === 'fuzz' ? 1000003 : 2000003) + level.id * 100000 + game_index,
     move_cap: MOVE_CAP,
     on_move: (state) => {
@@ -77,7 +78,7 @@ if (!isMainThread) {
     return index > 0 ? process.argv[index + 1] : fallback;
   };
   const fuzz_games = Number(argument('--fuzz', 500));
-  const bot_games = Number(argument('--bot', 400));
+  const bot_games = Number(argument('--bot', 300));
   const report_path = argument('--report', null);
   const { LEVELS } = loadGame();
   const levels = [];
@@ -121,7 +122,7 @@ if (!isMainThread) {
       if (fuzz.exceptions.length + bot.exceptions.length) failures.push(`level ${level.id}: ${fuzz.exceptions.length + bot.exceptions.length} exceptions`);
       if (fuzz.invariant_failures.length + bot.invariant_failures.length) failures.push(`level ${level.id}: ${fuzz.invariant_failures.length + bot.invariant_failures.length} invariant failures`);
       if (bot_games > 0 && bot.wins + fuzz.wins === 0) failures.push(`level ${level.id} was never won`);
-      if (bot_games >= 100 && Math.abs(drift) > DRIFT_LIMIT) failures.push(`level ${level.id}: greedy win rate ${(bot_rate * 100).toFixed(0)}% drifts from the ${(target * 100).toFixed(0)}% target`);
+      if (bot_games >= 100 && Math.abs(drift) > DRIFT_LIMIT) failures.push(`level ${level.id}: smart-bot win rate ${(bot_rate * 100).toFixed(0)}% drifts from the ${(target * 100).toFixed(0)}% target`);
       report.levels.push({
         id: level.id, role: level.role, setting, fuzz_games: fuzz.games, fuzz_moves: fuzz.moves_played, exceptions: fuzz.exceptions.length + bot.exceptions.length,
         invariant_failures: fuzz.invariant_failures.length + bot.invariant_failures.length, random_win_rate: random_rate, bot_games: bot.games, bot_win_rate: bot_rate,

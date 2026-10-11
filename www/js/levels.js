@@ -117,9 +117,10 @@
   // Matched to Candy Crush Saga player data (attempt logs for one 15-level episode, as published in the DataCamp
   // "Level difficulty in Candy Crush Saga" sample): the first level of an episode was passed on about 62% of attempts,
   // ordinary levels on 20-45%, hard ones on 4-14%, and the episode's last level, its gate, on about 4%. The same shape
-  // is used here, measured with the greedy bot (one attempt = one game): episodes open easy, have one to three hard
-  // levels in the middle, an easier level after each hard one, and end on a hard gate (super hard every 5th episode).
-  // The first two episodes are the gentle on-ramp, as in the original.
+  // is used here, measured with the smart bot (one attempt = one game; it plays out its best few moves in full, so it is
+  // much closer to a person than a greedy one): episodes open easier, have one to three hard levels in the middle, an
+  // easier level after each hard one, and end on a hard gate (super hard every 5th episode). The first episode is the
+  // on-ramp; the second already has a hard level (23) and a hard gate (30).
 
   const ROLES = Object.freeze(['normal', 'breather', 'hard', 'superhard', 'tutorial']);
 
@@ -136,7 +137,8 @@
   function scheduledRole(level_number) {
     const position = ((level_number - 1) % EPISODE_SIZE) + 1;
     if (level_number >= 2 * EPISODE_SIZE && position === EPISODE_SIZE) return level_number % (5 * EPISODE_SIZE) === 0 ? 'superhard' : 'hard';
-    if (level_number <= 2 * EPISODE_SIZE) return 'normal';
+    if (level_number <= EPISODE_SIZE) return 'normal';
+    if (level_number <= 2 * EPISODE_SIZE) return position === 8 ? 'hard' : position === 9 ? 'breather' : 'normal';
     const hard = hardPositions(episodeOf(level_number));
     if (hard.indexOf(position) >= 0) return 'hard';
     // After every hard level (and the gate before it), and just before the run-up to the gate: an easier one.
@@ -150,23 +152,23 @@
   }
 
   /**
-   * Long-run curve for a normal level: about 62% per attempt after the first two episodes, 46% at level 100, 35% at
-   * 200, settling near 27% (a typical later level takes three or four tries, as in the original).
+   * Long-run curve for a normal level (smart bot): about 45% per attempt after the opening, 33% at level 60, 25% at
+   * 100, settling near 15% (a typical later level takes several tries, as in the original). A person who plans for
+   * specials and combos wins somewhat more often than the bot; the hard levels still take many tries.
    */
   function baseWinRate(level_number) {
-    return 0.27 + 0.36 * Math.exp(-Math.max(0, level_number - 25) / 120);
+    return 0.15 + 0.3 * Math.exp(-Math.max(0, level_number - 25) / 70);
   }
 
-  /** Target greedy-bot win rate for a level (the hand-authored opening has its own targets). */
+  /** Target smart-bot win rate for a level. */
   function targetWinRate(level_number, role) {
-    if (level_number <= 3) return 0.97;
-    if (level_number <= 10) return 0.92;
-    if (level_number <= 25) return 0.85 - (0.22 * (level_number - 11)) / 14;
-    const base = baseWinRate(level_number);
+    if (level_number <= 3) return 0.95;
     const level_role = role || scheduledRole(level_number);
-    if (level_role === 'breather') return Math.min(0.9, base + 0.2);
+    if (level_number <= 10) return 0.88 - (0.1 * (level_number - 4)) / 6;
+    const base = level_number <= 25 ? 0.7 - (0.25 * (level_number - 11)) / 14 : baseWinRate(level_number);
+    if (level_role === 'breather') return Math.min(0.85, base + 0.2);
     if (level_role === 'hard') return base * 0.35;
-    if (level_role === 'superhard') return base * 0.18;
+    if (level_role === 'superhard') return base * 0.15;
     return base;
   }
 

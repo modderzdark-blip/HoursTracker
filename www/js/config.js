@@ -5,7 +5,7 @@
 
   const CONFIG = {
     GAME_TITLE: 'Sweet Cascade',
-    VERSION: '1.7.0',
+    VERSION: '1.8.0',
 
     // Candy set: the classic candy-shop six, each with a distinct color AND shape. SPRITES shades them (same table there).
     CANDIES: [
@@ -52,8 +52,8 @@
 
     // Animation speed setting -> playback multiplier ("Snappy" is the default).
     ANIMATION_SPEEDS: { normal: 0.85, snappy: 1, fast: 1.4 },
-    // Auto-hint setting -> idle delay in ms (null = off). Instant shows within 400 ms of the board settling.
-    AUTO_HINT_DELAYS: { instant: 250, '3s': 3000, '8s': 8000, off: null },
+    // Auto-hint setting -> idle delay in ms (null = off). Like the original, a possible move shows after a few idle seconds.
+    AUTO_HINT_DELAYS: { '3s': 3000, '5s': 5000, '8s': 8000, off: null },
 
     MAX_PARTICLES: 600,
     MAX_CELL_PX: 76,

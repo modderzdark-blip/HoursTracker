@@ -3,7 +3,7 @@ name: Levels - generate and calibrate
 # Grows the game: generates levels FROM..TO, calibrates them with bots in parallel shards, merges them into the level
 # packs (www/levels/pack-NNNN.js), validates everything, writes the difficulty report (docs/difficulty), and pushes the
 # result to a new branch (and opens a pull request when asked). Also called by android.yml on every push as an
-# end-to-end check on levels 121-160 with fewer games and nothing published.
+# end-to-end check on levels 201-240 with fewer games and nothing published.
 
 on:
   workflow_dispatch:
@@ -17,7 +17,7 @@ on:
         type: number
         default: 100
       games:
-        description: Greedy-bot games per calibration step
+        description: Smart-bot games per calibration step
         type: number
         default: 300
       random_games:

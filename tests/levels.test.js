@@ -1,7 +1,7 @@
 // Level tests (CI job "levels"): the shipped levels, the generator's rules and the difficulty curve.
-//  - every shipped level validates, is numbered in order, and is won by the greedy bot
+//  - every shipped level validates, is numbered in order, and is won by the smart bot (the difficulty reference)
 //  - one new idea per level, and no idea before its unlock level (levels 1-360: shipped + generated)
-//  - the generator's unlock schedule, colour schedule, complexity budget and blocker cap
+//  - the generator's unlock schedule, colour schedule, complexity budget and blocker density cap
 //  - 40+ board templates; no goal mode more than three times in a row
 //  - the calibrated curve: every shipped level inside its tolerance of its target (8 points, tighter for hard levels)
 //  - scale: 300 consecutive generated levels (61-360) plus a sample up to 20,000 validate, deterministically and fast
@@ -39,7 +39,7 @@ function activeCells(level) {
 }
 
 function blockerCells(level) {
-  return level.layout.reduce((sum, row_text) => sum + row_text.split('').filter((symbol) => /[1-5kob]/.test(symbol)).length, 0);
+  return level.layout.reduce((sum, row_text) => sum + row_text.split('').filter((symbol) => /[1-5kobrRnuUXFQqsg]/.test(symbol)).length, 0);
 }
 
 test('shipped levels: 60+, numbered in order, valid, roles set, authored layouts untouched', () => {
@@ -57,13 +57,14 @@ test('shipped levels: 60+, numbered in order, valid, roles set, authored layouts
   });
 });
 
-test('shipped levels: every level is won by the greedy bot', () => {
+test('shipped levels: every level is won by the smart bot', () => {
   shipped.forEach((level) => {
-    // Hard and super hard levels are won on about 5-15% of tries (like the original), so they get more tries.
-    const tries = LEVELS.targetWinRate(level.id, level.role) < 0.25 ? 100 : 30;
+    // Hard and super hard levels are won on about 3-15% of tries (like the original), so they get more tries.
+    const target = LEVELS.targetWinRate(level.id, level.role);
+    const tries = target < 0.08 ? 250 : target < 0.25 ? 100 : 30;
     let wins = 0;
     for (let attempt = 0; attempt < tries && wins === 0; attempt += 1) {
-      if (LOGIC.playBotGame(level, { attempt: 5000 + attempt }).won) wins += 1;
+      if (LOGIC.playBotGame(level, { attempt: 5000 + attempt, policy: 'smart' }).won) wins += 1;
     }
     assert.ok(wins > 0, `level ${level.id} never won`);
   });
@@ -87,7 +88,8 @@ test(`one new idea per level and none before its unlock (levels 1-${SCALE_LAST})
   Object.keys(first_seen).forEach((idea) => {
     if (GENERATOR.UNLOCKS[idea] !== undefined) assert.ok(first_seen[idea] >= GENERATOR.UNLOCKS[idea], `${idea} appears at ${first_seen[idea]}, unlocks at ${GENERATOR.UNLOCKS[idea]}`);
   });
-  ['belt', 'frosting3', 'hazelnut', 'swirl', 'chest', 'gift', 'mood', 'mixer', 'popcorn'].forEach((idea) => assert.strictEqual(first_seen[idea], GENERATOR.UNLOCKS[idea], `${idea} is introduced exactly at its unlock level`));
+  ['belt', 'frosting3', 'hazelnut', 'swirl', 'chest', 'gift', 'mood', 'mixer', 'popcorn', 'jelly_under', 'combo_orders', 'rock', 'fountain', 'locked', 'cake']
+    .forEach((idea) => assert.strictEqual(first_seen[idea], GENERATOR.UNLOCKS[idea], `${idea} is introduced exactly at its unlock level`));
 });
 
 test('sensible goals: no generated level asks for more than about 3 candies of a colour goal per move, or 60 of one colour', () => {
@@ -122,7 +124,7 @@ test('no level is won by points alone: no score goals in the shipped levels or a
   }
 });
 
-test('generator schedule: colours, mixed goals, complexity budget and the 30% blocker cap', () => {
+test('generator schedule: colours, mixed goals, complexity budget and the blocker density cap', () => {
   const colourShare = (first, last, minimum) => {
     let count = 0;
     for (let level_number = first; level_number <= last; level_number += 1) if (levelAt(level_number).colors >= minimum) count += 1;
@@ -130,16 +132,16 @@ test('generator schedule: colours, mixed goals, complexity budget and the 30% bl
   };
   for (let level_number = 26; level_number <= SCALE_LAST; level_number += 1) {
     const level = levelAt(level_number);
-    if (level_number < 20) assert.strictEqual(level.colors, 4);
-    if (level_number < 150) assert.ok(level.colors <= 5, `level ${level_number}: 6 colours before 150`);
-    if (level_number < 40) assert.ok(new Set(level.goals.map((goal) => goal.type)).size === 1, `level ${level_number}: mixed goals before 40`);
+    assert.ok(level.colors === 5 || level.colors === 6, `level ${level_number}: ${level.colors} colours (five or six, like the original)`);
+    if (level_number < 30) assert.ok(new Set(level.goals.map((goal) => goal.type)).size === 1, `level ${level_number}: mixed goals before 30`);
     const types = GENERATOR.blockerTypesOf(level);
     assert.ok(types.length <= GENERATOR.blockerBudget(level_number), `level ${level_number}: ${types.join('+')} over the budget`);
-    assert.ok(blockerCells(level) <= Math.floor(activeCells(level) * 0.3), `level ${level_number}: more than 30% blockers`);
+    assert.ok(blockerCells(level) <= GENERATOR.blockerCap(level_number, activeCells(level)), `level ${level_number}: too crowded`);
   }
-  assert.deepStrictEqual([39, 40, 79, 80, 399, 400].map(GENERATOR.blockerBudget), [1, 2, 2, 3, 3, 4]);
-  assert.ok(colourShare(SCALE_FIRST, 149, 5) > 0.8, 'five colours dominate from 40');
-  assert.ok(colourShare(150, SCALE_LAST, 6) > 0.1, 'six colours appear from 150');
+  assert.deepStrictEqual([29, 30, 59, 60, 149, 150].map(GENERATOR.blockerBudget), [1, 2, 2, 3, 3, 4]);
+  assert.deepStrictEqual([26, 39, 150, 400].map(GENERATOR.blockerShare), [0.3, 0.3, 0.42, 0.42]);
+  assert.ok(colourShare(26, 59, 6) > 0.2, 'six colours from 26');
+  assert.ok(colourShare(150, SCALE_LAST, 6) > 0.6, 'six colours dominate from 150');
   let six_late = 0;
   for (let level_number = 400; level_number < 500; level_number += 1) if (GENERATOR.generateLevel(level_number, 0).colors === 6) six_late += 1;
   assert.ok(six_late > 60, `six colours dominate from 400 (${six_late}/100)`);
@@ -180,14 +182,14 @@ test('the calibrated curve: every shipped level within its tolerance of its targ
     assert.ok(Math.abs(Number(row.win_rate) - target) <= LEVELS.calibrationTolerance(target) + 0.0005 + 1e-9, `level ${level.id}: ${row.win_rate} vs target ${target.toFixed(3)}`);
     assert.deepStrictEqual([Number(row.star1), Number(row.star2), Number(row.star3)], level.stars, `level ${level.id} stars match the report`);
   });
-  // The Candy Crush-matched shape: normal levels ease down to about 27%, hard ones take several tries.
+  // The Candy Crush-matched shape (smart bot): normal levels ease down to about 15%, hard ones take many tries.
   let previous = 1;
   for (let level_number = 26; level_number <= 2000; level_number += 1) {
     const base = LEVELS.baseWinRate(level_number);
-    assert.ok(base <= previous + 1e-12 && base >= 0.27 && base <= 0.63, `base(${level_number}) = ${base}`);
+    assert.ok(base <= previous + 1e-12 && base >= 0.15 && base <= 0.45, `base(${level_number}) = ${base}`);
     previous = base;
     const hard = LEVELS.targetWinRate(level_number, 'hard');
-    assert.ok(hard >= 0.09 && hard <= 0.23 && LEVELS.targetWinRate(level_number, 'superhard') < hard, `hard targets at ${level_number}`);
+    assert.ok(hard >= 0.05 && hard <= 0.16 && LEVELS.targetWinRate(level_number, 'superhard') < hard, `hard targets at ${level_number}`);
   }
 });
 

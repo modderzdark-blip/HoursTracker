@@ -587,6 +587,10 @@
     list['chest:1'] = chestRecipe(1, theme_id);
     list['chest:2'] = chestRecipe(2, theme_id);
     list.mixer = mixerRecipe(theme_id);
+    list.fountain = fountainRecipe(theme_id);
+    list.cake = cakeRecipe(theme_id);
+    list['rock:1'] = rockRecipe(1, theme_id);
+    list['rock:2'] = rockRecipe(2, theme_id);
     list['jelly:1'] = jellyRecipe(1);
     list['jelly:2'] = jellyRecipe(2);
     return list;
@@ -865,6 +869,116 @@
     };
   }
 
+  /**
+   * Rock Candy: a block of faceted sugar crystals, pale violet; the two-layer kind is deeper colored with more facets.
+   * Only blasts crack it, so it looks hard: sharp facets and a glassy shine.
+   */
+  function rockRecipe(layers, theme_id) {
+    const facet_light = lin('#ffffff');
+    const facet_dark = lin(layers >= 2 ? '#3a1d86' : '#6a52b8');
+    const deep = layers >= 2;
+    // Flat crystal facets: every point of the block takes the tilted plane of its nearest facet seed.
+    const random = seededRandom(160 + layers);
+    const seeds = [];
+    for (let index = 0; index < (deep ? 9 : 7); index += 1) {
+      seeds.push({ x: (random() - 0.5) * 1.5, y: (random() - 0.5) * 1.5, a: (random() - 0.5) * 1.6, b: (random() - 0.5) * 1.6, tone: random() });
+    }
+    const nearest = (x, y) => {
+      let best = null;
+      let best_distance = Infinity;
+      let second = Infinity;
+      seeds.forEach((seed) => {
+        const distance = Math.hypot(x - seed.x, y - seed.y);
+        if (distance < best_distance) {
+          second = best_distance;
+          best_distance = distance;
+          best = seed;
+        } else if (distance < second) second = distance;
+      });
+      return { seed: best, gap: second - best_distance };
+    };
+    return {
+      shape: (x, y) => sdRoundBox(x, y, 0.82, 0.82, 0.16),
+      base: deep ? '#9a6bff' : '#c3adff', highlight: '#f3edff', shadow: deep ? '#4b2a9e' : '#7b62c9', theme: 'hard', seed: 151 + layers, bevel: 0.14, smooth: 0,
+      material: { subsurface: 0.35, translucency: 0.25, spec_power: 110, spec_tight: 2.0, env: 1.2, detail: 'none' }, detail: 'none',
+      height_detail: (x, y, depth) => {
+        const { seed } = nearest(x, y);
+        return (seed.a * (x - seed.x) + seed.b * (y - seed.y)) * smoothstep(0.02, 0.14, depth);
+      },
+      albedo: (x, y, depth) => {
+        if (depth < 0.08) return null;
+        const { seed, gap } = nearest(x, y);
+        if (gap < 0.03) return [facet_light[0], facet_light[1], facet_light[2], 0.6 * (1 - gap / 0.03), 1.6];
+        // Each facet catches the light a little differently.
+        const tone = seed.tone > 0.5 ? facet_light : facet_dark;
+        return [tone[0], tone[1], tone[2], Math.abs(seed.tone - 0.5) * 0.5, 1.2];
+      },
+    };
+  }
+
+  /** Cocoa Fountain: a three-tier chocolate fountain with gold rims, chocolate sheeting over every bowl. */
+  function fountainRecipe(theme_id) {
+    const gold = lin('#ffd25a');
+    const melt = lin('#4a200a');
+    const bowls = [[0, 0.56, 0.86, 0.26], [0, 0.04, 0.62, 0.19], [0, -0.44, 0.38, 0.14]];
+    const bowl = (x, y) => Math.min(...bowls.map(([cx, cy, rx, ry]) => sdCircle((x - cx) / rx, (y - cy) / ry, 1) * Math.min(rx, ry)));
+    const stem = (x, y) => sdCapsule(x, y, 0, -0.8, 0, 0.6, 0.1);
+    const knob = (x, y) => sdCircle(x, y + 0.8, 0.13);
+    return {
+      shape: (x, y) => smoothUnion(smoothUnion(bowl(x, y), stem(x, y), 0.08), knob(x, y), 0.05), base: '#7a3a17', highlight: '#c27a45', shadow: '#2e1206', theme: theme_id, seed: 131, bevel: 0.24,
+      material: { subsurface: 0.08, translucency: 0.02, spec_power: 80, spec_tight: 1.6, env: 0.7, detail: 'none' }, detail: 'none',
+      height_detail: (x, y) => 0.04 * Math.sin(x * 14 + y * 5),
+      albedo: (x, y) => {
+        // Gold rims along the top edge of each bowl and the knob.
+        for (const [cx, cy, rx, ry] of bowls) {
+          const inside = sdCircle((x - cx) / rx, (y - cy) / ry, 1);
+          if (inside < 0 && inside > -0.28 && y < cy) return [gold[0], gold[1], gold[2], 1, 1.5];
+        }
+        if (knob(x, y) < 0) return [gold[0], gold[1], gold[2], 1, 1.5];
+        // Darker melted chocolate sheets running down between the tiers.
+        const sheet = Math.sin(x * 22) * 0.5 + 0.5;
+        if (bowl(x, y) > 0 && stem(x, y) < 0) return [melt[0], melt[1], melt[2], 0.5, 1.2];
+        return [melt[0], melt[1], melt[2], 0.25 * sheet, 1];
+      },
+    };
+  }
+
+  /**
+   * Sugar Cake: a round strawberry cake seen from above, cut into eight slices, a cream swirl on each slice and a cherry
+   * in the middle. It covers 2x2 squares, so it is shaded at twice the cell size (the renderer hides eaten slices).
+   */
+  function cakeRecipe(theme_id) {
+    const cream = lin('#fff6ec');
+    const cut = lin('#b23a6a');
+    const cherry = lin('#e3173f');
+    const sponge = lin('#f6c27a');
+    const dollop = (x, y) => {
+      let distance = Infinity;
+      for (let slice = 0; slice < 8; slice += 1) {
+        const angle = ((slice + 0.5) * Math.PI * 2) / 8 - Math.PI / 2;
+        distance = Math.min(distance, sdCircle(x - Math.cos(angle) * 0.64, y - Math.sin(angle) * 0.64, 0.12));
+      }
+      return distance;
+    };
+    const cherry_sdf = (x, y) => sdCircle(x, y, 0.17);
+    return {
+      shape: (x, y) => sdCircle(x, y, 0.9), base: '#ff8fbd', highlight: '#ffd6e8', shadow: '#c24a7e', theme: theme_id, seed: 141, bevel: 0.2, size_scale: 2,
+      material: { subsurface: 0.25, translucency: 0.05, spec_power: 50, spec_tight: 1.0, env: 0.5, detail: 'none' }, detail: 'none',
+      height_detail: (x, y) => (dollop(x, y) < 0 ? 0.18 * smoothstep(0, 0.1, -dollop(x, y)) : cherry_sdf(x, y) < 0 ? 0.25 * smoothstep(0, 0.14, -cherry_sdf(x, y)) : 0),
+      albedo: (x, y, depth) => {
+        if (cherry_sdf(x, y) < 0) return [cherry[0], cherry[1], cherry[2], 1, 1.6];
+        if (dollop(x, y) < 0) return [cream[0], cream[1], cream[2], 1, 0.9];
+        // The sponge shows as a thin golden band at the rim.
+        if (depth < 0.07) return [sponge[0], sponge[1], sponge[2], 1, 0.6];
+        const angle = Math.atan2(y, x) + Math.PI / 2;
+        const slice_edge = Math.abs(((angle / (Math.PI * 2)) * 8 + 8) % 1 - 0.5);
+        const radius = Math.sqrt(x * x + y * y);
+        if (slice_edge > 0.47 && radius > 0.2) return [cut[0], cut[1], cut[2], 0.7, 0.8];
+        return null;
+      },
+    };
+  }
+
   function cageRecipe() {
     const bars = (x, y) => {
       let distance = Infinity;
@@ -983,7 +1097,8 @@
     function build(key) {
       if (!sprites[key] && specs[key]) {
         const started = Date.now();
-        sprites[key] = spriteToCanvas(specs[key], size);
+        // A piece that covers 2x2 squares (the Sugar Cake) is shaded at twice the size, so it stays sharp.
+        sprites[key] = spriteToCanvas(specs[key], specs[key].size_scale ? Math.min(512, size * specs[key].size_scale) : size);
         build_ms += Date.now() - started;
       }
       return sprites[key];
@@ -998,6 +1113,7 @@
       if (kind === 'frosting') return `frosting:${Math.max(1, Math.min(5, layers || 1))}`;
       if (kind === 'popcorn') return `popcorn:${Math.max(1, Math.min(3, layers || 3))}`;
       if (kind === 'chest') return `chest:${layers >= 2 ? 2 : 1}`;
+      if (kind === 'rock') return `rock:${layers >= 2 ? 2 : 1}`;
       if (kind === 'jelly') return `jelly:${layers >= 2 ? 2 : 1}`;
       return specs[kind] ? kind : 'candy:0';
     }

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Level calibration: for each level in a range, run greedy-bot games (300 by default) and random-bot games (100) and
-// binary-search the move count (or the time limit) until the greedy win rate lands within the tolerance of the level's
+// Level calibration: for each level in a range, run smart-bot games (300 by default) and random-bot games (100) and
+// binary-search the move count (or the time limit) until the smart bot's win rate lands within the tolerance of the level's
 // target (8 points, tighter for hard levels: LEVELS.calibrationTolerance). Generated levels whose goals are too small
 // for a comfortable number of moves get bigger goals; ones that still cannot get there are regenerated with the next
 // variant (up to 20). Star thresholds are set from the winning scores. Writes the level packs
@@ -27,7 +27,10 @@ const AUTHORED = require(path.join(ROOT, 'scripts/levels/authored.js'));
 
 const TOLERANCE = LEVELS.calibrationTolerance;
 const MAX_VARIANTS = 20;
-const MOVE_RANGE = [10, 40]; // never fewer than 10 moves (stingy), never more than 40 (a layout needing more is replaced)
+const MOVE_RANGE = [10, 45]; // never fewer than 10 moves (stingy), never more than 45 (a layout needing more is replaced)
+// The reference player: the smart bot plays out its best few moves in full (much closer to a person than a greedy bot,
+// so a level tuned on it is hard for people too: owner feedback, every level of 1.7 was beaten without losing a life).
+const REFERENCE_POLICY = 'smart';
 const TIME_RANGE = [30, 240];
 
 function percentile(values, fraction) {
@@ -80,11 +83,11 @@ function runGames(level, games, policy, first_attempt) {
 /**
  * Stars: 1 star = goal met (the score target, or the near-minimum winning score); the spec's 1.6x / 2.4x of that
  * one-star score for 2 and 3 stars, capped so an ordinary win still earns 3 stars (3 stars at most the 20th percentile
- * of greedy wins and the 10th of random wins; owner feedback: 3 stars must not feel out of reach).
+ * of smart-bot wins and the 10th of random wins; owner feedback: 3 stars must not feel out of reach).
  */
-function starThresholds(level, greedy, random) {
+function starThresholds(level, bot, random) {
   const score_goal = level.goals.find((goal) => goal.type === 'score');
-  const winners = greedy.win_final_scores;
+  const winners = bot.win_final_scores;
   const one_star = score_goal ? score_goal.target : floor500(percentile(winners, 0.02) * 0.9);
   let two_star = round500(one_star * 1.6);
   let three_star = round500(one_star * 2.4);
@@ -105,13 +108,13 @@ function tuneParameter(level, target, games) {
   const step = timed ? 5 : 1;
   const cache = new Map();
   const measure = (value) => {
-    if (!cache.has(value)) cache.set(value, runGames(withParameter(level, value), games, 'greedy'));
+    if (!cache.has(value)) cache.set(value, runGames(withParameter(level, value), games, REFERENCE_POLICY));
     return cache.get(value);
   };
   let low = low_bound;
   let high = high_bound;
   if (measure(high).win_rate < target) {
-    return { value: high, greedy: measure(high), evaluations: cache.size };
+    return { value: high, bot: measure(high), evaluations: cache.size };
   }
   while (high - low > step) {
     const middle = low + Math.floor((high - low) / (2 * step)) * step;
@@ -123,12 +126,12 @@ function tuneParameter(level, target, games) {
   const above = measure(high);
   const below = high - step >= low_bound ? measure(high - step) : null;
   const best_value = below && Math.abs(below.win_rate - target) < Math.abs(above.win_rate - target) ? high - step : high;
-  return { value: best_value, greedy: measure(best_value), evaluations: cache.size };
+  return { value: best_value, bot: measure(best_value), evaluations: cache.size };
 }
 
 /**
  * Sanity floor for the easy roles: when the random-move bot almost never wins a tutorial, breather or normal level,
- * moves (or seconds) are added while the greedy win rate stays inside the tolerance. Hard and super hard levels have no
+ * moves (or seconds) are added while the smart-bot win rate stays inside the tolerance. Hard and super hard levels have no
  * floor: like the original's, they are meant to take several tries (owner request: match the original's difficulty).
  */
 const RANDOM_FLOOR = Object.freeze({ tutorial: 0.3, breather: 0.1, normal: 0.02, hard: 0, superhard: 0 });
@@ -139,22 +142,22 @@ function applyRandomFloor(level, role, target, tuned, random_games) {
   const upper = timed ? TIME_RANGE[1] : MOVE_RANGE[1];
   const floor = RANDOM_FLOOR[role] === undefined ? 0.12 : RANDOM_FLOOR[role];
   let value = tuned.value;
-  let greedy = tuned.greedy;
+  let bot = tuned.bot;
   let random = runGames(withParameter(level, value), random_games, 'random');
   while (random.win_rate < floor && value + step <= upper) {
-    const next_greedy = runGames(withParameter(level, value + step), greedy.games, 'greedy');
-    if (next_greedy.win_rate > target + TOLERANCE(target)) break;
+    const next_bot = runGames(withParameter(level, value + step), bot.games, REFERENCE_POLICY);
+    if (next_bot.win_rate > target + TOLERANCE(target)) break;
     value += step;
-    greedy = next_greedy;
+    bot = next_bot;
     random = runGames(withParameter(level, value), random_games, 'random');
   }
-  return { value, greedy, random, evaluations: tuned.evaluations };
+  return { value, bot, random, evaluations: tuned.evaluations };
 }
 
 // Goals stay believable: at most 60 of one colour, and about 3 candies of colour goals per move once tuned.
 const MAX_COLLECT = 60;
 const MAX_COLLECT_PER_MOVE = 3.2;
-const MIXED_FROM = 40; // the generator's own schedule: two kinds of goal in one level from level 40
+const MIXED_FROM = 30; // the generator's own schedule: two kinds of goal in one level from level 30
 // Verification: the tuned setting is replayed on boards the search never saw (attempts from 200,000). A level whose win
 // rate there differs from the target by more than this was tuned to its sample, not to the level: another board is tried.
 const VERIFY_FIRST_ATTEMPT = 200000;
@@ -210,21 +213,21 @@ function calibrateLevel(level_number, options) {
     let tuned = tuneParameter(candidate, target, games);
     for (let growth = 0; growth < MAX_GOAL_GROWTH; growth += 1) {
       const floor = candidate.time ? TIME_RANGE[0] : MOVE_RANGE[0];
-      const too_easy_at_floor = tuned.value === floor && tuned.greedy.win_rate > target + TOLERANCE(target);
+      const too_easy_at_floor = tuned.value === floor && tuned.bot.win_rate > target + TOLERANCE(target);
       // Authored levels keep their goals as written (edit scripts/levels/authored.js instead).
       const wants_more = !authored && (too_easy_at_floor || tuned.value < (candidate.time ? COMFORT.time : COMFORT.moves));
       const bigger = wants_more ? withBiggerGoals(candidate, 1.35) : null;
       if (!bigger) break;
       const retuned = tuneParameter(bigger, target, games);
-      if (Math.abs(retuned.greedy.win_rate - target) > TOLERANCE(target) && Math.abs(tuned.greedy.win_rate - target) <= TOLERANCE(target)) break;
+      if (Math.abs(retuned.bot.win_rate - target) > TOLERANCE(target) && Math.abs(tuned.bot.win_rate - target) <= TOLERANCE(target)) break;
       candidate = bigger;
       tuned = retuned;
     }
     // A variant whose goals ended up unbelievable counts as missing the target, so another board is tried.
     const believable = plausible(withParameter(candidate, tuned.value));
-    let error = Math.abs(tuned.greedy.win_rate - target) + (believable ? 0 : 1);
+    let error = Math.abs(tuned.bot.win_rate - target) + (believable ? 0 : 1);
     if (error <= TOLERANCE(target) && !authored) {
-      const fresh = runGames(withParameter(candidate, tuned.value), games, 'greedy', VERIFY_FIRST_ATTEMPT);
+      const fresh = runGames(withParameter(candidate, tuned.value), games, REFERENCE_POLICY, VERIFY_FIRST_ATTEMPT);
       if (Math.abs(fresh.win_rate - target) > VERIFY_LIMIT) error += 0.5;
     }
     if (!best || error < best.error) best = { candidate, role, target, tuned, error, variant };
@@ -232,11 +235,11 @@ function calibrateLevel(level_number, options) {
   }
   const floored = applyRandomFloor(best.candidate, best.role, best.target, best.tuned, random_games);
   best.tuned = floored;
-  best.error = Math.abs(floored.greedy.win_rate - best.target);
+  best.error = Math.abs(floored.bot.win_rate - best.target);
   const level = withParameter(best.candidate, floored.value);
   level.role = best.role;
   const random = floored.random;
-  level.stars = starThresholds(level, floored.greedy, random);
+  level.stars = starThresholds(level, floored.bot, random);
   const problems = LOGIC.validateLevel(level);
   if (problems.length) throw new Error(`level ${level_number} invalid after calibration: ${problems.join('; ')}`);
   return {
@@ -245,14 +248,14 @@ function calibrateLevel(level_number, options) {
       id: level_number,
       role: best.role,
       target: Number(best.target.toFixed(3)),
-      win_rate: Number(best.tuned.greedy.win_rate.toFixed(3)),
+      win_rate: Number(best.tuned.bot.win_rate.toFixed(3)),
       random_win_rate: Number(random.win_rate.toFixed(3)),
       within_tolerance: best.error <= TOLERANCE(best.target),
       variant: best.variant,
       parameter: level.time ? `time ${level.time}s` : `moves ${level.moves}`,
-      median_final: percentile(best.tuned.greedy.win_final_scores, 0.5),
-      median_end: percentile(best.tuned.greedy.end_scores, 0.5),
-      median_moves_to_win: percentile(best.tuned.greedy.win_moves, 0.5),
+      median_final: percentile(best.tuned.bot.win_final_scores, 0.5),
+      median_end: percentile(best.tuned.bot.end_scores, 0.5),
+      median_moves_to_win: percentile(best.tuned.bot.win_moves, 0.5),
       stars: level.stars,
       new_mechanic: level.newMechanic || '',
       evaluations: best.tuned.evaluations,
@@ -335,7 +338,7 @@ function svgChart(rows) {
   const parts = [];
   parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="sans-serif" font-size="12">`);
   parts.push(`<rect width="${width}" height="${height}" fill="#fffaf4"/>`);
-  parts.push(`<text x="${margin.left}" y="18" font-size="14" font-weight="bold" fill="#3b1a4a">Greedy-bot win rate per level (target line and tolerance band)</text>`);
+  parts.push(`<text x="${margin.left}" y="18" font-size="14" font-weight="bold" fill="#3b1a4a">Smart-bot win rate per level (target line and tolerance band)</text>`);
   [0, 0.25, 0.5, 0.75, 1].forEach((rate) => {
     parts.push(`<line x1="${margin.left}" x2="${width - margin.right}" y1="${y(rate)}" y2="${y(rate)}" stroke="#e6dce8"/>`);
     parts.push(`<text x="${margin.left - 8}" y="${y(rate) + 4}" text-anchor="end" fill="#6b5874">${Math.round(rate * 100)}%</text>`);

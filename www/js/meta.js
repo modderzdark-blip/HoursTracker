@@ -417,14 +417,14 @@
    */
   function createHintScheduler(timers, delays, show) {
     let handle = null;
-    let mode = 'instant';
+    let mode = '5s';
     const cancel = () => {
       if (handle !== null) timers.clear(handle);
       handle = null;
     };
     return {
       setMode(next_mode) {
-        mode = Object.prototype.hasOwnProperty.call(delays, next_mode) ? next_mode : 'instant';
+        mode = Object.prototype.hasOwnProperty.call(delays, next_mode) ? next_mode : '5s';
       },
       get mode() {
         return mode;

@@ -192,6 +192,8 @@
     let next_sheen_at = 0;
     let sheen_canvas = null;
     const board_flash = { alpha: 0 };
+    const board_zoom = { scale: 1 }; // a short punch-in on big combos
+    let next_ambient_at = 0;
 
     function particleScale() {
       const quality_scale = quality === 2 ? 1 : quality === 1 ? 0.5 : 0.25;
@@ -431,7 +433,7 @@
       const position = cellXY(cell_index);
       return {
         id: piece.id, kind: piece.kind, color: piece.color, special: piece.special, layers: piece.layers, max_layers: piece.layers, fuse: piece.fuse,
-        key: !!piece.key, mood: !!piece.mood, timer: piece.timer,
+        key: !!piece.key, mood: !!piece.mood, timer: piece.timer, part: piece.part,
         x: position.col, y: position.row, scale_x: 1, scale_y: 1, scale: 1, alpha: 1, rotation: 0, flash: 0, lift: 0,
         wobble_seed: (piece.id * 0.618) % 1,
       };
@@ -449,7 +451,7 @@
           visual = makeVisual(piece, cell_index);
           visuals.set(piece.id, visual);
         }
-        Object.assign(visual, { kind: piece.kind, color: piece.color, special: piece.special, layers: piece.layers, max_layers: Math.max(visual.max_layers || 0, piece.layers), fuse: piece.fuse, key: !!piece.key, mood: !!piece.mood, timer: piece.timer, x: position.col, y: position.row, scale_x: 1, scale_y: 1, scale: 1, alpha: 1, rotation: 0, flash: 0, lift: 0 });
+        Object.assign(visual, { kind: piece.kind, color: piece.color, special: piece.special, layers: piece.layers, max_layers: Math.max(visual.max_layers || 0, piece.layers), fuse: piece.fuse, key: !!piece.key, mood: !!piece.mood, timer: piece.timer, part: piece.part, x: position.col, y: position.row, scale_x: 1, scale_y: 1, scale: 1, alpha: 1, rotation: 0, flash: 0, lift: 0, nudge_x: 0, nudge_y: 0 });
       });
       Array.from(visuals.keys()).forEach((piece_id) => {
         if (!seen.has(piece_id)) visuals.delete(piece_id);
@@ -460,6 +462,7 @@
 
     function setLevel(state) {
       timeline.cancelAll();
+      board_zoom.scale = 1;
       visuals.clear();
       effects.length = 0;
       popups.length = 0;
@@ -473,6 +476,8 @@
         else if (piece.kind === 'popcorn') kinds.add('popcorn:3').add('popcorn:2').add('popcorn:1');
         else if (piece.kind === 'chest') kinds.add('chest:1').add('chest:2');
         else if (piece.kind === 'mixer') kinds.add('mixer').add('frosting:1');
+        else if (piece.kind === 'fountain') kinds.add('fountain').add('cocoa');
+        else if (piece.kind === 'rock') kinds.add('rock:1').add('rock:2');
         else if (piece.kind !== 'candy') kinds.add(piece.kind);
       });
       if (Array.prototype.some.call(state.cage, (value) => value)) kinds.add('cage');
@@ -577,9 +582,181 @@
       effects.push(effect);
     }
 
+    /** A blast pushes the candies around it outward for a moment (they spring back). radius in cells. */
+    function shockwave(cell_index, radius, strength) {
+      if (settings.reduced_motion || !board) return;
+      const center = cellXY(cell_index);
+      const pushed = [];
+      visuals.forEach((visual) => {
+        const dx = visual.x - center.col;
+        const dy = visual.y - center.row;
+        const distance = Math.hypot(dx, dy);
+        if (distance < 0.5 || distance > radius) return;
+        const push = strength * (1 - distance / radius);
+        pushed.push({ visual, x: (dx / distance) * push, y: (dy / distance) * push, delay: distance * 22 });
+      });
+      pushed.forEach((entry) => {
+        timeline.tween(340, (t) => {
+          const spring = Math.sin(t * Math.PI) * (1 - t * 0.4);
+          entry.visual.nudge_x = entry.x * spring;
+          entry.visual.nudge_y = entry.y * spring;
+        }, entry.delay).then(() => {
+          entry.visual.nudge_x = 0;
+          entry.visual.nudge_y = 0;
+        });
+      });
+    }
+
+    /** The whole board punches in a little and settles back (big combos, a Sugar Cake bursting). */
+    function zoomPunch(amount, duration_ms) {
+      if (settings.reduced_motion) return;
+      timeline.tween(duration_ms, (t) => {
+        board_zoom.scale = 1 + amount * Math.sin(Math.min(1, t * 1.6) * Math.PI) * (t < 0.62 ? 1 : 0);
+      }).then(() => {
+        board_zoom.scale = 1;
+      });
+    }
+
+    /** Sparkles left along a striped candy's beam. */
+    function beamSparkles(cell_index, direction, color_hex) {
+      if (!board || quality === 0) return;
+      const origin = cellXY(cell_index);
+      const count = direction === 'row' ? board.cols : board.rows;
+      for (let step = 0; step < count; step += 1) {
+        const position = direction === 'row' ? screenOf(step, origin.row) : screenOf(origin.col, step);
+        for (let index = 0; index < 2; index += 1) {
+          particles.spawn({
+            x: position.x + (Math.random() - 0.5) * layout.cell * 0.6, y: position.y + (Math.random() - 0.5) * layout.cell * 0.6,
+            vx: (Math.random() - 0.5) * 60, vy: -30 - Math.random() * 60, life: 0.45 + Math.random() * 0.35, size: layout.cell * (0.06 + Math.random() * 0.05),
+            color: index ? '#ffffff' : color_hex, kind: 'sparkle', spin: (Math.random() - 0.5) * 8, gravity: 60,
+          });
+        }
+      }
+    }
+
     // ---------------------------------------------------------------- drawing
+    const idle_motion = { sx: 1, sy: 1, dx: 0, dy: 0, rot: 0 };
+
+    /**
+     * Idle life, per piece (in cells and radians): candies breathe and now and then do a little hop (more often when the
+     * player has been still for a while), ingredients bob, swirls sway, gifts jump, popcorn gets jumpier the closer it is
+     * to bursting, chests rattle, cocoa bubbles, a mixer about to frost shakes and a fuse at 3 or less trembles.
+     */
+    function idleMotion(visual, now) {
+      const motion = idle_motion;
+      motion.sx = 1;
+      motion.sy = 1;
+      motion.dx = 0;
+      motion.dy = 0;
+      motion.rot = 0;
+      const seed = visual.wobble_seed;
+      const seconds = now / 1000;
+      const kind = visual.kind;
+      if (kind === 'candy') {
+        const breathing = Math.sin(now / 900 + seed * 6.28 + visual.x * 0.7 + visual.y * 0.5) * 0.018;
+        motion.sx = 1 + breathing;
+        motion.sy = 1 - breathing;
+        const period = now - idle_since > 6000 ? 7 : 12;
+        const hop = (seconds + seed * 97) % period;
+        if (hop < 0.44) {
+          const progress = hop / 0.44;
+          if (progress < 0.22) {
+            const crouch = Math.sin((progress / 0.22) * Math.PI) * 0.1;
+            motion.sy *= 1 - crouch;
+            motion.sx *= 1 + crouch * 0.8;
+          } else {
+            const air = Math.sin(((progress - 0.22) / 0.78) * Math.PI);
+            motion.dy -= air * 0.13;
+            motion.sy *= 1 + air * 0.06;
+            motion.sx *= 1 - air * 0.04;
+            motion.rot += Math.sin(((progress - 0.22) / 0.78) * Math.PI * 2) * 0.06 * (seed > 0.5 ? 1 : -1);
+          }
+        }
+        if (visual.special === 'bomb') motion.rot += Math.sin(seconds * 1.4 + seed * 6) * 0.12;
+        if (visual.fuse !== undefined && visual.fuse <= 3) motion.dx += Math.sin(now / 35 + seed * 20) * 0.02;
+      } else if (kind === 'cherry' || kind === 'hazelnut') {
+        motion.dy = Math.sin(seconds * 2.2 + seed * 6) * 0.04;
+        motion.rot = Math.sin(seconds * 1.6 + seed * 6) * 0.09;
+      } else if (kind === 'swirl') {
+        motion.rot = Math.sin(seconds * 0.9 + seed * 6) * 0.14;
+      } else if (kind === 'gift') {
+        const hop = (seconds + seed * 31) % 5;
+        if (hop < 0.5) {
+          motion.dy = -Math.sin((hop / 0.5) * Math.PI) * 0.09;
+          motion.rot = Math.sin((hop / 0.5) * Math.PI * 2) * 0.08;
+        }
+      } else if (kind === 'popcorn') {
+        const agitation = (4 - Math.max(1, Math.min(3, visual.layers || 3))) / 3;
+        motion.rot = Math.sin(now / (60 + (visual.layers || 3) * 45) + seed * 9) * 0.05 * agitation;
+        const puff = 1 + Math.sin(seconds * 3 + seed * 6) * 0.025 * agitation;
+        motion.sx = puff;
+        motion.sy = puff;
+      } else if (kind === 'chest') {
+        const rattle = (seconds + seed * 13) % 6;
+        if (rattle < 0.35) motion.rot = Math.sin((rattle / 0.35) * Math.PI * 4) * 0.06;
+      } else if (kind === 'cocoa') {
+        const bubble = 1 + Math.sin(seconds * 2.4 + seed * 6) * 0.025;
+        motion.sx = bubble;
+        motion.sy = 2 - bubble;
+      } else if (kind === 'mixer') {
+        motion.rot = Math.sin(seconds * 1.3 + seed * 5) * 0.03 + (visual.timer === 1 ? Math.sin(now / 45) * 0.05 : 0);
+      } else if (kind === 'fountain') {
+        motion.sy = 1 + Math.sin(seconds * 3 + seed * 6) * 0.012;
+      }
+      return motion;
+    }
+
+    /** Sugar Cake: one 2x2 picture drawn by its top-left square, eaten slices cut away (clockwise from the top). */
+    function drawCake(visual, now) {
+      const cell = layout.cell;
+      const sprite = sprites.get('cake');
+      if (!sprite || visual.alpha <= 0.01) return;
+      const center = screenOf(visual.x + 0.5, visual.y + 0.5);
+      const slices = Math.max(0, Math.min(8, visual.layers));
+      let scale = visual.scale;
+      if (!settings.reduced_motion && quality > 0 && !timeline.busy) scale *= 1 + Math.sin(now / 700 + visual.wobble_seed * 6) * 0.012;
+      const radius = cell * scale;
+      ctx.save();
+      ctx.globalAlpha = visual.alpha;
+      ctx.translate(center.x + (visual.nudge_x || 0) * cell, center.y + (visual.nudge_y || 0) * cell);
+      if (visual.rotation) ctx.rotate(visual.rotation);
+      if (slices < 8) {
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, radius * 1.05, -Math.PI / 2, -Math.PI / 2 + (slices / 8) * Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+      }
+      ctx.drawImage(sprite, -radius, -radius, radius * 2, radius * 2);
+      if (visual.flash > 0) {
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = visual.alpha * visual.flash;
+        ctx.drawImage(sprite, -radius, -radius, radius * 2, radius * 2);
+      }
+      ctx.restore();
+    }
+
+    /** Cocoa Fountain: drops of chocolate run down its tiers. */
+    function drawFountainDrips(visual, x, y, alpha, now) {
+      const cell = layout.cell;
+      ctx.save();
+      for (let drop = 0; drop < 3; drop += 1) {
+        const phase = (now / 1100 + drop / 3 + visual.wobble_seed) % 1;
+        ctx.globalAlpha = alpha * (1 - phase) * 0.9;
+        ctx.fillStyle = drop === 1 ? '#3d1806' : '#5a2a0e';
+        ctx.beginPath();
+        ctx.arc(x + (drop - 1) * cell * 0.24, y - cell * 0.18 + phase * cell * 0.42, cell * 0.032 * (1 - phase * 0.3), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
     function drawPiece(visual, now) {
       const cell = layout.cell;
+      if (visual.kind === 'cake') {
+        if (visual.part === 0) drawCake(visual, now);
+        return;
+      }
       const sprite = sprites.get(visual.kind, visual.color, visual.special, visual.layers);
       if (!sprite) return;
       const center = screenOf(visual.x, visual.y);
@@ -589,14 +766,17 @@
       if (alpha <= 0.01) return;
       let scale_x = visual.scale * visual.scale_x;
       let scale_y = visual.scale * visual.scale_y;
-      // Idle breathing wobble, staggered across the board.
-      if (visual.kind === 'candy' && !settings.reduced_motion && quality > 0 && !timeline.busy) {
-        const breathing = Math.sin(now / 900 + visual.wobble_seed * 6.28 + visual.x * 0.7 + visual.y * 0.5) * 0.018;
-        scale_x *= 1 + breathing;
-        scale_y *= 1 - breathing;
+      let offset_x = (visual.nudge_x || 0) * cell;
+      let offset_y = -visual.lift * cell * 0.06 + (visual.nudge_y || 0) * cell;
+      let rotation = visual.rotation;
+      if (!settings.reduced_motion && quality > 0 && !timeline.busy) {
+        const motion = idleMotion(visual, now);
+        scale_x *= motion.sx;
+        scale_y *= motion.sy;
+        offset_x += motion.dx * cell;
+        offset_y += motion.dy * cell;
+        rotation += motion.rot;
       }
-      let offset_x = 0;
-      let offset_y = -visual.lift * cell * 0.06;
       // Hint: the candies of the suggested match pulse together, the one to move slides toward its spot and the candy
       // it swaps with leans the other way.
       if (hint_move && !timeline.busy && visual.kind === 'candy' && !settings.reduced_motion) {
@@ -638,7 +818,7 @@
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.translate(draw_x, draw_y);
-      if (visual.rotation) ctx.rotate(visual.rotation);
+      if (rotation) ctx.rotate(rotation);
       ctx.scale(scale_x, scale_y);
       ctx.drawImage(sprite, -cell / 2, -cell / 2, cell, cell);
       if (visual.flash > 0) {
@@ -661,6 +841,7 @@
       if (visual.mood && visual.kind === 'candy') drawMoodHalo(draw_x, draw_y, cell * scale_x, alpha, now);
       if (visual.key && visual.kind === 'candy') drawKeyBadge(draw_x, draw_y, cell, alpha);
       if (visual.kind === 'mixer') drawMixerTimer(visual, draw_x, draw_y, cell, alpha, now);
+      if (visual.kind === 'fountain' && !settings.reduced_motion && quality > 0) drawFountainDrips(visual, draw_x, draw_y, alpha, now);
       if (visual.special === 'bomb' && quality > 0) {
         for (let index = 0; index < 3; index += 1) {
           const angle = now / 600 + index * ((Math.PI * 2) / 3);
@@ -1008,14 +1189,46 @@
             const y = u * u * effect.from.y + 2 * u * p * control_y + p * p * effect.to.y;
             const radius = cell * (0.3 - trail * 0.05);
             const glow = ctx.createRadialGradient(x, y, 0, x, y, radius);
-            glow.addColorStop(0, `rgba(255,255,255,${0.95 - trail * 0.17})`);
-            glow.addColorStop(0.4, `rgba(255,228,120,${0.75 - trail * 0.14})`);
-            glow.addColorStop(1, 'rgba(255,170,60,0)');
+            if (effect.tint === 'cocoa') {
+              ctx.globalCompositeOperation = 'source-over';
+              glow.addColorStop(0, `rgba(255,214,170,${0.95 - trail * 0.17})`);
+              glow.addColorStop(0.4, `rgba(150,74,30,${0.85 - trail * 0.14})`);
+              glow.addColorStop(1, 'rgba(90,40,10,0)');
+            } else {
+              glow.addColorStop(0, `rgba(255,255,255,${0.95 - trail * 0.17})`);
+              glow.addColorStop(0.4, `rgba(255,228,120,${0.75 - trail * 0.14})`);
+              glow.addColorStop(1, 'rgba(255,170,60,0)');
+            }
             ctx.fillStyle = glow;
             ctx.beginPath();
             ctx.arc(x, y, radius, 0, Math.PI * 2);
             ctx.fill();
           }
+        } else if (effect.type === 'rays') {
+          // A turning starburst behind a special candy as it is made.
+          const center = cellCenter(effect.cell);
+          const reach = cell * (effect.size || 1.4) * (0.4 + 0.6 * EASE.outCubic(Math.min(1, progress * 2)));
+          const turn = progress * 1.6 + effect.spin;
+          const glow = ctx.createRadialGradient(center.x, center.y, cell * 0.1, center.x, center.y, reach);
+          glow.addColorStop(0, `rgba(255,252,220,${0.85 * fade})`);
+          glow.addColorStop(0.6, SPRITES.rgba(effect.color || '#ffd36e', 0.45 * fade));
+          glow.addColorStop(1, SPRITES.rgba(effect.color || '#ffd36e', 0));
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          for (let ray = 0; ray < 12; ray += 1) {
+            const angle = turn + (ray * Math.PI) / 6;
+            ctx.moveTo(center.x, center.y);
+            ctx.arc(center.x, center.y, reach, angle - 0.1, angle + 0.1);
+            ctx.closePath();
+          }
+          ctx.fill();
+        } else if (effect.type === 'ring_small') {
+          const center = cellCenter(effect.cell);
+          ctx.strokeStyle = SPRITES.rgba(effect.color || '#ffffff', 0.85 * fade);
+          ctx.lineWidth = Math.max(1.5, cell * 0.08 * fade);
+          ctx.beginPath();
+          ctx.arc(center.x, center.y, cell * (0.25 + 0.4 * EASE.outCubic(progress)), 0, Math.PI * 2);
+          ctx.stroke();
         } else if (effect.type === 'transform_glow') {
           const center = cellCenter(effect.cell);
           const glow = ctx.createRadialGradient(center.x, center.y, 0, center.x, center.y, cell * 0.7);
@@ -1107,6 +1320,13 @@
       }
       ctx.save();
       ctx.translate(shake_x, shake_y);
+      if (board_zoom.scale !== 1) {
+        const middle_x = layout.origin_x + layout.width / 2;
+        const middle_y = layout.origin_y + layout.height / 2;
+        ctx.translate(middle_x, middle_y);
+        ctx.scale(board_zoom.scale, board_zoom.scale);
+        ctx.translate(-middle_x, -middle_y);
+      }
       ctx.drawImage(static_layer, layout.origin_x - static_layer.pad, layout.origin_y - static_layer.pad, static_layer.css_w, static_layer.css_h);
       const cell = layout.cell;
       for (let cell_index = 0; cell_index < display_jelly.length; cell_index += 1) {
@@ -1146,6 +1366,20 @@
           });
           if (candy_ids.length) sheen = { piece_id: candy_ids[Math.floor(Math.random() * candy_ids.length)], start: now };
           next_sheen_at = now + TIMING.SHIMMER_EVERY_MS * (0.7 + Math.random() * 0.6);
+        }
+        // Ambient sugar sparkles drift up over the board now and then.
+        if (now >= next_ambient_at && particles.activeCount < 40) {
+          next_ambient_at = now + 240 + Math.random() * 360;
+          const col = Math.floor(Math.random() * board.cols);
+          const row = Math.floor(Math.random() * board.rows);
+          if (!board.holes[row * board.cols + col]) {
+            const position = screenOf(col + (Math.random() - 0.5) * 0.8, row + (Math.random() - 0.5) * 0.8);
+            particles.spawn({
+              x: position.x, y: position.y, vx: (Math.random() - 0.5) * 12, vy: -14 - Math.random() * 18, life: 1.2 + Math.random() * 0.8,
+              size: layout.cell * (0.05 + Math.random() * 0.04), color: Math.random() < 0.5 ? '#fff6c8' : '#ffd6f0', kind: 'sparkle', alpha: 0.75,
+              spin: (Math.random() - 0.5) * 3, gravity: -6, drag: 1,
+            });
+          }
         }
       }
       draw(now);
@@ -1235,6 +1469,7 @@
         if (t >= 1) visuals.delete(visual.id);
       }, delay_ms || 0).then((completed) => {
         if (completed) burst(cell_index, color, particle_count || 10, 1);
+        if (completed && quality > 1 && effects.length < 90) addEffect({ type: 'ring_small', cell: cell_index, color, duration: 240 });
         visuals.delete(visual.id);
         return completed;
       });
@@ -1298,6 +1533,10 @@
             hooks.sound('combo', { combo: event.combo });
             hooks.haptic('heavy');
             addShake(layout.cell * 0.18, 450);
+            addEffect({ type: 'rays', cell: event.center, size: 2.6, spin: Math.random() * 6, color: '#ffb3e6', duration: 650 });
+            addEffect({ type: 'ring', cell: event.center, radius: 2.6, duration: 480 });
+            zoomPunch(event.combo === 'bomb_bomb' ? 0.07 : 0.045, 520);
+            shockwave(event.center, 5, 0.3);
             return;
           }
           playActivationEffect(event, hooks);
@@ -1305,6 +1544,7 @@
         // No floating points: like the original today, the game shows goals and stars, not a score.
         wave_events.forEach((event) => {
           hooks.event(event);
+          if (event.cell >= 0 && event.cell !== undefined) hooks.goalPiece(event, cellCenter(event.cell));
           if (event.type === 'clear') {
             const visual = visuals.get(event.piece_id);
             if (!visual) return;
@@ -1394,6 +1634,40 @@
                 visual.rotation = Math.sin(t * Math.PI * 3) * 0.12 * (1 - t);
               });
             }));
+          } else if (event.type === 'cake') {
+            const visual = visuals.get(event.piece_id);
+            const middle = screenOf(cellXY(event.cell).col + 0.5, cellXY(event.cell).row + 0.5);
+            hooks.sound('cake', { left: event.layers });
+            for (let crumb = 0; crumb < Math.round(10 * particleScale()); crumb += 1) {
+              const angle = Math.random() * Math.PI * 2;
+              particles.spawn({
+                x: middle.x + Math.cos(angle) * layout.cell * 0.6, y: middle.y + Math.sin(angle) * layout.cell * 0.6, vx: Math.cos(angle) * 160, vy: Math.sin(angle) * 160 - 120,
+                life: 0.6, size: layout.cell * 0.07, color: crumb % 3 ? '#ff9cc6' : '#fff1e0', kind: crumb % 2 ? 'shard' : 'circle', spin: 6, gravity: 650,
+              });
+            }
+            if (visual) {
+              visual.layers = Math.max(1, event.layers); // the last slice stays for the burst to pop
+              if (event.layers > 0) {
+                pending.push(timeline.tween(260, (t) => {
+                  visual.rotation = Math.sin(t * Math.PI * 3) * 0.06 * (1 - t);
+                  visual.flash = Math.sin(t * Math.PI) * 0.5;
+                }));
+              }
+            }
+          } else if (event.type === 'cake_burst') {
+            // The last slice: the cake bursts and a sugar blast sweeps the whole board from it.
+            hooks.sound('cake_burst');
+            hooks.haptic('heavy');
+            addEffect({ type: 'flash', duration: 560 });
+            addEffect({ type: 'rays', cell: event.cell, size: 4, spin: Math.random() * 6, color: '#ff9cc6', duration: 820 });
+            addEffect({ type: 'ring', cell: event.cell, radius: 7, duration: 760 });
+            addShake(layout.cell * 0.3, 700);
+            zoomPunch(0.07, 600);
+            shockwave(event.cell, 10, 0.35);
+            event.cells.forEach((part_cell) => {
+              const part_visual = visualAtCell(part_cell);
+              if (part_visual && part_visual.kind === 'cake') pending.push(popVisual(part_visual, '#ff9cc6', 0, 14));
+            });
           } else if (event.type === 'mixer') {
             hooks.sound('cage');
             burst(event.cell, '#d7e8ff', 10, 0.8);
@@ -1408,8 +1682,8 @@
                 }));
               }
             }
-          } else if (event.type === 'frosting' || event.type === 'cocoa' || event.type === 'swirl') {
-            const tones = { frosting: ['#fff0f8', '#ffd1e8'], cocoa: ['#8a4a25', '#b0683a'], swirl: ['#ff5f9e', '#fff4f8'] }[event.type];
+          } else if (event.type === 'frosting' || event.type === 'cocoa' || event.type === 'swirl' || event.type === 'rock') {
+            const tones = { frosting: ['#fff0f8', '#ffd1e8'], cocoa: ['#8a4a25', '#b0683a'], swirl: ['#ff5f9e', '#fff4f8'], rock: ['#e4dbff', '#a98bff'] }[event.type];
             hooks.sound(event.type);
             burst(event.cell, tones[0], 12, 0.8);
             const visual = visuals.get(event.piece_id);
@@ -1441,9 +1715,17 @@
           visual.scale = 0;
           visuals.set(visual.id, visual);
           addEffect({ type: 'transform_glow', cell: event.cell, duration: 420 });
-          burst(event.cell, '#ffffff', 8, 0.7);
-          appearing.push(timeline.tween(260, (t) => {
+          const special = event.piece.special;
+          if (special && special !== 'none') {
+            const tint = special === 'bomb' ? '#d9a6ff' : CONFIG.CANDIES[event.piece.color] ? CONFIG.CANDIES[event.piece.color].highlight : '#ffd36e';
+            addEffect({ type: 'rays', cell: event.cell, size: special === 'bomb' ? 2 : 1.5, spin: Math.random() * 6, color: tint, duration: special === 'bomb' ? 720 : 560 });
+          }
+          burst(event.cell, '#ffffff', special && special !== 'none' ? 14 : 8, 0.7);
+          appearing.push(timeline.tween(320, (t) => {
             visual.scale = EASE.outBack(t);
+            visual.rotation = (1 - t) * (1 - t) * 0.6;
+          }).then(() => {
+            visual.rotation = 0;
           }));
         });
         await Promise.all(appearing);
@@ -1458,6 +1740,7 @@
         const line = event.kind === 'row' ? board.cols : board.rows;
         const span = event.area && event.area.length < line ? [Math.min(...event.area), Math.max(...event.area)] : null;
         addEffect({ type: 'beam', cell: event.cell, direction: event.kind, color: color_hex, duration: 420, span });
+        beamSparkles(event.cell, event.kind, color_hex);
         hooks.sound('striped');
         hooks.haptic('medium');
       } else if (event.kind === 'cross' || event.kind === 'big_cross') {
@@ -1473,23 +1756,27 @@
         hooks.haptic('heavy');
       } else if (event.kind === 'wrapped' || event.kind === 'wrapped_second') {
         addEffect({ type: 'ring', cell: event.cell, radius: 1.8, duration: 420 });
+        shockwave(event.cell, 3.6, 0.2);
         hooks.sound('wrapped');
         addShake(layout.cell * 0.12, 320);
         hooks.haptic('heavy');
       } else if (event.kind === 'wrapped_big' || event.kind === 'wrapped_big_second') {
         addEffect({ type: 'ring', cell: event.cell, radius: 3.2, duration: 520 });
         addEffect({ type: 'flash', duration: 260 });
+        shockwave(event.cell, 5, 0.28);
         hooks.sound('wrapped');
         addShake(layout.cell * 0.22, 500);
         hooks.haptic('heavy');
       } else if (event.kind === 'bomb' || event.kind === 'bomb_to_stripes' || event.kind === 'bomb_to_wrapped') {
         addEffect({ type: 'arcs', cell: event.cell, targets: event.area || [], duration: 520 });
+        addEffect({ type: 'rays', cell: event.cell, size: 1.8, spin: Math.random() * 6, color: '#bfefff', duration: 520 });
         hooks.sound('bomb');
         addShake(layout.cell * 0.12, 380);
         hooks.haptic('heavy');
       } else if (event.kind === 'board') {
         addEffect({ type: 'flash', duration: 520 });
         addEffect({ type: 'ring', cell: event.cell, radius: 6, duration: 700 });
+        shockwave(event.cell, 9, 0.35);
         hooks.sound('bomb');
         addShake(layout.cell * 0.3, 700);
         hooks.haptic('heavy');
@@ -1786,20 +2073,37 @@
       phase.events.forEach((event) => {
         hooks.event(event);
         if (event.type !== 'cocoa_spread') return;
+        // A Cocoa Fountain throws a blob of chocolate onto the candy first.
+        const delay = event.fountain ? 320 : 0;
+        if (event.fountain) {
+          addEffect({ type: 'spark', from: cellCenter(event.from), to: cellCenter(event.cell), duration: delay, tint: 'cocoa' });
+          const fountain_visual = visualAtCell(event.from);
+          if (fountain_visual) {
+            timeline.tween(300, (t) => {
+              const squash = Math.sin(t * Math.PI) * 0.14;
+              fountain_visual.scale_y = 1 - squash;
+              fountain_visual.scale_x = 1 + squash * 0.7;
+            });
+          }
+          hooks.sound('fountain');
+        }
         const old_visual = visuals.get(event.old_piece_id);
         if (old_visual) {
           pending.push(timeline.tween(240, (t) => {
             old_visual.scale = 1 - t;
             old_visual.alpha = 1 - t;
-          }).then(() => visuals.delete(old_visual.id)));
+          }, delay).then(() => visuals.delete(old_visual.id)));
         }
         const visual = makeVisual(event.piece, event.cell);
         visual.scale = 0;
         visuals.set(visual.id, visual);
         pending.push(timeline.tween(320, (t) => {
           visual.scale = EASE.outBack(t);
+        }, delay).then((finished) => {
+          if (finished && event.fountain) burst(event.cell, '#6b3415', 8, 0.6);
+          return finished;
         }));
-        hooks.sound('cocoa_spread');
+        if (!event.fountain) hooks.sound('cocoa_spread');
       });
       await Promise.all(pending);
       return generation === timeline.generation;
@@ -1807,7 +2111,7 @@
 
     /** Plays an event list from LOGIC. Resolves true when finished, false if cancelled (restart/quit). */
     async function playEvents(events, hook_overrides) {
-      const hooks = Object.assign({ sound: noop, haptic: noop, event: noop, cascade: noop, collect: noop, shuffle: noop, bonusTick: noop, timeBonus: noop, fuseOut: noop, chargeOrigin: () => null }, hook_overrides || {});
+      const hooks = Object.assign({ sound: noop, haptic: noop, event: noop, cascade: noop, collect: noop, goalPiece: noop, shuffle: noop, bonusTick: noop, timeBonus: noop, fuseOut: noop, chargeOrigin: () => null }, hook_overrides || {});
       const generation = timeline.generation;
       selected_cell = -1;
       hint_move = null;
@@ -1823,6 +2127,14 @@
           // Ripple delays for blast clears.
           const distances = new Map();
           phase.events.forEach((event) => {
+            if (event.type === 'cake_burst') {
+              const center = cellXY(event.cell);
+              for (let cell_index = 0; cell_index < board.rows * board.cols; cell_index += 1) {
+                const position = cellXY(cell_index);
+                const reach = Math.abs(position.col - center.col - 0.5) + Math.abs(position.row - center.row - 0.5);
+                distances.set(cell_index, Math.min(distances.has(cell_index) ? distances.get(cell_index) : 99, reach));
+              }
+            }
             if (event.type === 'activate' && event.area) {
               const center = cellXY(event.cell);
               event.area.forEach((cell_index) => {

@@ -60,6 +60,11 @@
         } else if (token === 'X') {
           state.cells[index] = piece(KIND.MIXER, -1, SPECIAL.NONE, 3);
           state.cells[index].timer = 3;
+        } else if (token === 'T') state.cells[index] = piece(KIND.FOUNTAIN, -1, SPECIAL.NONE, 1);
+        else if (token === 'r' || token === 'R') state.cells[index] = piece(KIND.ROCK, -1, SPECIAL.NONE, token === 'R' ? 2 : 1);
+        else if (/^Q[0-3]$/.test(token)) {
+          state.cells[index] = piece(KIND.CAKE, -1, SPECIAL.NONE, opts.cake_layers || 8);
+          state.cells[index].part = Number(token[1]);
         }
         else if (token[0] === 'f' || token[0] === 'F') {
           const layers = token === 'f' ? 1 : token === 'F' ? 2 : parseInt(token.slice(1), 10);
@@ -227,6 +232,15 @@
           } else if (layout.popcorn[cell] || layout.chest[cell] || layout.mixer[cell]) {
             assert.strictEqual(piece.kind, layout.popcorn[cell] ? KIND.POPCORN : layout.chest[cell] ? KIND.CHEST : KIND.MIXER);
             assert.strictEqual(piece.layers, layout.popcorn[cell] ? 3 : layout.chest[cell] || 3);
+          } else if (layout.rock[cell]) {
+            assert.strictEqual(piece.kind, KIND.ROCK);
+            assert.strictEqual(piece.layers, layout.rock[cell]);
+          } else if (layout.fountain[cell]) {
+            assert.strictEqual(piece.kind, KIND.FOUNTAIN);
+          } else if (layout.cake[cell]) {
+            assert.strictEqual(piece.kind, KIND.CAKE);
+            assert.strictEqual(piece.layers, 8);
+            assert.strictEqual(piece.part === 0, layout.cake[cell] === 1, `cake anchor L${level.id}@${cell}`);
           } else if (layout.ingredients[cell]) {
             assert.strictEqual(piece.kind, layout.ingredients[cell] === 1 ? KIND.CHERRY : KIND.HAZELNUT);
           } else {
@@ -247,6 +261,15 @@
       assert.ok(level.goals.length > 0 && level.goals.length <= 3, `level ${level.id} has 1-3 goals`);
       assert.ok(level.stars[0] < level.stars[1] && level.stars[1] < level.stars[2], `level ${level.id} star thresholds must rise`);
       assert.ok(LEVELS.ROLES.indexOf(level.role) >= 0, `level ${level.id} has a role`);
+    });
+  });
+
+  test('initial', 'every try of a level starts from a different board (even when the first fills of a crowded level fail)', (assert) => {
+    // (A level whose whole board is preset, like level 2, starts the same way every time on purpose.)
+    shippedLevels().filter((level, index) => index % 10 === 1 && !(level.meta && level.meta.preset)).forEach((level) => {
+      const boards = new Set();
+      for (let attempt = 0; attempt < 12; attempt += 1) boards.add(LOGIC.boardSignature(LOGIC.createGame(level, { seed: level.seed + attempt * 7919 })));
+      assert.strictEqual(boards.size, 12, `level ${level.id}: ${boards.size} different boards in 12 tries`);
     });
   });
 
@@ -786,9 +809,9 @@
   // 14. Mechanics (Tier 1 plugins)
   test('mechanics', 'every layout symbol belongs to exactly one mechanic plugin', (assert) => {
     const symbols = Object.keys(LOGIC.LAYOUT_LEGEND).sort();
-    assert.deepStrictEqual(symbols, ['#', '.', '1', '2', '3', '4', '5', '<', '>', 'J', 'P', '^', 'b', 'c', 'g', 'h', 'j', 'k', 'o', 'p', 's', 'v', 'x', 'n', 'u', 'U', 'y', 'm', 'X'].sort());
+    assert.deepStrictEqual(symbols, ['#', '.', '1', '2', '3', '4', '5', '<', '>', 'J', 'P', '^', 'b', 'c', 'g', 'h', 'j', 'k', 'o', 'p', 's', 'v', 'x', 'n', 'u', 'U', 'y', 'm', 'X', 'F', 'Q', 'q', 'r', 'R'].sort());
     const ids = LOGIC.MECHANICS.map((mechanic) => mechanic.id);
-    assert.deepStrictEqual(ids, ['jelly', 'frosting', 'cage', 'cocoa', 'swirl', 'gift', 'popcorn', 'chest', 'mood', 'mixer', 'ingredients', 'portals', 'belt', 'fuse']);
+    assert.deepStrictEqual(ids, ['jelly', 'frosting', 'rock', 'cage', 'cocoa', 'fountain', 'swirl', 'gift', 'popcorn', 'chest', 'mood', 'mixer', 'cake', 'ingredients', 'portals', 'belt', 'fuse']);
   });
 
   test('mechanics', 'Sweet Finale: the specials on the board go off first, then the leftover moves charge and fire', (assert) => {
@@ -893,6 +916,115 @@
     const mixer = target.cells[at(target, 1, 1)];
     assert.strictEqual(mixer.layers, 2, 'a match beside it is one hit');
     assert.strictEqual(mixer.timer, 4, 'and restarts its countdown');
+  });
+
+  test('mechanics', 'Cocoa Fountain: nothing breaks it; after a move that clears no Cocoa it pours one onto a candy beside it', (assert) => {
+    const state = makeTestState(['. . . . . .', '. T . . . .', '. . . . . .', '. . . . 1 .', '. . . 1 0 1']);
+    const result = LOGIC.applySwap(state, at(state, 3, 4), at(state, 4, 4));
+    assert.ok(result.valid);
+    const pour = result.events.find((event) => event.type === 'cocoa_spread' && event.fountain);
+    assert.ok(pour, 'the fountain pours after a quiet move');
+    assert.strictEqual(pour.from, at(state, 1, 1));
+    assert.ok(Math.abs(Math.floor(pour.cell / 6) - 1) <= 1 && Math.abs((pour.cell % 6) - 1) <= 1, 'onto one of its eight neighbors');
+    assert.strictEqual(countKind(result.state, KIND.COCOA), 1);
+    assert.strictEqual(LOGIC.boardSignature(LOGIC.replayEvents(state, result.events)), LOGIC.boardSignature(result.state), 'the pour replays');
+    const blasted = makeTestState(['. T . . .', '0w 0 0 . .', '. . . . .', '. . . . .']);
+    runStageOnBoard(blasted, null);
+    assert.strictEqual(blasted.cells[at(blasted, 0, 1)].kind, KIND.FOUNTAIN, 'matches beside it and blasts leave it standing');
+    const quiet = makeTestState(['. . . . .', 'o T . 0 .', '0 0 1 . .', '. . . . .']);
+    const cleared = LOGIC.applySwap(quiet, at(quiet, 1, 3), at(quiet, 2, 2));
+    assert.ok(!cleared.valid || !cleared.events.some((event) => event.type === 'cocoa_spread'), 'no pour after a move that cleared Cocoa');
+    const level = { id: 't', name: 't', moves: 20, colors: 4, seed: 1, rows: 3, cols: 3, stars: [1, 2, 3], layout: ['F..', '...', '...'], goals: [{ type: 'collect', color: 0, count: 5 }], meta: { under: ['j..', '...', '...'] } };
+    assert.ok(LOGIC.validateLevel(level).some((problem) => problem.indexOf('Cocoa Fountain') >= 0), 'no jelly under a fountain');
+  });
+
+  test('mechanics', 'Sugar Cake: a 2x2 cake of eight slices, one slice per stage; the last slice bursts it over the whole board', (assert) => {
+    const cake_rows = ['Q0 Q1 . . f', 'Q2 Q3 . . .', '0 0 1 . .', '. . 0 . .', '. . . . .'];
+    const state = makeTestState(cake_rows);
+    const result = LOGIC.applySwap(state, at(state, 2, 2), at(state, 3, 2));
+    assert.ok(result.valid);
+    const slices = result.events.filter((event) => event.type === 'cake');
+    assert.ok(slices.length >= 1, 'a match beside it takes a slice');
+    assert.strictEqual(slices[0].layers, 7, 'one slice per stage even when the match touches two of its squares');
+    assert.deepStrictEqual(slices[0].cells, [0, 1, 5, 6]);
+    assert.strictEqual(LOGIC.boardSignature(LOGIC.replayEvents(state, result.events)), LOGIC.boardSignature(result.state), 'slices replay');
+    const last = makeTestState(cake_rows, { cake_layers: 1 });
+    const burst = LOGIC.applySwap(last, at(last, 2, 2), at(last, 3, 2));
+    assert.ok(burst.events.some((event) => event.type === 'cake_burst'), 'the last slice bursts it');
+    assert.strictEqual(burst.state.order.cake, 1);
+    assert.strictEqual(countKind(burst.state, KIND.CAKE), 0);
+    assert.strictEqual(countKind(burst.state, KIND.FROSTING), 0, 'the burst reaches the far corner of the board');
+    assert.deepStrictEqual(LOGIC.checkBoardInvariants(burst.state).filter((problem) => problem.indexOf('valid move') < 0), []);
+    assert.strictEqual(LOGIC.boardSignature(LOGIC.replayEvents(last, burst.events)), LOGIC.boardSignature(burst.state), 'the burst replays');
+    const still = makeTestState(['Q0 Q1 .', 'Q2 Q3 .', '_ _ .']);
+    LOGIC.internals.settleBoard(LOGIC.internals.createContext(still));
+    assert.strictEqual(still.cells[0].kind, KIND.CAKE, 'it never falls');
+    const base = { id: 't', name: 't', moves: 20, colors: 4, seed: 1, rows: 3, cols: 3, stars: [1, 2, 3], goals: [{ type: 'order', item: 'cake', count: 1 }] };
+    assert.deepStrictEqual(LOGIC.validateLevel(Object.assign({}, base, { layout: ['...', 'Qq.', 'qq.'] })), []);
+    assert.ok(LOGIC.validateLevel(Object.assign({}, base, { layout: ['...', 'Qq.', 'q..'] })).length > 0, 'a cake needs all four squares');
+    assert.ok(LOGIC.validateLevel(Object.assign({}, base, { layout: ['...', '...', '..Q'] })).length > 0, 'and room for them');
+    const game = LOGIC.createGame(Object.assign({}, base, { layout: ['...', 'Qq.', 'qq.'] }));
+    assert.deepStrictEqual([3, 4, 6, 7].map((cell) => [game.cells[cell].kind, game.cells[cell].part, game.cells[cell].layers]),
+      [[KIND.CAKE, 0, 8], [KIND.CAKE, 1, 8], [KIND.CAKE, 2, 8], [KIND.CAKE, 3, 8]]);
+  });
+
+  test('mechanics', 'jelly under blockers: the last layer of the blocker takes the jelly with it', (assert) => {
+    const jelly = ['00000', '01000', '00000', '00000'];
+    const thin = makeTestState(['. . . . .', '. f . . .', '0 0 0 . .', '. . . . .'], { jelly });
+    const ctx = runStageOnBoard(thin, null);
+    assert.strictEqual(thin.jelly[at(thin, 1, 1)], 0, 'one frosting layer: the jelly under it goes too');
+    assert.ok(ctx.events.some((event) => event.type === 'jelly' && event.cell === at(thin, 1, 1)));
+    const thick = makeTestState(['. . . . .', '. F . . .', '0 0 0 . .', '. . . . .'], { jelly });
+    runStageOnBoard(thick, null);
+    assert.strictEqual(thick.cells[at(thick, 1, 1)].layers, 1);
+    assert.strictEqual(thick.jelly[at(thick, 1, 1)], 1, 'the jelly stays while a layer is left');
+    const level = { id: 't', name: 't', moves: 20, colors: 4, seed: 1, rows: 4, cols: 4, stars: [1, 2, 3], layout: ['....', '.oo.', '.11.', '....'],
+      goals: [{ type: 'jelly' }], meta: { under: ['....', '.jJ.', '.jj.', '....'] } };
+    assert.deepStrictEqual(LOGIC.validateLevel(level), []);
+    const game = LOGIC.createGame(level);
+    assert.deepStrictEqual([5, 6, 9, 10].map((cell) => game.jelly[cell]), [1, 2, 1, 1]);
+    assert.deepStrictEqual([5, 9].map((cell) => game.cells[cell].kind), [KIND.COCOA, KIND.FROSTING]);
+    const holed = Object.assign({}, level, { layout: ['#...', '.oo.', '.11.', '....'], meta: { under: ['j...', '.jJ.', '.jj.', '....'] } });
+    assert.ok(LOGIC.validateLevel(holed).some((problem) => problem.indexOf('hole') >= 0));
+  });
+
+  test('mechanics', 'Rock Candy: matches beside it do nothing, only blasts crack it (one layer per stage)', (assert) => {
+    const quiet = makeTestState(['. . . . .', '. R . . .', '0 0 0 . .', '. . . . .']);
+    const ctx = runStageOnBoard(quiet, null);
+    assert.ok(!ctx.events.some((event) => event.type === 'rock'), 'a match beside it does nothing');
+    assert.strictEqual(quiet.cells[at(quiet, 1, 1)].layers, 2);
+    const level = { id: 't', name: 't', moves: 20, colors: 4, seed: 1, rows: 3, cols: 3, stars: [1, 2, 3], layout: ['...', '.r.', '...'], goals: [{ type: 'order', item: 'rock', count: 1 }] };
+    assert.deepStrictEqual(LOGIC.validateLevel(level), []);
+    assert.ok(LOGIC.validateLevel(Object.assign({}, level, { goals: [{ type: 'order', item: 'rock', count: 3 }] })).length > 0, 'the order fits the layers on the board');
+    const wrapped = makeTestState(['. . . . .', '. r . . .', '. 0w 0 0 .', '. . . . .'], { jelly: ['00000', '01000', '00000', '00000'] });
+    const wrapped_ctx = runStageOnBoard(wrapped, null);
+    assert.ok(wrapped_ctx.events.some((event) => event.type === 'rock' && event.layers === 0), 'a wrapped candy blast breaks it');
+    assert.strictEqual(wrapped.jelly[at(wrapped, 1, 1)], 0, 'and the jelly under it');
+    assert.strictEqual(wrapped.order.rock, 1);
+  });
+
+  test('mechanics', 'a caged special waits locked: a blast or a match frees it without firing it', (assert) => {
+    const level = { id: 't', name: 't', moves: 20, colors: 4, seed: 3, rows: 5, cols: 5, stars: [1, 2, 3], layout: ['.....', '.....', '..k..', '.....', '.....'],
+      goals: [{ type: 'collect', color: 0, count: 10 }], meta: { specials: [{ at: [2, 2], special: SPECIAL.STRIPE_ROW, color: 1 }] } };
+    assert.deepStrictEqual(LOGIC.validateLevel(level), []);
+    const game = LOGIC.createGame(level);
+    assert.strictEqual(game.cells[12].special, SPECIAL.STRIPE_ROW);
+    assert.strictEqual(game.cage[12], 1);
+    const state = makeTestState(['. . . . .', '. . . . .', '0 0 0hk . .', '. . . . .']);
+    const ctx = runStageOnBoard(state, null);
+    assert.strictEqual(state.cage[at(state, 2, 2)], 0, 'the match breaks the cage');
+    assert.strictEqual(state.cells[at(state, 2, 2)].special, SPECIAL.STRIPE_ROW, 'the striped candy is free, not fired');
+    assert.ok(!ctx.events.some((event) => event.type === 'activate'));
+  });
+
+  test('mechanics', 'combo orders count two specials swapped together', (assert) => {
+    const state = makeTestState(['. . . . .', '. . . . .', '. 0h 1v . .', '. . . . .', '. . . . .'], { goals: [{ type: 'order', item: 'stripe_stripe', count: 1 }] });
+    const result = LOGIC.applySwap(state, at(state, 2, 1), at(state, 2, 2));
+    assert.strictEqual(result.state.order.stripe_stripe, 1);
+    assert.strictEqual(result.state.status, 'won');
+    const bomb = makeTestState(['. . . . .', '. . . . .', '. B 0w . .', '. . . . .', '. . . . .']);
+    assert.strictEqual(LOGIC.applySwap(bomb, at(bomb, 2, 1), at(bomb, 2, 2)).state.order.bomb_wrapped, 1);
+    LOGIC.COMBO_ORDERS.forEach((item) => assert.ok(LOGIC.ORDER_ITEMS.includes(item), item));
   });
 
   test('mechanics', 'Taffy Swirl: falls, never matches, breaks from a match beside it or a blast, stops a striped beam', (assert) => {
@@ -1118,7 +1250,8 @@
 
   test('modes', 'every goal mode and the order items count what they say', (assert) => {
     assert.deepStrictEqual(LOGIC.GOAL_TYPES.slice().sort(), ['collect', 'ingredients', 'jelly', 'order', 'score']);
-    assert.deepStrictEqual(LOGIC.ORDER_ITEMS.slice().sort(), ['bomb', 'cage', 'chest', 'cocoa', 'frosting', 'gift', 'mixer', 'popcorn', 'striped', 'swirl', 'wrapped']);
+    assert.deepStrictEqual(LOGIC.ORDER_ITEMS.slice().sort(), ['bomb', 'bomb_bomb', 'bomb_stripe', 'bomb_wrapped', 'cage', 'cake', 'chest', 'cocoa', 'frosting', 'gift', 'mixer', 'popcorn',
+      'rock', 'stripe_stripe', 'striped', 'swirl', 'wrapped', 'wrapped_stripe', 'wrapped_wrapped']);
     const state = makeTestState(['. . . . . .', '. . . . . .', '. 0 0h 0 . .', '. . . . . .'], { goals: [{ type: 'order', item: 'striped', count: 1 }] });
     runStageOnBoard(state, null);
     assert.strictEqual(state.order.striped, 1, 'a striped candy counts when it fires');
@@ -1151,6 +1284,37 @@
       const chosen_rank = ranks.find((entry) => entry.move.from === chosen.from && entry.move.to === chosen.to).rank;
       ranks.forEach((entry) => assert.ok(LOGIC.compareRanks(entry.rank, chosen_rank) <= 0, `level ${level.id}: a better move than the hint`));
     });
+  });
+
+  test('hint', 'the in-game hint is just a possible move, a plain match where there is one, and does not change the game', (assert) => {
+    let checked = 0;
+    shippedLevels().filter((level, index) => index % 4 === 0).forEach((level) => {
+      const state = LOGIC.createGame(level);
+      const signature = LOGIC.boardSignature(state);
+      const rng_before = state.rng_state;
+      const move = LOGIC.findPossibleMove(state);
+      assert.ok(move, `level ${level.id}: a move`);
+      assert.ok(LOGIC.listValidMoves(state).some((candidate) => candidate.from === move.from && candidate.to === move.to), `level ${level.id}: a valid move`);
+      assert.deepStrictEqual(LOGIC.findPossibleMove(state), move, `level ${level.id}: the same move each time`);
+      assert.strictEqual(LOGIC.boardSignature(state), signature);
+      assert.strictEqual(state.rng_state, rng_before);
+      checked += 1;
+    });
+    assert.ok(checked > 10);
+    const board = makeTestState(['. . . . . .', '. 0h 1 . . .', '1 1 0 1 . .', '. . . . . .']);
+    const plain = LOGIC.findPossibleMove(board);
+    assert.ok(![plain.from, plain.to].includes(at(board, 1, 1)), 'a plain match before firing a special');
+  });
+
+  test('hint', 'the smart bot (the difficulty reference) beats the greedy bot', (assert) => {
+    const level = LEVELS.getLevel(30);
+    let smart = 0;
+    let greedy = 0;
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      if (LOGIC.playBotGame(level, { attempt, policy: 'smart' }).won) smart += 1;
+      if (LOGIC.playBotGame(level, { attempt, policy: 'greedy' }).won) greedy += 1;
+    }
+    assert.ok(smart >= greedy, `smart ${smart} vs greedy ${greedy} wins out of 12`);
   });
 
   test('hint', 'the glow marks the line the hinted swap makes (also when the candy that moves is a special one)', (assert) => {
@@ -1257,15 +1421,19 @@
     assert.strictEqual(LEVELS.getLevel(1.5), null);
     for (let level_number = 1; level_number <= LEVELS.shippedCount(); level_number += 1) assert.strictEqual(LEVELS.getLevel(level_number).id, level_number);
     // Episodes follow the original's shape: an easy opener, hard levels in the middle with an easier one after each,
-    // and a hard gate at the end (super hard every 5th episode). The first two episodes are the on-ramp.
-    assert.deepStrictEqual([27, 30, 31, 37, 38, 43, 45, 46, 75, 150, 151].map(LEVELS.scheduledRole), ['normal', 'hard', 'breather', 'hard', 'breather', 'breather', 'hard', 'breather', 'superhard', 'superhard', 'breather']);
+    // and a hard gate at the end (super hard every 5th episode). The first episode is the on-ramp; the second already
+    // has a hard level (23) and a hard gate (30).
+    assert.deepStrictEqual([15, 22, 23, 24, 27, 30, 31, 37, 38, 43, 45, 46, 75, 150, 151].map(LEVELS.scheduledRole),
+      ['normal', 'normal', 'hard', 'breather', 'normal', 'hard', 'breather', 'hard', 'breather', 'breather', 'hard', 'breather', 'superhard', 'superhard', 'breather']);
     assert.deepStrictEqual([3, 5, 10].map((episode) => LEVELS.hardPositions(episode)), [[7], [9, 5], [8, 4, 11]]);
     const close = (actual, expected, label) => assert.ok(Math.abs(actual - expected) < 1e-9, `${label}: ${actual} vs ${expected}`);
-    close(LEVELS.baseWinRate(145), 0.27 + 0.36 * Math.exp(-1), 'base(145)');
-    close(LEVELS.baseWinRate(20000), 0.27, 'base(20000)');
-    close(LEVELS.targetWinRate(400, 'breather'), Math.min(0.9, LEVELS.baseWinRate(400) + 0.2), 'breather +0.20');
+    close(LEVELS.baseWinRate(95), 0.15 + 0.3 * Math.exp(-1), 'base(95)');
+    close(LEVELS.baseWinRate(20000), 0.15, 'base(20000)');
+    close(LEVELS.targetWinRate(400, 'breather'), Math.min(0.85, LEVELS.baseWinRate(400) + 0.2), 'breather +0.20');
     close(LEVELS.targetWinRate(400, 'hard'), LEVELS.baseWinRate(400) * 0.35, 'hard x0.35');
-    close(LEVELS.targetWinRate(20000, 'superhard'), LEVELS.baseWinRate(20000) * 0.18, 'superhard x0.18');
+    close(LEVELS.targetWinRate(20000, 'superhard'), LEVELS.baseWinRate(20000) * 0.15, 'superhard x0.15');
+    close(LEVELS.targetWinRate(2, 'tutorial'), 0.95, 'the first lessons');
+    close(LEVELS.targetWinRate(23, 'hard'), (0.7 - (0.25 * 12) / 14) * 0.35, 'the first hard level');
     close(LEVELS.calibrationTolerance(0.6), 0.08, 'tolerance 8 points');
     close(LEVELS.calibrationTolerance(0.05), 0.03, 'tolerance at least 3 points');
     assert.deepStrictEqual([1, 15, 16, 20000].map(LEVELS.episodeOf), [1, 1, 2, 1334]);
@@ -1428,7 +1596,7 @@
     assert.deepStrictEqual([replay.hard_bonus, replay.treasure, replay.gold], [0, null, 5], 'a replay pays only the win');
   });
 
-  test('hint', 'auto hint: Instant shows within 400 ms of idle, 3 s and 8 s wait, Off never; the button is immediate (fake timers)', (assert) => {
+  test('hint', 'auto hint: a possible move after 3, 5 or 8 idle seconds, Off never; the button is immediate (fake timers)', (assert) => {
     let clock = 0;
     let queue = [];
     let next_handle = 1;
@@ -1456,9 +1624,12 @@
     const shown = [];
     const scheduler = META.createHintScheduler(timers, CONFIG.AUTO_HINT_DELAYS, (source) => shown.push({ source, at: clock }));
     scheduler.setMode('instant');
+    assert.strictEqual(scheduler.mode, '5s', 'the old Instant setting is now 5 s');
     scheduler.idle();
-    advance(399);
-    assert.strictEqual(shown.length, 1, 'Instant: shown within 400 ms of the board settling');
+    advance(4999);
+    assert.strictEqual(shown.length, 0);
+    advance(1);
+    assert.strictEqual(shown.length, 1, 'after 5 s, like the original');
     assert.strictEqual(shown[0].source, 'auto');
     scheduler.setMode('3s');
     scheduler.idle();
@@ -1482,10 +1653,10 @@
     // The button's work (finding the move) is well under 50 ms on every shipped level's opening board.
     shippedLevels().forEach((level) => {
       const state = LOGIC.createGame(level);
-      const elapsed = medianMs(() => LOGIC.hintFor(state, LOGIC.findHint(state)));
+      const elapsed = medianMs(() => LOGIC.hintFor(state, LOGIC.findPossibleMove(state)));
       assert.ok(elapsed < 50, `level ${level.id} hint took ${elapsed} ms`);
     });
-    assert.strictEqual(LOGIC.findHint(makeTestState(['o o o', 'o 0 o', 'o o o'])), null, 'no hint when no move exists');
+    assert.strictEqual(LOGIC.findPossibleMove(makeTestState(['o o o', 'o 0 o', 'o o o'])), null, 'no hint when no move exists');
   });
 
   // 20. Storage
@@ -1525,7 +1696,8 @@
     assert.strictEqual(v3.settings.music_volume, 0.55);
     assert.deepStrictEqual(STORAGE.levelBest(v3, 2), { stars: 3, score: 5000 });
     assert.strictEqual(STORAGE.defaultSave().settings.theme, 'gummy');
-    assert.strictEqual(STORAGE.defaultSave().settings.auto_hint, 'instant');
+    assert.strictEqual(STORAGE.defaultSave().settings.auto_hint, '5s');
+    assert.strictEqual(STORAGE.parseSave(JSON.stringify({ version: 6, settings: { auto_hint: 'instant' } })).save.settings.auto_hint, '5s', 'Instant hints become 5 s');
     assert.strictEqual(STORAGE.defaultSave().settings.soft_sounds, false, 'the full, bright mix by default');
     // v5 -> v6: the new sounds start on the new defaults (unless a slider was moved), and the rebuilt first 25 levels
     // show their guided lessons once more.
@@ -1558,7 +1730,7 @@
     assert.strictEqual(partial.settings.theme, 'sprinkle');
     assert.strictEqual(partial.settings.effects_volume, 1, 'clamped');
     assert.strictEqual(partial.settings.accent, 'bubblegum', 'unknown accent falls back');
-    assert.strictEqual(partial.settings.auto_hint, 'instant', 'unknown hint mode falls back');
+    assert.strictEqual(partial.settings.auto_hint, '5s', 'unknown hint mode falls back');
     assert.strictEqual(partial.settings.music_on, true, 'missing key gets its default');
     assert.strictEqual(partial.meta.hearts, STORAGE.MAX_HEARTS);
     assert.strictEqual(partial.meta.gold, 0);

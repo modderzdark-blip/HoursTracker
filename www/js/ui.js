@@ -108,9 +108,13 @@
     collect: 'candy:2', striped: 'stripe_row:0', jelly: 'jelly:2', wrapped: 'wrapped:2', bomb: 'bomb', ingredients: 'cherry', combos: 'wrapped:3',
     frosting: 'frosting:2', order: 'stripe_col:4', jelly2: 'jelly:2', cage: 'cage', popcorn: 'popcorn:3', portals: 'candy:4', cocoa: 'cocoa',
     fuse: 'candy:1', belt: 'candy:3', frosting3: 'frosting:4', hazelnut: 'hazelnut', swirl: 'swirl', chest: 'chest:2', gift: 'gift', mood: 'candy:5', mixer: 'mixer',
+    fountain: 'fountain', cake: 'cake', combo_orders: 'wrapped:1', jelly_under: 'jelly:2', rock: 'rock:2', locked: 'cage',
   };
 
-  const ORDER_ICONS = { striped: 'stripe_row:4', wrapped: 'wrapped:0', bomb: 'bomb', frosting: 'frosting:2', cocoa: 'cocoa', cage: 'cage', swirl: 'swirl', gift: 'gift', popcorn: 'popcorn:3', chest: 'chest:1', mixer: 'mixer' };
+  const ORDER_ICONS = {
+    striped: 'stripe_row:4', wrapped: 'wrapped:0', bomb: 'bomb', frosting: 'frosting:2', cocoa: 'cocoa', cage: 'cage', swirl: 'swirl', gift: 'gift', popcorn: 'popcorn:3', chest: 'chest:1', mixer: 'mixer',
+    cake: 'cake', rock: 'rock:2', stripe_stripe: 'stripe_col:2', wrapped_stripe: 'wrapped:4', bomb_stripe: 'bomb', wrapped_wrapped: 'wrapped:1', bomb_wrapped: 'bomb', bomb_bomb: 'bomb',
+  };
 
   function goalIcon(goal, size) {
     if (goal.type === 'collect') return candyImage(goal.color, 'none', size);
@@ -132,6 +136,14 @@
     popcorn: (count) => `Pop ${count} Popcorn`,
     chest: (count) => `Open ${count} Sugar Chest${count === 1 ? '' : 's'}`,
     mixer: (count) => `Hit the Candy Mixer ${count} times`,
+    cake: (count) => `Burst ${count} Sugar Cake${count === 1 ? '' : 's'}`,
+    rock: (count) => `Crack ${count} Rock Candy layer${count === 1 ? '' : 's'}`,
+    stripe_stripe: (count) => `Swap striped + striped ${count}×`,
+    wrapped_stripe: (count) => `Swap striped + wrapped ${count}×`,
+    bomb_stripe: (count) => `Swap Color Bomb + striped ${count}×`,
+    wrapped_wrapped: (count) => `Swap wrapped + wrapped ${count}×`,
+    bomb_wrapped: (count) => `Swap Color Bomb + wrapped ${count}×`,
+    bomb_bomb: (count) => `Swap two Color Bombs ${count}×`,
   };
 
   function goalText(goal) {
@@ -236,6 +248,7 @@
       goalIcon,
       goalText,
       spriteUrl,
+      orderIconKey: (item) => ORDER_ICONS[item] || 'candy:0',
       formatClock,
       showScreen(screen_name) {
         ['title', 'map', 'game'].forEach((name) => dom[`screen_${name}`].classList.toggle('is-active', name === screen_name));
@@ -394,8 +407,9 @@
         const rect = dom.hud_moves.getBoundingClientRect();
         return rect.width ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null;
       },
+      /** Page position of a goal in the HUD: by goal type, or by its index in the level's goals. */
       goalElementCenter(goal_type) {
-        const index = hud_goal_nodes.findIndex((entry) => entry.goal.type === goal_type);
+        const index = typeof goal_type === 'number' ? Math.min(goal_type, hud_goal_nodes.length - 1) : hud_goal_nodes.findIndex((entry) => entry.goal.type === goal_type);
         const target = index >= 0 ? hud_goal_nodes[index].node : dom.hud_goal_list;
         const rect = target.getBoundingClientRect();
         return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
@@ -1478,7 +1492,7 @@
             check.id = 'btn-sound-check';
             modal.appendChild(check);
             section('Play');
-            choiceRow('Auto hint', 'auto_hint', settings.auto_hint, [['instant', 'Instant'], ['3s', '3 s'], ['8s', '8 s'], ['off', 'Off']]);
+            choiceRow('Auto hint', 'auto_hint', settings.auto_hint, [['3s', '3 s'], ['5s', '5 s'], ['8s', '8 s'], ['off', 'Off']]);
             choiceRow('Animation speed', 'animation_speed', settings.animation_speed, [['normal', 'Normal'], ['snappy', 'Snappy'], ['fast', 'Fast']]);
             toggleRow('Unlimited hearts', 'unlimited_hearts', settings.unlimited_hearts);
             toggleRow('Haptics (vibration)', 'haptics', settings.haptics);
@@ -1597,7 +1611,7 @@
             modal.appendChild(element('h3', '', { text: 'Basics' }));
             row(candyImage(0, 'none', 48), 'Swap two neighboring candies (tap one, then the other, or swipe) to line up <b>3 or more</b> of the same kind. Meet every goal before your moves run out.');
             row(candyImage(4, 'none', 48), 'Every candy has its own color <b>and</b> shape. Turn on <b>Color-blind assist</b> in Settings for white symbols too.');
-            row(SPRITES.iconUrl('star', 96), 'The light bulb shows the best move at once. Auto hint (Settings) can show it by itself: Instant, after 3 s, after 8 s, or Off.');
+            row(SPRITES.iconUrl('star', 96), 'Stuck? The light bulb shows a possible move (not always the best one: finding that is up to you). Auto hint (Settings) shows one by itself after 3, 5 or 8 idle seconds, or Off.');
             modal.appendChild(element('h3', '', { text: 'Special candies' }));
             row(candyImage(3, 'stripe_col', 48), '<b>Match 4 in a line</b>: Striped candy. It clears its whole row or column.');
             row(candyImage(5, 'wrapped', 48), '<b>Match an L, T or +</b>: Wrapped candy. Explodes 3×3, then again after the board settles.');
@@ -1622,6 +1636,10 @@
             row(spriteUrl('popcorn:3', 48), '<b>Popcorn</b> stays put. Hit it three times (match beside it or blast it) and it bursts into a Color Bomb!');
             row(spriteUrl('chest:2', 48), '<b>Sugar Chest</b>: only keys open it. Match candies that carry a golden key: each key opens one lock.');
             row(spriteUrl('mixer', 48), '<b>Candy Mixer</b> frosts a nearby candy every 3 moves (watch its lights). Hitting it restarts the count; three hits break it.');
+            row(spriteUrl('fountain', 48), '<b>Cocoa Fountain</b> never breaks. After every move that clears no Cocoa it pours a new one beside it, so keep the Cocoa down!');
+            row(spriteUrl('cake', 48), '<b>Sugar Cake</b> (2×2) has 8 slices. Every match beside it or blast takes one; the last slice bursts it over the whole board.');
+            row(spriteUrl('rock:2', 48), '<b>Rock Candy</b> (1 or 2 layers) shrugs off matches beside it. Only blasts from special candies crack it!');
+            row(spriteUrl('jelly:1', 48), '<b>Jelly under blockers</b>: jelly hidden under frosting, Cocoa, cages or chests goes when the blocker on top breaks.');
             row(candyImage(4, 'none', 48), '<b>Mood Candy</b> (rainbow ring) changes color after every move. Plan your match before it changes!');
             row(spriteUrl('cherry', 48), '<b>Ingredients</b> (cherries and hazelnuts): bring them down to the trays. Blasts never break them.');
             row(spriteUrl('candy:4', 48), '<b>Portals</b> pass falling candies to their partner. <b>Sugar Belts</b> slide candies one step after every move.');
