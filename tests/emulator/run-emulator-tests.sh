@@ -159,7 +159,11 @@ play_step() { # one step of "keep playing" from whatever screen is showing (used
       if [ "$(q "!!s.buttons['btn-hearts-refill']")" = "true" ]; then tap_button "btn-hearts-refill"; else refill_hearts_for_test; tap_button "btn-hearts-ok"; fi
       sleep 1.5 ;;
     MAP)
-      if [ "$(q "px(s.map_nodes[String(s.unlocked)])")" = "none" ]; then tap_button "btn-map-mine"; else tap_map_node "$(q 's.unlocked')"; fi
+      # After a win the avatar hops to the new level and its intro then opens by itself, so decide from one snapshot
+      # and leave the map alone while a popup is opening (the next step handles the popup).
+      local target
+      target=$(q "s.modal || s.state !== 'MAP' ? 'wait' : s.map_nodes[String(s.unlocked)] ? px(s.map_nodes[String(s.unlocked)]) : s.buttons['btn-map-mine'] ? px(s.buttons['btn-map-mine']) : 'wait'")
+      [ "$target" != "wait" ] && tap_point $target
       sleep 1.5 ;;
     *) sleep 1 ;;
   esac
