@@ -474,6 +474,7 @@ if [ -n "$trace_socket" ] && adb forward tcp:9335 "localabstract:$trace_socket" 
   trace_pid=$!
   sleep 3
 fi
+PLAY_POINT=$(q "px(s.buttons['btn-play'])") # the release build has no hook: its warm-up below taps here
 tap_button "btn-play"
 wait_for "s.state === 'MAP' && s.map_nodes['2'] !== undefined" 15 "the map offline"
 wait_settled 90 "the map after a cold start"
@@ -639,6 +640,20 @@ log "Monkey: 3,000 random events on the release build"
 # Let the freshly launched release build finish starting first: on the emulator's software GPU its first frames take
 # seconds, and random events fired into that start-up can time out input dispatch without anything being wrong.
 sleep 8
+# The same goes for the first time the map is drawn after a launch: each new kind of drawing (a gradient, a rounded
+# box, a stroke) needs its GPU program built, and this emulator builds them in software on the host through a pipe.
+# The trace of the cold-start map opening (run 65) shows single tiles taking 1-4.6 s on their first paint and a few
+# ms afterwards; runs 63-65's monkeys stopped on that one 7-12 s stall. The monkey is here for crashes and freezes
+# under random input, so open the map once and come back, as a player would, before the random events start; the
+# cold-start cost itself is measured above (map_cold_start_settle_s).
+if [ -n "${PLAY_POINT:-}" ] && [ "$PLAY_POINT" != "none" ]; then
+  ensure_app_focused
+  adb shell input tap $PLAY_POINT
+  sleep 25
+  shot "13b-release-map-warm-up"
+  back
+  sleep 5
+fi
 adb logcat -c
 ADB_TIMEOUT=900 adb shell monkey -p "$PKG" --throttle 60 --pct-syskeys 3 --pct-appswitch 2 -v -v 3000 > "$OUT/monkey.txt" 2>&1
 grep -q "Monkey finished" "$OUT/monkey.txt" || fail "monkey did not finish"

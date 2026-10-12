@@ -49,7 +49,7 @@ threads.forEach((thread) => {
     }
   });
 });
-const start_ts = Math.min(...events.filter((event) => event.ts).map((event) => event.ts));
+const start_ts = events.reduce((low, event) => (event.ts && event.ts < low ? event.ts : low), Infinity);
 const ms = (us) => (us / 1000).toFixed(1);
 Array.from(threads.entries()).sort((a, b) => b[1].busy - a[1].busy).slice(0, max_threads).forEach(([key, thread]) => {
   console.log(`\n== ${names.get(key) || key} (${key}): busy ${ms(thread.busy)} ms`);
