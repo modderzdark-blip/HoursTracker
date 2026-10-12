@@ -365,7 +365,11 @@
       // As sharp as the map canvas they are drawn into (no sharper: on a slow phone every sheet pixel costs memory).
       const ratio = Math.min(1.5, root.devicePixelRatio || 1);
       const canvas = SPRITES.createCanvas(Math.ceil(columns * cell_w * ratio), Math.ceil(Math.ceil(count / columns) * cell_h * ratio));
-      const ctx = canvas.getContext('2d');
+      // The map's art (sheets, lands, sky) is painted once on the CPU (willReadFrequently keeps a canvas off the GPU) and
+      // reaches the GPU as one picture, instead of thousands of GPU draw calls for its paths and gradients: in Chromium
+      // with GPU rasterization that halves the GPU work of opening the map, and on a slow GPU (Android's emulator, where
+      // each call crosses a pipe) it was the multi-second first frame. Scrolling costs the same either way.
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
       ctx.scale(ratio, ratio);
       let index = 0;
       const nextCell = () => {
@@ -518,7 +522,7 @@
       // Sharp on phones; on wide screens the land is far wider than the screen, so it is kept lighter there.
       const ratio = Math.min(1.25, root.devicePixelRatio || 1, 1100 / land_w);
       const canvas = SPRITES.createCanvas(Math.max(1, Math.round(land_w * ratio)), Math.max(1, Math.round(block * ratio)));
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
       ctx.scale(ratio, ratio);
       const scenery = landScenery(key);
       const top = blockTop(key);
@@ -560,7 +564,7 @@
       const height = world.sky_h;
       const ratio = Math.min(1.5, root.devicePixelRatio || 1);
       const canvas = SPRITES.createCanvas(Math.max(1, Math.round(view_w * ratio)), Math.max(1, Math.round(height * ratio)));
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
       ctx.scale(ratio, ratio);
       const colors = night ? SKY.night : SKY.day;
       const fill = ctx.createLinearGradient(0, 0, 0, height);
