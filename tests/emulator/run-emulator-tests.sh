@@ -464,10 +464,27 @@ adb logcat -c
 adb shell am start -W -n "$ACTIVITY" > /dev/null
 wait_for "s.ready && s.state === 'TITLE'" 60 "the title screen offline"
 sleep 1.5
+# A performance trace of the map opening after this cold start, the slowest moment on this emulator (diagnostics only:
+# if it cannot be recorded, the run goes on). trace-summary.mjs prints where each busy thread's time went.
+trace_pid=""
+trace_app=$(adb shell pidof "$PKG" | tr -d '\r')
+trace_socket=$(adb shell cat /proc/net/unix | grep -o "webview_devtools_remote_$trace_app" | head -1)
+if [ -n "$trace_socket" ] && adb forward tcp:9335 "localabstract:$trace_socket" > /dev/null 2>&1; then
+  node tests/emulator/cdp-trace.mjs 9335 "$OUT/trace-cold-map.json.gz" 30 > "$OUT/trace-cold-map.log" 2>&1 &
+  trace_pid=$!
+  sleep 3
+fi
 tap_button "btn-play"
 wait_for "s.state === 'MAP' && s.map_nodes['2'] !== undefined" 15 "the map offline"
 wait_settled 90 "the map after a cold start"
 metric map_cold_start_settle_s "$SETTLED_S"
+if [ -n "$trace_pid" ]; then
+  wait "$trace_pid" || true
+  adb forward --remove tcp:9335 > /dev/null 2>&1
+  node tests/emulator/trace-summary.mjs "$OUT/trace-cold-map.json.gz" 6 14 > "$OUT/trace-cold-map-summary.txt" 2>&1 || true
+  echo "--- trace of the map opening after a cold start"
+  head -150 "$OUT/trace-cold-map-summary.txt"
+fi
 tap_map_node 2
 wait_for "s.modal === 'intro'" 15 "the Level 2 intro"
 tap_button "btn-intro-play"
