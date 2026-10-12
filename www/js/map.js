@@ -880,7 +880,7 @@
         marker.style.zIndex = String(4 * Z_BASE);
       }
       const face = hooks.avatar ? hooks.avatar() : { photo: null, initial: '' };
-      const inner = face.photo ? '' : face.initial ? face.initial : `<img src="${hooks.iconUrl('pip', 64)}" alt="">`;
+      const inner = face.photo ? '' : face.initial ? face.initial : `<img src="${hooks.iconUrl('pip', 96)}" alt="">`;
       marker.innerHTML = `<span class="marker-bob"><span class="marker-pin"></span><span class="marker-face"${face.photo ? ` style="background-image:url('${face.photo}')"` : ''}>${inner}</span></span>`;
       const point = markerPoint(level_number);
       marker_state = { x: point.x, y: point.y, lift: 0, grow: 1 };
