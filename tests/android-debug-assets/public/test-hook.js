@@ -92,6 +92,7 @@
       time_left_ms: game && game.logic && game.logic.timed ? Math.round(game.timeLeftMs) : null,
       map_live_nodes: game ? game.map.liveNodeCount : 0,
       map_range: game ? game.map.renderedRange : null,
+      map_renderer: game && game.map.renderer ? `${game.map.renderer}/${game.map.painter}` : '',
       selected: game ? game.selected : -1,
       hint: game ? game.hintVisible : false,
       dpr: root.devicePixelRatio,

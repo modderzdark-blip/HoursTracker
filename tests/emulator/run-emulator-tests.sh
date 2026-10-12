@@ -552,6 +552,7 @@ wait_settled 90 "the map at level 19,000"
 metric map_19000_settle_s "$SETTLED_S"
 shot "12b-map-level-19000"
 metric map_19000_live_nodes "$(q 's.map_live_nodes')"
+metric map_renderer "$(q 's.map_renderer')"
 metric map_19000_rendered_range "$(q 'JSON.stringify(s.map_range)')"
 adb shell dumpsys gfxinfo "$PKG" reset > /dev/null
 adb shell dumpsys meminfo "$PKG" > "$OUT/meminfo-map-19000-start.txt"

@@ -58,8 +58,10 @@
       hearts: MAX_HEARTS,
       hearts_clock: 0, // when the oldest missing heart started refilling (ms since epoch)
       last_seen: 0, // the latest clock reading ever seen (clock-tamper guard)
-      gold: 60,
+      gold: 20,
       boosters,
+      shop_day: '', // local date of the last booster bought with Gold (YYYY-MM-DD)
+      shop_bought: {}, // boosters bought with Gold on shop_day (one of each a day)
       wheel_day: '', // local date of the last Daily Wheel spin (YYYY-MM-DD)
       streak: 0, // Sweet Streak: new levels won on the first try in a row
       announced: [], // unlocks (boosters and features) already announced, and so usable
@@ -143,6 +145,8 @@
       last_seen: clampNumber(raw.last_seen, 0, 1e15, 0),
       gold: clampInteger(raw.gold, 0, 1e9, defaults.gold),
       boosters,
+      shop_day: typeof raw.shop_day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.shop_day) ? raw.shop_day : '',
+      shop_bought: sanitizeBought(raw.shop_bought),
       wheel_day: typeof raw.wheel_day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.wheel_day) ? raw.wheel_day : '',
       streak: clampInteger(raw.streak, 0, 1e6, 0),
       in_progress: clampInteger(raw.in_progress, 0, MAX_LEVEL, 0),
@@ -153,6 +157,16 @@
       episodes_claimed: clampInteger(raw.episodes_claimed, 0, MAX_LEVEL, 0),
       daily: sanitizeDaily(raw.daily),
     };
+  }
+
+  function sanitizeBought(raw_bought) {
+    const bought = {};
+    if (!raw_bought || typeof raw_bought !== 'object') return bought;
+    BOOSTERS.forEach((booster) => {
+      const count = clampInteger(raw_bought[booster], 0, 99, 0);
+      if (count) bought[booster] = count;
+    });
+    return bought;
   }
 
   function sanitizeDaily(raw_daily) {

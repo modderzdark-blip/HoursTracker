@@ -4,16 +4,20 @@
 // you and the next levels rise over the hill. Level 1 is at the bottom; each episode of 15 levels has its own land
 // (meadow, lollipop forest, snowy peaks ...) with clouds and a ribbon banner where it begins. Trees, houses and the
 // round level buttons stand upright on the curve and shrink as they roll away.
-// Rendering: each visible episode's ground and road are painted once into a cached canvas; every frame the visible part
-// is drawn onto the screen in thin strips, each scaled for its place on the curve, and the props are stood up on it
-// from small per-family sprite sheets. The level buttons (a recycled pool of at most 60) live in a layer that stays put
-// while the page scrolls and are placed on the same curve, so taps and swipes work as on any scrolling page.
+// Rendering: each episode's land (its ground, the road, the doors to the next episodes) is painted once, with its own
+// set pieces and props from a per-family atlas (mapart.js). With WebGL (mapgl.js) the lands are painted by a worker
+// (mapworker.js), go up to the GPU a slice per frame, and every frame is a few textured draws at the screen's full
+// resolution: the land as a mesh bent along the curve, the sky, then the standing things. Without WebGL a 2D canvas
+// draws the same world in thin strips. The level buttons (a recycled pool of at most 60) live in a layer that stays
+// put while the page scrolls and are placed on the same curve, so taps and swipes work as on any scrolling page.
 (function attachMap(root) {
   'use strict';
   const SC = root.SC || (root.SC = {});
   const LEVELS = SC.LEVELS;
   const SCENERY = SC.SCENERY;
   const SPRITES = SC.SPRITES;
+  const MAPART = SC.MAPART;
+  const MAPGL = SC.MAPGL;
   const STORAGE = SC.STORAGE;
   const UTIL = SC.UTIL;
 
@@ -23,14 +27,13 @@
   const BOTTOM_PADDING = 250;
   const OVERSCAN_PX = 160;
   const MAX_LIVE_NODES = 60;
-  const SCENERY_CACHE = 4;
+  const SCENERY_CACHE = 3;
   const SPRITE_CACHE = 3;
-  const SPRITE_SMALL = 48; // props are drawn once at this size (and scaled on the curve)
-  const SPRITE_BIG = 104; // landmarks (caramel towers, candy shops ...) get their own, sharper sheet
-  const SPRITE_VARIANTS = 3;
+  const ROW_STEP = 3; // map px per row of the curved land mesh (WebGL)
+  const CARD_BELOW_DOOR = 128; // an episode's banner, this far below the seam (under the door between the lands)
   // The road: a wide band of land winding up the map (a share of the road width either side of its middle), with the
   // level buttons zigzagging a little inside it, like the original's map today.
-  const BAND = { half: 0.25, wobble: 0.06 };
+  const BAND = { half: 0.22, wobble: 0.055 };
   // The world's shape, in screen heights: the land is flat and full size at `anchor` (from the top of the screen); above
   // it the ground turns away over a drum of `radius`, seen from `camera` away, and things shrink with distance (`shrink`
   // makes far things smaller than true perspective, for a rounder look). Below the anchor it curves gently (`below`
@@ -108,6 +111,10 @@
       w.strips.push({ s_low: s_min + low, s_high: s_min + high, y_bottom: table[low].y, y_top: table[high].y, k: (table[low].k + table[high].k) / 2 });
       low = high;
     }
+    // For WebGL: the rows of the land's mesh, every ROW_STEP map px from the bottom of the screen to the horizon.
+    w.rows = [];
+    for (let s = s_min; s < s_cut; s += ROW_STEP) w.rows.push(Object.assign({ s }, table[s - s_min]));
+    w.rows.push(Object.assign({ s: s_cut }, table[s_cut - s_min]));
     return w;
   }
 
@@ -132,14 +139,28 @@
     let last_frame = 0;
     let generation = 0;
     let glide = 0; // the running scroll glide (a new jump cancels it)
+    let lands_painted = 0; // how many times a land was painted (tests: scrolling should not repaint lands)
+    let fresh_view = true; // the map just opened or jumped: paint the land in view at once (not via the worker)
     const node_pool = [];
     const live_nodes = new Map(); // level -> button
     const episode_cards = new Map(); // episode -> element
     const scenery_cache = new Map(); // episode -> { canvas, standing, sprites, ... } (LRU)
-    const sprite_cache = new Map(); // land family -> sprite sheet (LRU)
+    const sprite_cache = new Map(); // land family -> atlas of its set pieces and props (LRU; kept while a land uses it)
+    // The painter worker (WebGL only; see "the painter worker" below).
+    const UPLOAD_BYTES = 4 * 1024 * 1024; // pixels sent to the GPU per frame
+    const MAX_JOBS = 2;
+    const uploads = []; // lands and atlases whose pixels are still going up
+    const land_jobs = new Map(); // episode -> { serial, plan }
+    const atlas_jobs = new Set(); // atlas keys
+    let world_serial = 0; // a new layout makes the jobs from before it stale
+    let painter = null;
     const bursts = new Set();
     let end_cap = null;
     let marker = null;
+    // With WebGL the world is drawn from textures in a few draw calls at the screen's full sharpness; without it, the
+    // 2D canvas draws it (lighter). (Tests set SC_MAP_2D to check the 2D drawing.)
+    const gl = MAPGL && !root.SC_MAP_2D ? MAPGL.create(dom.map_canvas) : null;
+    const batch = gl ? MAPGL.createBatch(4096) : null;
 
     // ---------------------------------------------------------------- geometry (pure functions of the level number)
     function blockHeight() {
@@ -285,9 +306,10 @@
       card.className = 'map-episode';
       const range = LEVELS.episodeRange(episode);
       card.innerHTML = `<div class="episode-gate" aria-hidden="true"></div><div class="episode-title"><small>Episode ${episode}</small><strong>${LEVELS.episodeName(episode)}</strong><small>Levels ${range.first}-${range.last}</small></div>`;
-      // On the cloud seam where this episode's land begins (between the previous episode's last level and its first).
+      // Where this episode's land begins: on the road just before its door (the first episode's has no door, so on the
+      // seam itself), between the previous episode's last level and the door.
       card.map_x = width / 2;
-      card.map_y = blockTop(episode) + blockHeight();
+      card.map_y = blockTop(episode) + blockHeight() + (episode >= 2 ? CARD_BELOW_DOOR : 0);
       card.style.zIndex = String(2 * (Z_BASE - range.first) + 1);
       return card;
     }
@@ -329,8 +351,8 @@
       const first_episode = Math.max(1, episodeAtY(bottom));
       const last_episode = Math.min(LEVELS.episodeOf(Math.max(1, last_level)), episodeAtY(top));
       const seamVisible = (episode) => {
-        const seam = blockTop(episode) + block;
-        return seam >= top && seam <= bottom;
+        const at = blockTop(episode) + block + (episode >= 2 ? CARD_BELOW_DOOR : 0);
+        return at >= top && at <= bottom;
       };
       episode_cards.forEach((card, episode) => {
         if (episode < first_episode || episode > last_episode || !seamVisible(episode)) {
@@ -356,189 +378,267 @@
       return Object.assign({}, first, { seed: (first.seed || 1) + 7777 });
     }
 
-    /** Draws kinds into a sheet: each kind in a few variants at `size`, standing on a ground point in its cell. */
-    function buildSheet(land, kinds, size, variants, with_puff) {
-      const cell_w = size * 2;
-      const cell_h = size * 2.35;
-      const columns = Math.min(6, Math.max(1, kinds.length * variants + (with_puff ? 1 : 0)));
-      const count = kinds.length * variants + (with_puff ? 1 : 0);
-      // As sharp as the map canvas they are drawn into (no sharper: on a slow phone every sheet pixel costs memory).
-      const ratio = Math.min(1.5, root.devicePixelRatio || 1);
-      const canvas = SPRITES.createCanvas(Math.ceil(columns * cell_w * ratio), Math.ceil(Math.ceil(count / columns) * cell_h * ratio));
-      // The map's art (sheets, lands, sky) is painted once on the CPU (willReadFrequently keeps a canvas off the GPU) and
-      // reaches the GPU as one picture, instead of thousands of GPU draw calls for its paths and gradients: in Chromium
-      // with GPU rasterization that halves the GPU work of opening the map, and on a slow GPU (Android's emulator, where
-      // each call crosses a pipe) it was the multi-second first frame. Scrolling costs the same either way.
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      ctx.scale(ratio, ratio);
-      let index = 0;
-      const nextCell = () => {
-        const at = { x: (index % columns) * cell_w, y: Math.floor(index / columns) * cell_h };
-        index += 1;
-        return at;
-      };
-      const cells = {};
-      kinds.forEach((kind, kind_index) => {
-        cells[kind] = [];
-        for (let variant = 0; variant < variants; variant += 1) {
-          const at = nextCell();
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(at.x, at.y, cell_w, cell_h);
-          ctx.clip();
-          SCENERY.paintProp(ctx, kind, at.x + size, at.y + size * 2, size, UTIL.createRng(variant * 7919 + kind_index * 131 + 11), land);
-          ctx.restore();
-          cells[kind].push({ sx: at.x * ratio, sy: at.y * ratio });
-        }
-      });
-      const sheet = { canvas, cells, size, variants, cell_w, cell_h, sw: cell_w * ratio, sh: cell_h * ratio, anchor_x: size, anchor_y: size * 2 };
-      if (with_puff) {
-        const puff_at = nextCell();
-        SCENERY.paintPuff(ctx, puff_at.x + cell_w / 2, puff_at.y + cell_h / 2, size * 0.98, !!land.night);
-        sheet.puff = { sx: puff_at.x * ratio, sy: puff_at.y * ratio };
-      }
-      return sheet;
+    /** A canvas's pixels are given back once the GPU has its copy (WebGL keeps only the texture). */
+    function freeCanvas(canvas) {
+      canvas.width = 1;
+      canvas.height = 1;
     }
 
-    /** One family's props (and a cloud puff) and its landmarks, each drawn once into a sprite sheet. */
-    function spritesFor(scenery) {
-      const key = `${scenery.family}|${scenery.hue_shift || 0}`;
-      if (sprite_cache.has(key)) {
-        const cached = sprite_cache.get(key);
-        sprite_cache.delete(key);
-        sprite_cache.set(key, cached);
-        return cached;
+    function atlasKey(scenery) {
+      return `${scenery.family}|${scenery.hue_shift || 0}`;
+    }
+
+    /** The atlas is about 900 x 1100 map px; with WebGL it stays a mipmapped texture, so it can be sharp. */
+    function atlasRatio() {
+      const dpr = root.devicePixelRatio || 1;
+      return gl ? Math.min(2.5, Math.max(1.5, dpr), gl.max_texture / 1200) : Math.min(1.5, dpr);
+    }
+
+    /** One land family's set pieces and props, each painted once into an atlas (and uploaded, with WebGL). */
+    function atlasFor(scenery) {
+      const key = atlasKey(scenery);
+      if (sprite_cache.has(key)) return sprite_cache.get(key);
+      const atlas = MAPART.buildAtlas(scenery.family, SCENERY.landFor(scenery), atlasRatio(), SPRITES.createCanvas);
+      atlas.width = atlas.canvas.width;
+      atlas.height = atlas.canvas.height;
+      if (gl) {
+        atlas.texture = gl.upload(atlas.canvas, true, atlas);
+        if (atlas.texture) freeCanvas(atlas.canvas);
       }
-      const land = SCENERY.landFor(scenery);
-      const sheets = {
-        small: buildSheet(land, Array.from(new Set(land.props)), SPRITE_SMALL, SPRITE_VARIANTS, true),
-        big: buildSheet(land, Array.from(new Set(land.landmarks || [])), SPRITE_BIG, 2, false),
-      };
-      sprite_cache.set(key, sheets);
-      while (sprite_cache.size > SPRITE_CACHE) sprite_cache.delete(sprite_cache.keys().next().value);
-      return sheets;
+      sprite_cache.set(key, atlas);
+      return atlas;
+    }
+
+    /** Stops sending a texture's rows to the GPU and lets the texture go. */
+    function releaseTexture(owner) {
+      const queued = uploads.indexOf(owner);
+      if (queued >= 0) uploads.splice(queued, 1);
+      if (gl) gl.release(owner);
+    }
+
+    /** Forgets the oldest atlases beyond the cache's size that no cached (or coming) land stands on. */
+    function pruneAtlases() {
+      Array.from(sprite_cache.entries()).forEach(([key, atlas]) => {
+        if (sprite_cache.size <= SPRITE_CACHE) return;
+        if (Array.from(scenery_cache.values()).some((entry) => entry.atlas_key === key)) return;
+        if (Array.from(land_jobs.values()).some((job) => atlasKey(job.plan.scenery) === key)) return;
+        releaseTexture(atlas);
+        sprite_cache.delete(key);
+      });
+    }
+
+    /** The door between episode e - 1 and e (a cliff with stairs, a river, a bridge or a gate), in turn. */
+    function doorKind(episode) {
+      return MAPART.DOORS[(episode - 2) % MAPART.DOORS.length];
+    }
+
+    function dropLand(key) {
+      const entry = scenery_cache.get(key);
+      if (entry) releaseTexture(entry);
+      scenery_cache.delete(key);
+    }
+
+    function dropLands() {
+      Array.from(scenery_cache.keys()).forEach(dropLand);
+    }
+
+    function storeLand(key, entry) {
+      scenery_cache.set(key, entry);
+      while (scenery_cache.size > SCENERY_CACHE) dropLand(scenery_cache.keys().next().value);
+      pruneAtlases();
     }
 
     /**
-     * The road through one episode's land (canvas coordinates): a wide pale band sunk between the land's slopes, with
-     * soft rows across it that show the curve as the world turns, shade under the slopes and a few sugar sprinkles.
-     * Returns its middle line (sorted top to bottom), so props and landmarks keep off it.
+     * What one episode's land needs to be painted (flat, wider than the screen): its size and sharpness, its road, the
+     * doors to the neighbouring episodes and the options for MAPART.paintEpisode.
      */
-    function paintBand(ctx, top, block, shift_x, land) {
-      const left = [];
-      const right = [];
-      const middle = [];
-      for (let cy = -36; cy <= block + 36; cy += 6) {
+    function landPlan(key) {
+      const block = blockHeight();
+      const land_w = world.land_w;
+      // With WebGL the land is kept only as a mipmapped texture, so it can be sharp (up to about 6 million pixels; a
+      // tablet's wider land gets a little less); the 2D canvas keeps it lighter.
+      const dpr = root.devicePixelRatio || 1;
+      const ratio = gl
+        ? Math.min(2, Math.max(1.25, dpr), gl.max_texture / land_w, gl.max_texture / block, Math.sqrt(6e6 / (land_w * block)))
+        : Math.min(1.25, dpr, 1100 / land_w);
+      const scenery = landScenery(key);
+      const land = SCENERY.landFor(scenery);
+      const top = blockTop(key);
+      const shift_x = (land_w - width) / 2;
+      const road = (cy) => {
         const u = levelCoord(total_height - (top + cy));
-        const center = bandX(u) + shift_x;
-        const half = bandHalf(u);
-        left.push([center - half, cy]);
-        right.push([center + half, cy]);
-        middle.push({ x: center, y: cy });
-      }
-      const outline = (grow) => {
-        ctx.beginPath();
-        left.forEach(([x, y], index) => (index ? ctx.lineTo(x - grow, y) : ctx.moveTo(x - grow, y)));
-        for (let index = right.length - 1; index >= 0; index -= 1) ctx.lineTo(right[index][0] + grow, right[index][1]);
-        ctx.closePath();
+        return { x: bandX(u) + shift_x, half: bandHalf(u) };
       };
-      const edges = (inset) => {
-        ctx.beginPath();
-        left.forEach(([x, y], index) => (index ? ctx.lineTo(x + inset, y) : ctx.moveTo(x + inset, y)));
-        right.forEach(([x, y], index) => (index ? ctx.lineTo(x - inset, y) : ctx.moveTo(x - inset, y)));
+      // Props sized for the screen (the land is wider than the screen, but the trees should not grow with it).
+      const unit = Math.max(24, Math.min(40, world.view_w * 0.075));
+      const doors = { bottom: key >= 2 ? doorKind(key) : null, top: key >= 1 ? doorKind(key + 1) : null };
+      return {
+        ratio, scenery, land, shift_x, road,
+        px_w: Math.max(1, Math.round(land_w * ratio)),
+        px_h: Math.max(1, Math.round(block * ratio)),
+        options: {
+          width: land_w, height: block, land, family: scenery.family, episode: key, unit, doors,
+          lower: key >= 1 ? SCENERY.landFor(landScenery(key - 1)) : land, upper: SCENERY.landFor(landScenery(key + 1)),
+        },
       };
-      const road = SPRITES.mixHex(land.light, '#fff8dc', 0.55);
-      const slope = SCENERY.shade(land.dark, -0.1);
-      // The land's slopes down to the road: a darker rim, lit along its top edge.
-      outline(22);
-      ctx.fillStyle = slope;
-      ctx.fill();
-      ctx.save();
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = SCENERY.shade(land.light, 0.04);
-      ctx.lineWidth = 4;
-      edges(-22);
-      ctx.stroke();
-      ctx.restore();
-      outline(0);
-      ctx.fillStyle = road;
-      ctx.fill();
-      ctx.save();
-      outline(0);
-      ctx.clip();
-      // Soft rows across the road, every 72 map pixels (aligned across episodes).
-      const row = 72;
-      for (let y = -((top % row) + row) % row - row; y < block + row; y += row) {
-        if (Math.floor((top + y) / row) % 2) continue;
-        const band = ctx.createLinearGradient(0, y, 0, y + row);
-        band.addColorStop(0, 'rgba(255,255,255,0)');
-        band.addColorStop(0.5, 'rgba(255,255,255,0.32)');
-        band.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = band;
-        ctx.fillRect(0, y, ctx.canvas.width, row);
-      }
-      // Shade under the slopes, and a bright lip where the road meets them.
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = 'rgba(110, 50, 20, 0.12)';
-      ctx.lineWidth = 34;
-      edges(0);
-      ctx.stroke();
-      ctx.strokeStyle = 'rgba(110, 50, 20, 0.14)';
-      ctx.lineWidth = 12;
-      edges(0);
-      ctx.stroke();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-      ctx.lineWidth = 3;
-      edges(9);
-      ctx.stroke();
-      // Sugar sprinkles.
-      const rng = UTIL.createRng(Math.round(top) * 13 + 7);
-      const sprinkles = ['#ff7fb6', '#7fd0ff', '#ffe066', '#9ff0b8', '#ffffff'];
-      for (let index = 0; index < block / 14; index += 1) {
-        const at = middle[Math.floor(rng() * middle.length)];
-        const half = bandHalf(levelCoord(total_height - (top + at.y))) * 0.85;
-        ctx.fillStyle = sprinkles[Math.floor(rng() * sprinkles.length)];
-        ctx.globalAlpha = 0.55;
-        ctx.beginPath();
-        ctx.ellipse(at.x + (rng() * 2 - 1) * half, at.y + (rng() - 0.5) * 6, 2.6, 1.3, rng() * Math.PI, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-      ctx.restore();
-      return middle;
     }
 
-    /** One episode's ground and road (painted once, flat, wider than the screen) and its props, ready to stand up. */
+    /** Paints one episode's land here and now (and its atlas if needed): the 2D map, and WebGL without the worker. */
     function sceneryFor(episode) {
       const key = Math.max(0, episode);
       if (scenery_cache.has(key)) {
-        const cached = scenery_cache.get(key);
-        scenery_cache.delete(key);
-        scenery_cache.set(key, cached);
-        return cached;
+        if (scenery_cache.get(key).ready !== false) return touchLand(key);
+        dropLand(key); // still on its way to the GPU: paint it here instead
       }
-      const block = blockHeight();
-      const land_w = world.land_w;
-      // Sharp on phones; on wide screens the land is far wider than the screen, so it is kept lighter there.
-      const ratio = Math.min(1.25, root.devicePixelRatio || 1, 1100 / land_w);
-      const canvas = SPRITES.createCanvas(Math.max(1, Math.round(land_w * ratio)), Math.max(1, Math.round(block * ratio)));
+      lands_painted += 1;
+      const plan = landPlan(key);
+      const canvas = SPRITES.createCanvas(plan.px_w, plan.px_h);
+      // Painted on the CPU (willReadFrequently keeps it off the GPU): hundreds of paths reach the GPU as one picture.
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      ctx.scale(ratio, ratio);
-      const scenery = landScenery(key);
-      const top = blockTop(key);
-      const shift_x = (land_w - width) / 2;
-      // The road's middle line first (for keeping props off it), then the land, then the road on top.
-      const middle = [];
-      for (let cy = -36; cy <= block + 36; cy += 12) middle.push({ x: bandX(levelCoord(total_height - (top + cy))) + shift_x, y: cy });
-      const half = width * BAND.half * 1.05;
-      // Props sized for the screen (the land is wider than the screen, but the trees should not grow with it).
-      const unit = Math.max(24, Math.min(40, world.view_w * 0.075));
-      const standing = SCENERY.paintLand(ctx, land_w, block, scenery, middle, half + 18, { billboards: true, unit, band: { half: half + 18 } });
-      paintBand(ctx, top, block, shift_x, SCENERY.landFor(scenery));
-      const entry = { canvas, ratio, standing, shift_x, sprites: spritesFor(scenery), land: SCENERY.landFor(scenery) };
-      scenery_cache.set(key, entry);
-      while (scenery_cache.size > SCENERY_CACHE) scenery_cache.delete(scenery_cache.keys().next().value);
+      ctx.scale(plan.ratio, plan.ratio);
+      const standing = MAPART.paintEpisode(ctx, Object.assign({ road: plan.road }, plan.options));
+      atlasFor(plan.scenery);
+      const entry = { canvas, ratio: plan.ratio, standing, shift_x: plan.shift_x, scenery: plan.scenery, atlas_key: atlasKey(plan.scenery), land: plan.land, px_w: plan.px_w, px_h: plan.px_h };
+      if (gl) {
+        entry.texture = gl.upload(canvas, true, entry);
+        if (entry.texture) freeCanvas(canvas);
+      }
+      storeLand(key, entry);
       return entry;
+    }
+
+    function touchLand(key) {
+      const entry = scenery_cache.get(key);
+      scenery_cache.delete(key);
+      scenery_cache.set(key, entry);
+      return entry;
+    }
+
+    // ---------------------------------------------------------------- the painter worker (WebGL)
+    // Lands and atlases are painted by js/mapworker.js and come back as pixels, which go up to the GPU a slice per
+    // frame, so a new episode never stalls scrolling. Where workers or OffscreenCanvas are missing (or fail), the lands
+    // are painted on this thread instead.
+    function stopPainter() {
+      if (painter) painter.terminate();
+      painter = null;
+      land_jobs.clear();
+      atlas_jobs.clear();
+      onScroll();
+    }
+
+    /** The episodes worth keeping a land for: the visible ones and one either side. */
+    function landWanted(key) {
+      const span = visibleSpan();
+      return key >= Math.max(0, episodeAtY(span.bottom)) - 1 && key <= episodeAtY(span.top) + 1;
+    }
+
+    function onPainted(event) {
+      const done = event.data;
+      if (done.type === 'failed') {
+        stopPainter();
+        return;
+      }
+      if (done.type === 'atlas') {
+        atlas_jobs.delete(done.id);
+        if (!gl || sprite_cache.has(done.id)) return;
+        const atlas = { cells: done.cells, anchor_x: done.anchor_x, anchor_y: done.anchor_y, width: done.width, height: done.height, pixels: done.pixels, row: 0, ready: false };
+        atlas.texture = gl.allocate(atlas, done.width, done.height);
+        if (!atlas.texture) return;
+        sprite_cache.set(done.id, atlas);
+        uploads.push(atlas);
+        pruneAtlases();
+        onScroll();
+        return;
+      }
+      const job = land_jobs.get(done.id);
+      land_jobs.delete(done.id);
+      if (!job || !world || job.serial !== world_serial || scenery_cache.has(done.id)) return;
+      if (!landWanted(done.id)) {
+        onScroll(); // another land may be waiting for a free job
+        return;
+      }
+      const plan = job.plan;
+      const entry = { ratio: plan.ratio, standing: done.standing, shift_x: plan.shift_x, scenery: plan.scenery, atlas_key: atlasKey(plan.scenery), land: plan.land, px_w: plan.px_w, px_h: plan.px_h, pixels: done.pixels, row: 0, ready: false };
+      entry.texture = gl.allocate(entry, plan.px_w, plan.px_h);
+      if (!entry.texture) return;
+      storeLand(done.id, entry);
+      uploads.push(entry);
+      onScroll();
+    }
+
+    // The GPU's copies are gone when the phone reclaims the context: paint everything again once it is back.
+    function forgetTextures() {
+      scenery_cache.clear();
+      sprite_cache.clear();
+      uploads.length = 0;
+      land_jobs.clear();
+      atlas_jobs.clear();
+      if (world) world.sky = {};
+    }
+    if (gl) {
+      gl.onLost(forgetTextures);
+      gl.onRestored(() => {
+        forgetTextures();
+        redraw();
+      });
+    }
+
+    if (gl && typeof Worker === 'function' && typeof OffscreenCanvas === 'function' && !root.SC_MAP_SYNC) {
+      try {
+        painter = new Worker('js/mapworker.js');
+        painter.onmessage = onPainted;
+        painter.onerror = stopPainter;
+      } catch (worker_error) {
+        painter = null;
+      }
+    }
+
+    function requestAtlas(scenery) {
+      const key = atlasKey(scenery);
+      if (sprite_cache.has(key) || atlas_jobs.has(key)) return;
+      atlas_jobs.add(key);
+      painter.postMessage({ type: 'atlas', id: key, family: scenery.family, land: SCENERY.landFor(scenery), ratio: atlasRatio() });
+    }
+
+    /** Asks the worker for a land (unless it is already busy with enough). */
+    function requestLand(key) {
+      if (land_jobs.has(key) || land_jobs.size >= MAX_JOBS) return;
+      lands_painted += 1;
+      const plan = landPlan(key);
+      // The road, sampled every 2 map px (the worker draws it from these).
+      const from = -200;
+      const step = 2;
+      const count = Math.ceil((plan.options.height - from * 2) / step) + 1;
+      const road = new Float32Array(count * 2);
+      for (let index = 0; index < count; index += 1) {
+        const at = plan.road(from + index * step);
+        road[index * 2] = at.x;
+        road[index * 2 + 1] = at.half;
+      }
+      requestAtlas(plan.scenery);
+      land_jobs.set(key, { serial: world_serial, plan });
+      painter.postMessage({ type: 'land', id: key, ratio: plan.ratio, px_w: plan.px_w, px_h: plan.px_h, road, road_from: from, road_step: step, options: plan.options }, [road.buffer]);
+    }
+
+    /** Sends the next slice of waiting pixels up to the GPU; a finished texture gets its mipmaps and is ready. */
+    function pumpUploads() {
+      let budget = UPLOAD_BYTES;
+      while (uploads.length && budget > 0) {
+        const item = uploads[0];
+        const width = item.texture.width;
+        const height = item.texture.height;
+        const rows = Math.min(height - item.row, Math.max(8, Math.floor(budget / (width * 4))));
+        gl.uploadRows(item.texture, item.pixels, item.row, rows);
+        item.row += rows;
+        budget -= rows * width * 4;
+        if (item.row >= height) {
+          gl.finish(item.texture, true);
+          item.pixels = null;
+          item.ready = true;
+          uploads.shift();
+        }
+      }
+      if (uploads.length) land_waiting = true;
     }
 
     /** How much of a night land is at map height y (0..1), blending across the seams. */
@@ -562,7 +662,7 @@
       if (world.sky[key]) return world.sky[key];
       const view_w = world.view_w;
       const height = world.sky_h;
-      const ratio = Math.min(1.5, root.devicePixelRatio || 1);
+      const ratio = gl ? Math.min(2.5, root.devicePixelRatio || 1) : Math.min(1.5, root.devicePixelRatio || 1);
       const canvas = SPRITES.createCanvas(Math.max(1, Math.round(view_w * ratio)), Math.max(1, Math.round(height * ratio)));
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       ctx.scale(ratio, ratio);
@@ -632,8 +732,13 @@
       ctx.fillStyle = haze;
       ctx.fillRect(0, 0, view_w, height);
       ctx.globalCompositeOperation = 'source-over';
-      world.sky[key] = canvas;
-      return canvas;
+      const sky = { canvas, texture: null };
+      if (gl) {
+        sky.texture = gl.upload(canvas, false);
+        if (sky.texture) freeCanvas(canvas);
+      }
+      world.sky[key] = sky;
+      return sky;
     }
 
     /**
@@ -641,17 +746,27 @@
      * (the nearest first); a land still waiting shows its plain ground colour and is painted on the next frames. On a
      * slow phone this keeps opening or flinging the map from one long stall that holds up taps.
      */
-    function landNow(episode) {
-      if (scenery_cache.has(Math.max(0, episode))) return sceneryFor(episode);
+    function landNow(episode, at_once) {
+      const key = Math.max(0, episode);
+      if (scenery_cache.has(key) && !(at_once && scenery_cache.get(key).ready === false)) {
+        const entry = touchLand(key);
+        return entry.ready === false ? null : entry;
+      }
+      // With the worker, a land is asked for and shows its plain ground until it arrives (except the one in view when
+      // the map opens or jumps, painted here so the map never shows bare land).
+      if (painter && !at_once) {
+        requestLand(key);
+        return null;
+      }
       if (land_budget > 0) {
         land_budget -= 1;
-        return sceneryFor(episode);
+        return sceneryFor(key);
       }
       land_waiting = true;
       return null;
     }
 
-    /** One strip of the land, from the cached episode canvases onto its place on the curve. */
+    /** One strip of the land, from the cached episode canvases onto its place on the curve (2D canvas). */
     function paintStrip(ctx, strip, scroll_top) {
       const top = scroll_top + world.anchor - strip.s_high;
       const bottom = scroll_top + world.anchor - strip.s_low;
@@ -660,7 +775,7 @@
       const half = Math.min(world.land_w / 2, world.view_w / (2 * strip.k));
       let y = top;
       for (let part = 0; part < 4 && y < bottom - 0.001; part += 1) {
-        const episode = episodeAtY(y + 0.001);
+        const episode = Math.max(0, episodeAtY(y + 0.001));
         const block_top = blockTop(episode);
         const part_bottom = Math.min(bottom, block_top + block);
         const entry = landNow(episode);
@@ -692,17 +807,30 @@
       return low;
     }
 
-    /** Trees, houses, gumdrops and cloud puffs, stood upright on the curve, far ones first. */
-    function paintStanding(ctx, scroll_top) {
+    // How far below the screen a standing thing's foot may be and still reach up into view (the tallest set piece).
+    const STANDING_REACH = 360;
+
+    /**
+     * Each set piece and prop stood upright on the curve, far ones first: calls draw(atlas, cell, x, y, w, h, alpha)
+     * with its screen rectangle, and episodeDone(atlas) after each episode's (they share one atlas). Things rise out of
+     * the haze as they come over the hill, and those still behind the curved horizon are not drawn.
+     */
+    function eachStanding(scroll_top, draw, episodeDone) {
       const view_w = world.view_w;
       const span = visibleSpan();
-      const bottom = span.bottom + SPRITE_BIG * 2;
-      const far = episodeAtY(span.top);
-      const near = episodeAtY(span.bottom);
+      const bottom = span.bottom + STANDING_REACH;
+      const far = Math.max(0, episodeAtY(span.top));
+      const near = Math.max(0, episodeAtY(bottom));
       for (let episode = far; episode >= near; episode -= 1) {
         const entry = landNow(episode);
         if (!entry) continue;
-        const sheets = entry.sprites;
+        let atlas = sprite_cache.get(entry.atlas_key);
+        if (!atlas) {
+          // Let go while this land was on its way: ask for it again.
+          if (painter) requestAtlas(entry.scenery);
+          else atlas = atlasFor(entry.scenery);
+        }
+        if (!atlas || atlas.ready === false) continue;
         const block_top = blockTop(episode);
         const items = entry.standing;
         for (let index = firstFrom(items, span.top - block_top - 40); index < items.length; index += 1) {
@@ -711,26 +839,40 @@
           if (y > bottom) break;
           const s = world.anchor - (y - scroll_top);
           if (s > world.s_cut) continue;
+          const cell = atlas.cells[item.kind];
+          if (!cell) continue;
           const point = project(s);
           const x = view_w / 2 + (item.x - entry.shift_x - width / 2) * point.k;
-          const puff = item.kind === 'puff';
-          const sheet = item.big ? sheets.big : sheets.small;
-          const scale = (puff ? item.size / (sheet.size * 0.98) : item.size / sheet.size) * point.k;
-          const draw_w = sheet.cell_w * scale;
-          if (x + draw_w < 0 || x - draw_w > view_w) continue;
-          const variants = sheet.cells[item.kind];
-          if (!puff && !variants) continue;
-          const cell = puff ? sheet.puff : variants[Math.min(sheet.variants - 1, Math.floor(item.seed * sheet.variants))];
-          const anchor_x = puff ? sheet.cell_w / 2 : sheet.anchor_x;
-          const anchor_y = puff ? sheet.cell_h / 2 : sheet.anchor_y;
-          ctx.drawImage(sheet.canvas, cell.sx, cell.sy, sheet.sw, sheet.sh, x - anchor_x * scale, point.y - anchor_y * scale, draw_w, sheet.cell_h * scale);
+          const scale = (item.size / cell.size) * point.k;
+          const w = cell.w * scale;
+          const h = cell.h * scale;
+          const x0 = x - w * atlas.anchor_x;
+          if (x0 > view_w || x0 + w < 0) continue;
+          const dx = x - view_w / 2;
+          const horizon = world.arc_cy - Math.sqrt(Math.max(0, world.arc_r * world.arc_r - dx * dx));
+          const alpha = UTIL.clamp((world.s_cut - s) / world.fade, 0, 1) * UTIL.clamp(1 + (point.y - horizon) / 10, 0, 1);
+          if (alpha < 0.02) continue;
+          draw(atlas, cell, x0, point.y - h * atlas.anchor_y, w, h, alpha);
         }
+        if (episodeDone) episodeDone(atlas);
       }
+    }
+
+    /** The map canvas's size on the page (its pixels are set by the drawer). */
+    function sizeCanvas(canvas, view_w, view_h) {
+      const css_w = `${view_w}px`;
+      const css_h = `${view_h}px`;
+      if (canvas.style.width !== css_w) canvas.style.width = css_w;
+      if (canvas.style.height !== css_h) canvas.style.height = css_h;
     }
 
     /** Draws the land wrapped around the world, then the sky over it (cut along the curved horizon, misted below it). */
     function paintWorld() {
       if (!world) return;
+      if (gl) {
+        paintWorldGl();
+        return;
+      }
       const canvas = dom.map_canvas;
       const view_w = world.view_w;
       const view_h = world.view_h;
@@ -738,9 +880,8 @@
       if (canvas.width !== Math.round(view_w * ratio) || canvas.height !== Math.round(view_h * ratio)) {
         canvas.width = Math.round(view_w * ratio);
         canvas.height = Math.round(view_h * ratio);
-        canvas.style.width = `${view_w}px`;
-        canvas.style.height = `${view_h}px`;
       }
+      sizeCanvas(canvas, view_w, view_h);
       const ctx = canvas.getContext('2d');
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
       const scroll_top = dom.map_scroll.scrollTop;
@@ -749,14 +890,111 @@
       landNow(episodeAtY(scroll_top + world.anchor)); // the land nearest the eye, which fills most of the screen
       // No clear needed: the strips cover the land from the bottom edge to the horizon and the sky covers the rest.
       world.strips.forEach((strip) => paintStrip(ctx, strip, scroll_top));
-      paintStanding(ctx, scroll_top);
       const night = nightAt(scroll_top + world.anchor - world.s_cut * 0.8);
-      if (night < 1) ctx.drawImage(skyFor(false), 0, 0, view_w, world.sky_h);
+      if (night < 1) ctx.drawImage(skyFor(false).canvas, 0, 0, view_w, world.sky_h);
       if (night > 0) {
         ctx.globalAlpha = night;
-        ctx.drawImage(skyFor(true), 0, 0, view_w, world.sky_h);
-        ctx.globalAlpha = 1;
+        ctx.drawImage(skyFor(true).canvas, 0, 0, view_w, world.sky_h);
       }
+      // Standing things over the sky, so the ones near the horizon stand up against it.
+      eachStanding(scroll_top, (atlas, cell, x, y, w, h, alpha) => {
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(atlas.canvas, cell.sx, cell.sy, cell.sw, cell.sh, x, y, w, h);
+      });
+      ctx.globalAlpha = 1;
+      if (land_waiting) onScroll();
+      schedulePrefetch();
+    }
+
+    /**
+     * The same world with WebGL: the land as a mesh of thin rows bent along the curve (each episode's rows in one draw
+     * from its texture), the sky, then the standing things as quads from their atlas. Every pixel at the screen's own
+     * resolution, and only a handful of draw calls a frame.
+     */
+    function paintWorldGl() {
+      if (gl.lost) return;
+      const canvas = dom.map_canvas;
+      const view_w = world.view_w;
+      const view_h = world.view_h;
+      const ratio = light ? Math.min(1.5, root.devicePixelRatio || 1) : Math.min(3, root.devicePixelRatio || 1);
+      const scroll_top = dom.map_scroll.scrollTop;
+      land_budget = 1;
+      land_waiting = false;
+      pumpUploads();
+      // The land nearest the eye, which fills most of the screen.
+      const eye = landNow(episodeAtY(scroll_top + world.anchor), fresh_view);
+      fresh_view = false;
+      const ground = rgbOf(eye ? eye.land.ground : SCENERY.landFor(landScenery(Math.max(0, episodeAtY(scroll_top + world.anchor)))).ground);
+      if (!gl.begin(Math.round(view_w * ratio), Math.round(view_h * ratio), view_w, view_h, [ground[0] / 255, ground[1] / 255, ground[2] / 255])) return;
+      sizeCanvas(canvas, view_w, view_h);
+      // The land: rows from the bottom of the screen up to the horizon, cut where one episode's land meets the next.
+      const rows = world.rows;
+      const center = view_w / 2;
+      let episode = -1;
+      let entry = null;
+      const flush = () => {
+        if (batch.count) {
+          if (entry && entry.texture) gl.draw(entry.texture, batch.data, batch.count, null);
+          else {
+            const color = rgbOf(SCENERY.landFor(landScenery(episode)).ground);
+            gl.draw(null, batch.data, batch.count, [color[0] / 255, color[1] / 255, color[2] / 255, 1]);
+          }
+        }
+        batch.reset();
+      };
+      const corner = (row_y, row_k, map_y) => {
+        const half = Math.min(world.land_w / 2, view_w / (2 * row_k)) + 1;
+        if (!entry) return [[center - half * row_k, row_y, 0, 0], [center + half * row_k, row_y, 0, 0]];
+        const v = ((map_y - blockTop(episode)) * entry.ratio) / entry.px_h;
+        const left = ((world.land_w / 2 - half) * entry.ratio) / entry.px_w;
+        const right = ((world.land_w / 2 + half) * entry.ratio) / entry.px_w;
+        return [[center - half * row_k, row_y, left, v], [center + half * row_k, row_y, right, v]];
+      };
+      for (let index = 0; index < rows.length - 1; index += 1) {
+        let low = rows[index]; // nearer (lower on the screen)
+        const high = rows[index + 1];
+        // A row may cross a seam: split it there and finish the lower episode first.
+        for (let part = 0; part < 3; part += 1) {
+          const low_y = scroll_top + world.anchor - low.s;
+          const here = Math.max(0, episodeAtY(low_y - 0.0001));
+          if (here !== episode) {
+            flush();
+            episode = here;
+            entry = landNow(episode);
+          }
+          const seam = blockTop(here); // the top edge of this episode's land
+          const high_y = scroll_top + world.anchor - high.s;
+          let top = high;
+          if (high_y < seam - 0.0001) {
+            const t = (low_y - seam) / (low_y - high_y);
+            top = { s: low.s + (high.s - low.s) * t, y: low.y + (high.y - low.y) * t, k: low.k + (high.k - low.k) * t };
+          }
+          const bottom_edge = corner(low.y, low.k, low_y);
+          const top_edge = corner(top.y, top.k, scroll_top + world.anchor - top.s);
+          batch.quad(top_edge[0], top_edge[1], bottom_edge[1], bottom_edge[0]);
+          if (top === high) break;
+          low = top;
+        }
+      }
+      flush();
+      // The sky, cut along the curved horizon and misting the far land.
+      const night = nightAt(scroll_top + world.anchor - world.s_cut * 0.8);
+      const skyQuad = (sky, alpha) => {
+        if (!sky.texture) return;
+        batch.reset();
+        batch.rect(0, 0, view_w, world.sky_h, 0, 0, 1, 1);
+        gl.draw(sky.texture, batch.data, batch.count, [1, 1, 1, alpha]);
+      };
+      if (night < 1) skyQuad(skyFor(false), 1);
+      if (night > 0) skyQuad(skyFor(true), night);
+      batch.reset();
+      // The set pieces and props over it (the ones near the horizon stand up against the sky), each episode's from its atlas.
+      eachStanding(scroll_top, (atlas, cell, x, y, w, h, alpha) => {
+        batch.rect(x, y, w, h, cell.sx / atlas.width, cell.sy / atlas.height, (cell.sx + cell.sw) / atlas.width, (cell.sy + cell.sh) / atlas.height, alpha);
+      }, (atlas) => {
+        if (batch.count && atlas.texture) gl.draw(atlas.texture, batch.data, batch.count, null);
+        batch.reset();
+      });
       if (land_waiting) onScroll();
       schedulePrefetch();
     }
@@ -772,10 +1010,14 @@
         const near = Math.max(0, episodeAtY(span.bottom));
         // Only when it fits beside every visible land (never evict one the next frame needs).
         if (scenery_cache.has(ahead) || ahead - near + 1 > SCENERY_CACHE) return;
+        if (painter) {
+          requestLand(ahead);
+          return;
+        }
         sceneryFor(ahead);
         // Keep the visible lands the most recently used.
-        for (let episode = near; episode <= ahead - 1; episode += 1) if (scenery_cache.has(episode)) sceneryFor(episode);
-      }, 220);
+        for (let episode = near; episode <= ahead - 1; episode += 1) if (scenery_cache.has(episode)) touchLand(episode);
+      }, painter ? 80 : 220);
     }
 
     // ---------------------------------------------------------------- the buttons on the curve
@@ -918,13 +1160,18 @@
       const view_w = dom.map_scroll.clientWidth || 360;
       const view_h = dom.map_scroll.clientHeight || 640;
       width = Math.min(view_w, 760);
+      fresh_view = true;
+      // The lands and skies are painted for one screen size: let the GPU's copies go with them (and the worker's jobs).
+      dropLands();
+      world_serial += 1;
+      land_jobs.clear();
+      if (world && gl) Object.keys(world.sky).forEach((key) => gl.release(world.sky[key].canvas));
       world = buildWorld(view_w, view_h);
       last_level = Math.max(shipped(), save ? save.unlocked - 1 : 1, 1);
       total_height = TOP_PADDING + heightOf(last_level + 1) + BOTTOM_PADDING * 0.2;
       dom.map_inner.style.width = '100%';
       dom.map_inner.style.height = `${total_height}px`;
       if (dom.map_stage) dom.map_stage.style.height = `${view_h}px`;
-      scenery_cache.clear();
       live_nodes.forEach((node) => {
         node.remove();
         node_pool.push(node);
@@ -944,6 +1191,7 @@
       if (!smooth || dom.app.classList.contains('reduced-motion')) {
         glide += 1;
         dom.map_scroll.scrollTop = target;
+        fresh_view = true;
         redraw();
         return Promise.resolve(true);
       }
@@ -1105,6 +1353,18 @@
       heightOf,
       get scenerySize() {
         return scenery_cache.size;
+      },
+      get landsPainted() {
+        return lands_painted;
+      },
+      /** Where lands are painted: 'worker' (off the main thread) or 'main'. */
+      get painter() {
+        return painter ? 'worker' : 'main';
+      },
+      /** 'webgl2', 'webgl' or '2d': what draws the world. */
+      get renderer() {
+        if (!gl) return '2d';
+        return gl.webgl2 ? 'webgl2' : 'webgl';
       },
     };
   }

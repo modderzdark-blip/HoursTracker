@@ -142,7 +142,7 @@ for (const size of SIZES) {
       await shot('14-how-to-play');
       await page.evaluate(() => {
         window.SC.game.ui.closeAllModals();
-        window.SC.game.ui.showHeartsEmpty({ nextHeartMs: () => 17 * 60 * 1000 + 42000, gold: 55, price: 40 }, { refill() {} });
+        window.SC.game.ui.showHeartsEmpty({ nextHeartMs: () => 17 * 60 * 1000 + 42000, gold: 75, price: 60 }, { refill() {} });
       });
       await settle(page, 700);
       await shot('15-hearts-empty');

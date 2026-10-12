@@ -12,10 +12,12 @@
 
   const MAX_HEARTS = 5;
   const HEART_REFILL_MS = 30 * 60 * 1000;
-  const HEART_REFILL_PRICE = 40;
-  const PRICES = Object.freeze({ hammer: 60, free_swap: 40, whirl: 30, brush: 50, party: 120, lucky: 50, rainbow: 80, head_start: 40, plus_five: 60 });
+  const HEART_REFILL_PRICE = 60;
+  // Gold is rare, like the original's gold bars: boosters cost a lot of it, and each can be bought only once a day.
+  const PRICES = Object.freeze({ hammer: 90, free_swap: 60, whirl: 60, brush: 80, party: 180, lucky: 60, rainbow: 100, head_start: 60, plus_five: 60 });
+  const SHOP_DAILY_LIMIT = 1; // of each booster, per local day (+5 Moves aside)
   // Each further +5 Moves in the same attempt costs more (the original's continues climb the same way).
-  const CONTINUE_PRICES = Object.freeze([60, 90, 140, 190, 240]);
+  const CONTINUE_PRICES = Object.freeze([60, 100, 150, 200, 250]);
   const IN_LEVEL = Object.freeze(['hammer', 'free_swap', 'whirl', 'brush', 'party']);
   const BOOSTER_NAMES = Object.freeze({
     hammer: 'Sweet Hammer', free_swap: 'Free Swap', whirl: 'Candy Whirl', lucky: 'Lucky Start', rainbow: 'Rainbow Start', head_start: 'Head Start',
@@ -49,13 +51,13 @@
     Object.freeze({ striped: 2, wrapped: 2, bomb: 1, moves: 3 }),
   ]);
   const WHEEL = Object.freeze([
-    { kind: 'gold', amount: 5, label: '5 Gold' },
+    { kind: 'gold', amount: 2, label: '2 Gold' },
     { kind: 'booster', booster: 'hammer', label: 'Sweet Hammer' },
-    { kind: 'gold', amount: 10, label: '10 Gold' },
+    { kind: 'gold', amount: 3, label: '3 Gold' },
     { kind: 'booster', booster: 'lucky', label: 'Lucky Start' },
     { kind: 'heart', label: 'A heart' },
     { kind: 'booster', booster: 'free_swap', label: 'Free Swap' },
-    { kind: 'gold', amount: 20, label: '20 Gold' },
+    { kind: 'gold', amount: 5, label: '5 Gold' },
     { kind: 'booster', booster: 'rainbow', label: 'Rainbow Start' },
   ]);
 
@@ -136,12 +138,33 @@
     return true;
   }
 
-  /** Buys one booster (or +5 Moves, booster 'plus_five', which is used at once) for Gold. */
-  function buy(meta, item) {
+  /** How many of a booster were bought with Gold today (the count starts again at local midnight). */
+  function boughtToday(meta, item, now) {
+    if (meta.shop_day !== localDay(now)) return 0;
+    return meta.shop_bought[item] || 0;
+  }
+
+  /** Why a booster cannot be bought right now: 'limit' (one a day), 'gold' (too little), or '' (it can). */
+  function buyBlock(meta, item, now) {
     const price = PRICES[item];
-    if (!price || meta.gold < price) return false;
-    meta.gold -= price;
-    if (item !== 'plus_five') meta.boosters[item] = (meta.boosters[item] || 0) + 1;
+    if (!price) return 'gold';
+    if (item !== 'plus_five' && boughtToday(meta, item, now) >= SHOP_DAILY_LIMIT) return 'limit';
+    return meta.gold < price ? 'gold' : '';
+  }
+
+  /** Buys one booster (or +5 Moves, booster 'plus_five', which is used at once) for Gold: at most one of each a day. */
+  function buy(meta, item, now) {
+    if (buyBlock(meta, item, now)) return false;
+    meta.gold -= PRICES[item];
+    if (item !== 'plus_five') {
+      const day = localDay(now);
+      if (meta.shop_day !== day) {
+        meta.shop_day = day;
+        meta.shop_bought = {};
+      }
+      meta.shop_bought[item] = (meta.shop_bought[item] || 0) + 1;
+      meta.boosters[item] = (meta.boosters[item] || 0) + 1;
+    }
     return true;
   }
 
@@ -187,7 +210,7 @@
   }
 
   // Beating a Hard or Super Hard level for the first time pays a bonus (the original fills its rewards faster there too).
-  const HARD_BONUS = Object.freeze({ hard: 5, superhard: 10 });
+  const HARD_BONUS = Object.freeze({ hard: 2, superhard: 4 });
 
   // Treasure on the map: every 5th level (except episode finales, which have their own reward) holds a chest that opens
   // when the level is beaten for the first time.
@@ -202,7 +225,7 @@
     if (!treasureAt(level_id)) return null;
     const turn = Math.floor(level_id / TREASURE_EVERY);
     const boosters = IN_LEVEL.filter((booster) => isUnlocked(meta, reached_level, booster));
-    if (turn % 2 === 1 || boosters.length === 0) return { gold: 8 + 2 * Math.min(5, Math.floor(level_id / 30)) };
+    if (turn % 2 === 1 || boosters.length === 0) return { gold: 3 };
     return { booster: boosters[Math.floor(turn / 2) % boosters.length], amount: 1 };
   }
 
@@ -211,10 +234,10 @@
     return STREAK_BAGS[Math.min(STREAK_MAX, Math.max(0, streak || 0))] || null;
   }
 
-  /** Episode completion reward: Gold growing with the episode, plus one of the unlocked in-level boosters. */
+  /** Episode completion reward: a little Gold, plus one of the unlocked in-level boosters. */
   function episodeReward(meta, episode, reached_level) {
     const boosters = IN_LEVEL.filter((booster) => isUnlocked(meta, reached_level, booster));
-    return { gold: 10 + 2 * Math.min(5, episode), booster: boosters.length ? boosters[(episode - 1) % boosters.length] : null };
+    return { gold: 5, booster: boosters.length ? boosters[(episode - 1) % boosters.length] : null };
   }
 
   /** Gives an episode's completion reward once; returns it, or null when it was given before. */
@@ -290,16 +313,16 @@
     const rng = dayRng(day, 5);
     const booster = boosters.length ? boosters[Math.floor(rng() * boosters.length)] : null;
     return [
-      { kind: 'gold', amount: 5, label: '5 Gold' },
-      booster ? { kind: 'booster', booster, label: BOOSTER_NAMES[booster] } : { kind: 'gold', amount: 8, label: '8 Gold' },
-      { kind: 'gold', amount: 10, label: '10 Gold' },
+      { kind: 'gold', amount: 2, label: '2 Gold' },
+      booster ? { kind: 'booster', booster, label: BOOSTER_NAMES[booster] } : { kind: 'gold', amount: 3, label: '3 Gold' },
+      { kind: 'gold', amount: 3, label: '3 Gold' },
     ];
   }
 
   function dailyBonus(meta, reached_level, day) {
     const boosters = IN_LEVEL.filter((booster) => isUnlocked(meta, reached_level, booster));
     const booster = boosters.length ? boosters[Math.floor(dayRng(day, 9)() * boosters.length)] : null;
-    return { gold: 15, booster, label: booster ? `15 Gold and a ${BOOSTER_NAMES[booster]}` : '15 Gold' };
+    return { gold: 5, booster, label: booster ? `5 Gold and a ${BOOSTER_NAMES[booster]}` : '5 Gold' };
   }
 
   /** Starts a fresh set of challenges when the local day changed. */
@@ -364,15 +387,15 @@
    * Applies a finished level to the meta game. outcome: {won, new_stars, crown, mastery, new_level, streak_on, role,
    * level_id} (new_stars = stars above the previous best; crown = won on the very first attempt; mastery = a crown with
    * 5+ moves left; new_level = not won before; streak_on = the Sweet Streak is unlocked). Replays never touch the
-   * streak, and the hard-level bonus and map treasure pay only on the first win. Gold: 1 per new star, 2 for a new level,
-   * 2 for a Gold Crown, 3 for Sweet Mastery (a replay without new stars pays nothing).
+   * streak, and the hard-level bonus and map treasure pay only on the first win. Gold is rare: a level itself pays none;
+   * only a hard or super hard level's first win (HARD_BONUS) and the map treasure do.
    * Returns { gold, hard_bonus, treasure, streak, streak_lost } (gold includes the bonus and treasure gold).
    */
   function recordOutcome(save, outcome) {
     const meta = save.meta;
     const rewards = { gold: 0, hard_bonus: 0, treasure: null, streak: meta.streak, streak_lost: 0 };
     if (outcome.won) {
-      rewards.gold = Math.max(0, outcome.new_stars || 0) + (outcome.new_level ? 2 : 0) + (outcome.crown ? 2 : 0) + (outcome.mastery ? 3 : 0);
+      rewards.gold = 0;
       if (outcome.new_level) {
         rewards.hard_bonus = HARD_BONUS[outcome.role] || 0;
         rewards.gold += rewards.hard_bonus;
@@ -435,8 +458,8 @@
   }
 
   const META = {
-    MAX_HEARTS, HEART_REFILL_MS, HEART_REFILL_PRICE, PRICES, CONTINUE_PRICES, BOOSTER_NAMES, IN_LEVEL, WHEEL, UNLOCKS, STREAK_MAX, STREAK_BAGS,
-    refreshHearts, nextHeartIn, canPlay, spendHeart, grantHearts, refillHearts, boosterCount, useBooster, buy, applyReward,
+    MAX_HEARTS, HEART_REFILL_MS, HEART_REFILL_PRICE, PRICES, SHOP_DAILY_LIMIT, CONTINUE_PRICES, BOOSTER_NAMES, IN_LEVEL, WHEEL, UNLOCKS, STREAK_MAX, STREAK_BAGS,
+    refreshHearts, nextHeartIn, canPlay, spendHeart, grantHearts, refillHearts, boosterCount, useBooster, boughtToday, buyBlock, buy, applyReward,
     continuePrice, unlockOf, isUnlocked, pendingUnlocks, announceUnlock, streakBag, episodeReward, claimEpisode,
     HARD_BONUS, TREASURE_EVERY, treasureAt, treasureReward,
     localDay, canSpin, spinWheel, recordOutcome, createHintScheduler,

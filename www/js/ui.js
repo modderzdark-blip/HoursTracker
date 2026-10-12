@@ -1194,7 +1194,7 @@
             const list = element('div', 'shop-list');
             modal.appendChild(wallet);
             modal.appendChild(list);
-            modal.appendChild(element('p', 'shop-note', { text: 'Gold comes from new levels won, Gold Crowns, hard levels, treasure, Daily Challenges and the Daily Wheel.' }));
+            modal.appendChild(element('p', 'shop-note', { text: 'Gold is rare: it comes from hard levels, treasure, finished episodes, Daily Challenges and the Daily Wheel. Each booster can be bought once a day.' }));
             const row = (spec) => {
               const node = element('div', `shop-row${spec.locked ? ' is-locked' : ''}`);
               node.appendChild(element('span', 'shop-art', { html: spec.art }));
@@ -1232,11 +1232,13 @@
                 aria: full ? 'Hearts are full' : `Refill hearts for ${data.refill_price} Gold`, buy: () => actions.refill(),
               }));
               data.items.forEach((item) => {
+                const locked = item.locked_at > 0;
                 list.appendChild(row({
-                  id: item.id, art: unlockArt(item.id), name: item.name, locked: item.locked_at > 0,
-                  detail: item.locked_at > 0 ? `Unlocks at level ${item.locked_at}` : `You have ${item.owned}`,
-                  price: item.price, label: item.locked_at > 0 ? `${icon('lock')}<span>${item.locked_at}</span>` : '',
-                  aria: item.locked_at > 0 ? `${item.name}, unlocks at level ${item.locked_at}` : `Buy a ${item.name} for ${item.price} Gold (you have ${item.owned})`,
+                  id: item.id, art: unlockArt(item.id), name: item.name, locked,
+                  detail: locked ? `Unlocks at level ${item.locked_at}` : item.sold_out ? `You have ${item.owned} · back tomorrow` : `You have ${item.owned} · 1 a day`,
+                  price: item.price, disabled: !locked && item.sold_out,
+                  label: locked ? `${icon('lock')}<span>${item.locked_at}</span>` : item.sold_out ? 'Tomorrow' : '',
+                  aria: locked ? `${item.name}, unlocks at level ${item.locked_at}` : item.sold_out ? `${item.name}: bought today, back tomorrow` : `Buy a ${item.name} for ${item.price} Gold (you have ${item.owned})`,
                   buy: () => actions.buy(item.id),
                 }));
               });
@@ -1508,11 +1510,15 @@
         });
       },
 
-      /** Buy a booster (or +5 Moves) with Gold. Resolves true when bought. */
-      confirmBuy(item, gold) {
+      /** Buy a booster (or +5 Moves) with Gold. Resolves true when bought. block: META.buyBlock's answer. */
+      confirmBuy(item, gold, block) {
         const price = META.PRICES[item];
+        if (block === 'limit') {
+          ui.toast(`One ${META.BOOSTER_NAMES[item]} a day from the Shop: come back tomorrow.`);
+          return Promise.resolve(false);
+        }
         if (gold < price) {
-          ui.toast(`You need ${price} Gold (you have ${gold}). Win new levels and finish Daily Challenges for more!`);
+          ui.toast(`You need ${price} Gold (you have ${gold}). Gold comes from hard levels, treasure, episodes and Daily Challenges.`);
           return Promise.resolve(false);
         }
         return ui.confirm({ id: 'confirm-buy', title: `Get ${META.BOOSTER_NAMES[item] || '+5 Moves'}?`, text: `${price} Gold (you have ${gold}).`, yes: 'Buy', no: 'Not now' });

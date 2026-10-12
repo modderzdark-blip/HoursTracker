@@ -641,9 +641,9 @@
     }
 
     function buyItem(item) {
-      return ui.confirmBuy(item, save().meta.gold).then((confirmed) => {
+      return ui.confirmBuy(item, save().meta.gold, META.buyBlock(save().meta, item, now())).then((confirmed) => {
         if (!confirmed) return false;
-        const bought = META.buy(save().meta, item);
+        const bought = META.buy(save().meta, item, now());
         if (bought) {
           sound('reward');
           persist();
@@ -1388,6 +1388,7 @@
         items: STORAGE.BOOSTERS.map((id) => ({
           id, name: META.BOOSTER_NAMES[id], price: META.PRICES[id], owned: META.boosterCount(meta, id),
           locked_at: isUnlocked(id) ? 0 : META.unlockOf(id).level,
+          sold_out: META.boughtToday(meta, id, now()) >= META.SHOP_DAILY_LIMIT,
         })),
       };
     }
@@ -1400,7 +1401,12 @@
             ui.toast(`${META.BOOSTER_NAMES[id]} unlocks at level ${META.unlockOf(id).level}`);
             return false;
           }
-          if (!META.buy(save().meta, id)) {
+          const block = META.buyBlock(save().meta, id, now());
+          if (block === 'limit') {
+            ui.toast(`One ${META.BOOSTER_NAMES[id]} a day: come back tomorrow.`);
+            return false;
+          }
+          if (block || !META.buy(save().meta, id, now())) {
             ui.toast(`You need ${META.PRICES[id]} Gold (you have ${save().meta.gold}).`);
             return false;
           }

@@ -91,6 +91,7 @@ test('a loss offers +5 Moves for Gold; giving up costs a heart; Try again restar
   const moves = await H.levelMoves(page, 10);
   await page.evaluate(() => {
     window.SC.game.logic.moves_left = 1;
+    window.SC.game.store.save.meta.gold = 100; // a new player starts with 20: +5 Moves costs 60
   });
   await H.swipeMove(page, (await H.snapshot(page)).move);
   await H.waitForModal(page, 'lose', 60000);
@@ -128,10 +129,10 @@ test('hearts: out of hearts shows a countdown, a refill for Gold only when affor
   await H.waitForModal(page, 'hearts');
   await expect(page.locator('#hearts-countdown')).toContainText('Next heart in');
   await expect(page.locator('#btn-hearts-refill')).toHaveCount(0);
-  await expect(page.locator('[data-modal="hearts"]')).toContainText('40 Gold');
+  await expect(page.locator('[data-modal="hearts"]')).toContainText('60 Gold');
   await page.click('#btn-hearts-ok');
   expect(await page.evaluate(() => window.SC.game.store.save.settings.unlimited_hearts)).toBeUndefined();
-  await page.evaluate(() => { window.SC.game.store.save.meta.gold = 55; });
+  await page.evaluate(() => { window.SC.game.store.save.meta.gold = 75; });
   await page.click('.map-node[data-level-id="3"]', { force: true });
   await H.waitForModal(page, 'hearts');
   await page.click('#btn-hearts-refill');
@@ -451,13 +452,46 @@ test('the map handles 20,000 levels: at most 60 live nodes from level 1 to 19,00
   await expect(page.locator('.map-node[data-level-id="5000"]')).toBeVisible();
   await page.click('#btn-map-mine');
   await expect(page.locator('.map-node[data-level-id="19000"]')).toBeVisible({ timeout: 5000 });
-  // The banner of the episode that starts at level 18,991 stands on its cloud seam, in front of the horizon.
+  // The banner of the episode that starts at level 18,991 stands just before its door, in front of the horizon.
   await page.evaluate(() => window.SC.game.map.jumpTo(18991, false));
   await expect(page.locator('.map-episode').filter({ visible: true }).first()).toContainText('Levels 18991-19005');
   require('node:fs').mkdirSync('qa', { recursive: true });
   require('node:fs').writeFileSync('qa/map-scale.json', JSON.stringify({ save: load_ms, samples }, null, 2));
   H.expectClean(problems);
 });
+
+for (const mode of ['gpu', '2d']) {
+  test(`the map world draws ${mode === 'gpu' ? 'with WebGL where the browser has it' : 'on the 2D canvas without WebGL'}; scrolling up five episodes paints each land about once`, async ({ page }) => {
+    test.setTimeout(120000);
+    const problems = H.guardPage(page);
+    if (mode === '2d') await page.addInitScript(() => { window.SC_MAP_2D = true; });
+    await H.bootGame(page, { name: '' });
+    await H.seedSave(page, { unlocked: 121, stars_upto: 120 });
+    await page.click('#btn-play');
+    await H.waitState(page, 'MAP');
+    const renderer = await page.evaluate(() => window.SC.game.map.renderer);
+    if (mode === '2d') expect(renderer).toBe('2d');
+    else expect(['webgl2', 'webgl', '2d']).toContain(renderer);
+    await page.evaluate(() => window.SC.game.map.jumpTo(16, false));
+    await page.waitForTimeout(500);
+    const before = await page.evaluate(() => window.SC.game.map.landsPainted);
+    // About five episodes up (an episode's land is about 1,500 map px), a frame at a time.
+    for (let step = 0; step < 150; step += 1) {
+      await page.evaluate(() => new Promise((resolve) => {
+        document.getElementById('map-scroll').scrollTop -= 50;
+        requestAnimationFrame(() => resolve());
+      }));
+    }
+    await page.waitForTimeout(1000);
+    const painted = (await page.evaluate(() => window.SC.game.map.landsPainted)) - before;
+    expect(painted).toBeGreaterThanOrEqual(4);
+    expect(painted).toBeLessThanOrEqual(9);
+    expect(await page.evaluate(() => window.SC.game.map.scenerySize)).toBeLessThanOrEqual(3);
+    expect((await H.snapshot(page)).map_live_nodes).toBeLessThanOrEqual(60);
+    await expect(page.locator('.map-episode').filter({ visible: true }).first()).toBeVisible();
+    H.expectClean(problems);
+  });
+}
 
 test('Daily Wheel spins once per day; the Shop sells boosters for Gold; the avatar opens your progress', async ({ page }) => {
   const problems = H.guardPage(page);
@@ -477,19 +511,21 @@ test('Daily Wheel spins once per day; the Shop sells boosters for Gold; the avat
   await expect(page.locator('#btn-wheel-spin').last()).toBeDisabled();
   await page.evaluate(() => window.SC.game.handleBack());
   await expect(page.locator('#btn-map-chest')).toHaveCount(0);
-  // The Shop: Gold buys a booster that is unlocked; a locked one only says when it unlocks.
-  await page.evaluate(() => { window.SC.game.store.save.meta.gold = 100; });
+  // The Shop: Gold buys a booster that is unlocked, one of each a day; a locked one only says when it unlocks.
+  await page.evaluate(() => { window.SC.game.store.save.meta.gold = 200; });
   await page.click('#btn-map-shop');
   await H.waitForModal(page, 'shop');
-  await expect(page.locator('#shop-gold')).toHaveText('100');
+  await expect(page.locator('#shop-gold')).toHaveText('200');
   const hammers = await page.evaluate(() => window.SC.game.store.save.meta.boosters.hammer);
   await page.click('#shop-buy-hammer');
-  await expect(page.locator('#shop-gold')).toHaveText('40');
+  await expect(page.locator('#shop-gold')).toHaveText('110');
   expect(await page.evaluate(() => window.SC.game.store.save.meta.boosters.hammer)).toBe(hammers + 1);
+  await expect(page.locator('#shop-buy-hammer')).toBeDisabled();
+  await expect(page.locator('#shop-buy-hammer')).toContainText('Tomorrow');
   await page.click('#shop-buy-party');
-  expect(await page.evaluate(() => window.SC.game.store.save.meta.gold)).toBe(40);
+  expect(await page.evaluate(() => window.SC.game.store.save.meta.gold)).toBe(110);
   await page.evaluate(() => window.SC.game.handleBack());
-  await expect(page.locator('#map-gold-count')).toHaveText('40');
+  await expect(page.locator('#map-gold-count')).toHaveText('110');
   await page.click('#map-avatar');
   await H.waitForModal(page, 'profile');
   await expect(page.locator('[data-modal="profile"]')).toContainText('Levels won');

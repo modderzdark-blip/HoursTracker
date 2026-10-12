@@ -45,15 +45,20 @@ The repository is public, so you don't need to sign in to download.
   shaded lazily into a cache sized to the board, so the first special of a level never stalls an animation.
 * **Map:** like the original's map today: a wide candy road winds up a round world that rolls as you scroll (the land
   near you is big and flat, further up it curves over a round horizon into the sky, with clouds by day and moon and stars
-  over the night lands). Big landmarks line the road (caramel towers, candy shops, chocolate stacks, giant lollipops and
-  candy canes) among round trees, gumdrops and ponds across 12 scenery families, with cloud seams and a ribbon banner
-  between episodes. Levels you have won are pink candy discs, first-try wins orange candy balls with a crown, the level
+  over the night lands). Each episode has its own clean, flat-colour land with big one-of-a-kind set pieces beside the
+  road (cottages, mushroom houses, windmills, cupcake and teapot houses, candy towers, igloos, lighthouses, a carousel,
+  palms and pines), lamp posts and small props, across 12 scenery families; no two set pieces repeat inside an episode.
+  Episodes meet at a **door**, in turn: wooden stairs up a cliff, a river with stepping stones, a plank bridge over a
+  gorge, or a candy fence with a gate arch, with the next episode's ribbon banner just before it. Levels you have won are pink candy discs, first-try wins orange candy balls with a crown, the level
   to play a big glowing ball, levels ahead pale discs; Hard levels are purple and Super Hard red, with stars in a smile
   below. Your avatar (your photo, else your initial) floats on a pin above your level and hops to the next after a win.
   A pink top bar shows hearts, your avatar (tap it for your progress: levels, stars, crowns, Sweet Streak) and Gold; the
   Daily Wheel waits at the side with its timer; the bottom menu has Map, Daily, Shop and Find (go to any level), and a
   round button brings you back to your level. Only the nodes near the screen exist (at most about 60) and only the
-  visible lands are painted, so the map is as light at level 19,000 as at level 1.
+  visible lands are painted, so the map is as light at level 19,000 as at level 1. The world is drawn with **WebGL** at
+  the screen's full sharpness in a few draw calls a frame (lands are painted by a background worker and reach the GPU a
+  slice per frame, so scrolling into a new episode does not stall); phones without WebGL get the same map on a 2D
+  canvas. The board and candies also render at the phone's full pixel density (up to 3×).
 * **Mechanics:** jelly (1–2 layers), frosting (1–5 layers), Sugar Cage, Cocoa Creep, Fuse Candy, portals,
   Sugar Belts, cherries and hazelnuts with exit trays, **Taffy Swirl** (falls like a candy but never matches; a match
   beside it or a blast breaks it, and it stops a striped candy's beam), **Gift Box** (falls; opens into a special
@@ -89,7 +94,7 @@ The repository is public, so you don't need to sign in to download.
 * **Stars, crowns and mastery:** meeting the goals is worth 3 stars. A first-try win earns a **Gold Crown**; a first-try
   win with 5 or more moves to spare is **Sweet Mastery** ("Sweet Combo! Mastery on the first try!", a sparkle on the
   map). **Hard** levels are purple and **Super Hard** ones crimson (skull badge on the map, the level popup and the start
-  ribbon); beating one for the first time says so and pays +5 / +10 Gold. Every 5th level (not the episode
+  ribbon); beating one for the first time says so and pays +2 / +4 Gold. Every 5th level (not the episode
   finales, which have their own reward) holds a **treasure chest** on the map that opens on the first win.
 * **Difficulty:** made to grind, like the original (matched to Candy Crush Saga player data: openers passed on about
   62% of tries, ordinary levels 20–45%, hard ones 4–14%, the episode's last level about 4%). Episode 1 is the on-ramp;
@@ -113,12 +118,13 @@ The repository is public, so you don't need to sign in to download.
   sparkles, combos and bursting cakes punch the board in with a flash, every popped candy leaves a ring, and the candies
   and blockers a goal counts fly up to its counter.
 * **Meta game:** Hearts (5; a loss costs one and one refills every 30 minutes, like the original; there are no
-  unlimited hearts). **Gold** (a shiny gold bar) is scarce: a few bars for each new level won (1 per new star, 2 for the
-  win, 2 for a Gold Crown, 3 for Sweet Mastery, 5 / 10 for a Hard / Super Hard level), plus treasure, Daily Challenges
-  (5–15), the Daily Wheel (5–20) and episode rewards; a new player starts with 60. Spend it on **+5 Moves** when you run
-  out (60, then 90, 140, 190, 240 within one attempt) or in the **Shop**: a full set of hearts (40) and every booster
-  (Sweet Hammer, Free Swap, Candy Whirl, Candy Brush and Sugar Party in a level; Lucky Start, Rainbow Start and Head
-  Start before one). Everything is earned in play; nothing is sold for money.
+  unlimited hearts). **Gold** (a shiny gold bar) is rare, like the original's gold bars: an ordinary level pays none;
+  Gold comes only from a Hard / Super Hard level's first win (2 / 4), map treasure (3), a finished episode (5 and a
+  booster), Daily Challenges (2–3 each, 5 for the bonus box) and the Daily Wheel (2–5); a new player starts with 20.
+  Spend it on **+5 Moves** when you run out (60, then 100, 150, 200, 250 within one attempt) or in the **Shop**: a full
+  set of hearts (60) and boosters for 60–180 Gold, **one of each a day** (Sweet Hammer, Free Swap, Candy Whirl, Candy
+  Brush and Sugar Party in a level; Lucky Start, Rainbow Start and Head Start before one). Everything is earned in play;
+  nothing is sold for money.
 * **Progression** (paced on the original's first episodes, `META.UNLOCKS`): boosters and features unlock one at a time
   as you advance, with a popup, free boosters and a hand pointer that shows how to use each new booster in the next
   level: Sweet Hammer at level 7 (3 free), Rainbow Start 10 (2), Daily Wheel 12, Free Swap 16 (3), Lucky
@@ -129,7 +135,7 @@ The repository is public, so you don't need to sign in to download.
   candies already on the board: 1 striped; then striped + wrapped; then + a Rainbow Drop; then 2 striped, wrapped,
   Rainbow Drop and +2 moves; from 5 wins on, 2 striped, 2 wrapped, a Rainbow Drop and +3 moves. Losing, restarting or
   quitting a new level ends the streak (the game warns you first); replays never count.
-* **Gold Crowns:** a level won on its very first attempt becomes an orange candy ball with a crown on the map (+2 Gold).
+* **Gold Crowns:** a level won on its very first attempt becomes an orange candy ball with a crown on the map.
 * **Episodes:** clearing an episode's last level for the first time shows the episode's stars and crowns and pays a
   reward (Gold plus a booster), then the map moves on to the next episode.
 * **Level start and end:** the candies drop onto the board while a ribbon sweeps across with the goals. A win plays
@@ -182,8 +188,10 @@ They load one after another once a level starts (not while the map opens); Setti
 
 Game code is plain script files loaded in order, each one labelled section on `window.SC`:
 `config.js`, `util.js`, `logic.js` (LOGIC: pure and DOM-free), `levels/manifest.js` + `levels.js` (LEVELS: lazy packs),
-`audio.js`, `sprites.js` (the shader), `scenery.js`, `pip.js`, `render.js`, `storage.js`, `meta.js` (hearts, gold,
-boosters, wheel, streak, chest), `selftest.js`, `ui.js`, `map.js`, `input.js`, `game.js` (state machine: TITLE → MAP →
+`audio.js`, `sprites.js` (the shader), `scenery.js`, `mapart.js` (the map's set pieces, ground, road and doors),
+`mapgl.js` (the map's WebGL drawer), `pip.js`, `render.js`, `storage.js`, `meta.js` (hearts, gold, boosters, wheel,
+streak, chest), `selftest.js`, `ui.js`, `map.js` (it starts `mapworker.js`, which paints lands off the main thread),
+`input.js`, `game.js` (state machine: TITLE → MAP →
 INTRO → STARTING → PLAYING → RESOLVING → WON/LOST, plus PAUSED) and `boot.js`.
 
 **Architecture rule:** `LOGIC.applySwap(state, from, to)` computes the full result of a move instantly and

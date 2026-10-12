@@ -194,7 +194,7 @@
     let angle = 0;
     let frame = 0;
     let running = false;
-    const ratio = Math.min(2.5, root.devicePixelRatio || 1);
+    const ratio = Math.min(3, root.devicePixelRatio || 1);
     canvas.width = Math.round(size_px * ratio);
     canvas.height = Math.round(size_px * 1.15 * ratio);
     canvas.style.width = `${size_px}px`;

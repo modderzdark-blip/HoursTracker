@@ -203,7 +203,8 @@
 
     // ---------------------------------------------------------------- layout
     function resizeCanvas(view_w, view_h, device_ratio) {
-      const ratio = Math.min(2.5, Math.max(1, device_ratio || 1));
+      // The phone's own pixel density (up to 3), so candies and the board are as sharp as the screen allows.
+      const ratio = Math.min(3, Math.max(1, device_ratio || 1));
       layout.dpr = ratio;
       layout.view_w = view_w;
       layout.view_h = view_h;
@@ -2438,7 +2439,7 @@
 
     return {
       resize(width, height, device_ratio) {
-        const next = { width, height, dpr: Math.min(2, device_ratio || 1) };
+        const next = { width, height, dpr: Math.min(2.5, device_ratio || 1) };
         if (next.width === view.width && next.height === view.height && next.dpr === view.dpr && layers) return;
         view = next;
         bg_canvas.width = Math.round(width * view.dpr);
