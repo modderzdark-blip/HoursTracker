@@ -326,28 +326,36 @@
 
       // ------------------------------------------------------------ map bar (hearts, Gold, wheel, daily)
       setMapStatus(status) {
+        // Called every second while the map is open (the heart timer): only what changed is written, so the top bar
+        // is not repainted (and its pictures not reloaded) for nothing.
+        const text = (id, value) => {
+          const node = by_id(id);
+          if (node && node.textContent !== value) node.textContent = value;
+        };
+        const attr = (node, name, value) => {
+          if (node && node.getAttribute(name) !== value) node.setAttribute(name, value);
+        };
         const hearts_chip = by_id('map-hearts');
-        by_id('map-hearts-icon').src = HEART_BADGE_URL;
-        by_id('map-gold-icon').src = SPRITES.iconUrl('gold', 56);
-        by_id('map-hearts-count').textContent = String(status.hearts);
-        by_id('map-hearts-timer').textContent = status.hearts < META.MAX_HEARTS ? formatClock(status.next_heart_ms) : 'Full';
-        hearts_chip.setAttribute('aria-label', `${status.hearts} of ${META.MAX_HEARTS} hearts${status.hearts < META.MAX_HEARTS ? `, next in ${formatClock(status.next_heart_ms)}` : ''}`);
-        by_id('map-gold-count').textContent = String(status.gold);
-        by_id('map-gold').setAttribute('aria-label', `${status.gold} Gold`);
+        attr(by_id('map-hearts-icon'), 'src', HEART_BADGE_URL);
+        attr(by_id('map-gold-icon'), 'src', SPRITES.iconUrl('gold', 56));
+        text('map-hearts-count', String(status.hearts));
+        text('map-hearts-timer', status.hearts < META.MAX_HEARTS ? formatClock(status.next_heart_ms) : 'Full');
+        attr(hearts_chip, 'aria-label', `${status.hearts} of ${META.MAX_HEARTS} hearts${status.hearts < META.MAX_HEARTS ? `, next in ${formatClock(status.next_heart_ms)}` : ''}`);
+        text('map-gold-count', String(status.gold));
+        attr(by_id('map-gold'), 'aria-label', `${status.gold} Gold`);
         const wheel = by_id('btn-map-wheel');
-        wheel.hidden = !!status.wheel_locked;
+        if (wheel.hidden !== !!status.wheel_locked) wheel.hidden = !!status.wheel_locked;
         wheel.classList.toggle('is-ready', status.wheel_ready && !status.wheel_locked);
-        wheel.setAttribute('aria-label', status.wheel_ready ? 'Daily Wheel: a free spin is ready' : 'Daily Wheel');
-        const caption = by_id('map-wheel-caption');
-        if (caption) caption.textContent = status.wheel_ready ? 'Spin!' : formatHours(status.wheel_next_ms || 0);
+        attr(wheel, 'aria-label', status.wheel_ready ? 'Daily Wheel: a free spin is ready' : 'Daily Wheel');
+        text('map-wheel-caption', status.wheel_ready ? 'Spin!' : formatHours(status.wheel_next_ms || 0));
         fillAvatar(by_id('map-avatar-face'), status.avatar);
         fillAvatar(by_id('map-mine-face'), status.avatar);
         const daily = by_id('btn-map-daily');
         daily.classList.toggle('is-locked', !!status.daily_locked);
         daily.classList.toggle('is-ready', status.daily_claimable > 0 && !status.daily_locked);
-        if (status.daily_claimable > 0) daily.setAttribute('data-count', String(status.daily_claimable));
-        else daily.removeAttribute('data-count');
-        daily.setAttribute('aria-label', status.daily_claimable > 0 ? `Daily Challenges: ${status.daily_claimable} reward${status.daily_claimable === 1 ? '' : 's'} to collect` : 'Daily Challenges');
+        if (status.daily_claimable > 0) attr(daily, 'data-count', String(status.daily_claimable));
+        else if (daily.hasAttribute('data-count')) daily.removeAttribute('data-count');
+        attr(daily, 'aria-label', status.daily_claimable > 0 ? `Daily Challenges: ${status.daily_claimable} reward${status.daily_claimable === 1 ? '' : 's'} to collect` : 'Daily Challenges');
       },
 
       // ------------------------------------------------------------ HUD

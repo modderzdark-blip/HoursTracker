@@ -843,12 +843,14 @@ input[type="range"] { width: 130px; height: 36px; accent-color: var(--btn2); }
   border-radius: 0 0 24px 24px;
   box-shadow: inset 0 -3px 0 rgba(255, 255, 255, 0.7), 0 4px 0 #e889bd, 0 8px 18px rgba(80, 10, 60, 0.25);
 }
+/* No CSS filters in the top bar or the menu: the bar repaints every second (the heart timer), and on a slow phone's GPU
+   every filtered picture costs an extra pass on each repaint. */
 .topbar-round {
   position: relative; width: 44px; height: 44px; border-radius: 50%; border: 0; display: grid; place-items: center; color: #fff; cursor: pointer;
   background: radial-gradient(ellipse 60% 30% at 50% 22%, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 70%), radial-gradient(circle at 50% 35%, #ff8cc6, #e8418f);
   box-shadow: 0 0 0 2px #ffffff, 0 3px 0 2px #a3205f, 0 6px 10px rgba(60, 10, 50, 0.25);
 }
-.topbar-round svg { width: 24px; height: 24px; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.2)); }
+.topbar-round svg { width: 24px; height: 24px; }
 .topbar-round:active { transform: translateY(2px); }
 .topbar-chip {
   position: relative; min-width: 0; height: 44px; display: flex; align-items: center; justify-content: flex-end; gap: 4px;
@@ -856,7 +858,7 @@ input[type="range"] { width: 130px; height: 36px; accent-color: var(--btn2); }
   background: linear-gradient(180deg, #ffffff, #fff0f7); color: #6b2a4f; font-weight: 900; font-size: 20px; font-variant-numeric: tabular-nums;
   box-shadow: inset 0 -3px 0 #f2c6dd, 0 2px 0 rgba(163, 32, 95, 0.35);
 }
-.topbar-chip img { position: absolute; left: -8px; top: 50%; width: 48px; height: 48px; transform: translateY(-50%); filter: drop-shadow(0 2px 2px rgba(80, 10, 60, 0.3)); }
+.topbar-chip img { position: absolute; left: -8px; top: 50%; width: 48px; height: 48px; transform: translateY(-50%); }
 .topbar-chip small { font-size: 15px; font-weight: 900; color: #b0306e; white-space: nowrap; }
 .topbar-chip:active { transform: translateY(2px); }
 .chip-hearts .chip-heart-count {
@@ -898,7 +900,7 @@ input[type="range"] { width: 130px; height: 36px; accent-color: var(--btn2); }
 .nav-tab { position: relative; min-height: 62px; border: 0; border-radius: 18px; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #7a2c58; cursor: pointer; }
 .nav-tab.is-active { background: linear-gradient(180deg, #fff6fb, #ffe0ef); box-shadow: inset 0 -3px 0 #f2b9d7, 0 2px 6px rgba(80, 10, 60, 0.15); }
 .nav-glyph { width: 36px; height: 36px; display: grid; place-items: center; }
-.nav-glyph svg { width: 34px; height: 34px; filter: drop-shadow(0 2px 1px rgba(80, 10, 60, 0.25)); }
+.nav-glyph svg { width: 34px; height: 34px; }
 .nav-label { font-size: 13px; font-weight: 900; }
 .nav-tab:active { transform: translateY(2px); }
 .nav-tab.has-badge.is-ready[data-count]::after {
