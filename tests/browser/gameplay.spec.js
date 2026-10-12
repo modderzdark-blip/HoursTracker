@@ -496,7 +496,7 @@ test('Daily Wheel spins once per day; the Shop sells boosters for Gold; the avat
   H.expectClean(problems);
 });
 
-test('the announcer: its voice clips load after the first tap, praise words are our own, and Settings → Voice turns it off', async ({ page }) => {
+test('the announcer: its voice clips load on the board after the first tap, praise words are our own, and Settings → Voice turns it off', async ({ page }) => {
   const problems = H.guardPage(page);
   await H.bootGame(page, { name: '' });
   await page.mouse.click(195, 420);

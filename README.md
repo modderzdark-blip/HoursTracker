@@ -165,8 +165,8 @@ The music is a real arrangement that loops: a bouncy level tune (marimba lead, p
 and a shaker) and a gentle map tune (celesta, harp, pad). **Settings → Sound Check** plays a sample; Overall, Effects
 and Music volume have their own sliders, and **Soft Sounds** rounds off the top for a mellower mix. The only recorded
 audio is the announcer: six short clips of our praise words (`www/audio/voice`, about 40 KB in all), made with the
-open Kokoro-82M text-to-speech model (Apache-2.0) by `scripts/voice/make-voice.py` (a deep voice, a little room);
-Settings → Voice turns it off.
+open Kokoro-82M text-to-speech model (Apache-2.0) by `scripts/voice/make-voice.py` (a deep voice, a little room).
+They load one after another once a level starts (not while the map opens); Settings → Voice turns it off.
 
 ## How it is built
 

@@ -1018,25 +1018,43 @@
       ensureMusic();
     }
 
-    // The announcer: short recorded clips of our own praise words (www/audio/voice, made by scripts/voice), decoded once
-    // the audio is unlocked. One clip at a time; the music dips under it.
+    // The announcer: short recorded clips of our own praise words (www/audio/voice, made by scripts/voice). They are only
+    // needed on the board, so they load once a level has started (prepareVoice) and the audio is unlocked, one clip
+    // after another: decoding all six at once on the first tap stalled a slow phone while the map was opening. One
+    // clip plays at a time; the music dips under it.
     const VOICE_CLIPS = ['sweet', 'yummy', 'scrumptious', 'sensational', 'sugarstorm', 'finale'];
+    const VOICE_GAP_MS = 250;
     const voice_buffers = {};
+    let voice_wanted = false;
     let voice_loading = false;
     let voice_source = null;
 
+    function prepareVoice() {
+      voice_wanted = true;
+      loadVoice();
+    }
+
     function loadVoice() {
-      if (voice_loading || !context || typeof fetch !== 'function') return;
+      if (voice_loading || !voice_wanted || !settings.voice_on || !context || typeof fetch !== 'function') return;
+      const queue = VOICE_CLIPS.filter((clip) => !voice_buffers[clip]);
+      if (!queue.length) return;
       voice_loading = true;
-      VOICE_CLIPS.forEach((clip) => {
+      const next = () => {
+        const clip = queue.shift();
+        if (!clip) {
+          voice_loading = false;
+          return;
+        }
         fetch(`audio/voice/${clip}.ogg`)
           .then((response) => (response.ok ? response.arrayBuffer() : Promise.reject(new Error(`voice ${clip}: ${response.status}`))))
           .then((data) => new Promise((resolve, reject) => context.decodeAudioData(data, resolve, reject)))
           .then((buffer) => {
             voice_buffers[clip] = buffer;
           })
-          .catch(() => {});
-      });
+          .catch(() => {})
+          .then(() => setTimeout(next, VOICE_GAP_MS));
+      };
+      next();
     }
 
     function say(clip) {
@@ -1145,6 +1163,7 @@
       unlock,
       play,
       say,
+      prepareVoice,
       soundCheck,
       setSettings(next_settings) {
         const music_was_on = settings.music_on;
@@ -1154,6 +1173,7 @@
         if (settings.music_on && !music_was_on) ensureMusic();
         if (!settings.music_on) stopMusic(true);
         if (soft_before !== settings.soft_sounds && context) applyVolumes();
+        loadVoice();
       },
       /** 'title', 'map', 'level' or null: the track for the current screen. */
       setMusic(mode) {

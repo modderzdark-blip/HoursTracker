@@ -701,6 +701,7 @@
       paused_from = null;
       native.keepAwake(true);
       audio.setMusic('level');
+      audio.prepareVoice();
       if (level.tutorial && !level.guide && !save().tutorials_seen[level_id]) {
         tutorial_active = true;
         ui.keepTutorial(false);
