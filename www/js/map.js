@@ -126,6 +126,8 @@
     let prefetch_timer = 0;
     // Detail: on a phone too slow to scroll the curved world smoothly, the map canvas drops to one pixel per CSS pixel.
     let light = false;
+    let land_budget = 1; // lands a frame may still paint (see landNow)
+    let land_waiting = false;
     let slow_ms = 0;
     let last_frame = 0;
     let generation = 0;
@@ -360,7 +362,8 @@
       const cell_h = size * 2.35;
       const columns = Math.min(6, Math.max(1, kinds.length * variants + (with_puff ? 1 : 0)));
       const count = kinds.length * variants + (with_puff ? 1 : 0);
-      const ratio = Math.min(2, Math.max(1.5, root.devicePixelRatio || 1));
+      // As sharp as the map canvas they are drawn into (no sharper: on a slow phone every sheet pixel costs memory).
+      const ratio = Math.min(1.5, root.devicePixelRatio || 1);
       const canvas = SPRITES.createCanvas(Math.ceil(columns * cell_w * ratio), Math.ceil(Math.ceil(count / columns) * cell_h * ratio));
       const ctx = canvas.getContext('2d');
       ctx.scale(ratio, ratio);
@@ -629,6 +632,21 @@
       return canvas;
     }
 
+    /**
+     * An episode's land for this frame. Painting a land is the costly part of the map, so a frame paints at most one
+     * (the nearest first); a land still waiting shows its plain ground colour and is painted on the next frames. On a
+     * slow phone this keeps opening or flinging the map from one long stall that holds up taps.
+     */
+    function landNow(episode) {
+      if (scenery_cache.has(Math.max(0, episode))) return sceneryFor(episode);
+      if (land_budget > 0) {
+        land_budget -= 1;
+        return sceneryFor(episode);
+      }
+      land_waiting = true;
+      return null;
+    }
+
     /** One strip of the land, from the cached episode canvases onto its place on the curve. */
     function paintStrip(ctx, strip, scroll_top) {
       const top = scroll_top + world.anchor - strip.s_high;
@@ -641,10 +659,16 @@
         const episode = episodeAtY(y + 0.001);
         const block_top = blockTop(episode);
         const part_bottom = Math.min(bottom, block_top + block);
-        const entry = sceneryFor(episode);
-        const ratio = entry.ratio;
+        const entry = landNow(episode);
         const y0 = strip.y_top + (strip.y_bottom - strip.y_top) * ((y - top) / span);
         const y1 = strip.y_top + (strip.y_bottom - strip.y_top) * ((part_bottom - top) / span);
+        if (!entry) {
+          ctx.fillStyle = SCENERY.landFor(landScenery(episode)).ground;
+          ctx.fillRect(world.view_w / 2 - half * strip.k, y0, half * 2 * strip.k, y1 - y0 + 0.6);
+          y = part_bottom;
+          continue;
+        }
+        const ratio = entry.ratio;
         const source_y = Math.max(0, (y - block_top) * ratio);
         const source_h = Math.max(0.5, Math.min(entry.canvas.height - source_y, (part_bottom - y) * ratio));
         ctx.drawImage(entry.canvas, (world.land_w / 2 - half) * ratio, source_y, half * 2 * ratio, source_h, world.view_w / 2 - half * strip.k, y0, half * 2 * strip.k, y1 - y0 + 0.6);
@@ -672,7 +696,8 @@
       const far = episodeAtY(span.top);
       const near = episodeAtY(span.bottom);
       for (let episode = far; episode >= near; episode -= 1) {
-        const entry = sceneryFor(episode);
+        const entry = landNow(episode);
+        if (!entry) continue;
         const sheets = entry.sprites;
         const block_top = blockTop(episode);
         const items = entry.standing;
@@ -715,6 +740,9 @@
       const ctx = canvas.getContext('2d');
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
       const scroll_top = dom.map_scroll.scrollTop;
+      land_budget = 1;
+      land_waiting = false;
+      landNow(episodeAtY(scroll_top + world.anchor)); // the land nearest the eye, which fills most of the screen
       // No clear needed: the strips cover the land from the bottom edge to the horizon and the sky covers the rest.
       world.strips.forEach((strip) => paintStrip(ctx, strip, scroll_top));
       paintStanding(ctx, scroll_top);
@@ -725,6 +753,7 @@
         ctx.drawImage(skyFor(true), 0, 0, view_w, world.sky_h);
         ctx.globalAlpha = 1;
       }
+      if (land_waiting) onScroll();
       schedulePrefetch();
     }
 

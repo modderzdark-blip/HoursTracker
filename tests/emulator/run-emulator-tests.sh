@@ -57,6 +57,8 @@ fail() {
   adb logcat -d 2>/dev/null | grep -E "Killing [0-9]+:$PKG/.*depends on provider" | tail -1 | sed 's/^/CAUSE: /' | tee -a "$OUT/summary.txt"
   shot "failure"
   adb logcat -d > "$OUT/logcat-at-failure.txt" 2>/dev/null
+  # An ANR's thread stacks (the app's main thread first) go to /data/anr, not to logcat; the emulator image allows su.
+  timeout 30 adb shell "su 0 sh -c 'f=\$(ls -t /data/anr/anr_* 2>/dev/null | head -1); [ -n \"\$f\" ] && cat \"\$f\"'" > "$OUT/anr-trace.txt" 2>&1 || true
   cp "$HOOK_LOG" "$OUT/hook-at-failure.log" 2>/dev/null
   echo "EMULATOR TESTS: FAILED" | tee -a "$OUT/summary.txt"
   exit 1
