@@ -14,6 +14,25 @@ METRICS="$OUT/metrics.txt"
 : > "$METRICS"
 
 log() { echo "[$(date +%H:%M:%S)] $*"; }
+# Run 56's emulator stopped answering adb in the middle of the run: a logcat dump never returned and the job sat
+# for 26 minutes until the step timed out, with no failure report. Every adb call is now bounded; after one times
+# out, the device counts as gone (a marker file, so command substitutions see it too) and the run fails at once.
+ADB_DEAD="$OUT/adb-unresponsive.txt"
+rm -f "$ADB_DEAD"
+adb() {
+  [ -e "$ADB_DEAD" ] && return 124
+  local limit="${ADB_TIMEOUT:-300}" status
+  timeout --kill-after=5 "$limit" adb "$@"
+  status=$?
+  if [ "$status" -eq 124 ] || [ "$status" -eq 137 ]; then
+    echo "adb $* gave no answer within ${limit}s ($(date +%H:%M:%S))" >> "$ADB_DEAD"
+  fi
+  return "$status"
+}
+fail_if_device_gone() {
+  [ -e "$ADB_DEAD" ] && fail "the emulator stopped answering adb: $(head -1 "$ADB_DEAD")"
+  return 0
+}
 pass() { echo "PASS: $*" | tee -a "$OUT/summary.txt"; }
 metric() { echo "$1=$2" | tee -a "$METRICS"; }
 fail() {
@@ -33,6 +52,7 @@ app_alive() { adb shell pidof "$PKG" >/dev/null 2>&1; }
 ensure_app_focused() {
   local attempt focus
   for attempt in $(seq 1 12); do
+    fail_if_device_gone
     # Every display reports its own mCurrentFocus (the launcher's comes first on API 34): look at all of them.
     focus=$(adb shell dumpsys window 2>/dev/null | grep 'mCurrentFocus' | tr -d '\r' | tr '\n' ' ')
     case "$focus" in
@@ -49,14 +69,15 @@ ensure_app_focused() {
   log "game window not focused before input: $focus"
 }
 dump_hook() {
-  adb logcat -d -s 'Capacitor/Console:*' 2>/dev/null | grep 'SCTEST ' | tail -n 5 > "$HOOK_LOG"
-  if [ ! -s "$HOOK_LOG" ]; then adb logcat -d 2>/dev/null | grep 'SCTEST ' | tail -n 5 > "$HOOK_LOG"; fi
+  ADB_TIMEOUT=60 adb logcat -d -s 'Capacitor/Console:*' 2>/dev/null | grep 'SCTEST ' | tail -n 5 > "$HOOK_LOG"
+  if [ ! -s "$HOOK_LOG" ]; then ADB_TIMEOUT=60 adb logcat -d 2>/dev/null | grep 'SCTEST ' | tail -n 5 > "$HOOK_LOG"; fi
 }
 q() { dump_hook; node tests/emulator/hook.mjs "$HOOK_LOG" "$1"; }
 wait_for() { # expression, timeout seconds, label
   local expression="$1" timeout="$2" label="$3" elapsed=0
   while [ "$elapsed" -lt "$timeout" ]; do
     if [ "$(q "$expression")" = "true" ]; then return 0; fi
+    fail_if_device_gone
     sleep 1
     elapsed=$((elapsed + 1))
   done
@@ -67,6 +88,7 @@ wait_until() { # expression, timeout seconds: like wait_for, but answers 1 inste
   local expression="$1" timeout="$2" elapsed=0
   while [ "$elapsed" -lt "$timeout" ]; do
     if [ "$(q "$expression")" = "true" ]; then return 0; fi
+    fail_if_device_gone
     sleep 1
     elapsed=$((elapsed + 1))
   done
@@ -549,7 +571,7 @@ log "Monkey: 3,000 random events on the release build"
 # seconds, and random events fired into that start-up can time out input dispatch without anything being wrong.
 sleep 8
 adb logcat -c
-adb shell monkey -p "$PKG" --throttle 60 --pct-syskeys 3 --pct-appswitch 2 -v -v 3000 > "$OUT/monkey.txt" 2>&1
+ADB_TIMEOUT=900 adb shell monkey -p "$PKG" --throttle 60 --pct-syskeys 3 --pct-appswitch 2 -v -v 3000 > "$OUT/monkey.txt" 2>&1
 grep -q "Monkey finished" "$OUT/monkey.txt" || fail "monkey did not finish"
 grep -qE "// CRASH|// NOT RESPONDING|ANR" "$OUT/monkey.txt" && fail "monkey found a crash or ANR"
 metric monkey_events_injected "$(grep -m1 'Events injected' "$OUT/monkey.txt" | awk -F': ' '{print $2}' | tr -d '\r')"
