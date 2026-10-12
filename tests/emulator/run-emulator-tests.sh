@@ -113,6 +113,32 @@ wait_until() { # expression, timeout seconds: like wait_for, but answers 1 inste
   return 1
 }
 fresh() { q 's.seq'; }
+# The hook's snapshot reaches logcat every 400 ms through the app's main thread, so how far the newest one lags the
+# device clock shows whether the app can take a tap right now. On this emulator's software GPU (every GL call crosses a
+# pipe to SwiftShader on the host) the first frames after a cold start, or after a fling across the map, can take
+# 2-8 s each (runs 58-62: "Davey! duration=8043ms"); a tap that lands inside one is reported as "not responding" and
+# the app is closed. Before such a tap or fling, wait until the lag stays at a second or less for 3 checks in a row.
+ui_lag_s() {
+  local now last
+  now=$(ADB_TIMEOUT=30 adb shell date +%s | tr -d '\r')
+  last=$(ADB_TIMEOUT=60 adb logcat -d -v epoch -s 'Capacitor/Console:*' 2>/dev/null | grep 'SCTEST ' | tail -1 | awk '{print int($1)}')
+  if [ -z "$now" ] || [ -z "$last" ]; then echo 999; else echo $((now - last)); fi
+}
+SETTLED_S=0
+wait_settled() { # limit in seconds, label; sets SETTLED_S to how long it took
+  local limit="$1" label="$2" start=$SECONDS calm=0 lag
+  while [ $((SECONDS - start)) -lt "$limit" ]; do
+    lag=$(ui_lag_s)
+    if [ "$lag" -le 1 ]; then calm=$((calm + 1)); else calm=0; fi
+    if [ "$calm" -ge 3 ]; then
+      SETTLED_S=$((SECONDS - start))
+      return 0
+    fi
+    fail_if_device_gone
+    sleep 1
+  done
+  fail "the app did not settle within ${limit}s ($label): its main thread stayed busy"
+}
 wait_fresh() { # wait until the hook reports a newer snapshot than $1
   local previous="$1"
   wait_for "s.seq > $previous" 20 "a fresh hook snapshot"
@@ -440,7 +466,8 @@ wait_for "s.ready && s.state === 'TITLE'" 60 "the title screen offline"
 sleep 1.5
 tap_button "btn-play"
 wait_for "s.state === 'MAP' && s.map_nodes['2'] !== undefined" 15 "the map offline"
-sleep 1
+wait_settled 90 "the map after a cold start"
+metric map_cold_start_settle_s "$SETTLED_S"
 tap_map_node 2
 wait_for "s.modal === 'intro'" 15 "the Level 2 intro"
 tap_button "btn-intro-play"
@@ -503,19 +530,23 @@ metric save_19000_parse_ms "$(node -e 'console.log(JSON.parse(require("fs").read
 wait_for "s.seq < $before_seed && s.ready && s.state === 'TITLE' && s.unlocked === 19000" 90 "the game to reload with the level-19,000 save"
 tap_button "btn-play"
 wait_for "s.state === 'MAP' && s.map_nodes['18999'] !== undefined" 30 "the map at level 19,000"
-sleep 2
+wait_settled 90 "the map at level 19,000"
+metric map_19000_settle_s "$SETTLED_S"
 shot "12b-map-level-19000"
 metric map_19000_live_nodes "$(q 's.map_live_nodes')"
 metric map_19000_rendered_range "$(q 'JSON.stringify(s.map_range)')"
 adb shell dumpsys gfxinfo "$PKG" reset > /dev/null
 adb shell dumpsys meminfo "$PKG" > "$OUT/meminfo-map-19000-start.txt"
 max_live=0
+fling_settle_total=0
 probe_device "map at level 19,000 before the flings"
 for fling in $(seq 1 12); do
   ensure_app_focused
   if [ $((fling % 4)) -lt 2 ]; then adb shell input swipe 540 700 540 1900 120; else adb shell input swipe 540 1900 540 700 120; fi
   sleep 1.2
   [ "$fling" -le 2 ] && probe_device "after fling $fling"
+  wait_settled 60 "after fling $fling"
+  fling_settle_total=$((fling_settle_total + SETTLED_S))
   live=$(q 's.map_live_nodes')
   [ "$live" -gt "$max_live" ] && max_live=$live
 done
@@ -523,6 +554,7 @@ adb shell dumpsys gfxinfo "$PKG" > "$OUT/gfxinfo-map-19000.txt"
 adb shell dumpsys meminfo "$PKG" > "$OUT/meminfo-map-19000.txt"
 shot "12c-map-level-19000-after-flings"
 metric map_19000_max_live_nodes_while_flinging "$max_live"
+metric map_19000_fling_settle_total_s "$fling_settle_total"
 metric map_19000_total_frames "$(grep -m1 'Total frames rendered' "$OUT/gfxinfo-map-19000.txt" | awk -F': ' '{print $2}' | tr -d '\r')"
 metric map_19000_janky_frames "$(grep -m1 'Janky frames:' "$OUT/gfxinfo-map-19000.txt" | awk -F': ' '{print $2}' | tr -d '\r')"
 metric map_19000_pss_kb "$(grep -m1 'TOTAL PSS:' "$OUT/meminfo-map-19000.txt" | awk '{print $3}')"
