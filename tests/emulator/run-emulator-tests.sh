@@ -29,8 +29,24 @@ adb() {
   fi
   return "$status"
 }
+# A quick look at the device with short limits (straight to the adb binary, so it still runs after a hang): load,
+# memory, the busiest processes, how many log lines arrive in 5 s and which tags they come from.
+probe_device() { # label
+  {
+    echo "== $1 ($(date +%H:%M:%S))"
+    timeout 10 adb shell 'echo alive; cat /proc/loadavg; head -4 /proc/meminfo' 2>&1
+    timeout 15 adb shell top -b -n 1 -m 10 2>&1 | head -22
+    timeout 6 adb logcat -T 1 > "$OUT/probe-live.txt" 2>&1
+    echo "log lines in 5 s: $(wc -l < "$OUT/probe-live.txt")"
+    awk '{print $5, $6}' "$OUT/probe-live.txt" | sort | uniq -c | sort -rn | head -8
+    head -40 "$OUT/probe-live.txt"
+  } >> "$OUT/device-probe.txt" 2>&1
+}
 fail_if_device_gone() {
-  [ -e "$ADB_DEAD" ] && fail "the emulator stopped answering adb: $(head -1 "$ADB_DEAD")"
+  if [ -e "$ADB_DEAD" ]; then
+    probe_device "adb stopped answering"
+    fail "the emulator stopped answering adb: $(head -1 "$ADB_DEAD")"
+  fi
   return 0
 }
 pass() { echo "PASS: $*" | tee -a "$OUT/summary.txt"; }
@@ -492,10 +508,12 @@ metric map_19000_rendered_range "$(q 'JSON.stringify(s.map_range)')"
 adb shell dumpsys gfxinfo "$PKG" reset > /dev/null
 adb shell dumpsys meminfo "$PKG" > "$OUT/meminfo-map-19000-start.txt"
 max_live=0
+probe_device "map at level 19,000 before the flings"
 for fling in $(seq 1 12); do
   ensure_app_focused
   if [ $((fling % 4)) -lt 2 ]; then adb shell input swipe 540 700 540 1900 120; else adb shell input swipe 540 1900 540 700 120; fi
   sleep 1.2
+  [ "$fling" -le 2 ] && probe_device "after fling $fling"
   live=$(q 's.map_live_nodes')
   [ "$live" -gt "$max_live" ] && max_live=$live
 done
