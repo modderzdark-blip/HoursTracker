@@ -73,6 +73,7 @@ export interface TestHookState {
   errors: number;
   activeTouches: number;
   joystickActive: boolean;
+  move: { x: number; y: number };
   debugOverlay: boolean;
 }
 
@@ -362,7 +363,15 @@ export class App {
     document.addEventListener('visibilitychange', onVisibility);
     const onPageHide = (): void => this.flushSave();
     window.addEventListener('pagehide', onPageHide);
+    // In portrait the rotate hint covers the game: pause so it doesn't simulate/render unseen.
+    // Same media query as the .rotate-hint CSS.
+    const portrait = window.matchMedia('(orientation: portrait) and (pointer: coarse)');
+    const onOrientation = (): void => {
+      if (portrait.matches && this.running) this.setPaused(true);
+    };
+    portrait.addEventListener('change', onOrientation);
     this.disposers.push(() => {
+      portrait.removeEventListener('change', onOrientation);
       window.removeEventListener('resize', onResize);
       window.removeEventListener('orientationchange', onResize);
       window.visualViewport?.removeEventListener('resize', onResize);
@@ -496,6 +505,7 @@ export class App {
           errors: this.opts.log.errorCount,
           activeTouches: this.touch.activeButtonCount,
           joystickActive: this.touch.joystickActive,
+          move: this.input.readMove({ x: 0, y: 0 }),
           debugOverlay: this.overlay.isVisible,
         };
       },
