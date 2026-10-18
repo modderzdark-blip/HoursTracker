@@ -16,7 +16,8 @@ export class DebugOverlay {
   private readonly text: HTMLPreElement;
   private visible = false;
   private lastRefresh = 0;
-  private readonly tapTimes: number[] = [];
+  private tapCount = 0;
+  private lastTapMs = Number.NEGATIVE_INFINITY;
   private readonly disposers: (() => void)[] = [];
   onToggle: ((visible: boolean) => void) | null = null;
 
@@ -76,16 +77,12 @@ export class DebugOverlay {
   private readonly onCornerTap = (e: PointerEvent): void => {
     const c = DEBUG_CONFIG.gestureCornerPx;
     if (e.clientX > c || e.clientY > c) return;
-    const now = performance.now();
-    this.tapTimes.push(now);
-    while (
-      this.tapTimes.length > 0 &&
-      now - (this.tapTimes[0] ?? 0) > DEBUG_CONFIG.gestureWindowMs
-    ) {
-      this.tapTimes.shift();
-    }
-    if (this.tapTimes.length >= DEBUG_CONFIG.gestureTaps) {
-      this.tapTimes.length = 0;
+    // Each tap must follow the previous one within the gap (robust when the page is busy).
+    const now = e.timeStamp;
+    this.tapCount = now - this.lastTapMs <= DEBUG_CONFIG.gestureMaxGapMs ? this.tapCount + 1 : 1;
+    this.lastTapMs = now;
+    if (this.tapCount >= DEBUG_CONFIG.gestureTaps) {
+      this.tapCount = 0;
       this.setVisible(!this.visible);
     }
   };

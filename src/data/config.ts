@@ -94,9 +94,9 @@ export const PHYSICS_CONFIG = {
 } as const;
 
 export const DEBUG_CONFIG = {
-  /** Hidden gesture: tap the top-left corner this many times within the window to toggle the overlay. */
+  /** Hidden gesture: tap the top-left corner this many times, each within the max gap of the last. */
   gestureTaps: 3,
-  gestureWindowMs: 700,
+  gestureMaxGapMs: 1000,
   gestureCornerPx: 72,
   overlayRefreshMs: 250,
   /** Frame-time samples kept for FPS/min/max stats. */
