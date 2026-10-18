@@ -1,6 +1,6 @@
 import { el, onTap } from './dom';
 
-/** In-game HUD shell for M1: pause button, stage label, transient toasts. */
+/** In-game HUD shell: pause button, optional stage label, transient toasts. */
 export class Hud {
   readonly root: HTMLElement;
   private readonly toast: HTMLElement;
@@ -15,9 +15,9 @@ export class Hud {
     pause.dataset['testid'] = 'hud-pause';
     pause.append(el('span', 'hud-pause-bar'), el('span', 'hud-pause-bar'));
     this.disposePause = onTap(pause, onPause);
-    const label = el('div', 'hud-stage', stageLabel);
     this.toast = el('div', 'hud-toast is-hidden');
-    this.root.append(label, pause, this.toast);
+    this.root.append(pause, this.toast);
+    if (stageLabel.length > 0) this.root.append(el('div', 'hud-stage', stageLabel));
     container.append(this.root);
   }
 

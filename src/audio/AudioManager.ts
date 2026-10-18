@@ -67,6 +67,12 @@ export class AudioManager {
     this.applyVolumes();
   }
 
+  /** Running context + SFX bus, or null while audio is locked/suspended. */
+  get sfxOutput(): { ctx: AudioContext; bus: GainNode } | null {
+    if (this.ctx === null || this.sfx === null || this.ctx.state !== 'running') return null;
+    return { ctx: this.ctx, bus: this.sfx };
+  }
+
   /** Short synthesized UI tick (original, procedural — no asset needed). */
   playUiClick(): void {
     const ctx = this.ctx;

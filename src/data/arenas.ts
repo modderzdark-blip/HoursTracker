@@ -38,6 +38,10 @@ export interface ArenaDef {
   /** Ring wall: segment count and dimensions. */
   readonly wall: { readonly segments: number; readonly height: number; readonly thickness: number };
   readonly spawn: readonly [number, number, number];
+  /** Enemy spawn points (x, z) — kept clear of props (verified by a unit test). */
+  readonly spawnPoints: readonly (readonly [number, number])[];
+  readonly bossSpawn: readonly [number, number];
+  readonly dummySpawn: readonly [number, number];
   readonly pillars: readonly PillarDef[];
   readonly blocks: readonly BoxDef[];
   readonly rocks: readonly RockDef[];
@@ -70,6 +74,18 @@ export const TEST_ARENA: ArenaDef = {
   floorRadius: 24,
   wall: { segments: 28, height: 3.2, thickness: 1.4 },
   spawn: [0, 1.2, 6],
+  spawnPoints: [
+    [-17, -3],
+    [17, -2],
+    [-12, 14],
+    [12, 14],
+    [0, 19],
+    [-6, -18],
+    [6, -18],
+    [-20, 6],
+  ],
+  bossSpawn: [0, -9.5],
+  dummySpawn: [0, 1],
   pillars: [
     { x: -7, z: -4, radius: 0.8, height: 6 },
     { x: 7, z: -4, radius: 0.8, height: 6 },

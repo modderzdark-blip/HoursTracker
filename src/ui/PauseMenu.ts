@@ -96,7 +96,7 @@ export class PauseMenu {
         h.onUiTap();
         h.onFullscreen();
       }),
-      this.button('Respawn', 'btn', () => {
+      this.button('Restart battle', 'btn', () => {
         h.onUiTap();
         h.onRespawn();
       }),

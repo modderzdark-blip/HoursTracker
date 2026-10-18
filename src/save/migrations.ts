@@ -6,10 +6,22 @@
 export type Migration = (data: Record<string, unknown>) => Record<string, unknown>;
 export type MigrationTable = Readonly<Record<number, Migration>>;
 
-export const CURRENT_SAVE_VERSION = 1;
+export const CURRENT_SAVE_VERSION = 2;
 
-/** No migrations yet: version 1 is the first shipped format. */
-export const SAVE_MIGRATIONS: MigrationTable = {};
+/**
+ * Starting grant as it was when v2 shipped. Frozen on purpose: a migration must produce the same
+ * result forever, even if data/economy.ts is retuned later.
+ */
+const STARTING_GEMS = 20;
+
+export const SAVE_MIGRATIONS: MigrationTable = {
+  /** v1 (M1: settings only) → v2: adds the wallet and per-stage records. */
+  1: (d) => ({
+    ...d,
+    wallet: { gold: 0, gems: STARTING_GEMS, souls: 0, materials: 0, tickets: 0 },
+    records: {},
+  }),
+};
 
 export class MigrationError extends Error {}
 

@@ -10,6 +10,7 @@ import { TEST_ARENA } from '../data/arenas';
 import { DEBUG_CONFIG, INPUT_CONFIG, LOOP_CONFIG } from '../data/config';
 import { DEFAULT_HERO, HEROES } from '../data/heroes';
 import { QUALITY_PRESETS, type QualityLevel, type QualityPreset } from '../data/quality';
+import { DEFAULT_STAGE, STAGES } from '../data/stages';
 import { DebugOverlay } from '../debug/DebugOverlay';
 import { collectDeviceInfo, detectMobile, readHeapMB, type DeviceInfo } from '../debug/deviceInfo';
 import { FrameStats } from '../debug/FrameStats';
@@ -22,7 +23,7 @@ import { GamepadInput } from '../input/GamepadInput';
 import { InputState } from '../input/InputState';
 import { KeyboardInput } from '../input/KeyboardInput';
 import { TouchControls } from '../input/TouchControls';
-import { TestArenaMode } from '../modes/TestArenaMode';
+import { BattleMode } from '../modes/BattleMode';
 import { loadRapier, PhysicsWorld } from '../physics/PhysicsWorld';
 import { QualityManager, type QualityTarget } from '../render/QualityManager';
 import { guessInitialQuality } from '../render/qualityLogic';
@@ -56,12 +57,42 @@ export interface TestHookState {
   ready: boolean;
   running: boolean;
   paused: boolean;
-  player: { x: number; y: number; z: number; grounded: boolean; speed: number; yaw: number };
-  attacks: number;
-  dodges: number;
+  player: {
+    x: number;
+    y: number;
+    z: number;
+    grounded: boolean;
+    speed: number;
+    yaw: number;
+    hp: number;
+    maxHp: number;
+    state: string;
+    comboIndex: number;
+    action: string | null;
+  };
   presses: Record<string, number>;
   ultimate: number;
   skillReady: boolean[];
+  stage: {
+    phase: string;
+    wave: number;
+    enemiesAlive: number;
+    killed: number;
+    result: string | null;
+    timeSec: number;
+  };
+  boss: {
+    active: boolean;
+    hp: number;
+    maxHp: number;
+    phase: number;
+    state: string;
+    breakFrac: number;
+  };
+  wallet: Record<string, number>;
+  tokensInUse: number;
+  telegraphs: number;
+  cinematic: boolean;
   quality: QualityLevel;
   qualitySetting: string;
   benchmarkRunning: boolean;
@@ -77,13 +108,22 @@ export interface TestHookState {
   debugOverlay: boolean;
 }
 
+export interface TestHookCommands {
+  setPaused: (paused: boolean) => void;
+  skipCountdown: () => void;
+  killAll: () => void;
+  skipToBoss: () => void;
+  damageBoss: (frac: number) => void;
+  killBoss: () => void;
+  damagePlayer: (frac: number) => void;
+  setGod: (on: boolean) => void;
+  fillUltimate: () => void;
+  restart: () => void;
+}
+
 declare global {
   interface Window {
-    __ashbound?: {
-      version: string;
-      state: () => TestHookState;
-      setPaused: (paused: boolean) => void;
-    };
+    __ashbound?: { version: string; state: () => TestHookState } & TestHookCommands;
   }
 }
 
@@ -109,7 +149,7 @@ export class App {
   private readonly touch: TouchControls;
   private readonly keyboard: KeyboardInput;
   private readonly gamepad: GamepadInput;
-  private readonly mode: TestArenaMode;
+  private readonly mode: BattleMode;
   private readonly quality: QualityManager;
   private readonly loop: GameLoop;
   private readonly hud: Hud;
@@ -122,6 +162,7 @@ export class App {
   private saveTimer = 0;
   private resizePending = false;
   private running = false;
+  private inputEnabled = true;
 
   static async create(opts: AppOptions): Promise<App> {
     const rapier = await loadRapier();
@@ -161,22 +202,33 @@ export class App {
     this.keyboard = new KeyboardInput(this.input);
     this.gamepad = new GamepadInput(this.input);
 
-    // --- World -------------------------------------------------------------------------
-    this.mode = new TestArenaMode({
+    // --- UI shell (vignette under everything, pause button) -----------------------------
+    this.vignette = el('div', 'vignette');
+    opts.uiRoot.prepend(this.vignette);
+    this.hud = new Hud(opts.uiRoot, '', () => this.setPaused(true));
+
+    // --- Battle ------------------------------------------------------------------------
+    this.mode = new BattleMode({
       ctx: this.ctx,
       physics: this.physics,
       camera: this.camera,
       input: this.input,
       bus: this.bus,
+      clock: this.clock,
+      audio: opts.audio,
+      uiRoot: opts.uiRoot,
+      save: opts.save,
+      persist: () => this.persistSoon(),
       arena: TEST_ARENA,
       hero: HEROES[DEFAULT_HERO],
+      stage: STAGES[DEFAULT_STAGE],
       preset: QUALITY_PRESETS[startLevel],
+      setInputEnabled: (on) => this.setGameplayInput(on),
+      vibrate: (ms) => {
+        if (settings.vibration && typeof navigator.vibrate === 'function') navigator.vibrate(ms);
+      },
     });
 
-    // --- UI ----------------------------------------------------------------------------
-    this.vignette = el('div', 'vignette');
-    opts.uiRoot.prepend(this.vignette);
-    this.hud = new Hud(opts.uiRoot, TEST_ARENA.name, () => this.setPaused(true));
     this.pause = new PauseMenu(
       opts.uiRoot,
       {
@@ -204,7 +256,7 @@ export class App {
           void enterFullscreenLandscape();
         },
         onRespawn: () => {
-          this.mode.respawn();
+          this.mode.startRun();
           this.setPaused(false);
         },
         onCopyLog: () => this.copyDebugLog(),
@@ -217,10 +269,6 @@ export class App {
         run: () => this.bus.emit('camera:shake', { trauma: DEBUG_CONFIG.cheats.shakeTrauma }),
       },
       {
-        label: 'Hitstop',
-        run: () => this.bus.emit('time:hitStop', { ms: DEBUG_CONFIG.cheats.hitStopMs }),
-      },
-      {
         label: 'Slowmo',
         run: () =>
           this.bus.emit('time:slowMotion', {
@@ -228,15 +276,18 @@ export class App {
             ms: DEBUG_CONFIG.cheats.slowMoMs,
           }),
       },
+      { label: 'ULT', run: () => this.fillUltimate() },
+      { label: 'CD', run: () => this.mode.player.cooldowns.resetAll() },
       {
-        label: 'Fill ULT',
+        label: 'God',
         run: () => {
-          this.mode.ultimate.add(1);
-          this.bus.emit('ultimate:charge', { value: this.mode.ultimate.value });
+          this.mode.player.god = !this.mode.player.god;
+          this.hud.showToast(this.mode.player.god ? 'God mode ON' : 'God mode OFF');
         },
       },
-      { label: 'CD', run: () => this.mode.cooldowns.resetAll() },
-      { label: 'Flash', run: () => this.mode.player.visual.triggerFlash() },
+      { label: 'Kill', run: () => this.mode.killAllEnemies() },
+      { label: 'Boss', run: () => this.mode.skipToBoss() },
+      { label: '-50%', run: () => this.mode.damageBoss(0.35) },
     ]);
     this.overlay.onToggle = (visible) => {
       settings.showDebugOverlay = visible;
@@ -282,7 +333,6 @@ export class App {
       this.hud.showToast(`Graphics: ${QUALITY_PRESETS[level].label} (auto)`);
     };
     this.quality.onBenchmarkStateChange = (running) => {
-      // Benchmark measures uncapped frame times; the user's cap returns afterwards.
       this.loop.limiter.setCap(running ? 0 : settings.fpsCap);
       this.updateQualityLabel();
     };
@@ -297,7 +347,7 @@ export class App {
 
     this.wireEvents();
     this.installTestHook();
-    // Render once behind the title screen so shaders compile before the first real frame.
+    this.mode.render(1, 0, 1);
     this.ctx.render(this.camera.camera);
   }
 
@@ -307,6 +357,7 @@ export class App {
     this.running = true;
     this.touch.setVisible(true);
     this.hud.setVisible(true);
+    this.mode.startRun();
     this.loop.start();
     const s = this.opts.save.settings;
     if (s.quality === 'auto' && s.detectedQuality === null) this.quality.startBenchmark();
@@ -317,9 +368,7 @@ export class App {
   setPaused(paused: boolean): void {
     if (paused === this.loop.isPaused) return;
     this.loop.setPaused(paused);
-    this.touch.setEnabled(!paused);
-    this.keyboard.enabled = !paused;
-    this.gamepad.enabled = !paused;
+    this.applyInputEnabled(!paused && this.inputEnabled);
     if (paused) {
       this.input.releaseAll();
       this.pause.show();
@@ -327,6 +376,24 @@ export class App {
       this.pause.hide();
     }
     this.bus.emit('game:paused', { paused });
+  }
+
+  /** Gameplay input on/off (cinematics, result screens) — independent from pausing. */
+  private setGameplayInput(on: boolean): void {
+    this.inputEnabled = on;
+    this.applyInputEnabled(on && !this.loop?.isPaused);
+    if (!on) this.input.releaseAll();
+  }
+
+  private applyInputEnabled(on: boolean): void {
+    this.touch.setEnabled(on);
+    this.keyboard.enabled = on;
+    this.gamepad.enabled = on;
+  }
+
+  private fillUltimate(): void {
+    this.mode.player.ultimate.add(1);
+    this.bus.emit('ultimate:charge', { value: this.mode.player.ultimate.value });
   }
 
   private wireEvents(): void {
@@ -364,12 +431,16 @@ export class App {
     const onPageHide = (): void => this.flushSave();
     window.addEventListener('pagehide', onPageHide);
     // In portrait the rotate hint covers the game: pause so it doesn't simulate/render unseen.
-    // Same media query as the .rotate-hint CSS.
     const portrait = window.matchMedia('(orientation: portrait) and (pointer: coarse)');
     const onOrientation = (): void => {
       if (portrait.matches && this.running) this.setPaused(true);
     };
     portrait.addEventListener('change', onOrientation);
+    // Tap anywhere during a cinematic (boss intro) to skip it.
+    const onCanvasTap = (): void => {
+      if (this.mode.cinematicActive) this.mode.skipCinematic();
+    };
+    this.opts.canvas.addEventListener('pointerdown', onCanvasTap);
     this.disposers.push(() => {
       portrait.removeEventListener('change', onOrientation);
       window.removeEventListener('resize', onResize);
@@ -377,6 +448,7 @@ export class App {
       window.visualViewport?.removeEventListener('resize', onResize);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pagehide', onPageHide);
+      this.opts.canvas.removeEventListener('pointerdown', onCanvasTap);
     });
     this.touch.setVisible(false);
     this.hud.setVisible(false);
@@ -399,8 +471,8 @@ export class App {
   }
 
   private renderFrame(alpha: number, dtSec: number): void {
-    this.mode.render(alpha, dtSec);
-    const cd = this.mode.cooldowns;
+    this.mode.render(alpha, dtSec, this.time.currentScale);
+    const cd = this.mode.player.cooldowns;
     for (let i = 0; i < cd.count; i++) {
       this.touch.setSkillCooldown(i, cd.fraction(i), cd.remainingMs(i) / 1000);
     }
@@ -431,22 +503,23 @@ export class App {
     const r = this.ctx.info;
     const mem = this.ctx.renderer.info.memory;
     const progs = this.ctx.renderer.info.programs?.length ?? 0;
-    const p = this.mode.player;
+    const m = this.mode;
+    const p = m.player;
     const heap = readHeapMB();
     const [bw, bh] = this.ctx.drawingBufferSize;
-    const mv = this.input.readMove({ x: 0, y: 0 });
     const q = this.quality;
+    const boss = m.boss;
     const lines = [
       `FPS ${s.fps.toFixed(1)}  frame ${s.meanMs.toFixed(1)}ms  p95 ${s.percentileMs(95).toFixed(1)}  max ${s.maxMs.toFixed(1)}`,
       `logic ${LOOP_CONFIG.logicHz}Hz steps ${s.lastSteps}  dropped ${this.loop.timestep.droppedMs.toFixed(0)}ms  cap ${this.loop.limiter.capFps || 'off'}`,
       `draws ${r.calls}  tris ${(r.triangles / 1000).toFixed(1)}k  pts ${r.points}`,
       `geo ${mem.geometries}  tex ${mem.textures}  progs ${progs}`,
-      `entities 1  particles ${this.mode.particleCount}  colliders ${this.physics.colliderCount}`,
+      `entities ${1 + m.roster.active.length + (boss.inWorld ? 1 : 0)}  enemies ${m.roster.aliveCount()}  pool ${m.roster.pooledCount}  tokens ${m.tokens.count}/${m.tokens.max}  telegraphs ${m.telegraphCount}`,
       `heap ${heap ? `${heap.used.toFixed(1)} / ${heap.limit.toFixed(0)} MB` : 'n/a (Chrome only)'}`,
       `quality ${q.preset.label} (${q.setting})${q.benchmarkRunning ? ' benchmarking' : ''}  bench ${q.lastBenchmarkMedianMs > 0 ? `${q.lastBenchmarkMedianMs.toFixed(1)}ms` : '—'}`,
       `DPR ${window.devicePixelRatio.toFixed(2)}→${this.ctx.currentPixelRatio.toFixed(2)}  view ${window.innerWidth}x${window.innerHeight}  buffer ${bw}x${bh}`,
-      `pos ${p.currFeet.x.toFixed(2)}, ${p.currFeet.y.toFixed(2)}, ${p.currFeet.z.toFixed(2)}  ${p.body.grounded ? 'grounded' : 'AIR'}  v ${p.motor.planarSpeed.toFixed(2)}`,
-      `move ${mv.x.toFixed(2)}, ${mv.y.toFixed(2)}  touches ${this.touch.activeButtonCount}${this.touch.joystickActive ? '+stick' : ''}  atk ${this.mode.attacksPerformed}  dodge ${this.mode.dodgesPressed}`,
+      `hero ${p.state} ${p.actionId ?? ''} hp ${Math.ceil(p.health.current)}/${p.health.max} ult ${(p.ultimate.value * 100).toFixed(0)}%`,
+      `stage ${m.director.phase} wave ${m.director.wave + 1}/${m.director.totalWaves} t ${m.stageTimeSec.toFixed(0)}s  boss ${boss.inWorld ? `${boss.brain.state} p${boss.bossBrain.phase + 1} ${Math.ceil(boss.health.current)}` : '—'}`,
       `time ${this.time.isFrozen ? 'HITSTOP' : this.time.isSlowed ? 'SLOW' : 'normal'}  trauma ${this.camera.shake.currentTrauma.toFixed(2)}  log ${this.opts.log.errorCount}E/${this.opts.log.warnCount}W`,
     ];
     return lines.join('\n');
@@ -472,8 +545,20 @@ export class App {
     window.__ashbound = {
       version: `${BUILD.version}+${BUILD.sha}`,
       setPaused: (paused) => this.setPaused(paused),
+      skipCountdown: () => this.mode.director.skipCountdown(),
+      killAll: () => this.mode.killAllEnemies(),
+      skipToBoss: () => this.mode.skipToBoss(),
+      damageBoss: (frac) => this.mode.damageBoss(frac),
+      killBoss: () => this.mode.killBoss(),
+      damagePlayer: (frac) => this.mode.damagePlayer(frac),
+      setGod: (on) => {
+        this.mode.player.god = on;
+      },
+      fillUltimate: () => this.fillUltimate(),
+      restart: () => this.mode.startRun(),
       state: () => {
-        const p = this.mode.player;
+        const m = this.mode;
+        const p = m.player;
         const heap = readHeapMB();
         const presses: Record<string, number> = {};
         for (const a of INPUT_ACTIONS) presses[a] = this.input.pressCount(a);
@@ -486,14 +571,37 @@ export class App {
             y: p.currFeet.y,
             z: p.currFeet.z,
             grounded: p.body.grounded,
-            speed: p.motor.planarSpeed,
-            yaw: p.motor.yaw,
+            speed: Math.hypot(p.vel.x, p.vel.z),
+            yaw: p.yaw,
+            hp: p.health.current,
+            maxHp: p.health.max,
+            state: p.state,
+            comboIndex: p.comboIndex,
+            action: p.actionId,
           },
-          attacks: this.mode.attacksPerformed,
-          dodges: this.mode.dodgesPressed,
           presses,
-          ultimate: this.mode.ultimate.value,
-          skillReady: [0, 1, 2].map((i) => this.mode.cooldowns.isReady(i)),
+          ultimate: p.ultimate.value,
+          skillReady: [0, 1, 2].map((i) => p.cooldowns.isReady(i)),
+          stage: {
+            phase: m.director.phase,
+            wave: m.director.wave,
+            enemiesAlive: m.roster.aliveCount(),
+            killed: m.enemiesKilled,
+            result: m.resultShowing,
+            timeSec: m.stageTimeSec,
+          },
+          boss: {
+            active: m.boss.inWorld,
+            hp: m.boss.health.current,
+            maxHp: m.boss.health.max,
+            phase: m.boss.bossBrain.phase,
+            state: m.boss.brain.state,
+            breakFrac: m.boss.poise.frac,
+          },
+          wallet: { ...m.wallet.snapshot() },
+          tokensInUse: m.tokens.count,
+          telegraphs: m.telegraphCount,
+          cinematic: m.cinematicActive,
           quality: this.quality.level,
           qualitySetting: this.quality.setting,
           benchmarkRunning: this.quality.benchmarkRunning,

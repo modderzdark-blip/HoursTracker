@@ -1,4 +1,4 @@
-import { PerspectiveCamera, Vector3 } from 'three';
+import { PerspectiveCamera, Quaternion, Vector3 } from 'three';
 import { CAMERA_CONFIG } from '../data/config';
 import { CameraShake, type ShakeSample } from './CameraShake';
 
@@ -26,6 +26,15 @@ export class FollowCamera {
   /** Ground-plane basis for camera-relative movement (unit vectors on XZ). */
   readonly forwardXZ = new Vector3();
   readonly rightXZ = new Vector3();
+  private readonly baseOffset = new Vector3();
+  private readonly framePoint = new Vector3();
+  private framing = false;
+  private frameBlend = 0;
+  private readonly frameShift = new Vector3();
+  private blendMs = 0;
+  private blendTotalMs = 0;
+  private readonly blendPos = new Vector3();
+  private readonly blendQuat = new Quaternion();
 
   constructor(aspect: number) {
     const c = CAMERA_CONFIG;
@@ -41,9 +50,24 @@ export class FollowCamera {
   ): void {
     const yaw = (yawDeg * Math.PI) / 180;
     // yaw 0: camera sits at +Z looking toward -Z.
-    this.offset.set(Math.sin(yaw) * distance, height, Math.cos(yaw) * distance);
+    this.baseOffset.set(Math.sin(yaw) * distance, height, Math.cos(yaw) * distance);
+    this.offset.copy(this.baseOffset);
     this.forwardXZ.set(-Math.sin(yaw), 0, -Math.cos(yaw));
     this.rightXZ.set(Math.cos(yaw), 0, -Math.sin(yaw));
+  }
+
+  /** Keep a second point (the boss) in frame; null to stop. */
+  setFraming(point: Vector3 | null): void {
+    this.framing = point !== null;
+    if (point !== null) this.framePoint.copy(point);
+  }
+
+  /** Start from the current camera transform and ease into the follow pose (after cinematics). */
+  blendFromCurrent(ms: number = CAMERA_CONFIG.cinematicBlendMs): void {
+    this.blendPos.copy(this.camera.position);
+    this.blendQuat.copy(this.camera.quaternion);
+    this.blendMs = 0;
+    this.blendTotalMs = ms;
   }
 
   setAspect(aspect: number): void {
@@ -70,14 +94,39 @@ export class FollowCamera {
     if (this.tmp.lengthSq() > 1e-6) this.tmp.normalize().multiplyScalar(c.lookAhead * speedRatio);
     else this.tmp.set(0, 0, 0);
     this.lead.lerp(this.tmp, smoothingFactor(c.lookAheadSharpness, dtSec));
+    // Boss framing: blend the anchor toward the boss and pull the camera back with distance.
+    const bf = c.bossFraming;
+    this.frameBlend +=
+      ((this.framing ? 1 : 0) - this.frameBlend) * smoothingFactor(bf.sharpness, dtSec);
+    let extra = 0;
+    if (this.frameBlend > 0.001) {
+      this.tmp.subVectors(this.framePoint, target);
+      this.tmp.y = 0;
+      const d = this.tmp.length();
+      this.frameShift.copy(this.tmp).multiplyScalar(bf.anchorShift);
+      if (this.frameShift.length() > bf.maxShift) this.frameShift.setLength(bf.maxShift);
+      this.frameShift.multiplyScalar(this.frameBlend);
+      extra = (Math.min(d, bf.farDistance) / bf.farDistance) * bf.extraDistance * this.frameBlend;
+    } else {
+      this.frameShift.set(0, 0, 0);
+    }
+    this.offset.copy(this.baseOffset).multiplyScalar(1 + extra);
     this.apply(dtSec);
+    if (this.blendTotalMs > 0) {
+      this.blendMs += dtSec * 1000;
+      const t = Math.min(1, this.blendMs / this.blendTotalMs);
+      const k = t * t * (3 - 2 * t);
+      this.camera.position.lerpVectors(this.blendPos, this.camera.position, k);
+      this.camera.quaternion.slerpQuaternions(this.blendQuat, this.camera.quaternion, k);
+      if (t >= 1) this.blendTotalMs = 0;
+    }
   }
 
   private apply(dtSec: number): void {
     const c = CAMERA_CONFIG;
-    this.lookTarget.copy(this.anchor).add(this.lead);
+    this.lookTarget.copy(this.anchor).add(this.lead).add(this.frameShift);
     this.lookTarget.y += c.lookAtHeight;
-    this.camera.position.copy(this.anchor).add(this.lead).add(this.offset);
+    this.camera.position.copy(this.anchor).add(this.lead).add(this.frameShift).add(this.offset);
     this.camera.up.set(0, 1, 0);
     this.camera.lookAt(this.lookTarget);
 
