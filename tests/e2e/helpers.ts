@@ -4,12 +4,42 @@ export interface HookState {
   ready: boolean;
   running: boolean;
   paused: boolean;
-  player: { x: number; y: number; z: number; grounded: boolean; speed: number; yaw: number };
-  attacks: number;
-  dodges: number;
+  player: {
+    x: number;
+    y: number;
+    z: number;
+    grounded: boolean;
+    speed: number;
+    yaw: number;
+    hp: number;
+    maxHp: number;
+    state: string;
+    comboIndex: number;
+    action: string | null;
+  };
   presses: Record<string, number>;
   ultimate: number;
   skillReady: boolean[];
+  stage: {
+    phase: string;
+    wave: number;
+    enemiesAlive: number;
+    killed: number;
+    result: string | null;
+    timeSec: number;
+  };
+  boss: {
+    active: boolean;
+    hp: number;
+    maxHp: number;
+    phase: number;
+    state: string;
+    breakFrac: number;
+  };
+  wallet: Record<string, number>;
+  tokensInUse: number;
+  telegraphs: number;
+  cinematic: boolean;
   quality: string;
   benchmarkRunning: boolean;
   fps: number;
@@ -22,6 +52,27 @@ export interface HookState {
   joystickActive: boolean;
   move: { x: number; y: number };
   debugOverlay: boolean;
+}
+
+type HookCommand =
+  'skipCountdown' | 'killAll' | 'skipToBoss' | 'killBoss' | 'restart' | 'fillUltimate';
+
+/** Calls a test-hook command in the page. */
+export async function hook(
+  page: Page,
+  cmd: HookCommand | 'damageBoss' | 'damagePlayer' | 'setGod',
+  arg?: number | boolean,
+): Promise<void> {
+  await page.evaluate(
+    ([c, a]) => {
+      const h = (window as unknown as { __ashbound: Record<string, (x?: unknown) => void> })
+        .__ashbound;
+      const fn = h[c as string];
+      if (fn === undefined) throw new Error(`no hook ${String(c)}`);
+      fn(a);
+    },
+    [cmd, arg] as const,
+  );
 }
 
 export function collectErrors(page: Page): string[] {
