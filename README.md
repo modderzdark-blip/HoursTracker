@@ -1,40 +1,69 @@
 # Ashbound
 
 Mobile dark-fantasy hack-and-slash action RPG — Three.js + TypeScript + Rapier, no engine.
-Playable in Chrome on Android (GitHub Pages) and, later, as a Capacitor APK.
+Playable in Chrome on Android (GitHub Pages) and as a sideloadable Capacitor APK.
 
-> Status: **M1 — Foundation** (test arena, touch controls, follow camera, quality presets,
-> debug tools). See [CHANGELOG.md](CHANGELOG.md) and [docs/TEST_REPORT_M1.md](docs/TEST_REPORT_M1.md).
+> Status: **0.2.0 — gameplay prototype**: one stage (practice dummy → 3 waves → 3-phase boss →
+> result screen), full hero moveset, enemy AI, revive, save. Characters are procedural
+> placeholder rigs. See [CHANGELOG.md](CHANGELOG.md) and
+> [docs/TEST_REPORT_PROTOTYPE.md](docs/TEST_REPORT_PROTOTYPE.md).
+
+## Play it
+
+- **APK (Android):** <https://github.com/modderzdark-blip/HoursTracker/releases/download/ashbound-preview/Ashbound-preview.apk>
+  — open it on the phone, allow "Install unknown apps" for your browser, install. Every CI run
+  replaces it; new builds install over the old one (same signing key, increasing versionCode).
+- **Web (Chrome on Android):** `https://modderzdark-blip.github.io/HoursTracker/` once Pages is
+  enabled (see [Deploying](#deploying-github-pages)).
+
+### Controls
+
+| Touch                      | Keyboard  | Action                                                       |
+| -------------------------- | --------- | ------------------------------------------------------------ |
+| Left half: floating stick  | WASD      | Move                                                         |
+| ATTACK                     | J         | 5-hit combo (tap again during a swing; inputs buffer 150 ms) |
+| DODGE                      | Space     | Dash with i-frames; dodge just before a hit = perfect dodge  |
+| Skill 1 / 2 / 3            | 1 / 2 / 3 | Rending Dash / Blade Gyre (steer with stick) / Umbral Step   |
+| ULT (when glowing)         | R         | Hollow Legion — shadow clones                                |
+| Pause (top right)          | Esc       | Pause menu (graphics, restart, copy debug log)               |
+| Triple-tap top-left corner | `         | Debug overlay + cheats                                       |
 
 ## Project structure
 
 ```
 src/
   main.ts          entry: log capture, gesture guards, title screen, lazy-loads the engine chunk
-  app/             composition root (App.ts) — wires systems together, owns nothing gameplay-specific
+  app/             composition root (App.ts) — wires systems, debug cheats, test hook
   core/            EventBus, ServiceRegistry, GameLoop (fixed step + interpolation),
                    FixedTimestep, TimeControl (hit-stop / slow-mo), FrameLimiter, GameClock, random
-  input/           actions, InputState (multi-source), InputBuffer, TouchControls (floating joystick +
-                   buttons), KeyboardInput, GamepadInput, gestureGuards (fullscreen, landscape, no zoom)
-  camera/          FollowCamera (distance/height/yaw from config), CameraShake (trauma)
-  render/          RenderContext (renderer + bloom chain), Atmosphere (lights, fog, env map, shadow
-                   frustum), QualityManager + qualityLogic (presets, benchmark), procedural textures, rim light
-  physics/         PhysicsWorld (Rapier), CharacterBody (kinematic character controller)
-  actors/          Player, PlaceholderHeroVisual, components/ (CharacterMotor, movementMath)
-  combat/          Cooldowns, UltimateMeter (combat core arrives in M2)
-  modes/           TestArenaMode, ArenaBuilder (data → visuals + colliders)
-  data/            ALL tunables: config.ts, quality.ts, heroes.ts, arenas.ts
-  save/            SaveStore (versioned JSON), backends (IndexedDB → localStorage → memory),
-                   migrations, settings
-  ui/              styles.css, TitleScreen, Hud, PauseMenu, Segmented, ErrorScreen, dom helpers
-  audio/           AudioManager (Web Audio, unlocks on first touch)
-  vfx/             EmberField (GPU particles), BlobShadow (fake contact AO)
+  input/           actions, InputState, InputBuffer, TouchControls, KeyboardInput, GamepadInput,
+                   gestureGuards (fullscreen, landscape, no zoom)
+  camera/          FollowCamera, CameraShake (trauma), CameraDirector (boss intro / framing)
+  render/          RenderContext (renderer + bloom), Atmosphere, QualityManager + qualityLogic,
+                   procedural textures, rim light
+  physics/         PhysicsWorld (Rapier), CharacterBody (kinematic controller), collision groups
+  anim/            HumanoidRig (procedural skinned placeholder, Mixamo bone names), poses,
+                   clipBuilder, clipSets, AnimationController (mixer, events, hurt layer, look-at)
+  combat/          damage formula, Health, Poise, StatusEffects, ActionRunner (startup/active/
+                   recovery, cancel windows, i-frames), hitShapes, CombatSystem, Cooldowns, UltimateMeter
+  actors/          Actor, Player, Enemy, Boss, TrainingDummy, components/ (CharacterMotor, movementMath)
+  ai/              EnemyBrain (state machine, whiskers), BossBrain (phases, break, enrage),
+                   AttackTokens (max simultaneous attackers)
+  modes/           BattleMode (orchestrator), WaveDirector, EnemyRoster (pool), crowd, ArenaBuilder
+  progression/     Wallet (currencies), stars (run rating)
+  data/            ALL tunables: config, quality, heroes, rigs, enemies, bosses, stages, arenas,
+                   statusEffects, difficulty, economy, combatTypes
+  save/            SaveStore (versioned JSON v2), backends, migrations, settings
+  ui/              styles.css, TitleScreen, BattleHud, DamageNumbers, ResultScreen, Hud, PauseMenu, ...
+  audio/           AudioManager (Web Audio), Sfx (procedural sound effects)
+  vfx/             Sparks, WeaponTrails, TelegraphDecals, SoulOrbs, BlobShadows, ShadowClones, EmberField
   debug/           LogCapture, DebugOverlay (+cheats), FrameStats, deviceInfo, report, clipboard
-  anim/ ai/ progression/   created now, filled in M3 / M4 / M8
 public/assets/     models/ animations/ textures/ audio/ (empty until real assets arrive)
-tests/unit/        Vitest (logic + real Rapier physics in Node)
-tests/e2e/         Playwright smoke tests (Pixel 7 landscape, real CDP multi-touch)
-.github/workflows/ deploy-pages.yml
+tests/unit/        Vitest (logic, real Rapier physics, battle integration)
+tests/e2e/         Playwright smoke tests (Pixel 7 landscape, real CDP multi-touch, 60 s soak)
+android/           Capacitor 8 Android project
+scripts/ci/        emulator smoke script used by the APK workflow
+.github/workflows/ deploy-pages.yml, android-preview.yml
 ```
 
 Rules: data-driven (balancing never touches logic), systems talk through the typed `EventBus`
@@ -52,7 +81,20 @@ Rules: data-driven (balancing never touches logic), systems talk through the typ
 | `npm run test:e2e`                      | Playwright smoke tests (builds + serves `dist/` first) |
 | `npm run check`                         | Everything above except e2e                            |
 
+## Combat model
+
+`damage = ATK × skillMultiplier × crit × 100 / (100 + DEF) × difficultyMultiplier × bonuses`
+(`src/combat/damage.ts`). Crit = `critMult` with probability `critChance` (or forced). Every hit
+also deals poise damage (stagger when poise breaks; the boss has a separate break bar), can apply
+bleed (stacking) / burn / slow (refresh), grants ultimate charge, and drives hit-stop, shake and
+sparks from its `HitSpec`. Hits are found with Rapier shape intersections and then precise
+arc / circle / box tests in 2D. One pipeline (`CombatSystem.applyHit`) serves player, enemies and boss.
+
 ## Deploying (GitHub Pages)
+
+The APK is built by `.github/workflows/android-preview.yml` (tests → web build → `cap sync` →
+`assembleDebug`, signed with a public test key in `android/app/sideload-test.keystore`; never
+use it for a store release).
 
 Every push to `main` or any `ccr-*` branch runs `.github/workflows/deploy-pages.yml`:
 typecheck → lint → format check → unit tests → build → deploy.
@@ -70,27 +112,36 @@ so it works under any path and inside Capacitor.
 
 ## Adding content through data
 
-- **Hero**: add an entry to `HEROES` in `src/data/heroes.ts` (movement, capsule body, visual, skill
-  slots). Movesets/combos extend this record from M2.
-- **Arena / stage layout**: copy `TEST_ARENA` in `src/data/arenas.ts`; every pillar, block, ramp,
-  rock and brazier becomes a visual plus a matching static collider via `ArenaBuilder`.
-- **Enemies, stages, drops**: data files arrive with M4/M7/M8 following the same pattern.
-- **Quality presets**: `src/data/quality.ts` (pixel ratio, shadows, bloom, particles, budgets);
-  benchmark thresholds in `BENCHMARK_CONFIG`.
-- **Camera**: `CAMERA_CONFIG` in `src/data/config.ts` (`distance`, `height`, `yawDeg`, `fovDeg`, ...).
+- **Hero**: `HEROES` in `src/data/heroes.ts` — stats, five combo `ActionDef`s (timings, hit
+  shapes, multipliers, move curves, cancel windows), dodge, three skills, ultimate, visual.
+- **Enemy**: add an entry to `ENEMIES` in `src/data/enemies.ts` (stats, rig, poise, attacks with
+  range / cooldown / weight / telegraph / chains, aggro and hold distances, souls dropped) and a rig in `src/data/rigs.ts`. Reference it from
+  a wave in `stages.ts`.
+- **Boss**: `BOSSES` in `src/data/bosses.ts` — stats, phases (HP threshold, attack set, speed and
+  damage multipliers), break bar, enrage timer, intro and transition timings. Set `boss:` in a stage.
+- **Stage**: copy `proto_cinder_court` in `src/data/stages.ts` (waves, spawn intervals,
+  countdown, star rules, rewards) and an arena in `src/data/arenas.ts` (geometry, spawn points,
+  boss/dummy spawns). Every pillar, block and ramp becomes a visual plus a collider.
+- **Status effects / difficulty / economy**: `statusEffects.ts`, `difficulty.ts`, `economy.ts`.
+- **Quality presets**: `src/data/quality.ts`; benchmark thresholds in `BENCHMARK_CONFIG`.
+- **Camera**: `CAMERA_CONFIG` in `src/data/config.ts` (distance, height, yaw, FOV, boss framing).
 
 ## Swapping assets
 
-Characters render as procedural placeholders until real models land (M3). A hero's look is one
-field: change `visual` in `src/data/heroes.ts` from `{ kind: 'placeholder', ... }` to
-`{ kind: 'gltf', url: 'assets/models/kael.glb', scale: 1 }`. (The glTF loading path is
-implemented in M3 together with the animation system; M3's asset list says exactly which
-Mixamo files to export and where to put them.)
+Characters are procedural skinned meshes (`src/anim/HumanoidRig.ts`) built on a skeleton with
+Mixamo bone names (`mixamorig:Hips`, ...), driven by an `AnimationMixer` with named clips, so
+real models can replace them without touching gameplay. The swap is designed as one field —
+`visual` in `src/data/heroes.ts` from `{ kind: 'rig', rig: 'kael' }` to
+`{ kind: 'gltf', url: 'assets/models/kael.glb', scale: 1 }` — **but the glTF loader itself is
+not implemented yet** (selecting `gltf` throws a clear error). It lands with the asset
+milestone, together with the list of Mixamo files to export.
 
 ## Debugging on a phone
 
 - **Debug overlay**: triple-tap the top-left corner, or Pause → Debug overlay → On.
 - **Copy debug log**: Pause → Copy debug log — copies build, device/GPU info, live stats,
   settings and the last 80 log lines.
-- Keyboard (desktop): WASD/arrows move, J attack, Space dodge, 1–3 skills, R ultimate,
-  Esc pause, ` overlay.
+- **Cheats** (in the overlay): Shake, Slowmo, ULT (fill), CD (reset cooldowns), God, Kill
+  (all enemies), Boss (skip to boss), -50% (boss HP).
+- **Android emulator check**: the APK workflow also boots the APK on an API 34 emulator and
+  attaches two screenshots plus the WebView console to the `ashbound-preview` release.

@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.2.0] — Gameplay prototype (2026-10-18)
+
+### Added
+
+- **Animation:** procedural skinned placeholder rigs (one SkinnedMesh + glow mesh per character,
+  Mixamo bone names, weapon sockets) for Kael, Thrall, Imp, Brute, the Hollow Warden and a
+  training dummy; AnimationMixer controller with pose-built clips, crossfades, clip events,
+  additive hurt reactions and head look-at.
+- **Combat:** data-driven damage formula with crits, defence, difficulty and bonuses; health,
+  poise/stagger, knockback/knockdown, status effects (bleed stacks, burn, slow); ActionRunner
+  with startup/active/recovery, cancel windows, i-frames and root-motion-style move curves;
+  Rapier shape queries + precise arc/circle/box hit tests; hit-stop, shake, sparks, damage numbers.
+- **Hero Kael:** 5-hit combo with 150 ms input buffer, dodge with i-frames and perfect-dodge
+  slow-mo + counter (×1.5), skills Rending Dash, Blade Gyre (steerable spin), Umbral Step
+  (shadow step, guaranteed crit), ultimate Hollow Legion (shadow clones), weapon trails.
+- **Enemies:** Thrall (chop), Imp (fast pounce, can burn), Brute (slam + sweep, heavy poise); AI state machine with
+  telegraphs, attack tokens (max 2 attackers on Normal), whisker obstacle avoidance, crowd
+  separation; pooled roster.
+- **Boss — The Hollow Warden:** cinematic intro, 3 phases (flaming weapon from phase 2),
+  phase-change shockwave push, locked-target leap, break bar with stun and damage bonus, enrage timer, boss HP bar.
+- **Stage flow:** The Cinder Court — 12 s practice countdown with a training dummy, 3 waves,
+  boss, victory screen with 1–3 stars (clear / no revive + low damage / par time), rewards;
+  defeat screen with one gem revive per run.
+- **Save v2:** wallet (gold, gems, souls, materials, tickets) + stage records, v1 → v2
+  migration (20 starting gems so revive can be tried).
+- **Audio:** procedural Web Audio SFX (swings, hits, crits, hurt, dodge, perfect dodge,
+  skills, ultimate, telegraphs, slams, boss roar, soul pickup, break, victory/defeat).
+- **Android APK:** Capacitor 8 project, `android-preview.yml` builds a signed debug APK on every
+  push and publishes it to the `ashbound-preview` pre-release; an emulator job boots it and
+  attaches screenshots + WebView console.
+- **Debug:** cheats God, Kill, Boss, -50% boss HP; test hook `window.__ashbound`; all battle
+  shaders precompiled at load.
+- **Tests:** 139 unit/integration tests, 10 Playwright smoke tests incl. full boss run,
+  defeat/revive and 60 s soak.
+
+### Changed
+
+- The M1 test arena mode and capsule hero are replaced by the battle mode and skinned rig.
+- The debug overlay is click-through (only its cheat buttons take touches); the corner gesture
+  counts taps by gap (3 taps, ≤ 1 s apart).
+
+### Fixed
+
+- Boss HP bar no longer overlaps the player HP bar on narrow screens.
+- Training dummy is removed when waves or the boss intro start.
+- Enemy eyes were hidden inside the head.
+
 ## [0.1.0] — M1 Foundation (2026-10-18)
 
 ### Added

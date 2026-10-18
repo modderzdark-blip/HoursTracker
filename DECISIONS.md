@@ -9,7 +9,7 @@ Each entry: the decision, why, and what would change it.
   faster compiler. Revisit when typescript-eslint supports TS 7.
 - **Vite 8 / Vitest 5 / ESLint 10** — current stable majors; peer ranges checked at install.
 - **Playwright 1.56.1** (not latest 1.64): it matches the Chromium build (1194) preinstalled in
-  the cloud environment, so no browser download is needed. CI does not run e2e yet.
+  the cloud environment, so no browser download is needed. CI does not run e2e (SwiftShader runs at ~7 FPS; the suite is run in the cloud session).
 - **Exact version pins** in package.json + lockfile for reproducible cloud builds.
 
 ## Architecture
@@ -76,3 +76,52 @@ Each entry: the decision, why, and what would change it.
 
 - **GitHub Pages via Actions** on `main` and `ccr-*`. The `github-pages` environment needs a
   deployment-branch rule for `ccr-*` (see README).
+
+## Gameplay prototype (0.2.0)
+
+- **Procedural skinned rigs instead of capsules or downloaded models.** Placeholders use the
+  same pipeline real assets will (Skeleton + SkinnedMesh + AnimationMixer + named clips +
+  sockets) with Mixamo bone names, so swapping in glTF changes the visual source, not the
+  gameplay code. Each rig is merged into one skinned mesh plus one emissive mesh → 2 draw calls
+  per character. Clips are generated from a small pose library.
+- **Combat hits = Rapier `intersectionsWithShape` (broad) + exact 2D shape tests (narrow).**
+  Rapier finds candidates near the swing; arc/circle/box tests on the ground plane give exact,
+  readable hit areas matching the telegraph decals. No physics impulses between characters;
+  characters collide only with world geometry (collision groups) and are separated by a crowd pass.
+- **Attack tokens** cap how many enemies attack at once (2 on Normal, data in `difficulty.ts`),
+  the standard trick that keeps crowds fair on a small screen.
+- **One damage pipeline** (`CombatSystem.applyHit`) for every source, reusing one HitEvent
+  object (no per-hit allocation).
+- **Shader warm-up:** `renderer.compile` only walks visible objects, so pooled (hidden) enemies,
+  boss, VFX and clones are made visible for one compile call and restored. Removes the hitch
+  when the first enemy / boss / ultimate appears.
+- **Procedural SFX** (Web Audio oscillators/noise) until a sound pack exists: zero download,
+  works offline in the APK.
+
+## Android APK
+
+- **Capacitor 8** wraps `dist/` in an Android WebView. Landscape (`sensorLandscape`), status
+  bar hidden. Source maps are deleted before `cap sync` (smaller APK, no source in the package).
+- **Debug build signed with a committed public test keystore** (`android/app/sideload-test.keystore`,
+  password `android`). Reason: every CI runner would otherwise generate a new debug key and
+  Android refuses to update an app signed with a different key. It protects nothing, so it must
+  never be used for a store release (that needs a private key in repository secrets).
+- **versionCode = workflow run number** so each preview installs over the previous one.
+- **Published to one pre-release (`ashbound-preview`) with `gh release upload --clobber`**: a
+  stable download link the tester can bookmark on the phone.
+- **Emulator smoke job** (`reactivecircus/android-emulator-runner@v2`, API 34, x86_64,
+  SwiftShader GPU): installs the APK, launches it, taps start, attaches screenshots and the
+  WebView console to the release. Software GPU, so it proves the app boots and renders, not
+  real-device performance.
+
+## Testing
+
+- **Test hook `window.__ashbound`** (state + commands such as skip countdown, kill all, skip to
+  boss) lets e2e tests reach every stage state in minutes on a ~7 FPS software renderer.
+  Cheats in the debug overlay call the same methods.
+- **Speed-tolerant e2e assertions.** Headless SwiftShader runs game time at roughly a third of
+  real time, so the wave test requires ≥ 1 kill in 120 s and the soak test requires that combat
+  happened (ultimate charge or kills > 0), not a fixed kill count. Exact combat behaviour is
+  covered by the deterministic integration tests instead.
+- **Warm-up tap in the gesture test:** the first CDP touch on a fresh page took ~2 s in headless
+  Chromium, which broke the triple-tap timing; one tap elsewhere first makes it reliable.
