@@ -237,10 +237,11 @@ function buildTemplate(def: RigDef): RigTemplate {
   // Eyes (unlit glow mesh).
   if (L.eyes !== 0) {
     for (const side of [1, -1]) {
-      glow.add(new SphereGeometry(p.headRadius * 0.17, 6, 5), 'Head', L.eyes, [
-        side * p.headRadius * 0.38,
+      // Pushed out of the head sphere so the glow reads from the front at any distance.
+      glow.add(new SphereGeometry(p.headRadius * 0.2, 6, 5), 'Head', L.eyes, [
+        side * p.headRadius * 0.36,
         p.headRadius * 1.0,
-        p.headRadius * 0.85,
+        p.headRadius * 0.98,
       ]);
     }
   }

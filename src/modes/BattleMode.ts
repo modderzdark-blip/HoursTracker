@@ -1,4 +1,4 @@
-import { Vector3, type Scene } from 'three';
+import { Vector3, type Camera, type Object3D, type Scene } from 'three';
 import type { Actor } from '../actors/Actor';
 import { Boss } from '../actors/Boss';
 import type { Enemy } from '../actors/Enemy';
@@ -882,6 +882,23 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.sparks.setPixelRatio(pr);
     this.sparks.density = preset.particleCount / MAX_PARTICLES + 0.25;
     this.blobs.setStrength(preset.shadows ? 0.4 : 0.6);
+  }
+
+  /**
+   * Compiles every shader the battle can need — including pooled objects that start hidden
+   * (trails, telegraphs, clones, inactive enemies) — so nothing compiles mid-fight on a phone.
+   * three's compile() skips invisible objects, so they are made visible for the call.
+   */
+  warmShaders(camera: Camera): void {
+    const hidden: Object3D[] = [];
+    this.scene.traverse((o) => {
+      if (!o.visible) {
+        hidden.push(o);
+        o.visible = true;
+      }
+    });
+    this.d.ctx.renderer.compile(this.scene, camera);
+    for (const o of hidden) o.visible = false;
   }
 
   // ------------------------------------------------------------------ debug / tests

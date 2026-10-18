@@ -348,6 +348,8 @@ export class App {
     this.wireEvents();
     this.installTestHook();
     this.mode.render(1, 0, 1);
+    // Compile all shaders (incl. hidden pooled effects) behind the title screen.
+    this.mode.warmShaders(this.camera.camera);
     this.ctx.render(this.camera.camera);
   }
 
