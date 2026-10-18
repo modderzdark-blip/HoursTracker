@@ -392,6 +392,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
   }
 
   startBossIntro(): void {
+    this.removeDummy();
     const [bx, bz] = this.d.arena.bossSpawn;
     const yaw = Math.atan2(this.player.currFeet.x - bx, this.player.currFeet.z - bz);
     this.boss.activate(bx, bz, yaw, this.difficulty.enemyHp, this.difficulty.enemyPoise);
@@ -454,24 +455,27 @@ export class BattleMode implements QualityTarget, WaveWorld {
   }
 
   onWaveStart(wave: number, total: number): void {
-    if (wave === 0 && this.dummy.inWorld) {
-      this.sparks.burst(
-        this.dummy.currFeet.x,
-        1,
-        this.dummy.currFeet.z,
-        24,
-        SPARK.ash,
-        3,
-        0,
-        0,
-        0.7,
-        1.5,
-        0,
-      );
-      this.dummy.removeFromWorld();
-    }
+    if (wave === 0) this.removeDummy();
     this.hud.showBanner(`WAVE ${wave + 1} / ${total}`, 'wave', 1500);
     this.d.bus.emit('wave:start', { wave, total });
+  }
+
+  private removeDummy(): void {
+    if (!this.dummy.inWorld) return;
+    this.sparks.burst(
+      this.dummy.currFeet.x,
+      1,
+      this.dummy.currFeet.z,
+      24,
+      SPARK.ash,
+      3,
+      0,
+      0,
+      0.7,
+      1.5,
+      0,
+    );
+    this.dummy.removeFromWorld();
   }
 
   onWaveCleared(wave: number): void {
