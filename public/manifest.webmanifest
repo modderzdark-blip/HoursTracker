@@ -1,0 +1,9 @@
+{
+  "name": "Ashbound",
+  "short_name": "Ashbound",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#07060a",
+  "theme_color": "#07060a"
+}
