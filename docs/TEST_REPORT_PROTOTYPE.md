@@ -6,17 +6,17 @@ available to the developer; everything marked UNTESTED below needs a phone.
 
 ## Summary
 
-| #   | Check                                               | Result                                                                                        |
-| --- | --------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| 1   | `tsc --noEmit` (app + config/e2e projects)          | **PASS** — 0 errors                                                                           |
-| 2   | ESLint (`--max-warnings=0`) + Prettier check        | **PASS** — 0 errors, 0 warnings                                                               |
-| 3   | Vitest unit + integration tests                     | **PASS** — 139/139 in 13 files                                                                |
-| 4   | `vite build`                                        | **PASS** — sizes below                                                                        |
-| 5   | Playwright smoke (Pixel 7 landscape 915×412, touch) | **PASS** — 10/10, incl. full boss run and 60 s soak                                           |
-| 6   | APK build in GitHub Actions (`android-preview.yml`) | **PASS** on earlier runs (APK downloaded and its contents checked); see CI section            |
-| 7   | APK on Android emulator (API 34, software GPU)      | Job added in this release — result recorded in the release assets (`status.txt`, screenshots) |
-| 8   | GitHub Pages deploy                                 | **BLOCKED** — Pages must be enabled in repository settings (README → Deploying)               |
-| 9   | Real Android phone (touch feel, FPS, heat, audio)   | **UNTESTED**                                                                                  |
+| #   | Check                                                   | Result                                                                                                     |
+| --- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| 1   | `tsc --noEmit` (app + config/e2e projects)              | **PASS** — 0 errors                                                                                        |
+| 2   | ESLint (`--max-warnings=0`) + Prettier check            | **PASS** — 0 errors, 0 warnings                                                                            |
+| 3   | Vitest unit + integration tests                         | **PASS** — 139/139 in 13 files                                                                             |
+| 4   | `vite build`                                            | **PASS** — sizes below                                                                                     |
+| 5   | Playwright smoke (Pixel 7 landscape 915×412, touch)     | **PASS** — 10/10, incl. full boss run and 60 s soak                                                        |
+| 6   | APK build in GitHub Actions (`android-preview.yml`)     | **PASS** — run #6, APK 6.3 MB (source maps stripped)                                                       |
+| 7   | APK on Android emulator (API 34, Pixel 6, software GPU) | **PASS** — installs, title renders, tap starts the battle, HUD + combat live after 45 s, app still running |
+| 8   | GitHub Pages deploy                                     | **BLOCKED** — Pages must be enabled in repository settings (README → Deploying)                            |
+| 9   | Real Android phone (touch feel, FPS, heat, audio)       | **UNTESTED**                                                                                               |
 
 ## Unit and integration tests (Vitest)
 
@@ -69,6 +69,23 @@ separately (shadows add one pass per caster) — **UNTESTED** on a device.
 01 title · 02 practice countdown with dummy · 03 wave fight · 04 boss intro · 05 boss fight ·
 06 boss phase 2 (flaming weapon) · 07 victory · 08 defeat/revive · 09 pause · 10 HIGH preset ·
 11 debug overlay.
+
+## Android emulator smoke (CI, run #6)
+
+`scripts/ci/emulator-smoke.sh` on `reactivecircus/android-emulator-runner@v2`, API 34 google_apis
+x86_64, Pixel 6 profile, WebView 113, SwiftShader GPU. Results are attached to the
+`ashbound-preview` release (`emulator-1-title.png`, `emulator-2-game.png`, `webview-console.txt`).
+
+- Title screen with build stamp `v0.2.0 · 851c86f`; after a tap: battle HUD, joystick, skill
+  buttons; hero HP 1072/1200 after 45 s (enemies reached and hit the idle hero, so AI and combat
+  run inside the WebView).
+- Console: `save backend indexedDB`, `started; quality low (auto)`, benchmark median 116.7 ms
+  per frame (≈ 8.5 FPS — software GPU on a CI runner, not representative of a phone).
+- Harmless messages: Capacitor SystemBars logs "Error injecting safe area CSS" a few times
+  before the page exists (the game reads safe areas through CSS `env()`, not those variables);
+  "orientation lock failed" because the WebView refuses `screen.orientation.lock` — the
+  manifest already locks landscape. The blue "Viewing full screen" card in the screenshots is
+  Android's one-time immersive-mode hint.
 
 ## Manual review findings fixed in this release
 
