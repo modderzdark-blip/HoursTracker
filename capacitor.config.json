@@ -1,0 +1,15 @@
+{
+  "appId": "com.ashbound.game",
+  "appName": "Ashbound",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#07060a"
+  },
+  "plugins": {
+    "SystemBars": {
+      "hidden": true,
+      "style": "DARK"
+    }
+  }
+}
