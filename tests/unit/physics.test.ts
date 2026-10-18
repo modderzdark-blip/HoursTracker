@@ -19,7 +19,11 @@ function setup(): { world: PhysicsWorld; body: CharacterBody; motor: CharacterMo
   const world = new PhysicsWorld(rapier);
   world.addStaticCuboid(0, -0.5, 0, 50, 0.5, 50); // floor top at y=0
   const body = new CharacterBody(world, R, H, 0, 3, 0);
-  const motor = new CharacterMotor(HEROES.kael.movement, PHYSICS_CONFIG.gravity);
+  const motor = new CharacterMotor(
+    HEROES.kael.movement,
+    PHYSICS_CONFIG.gravity,
+    HEROES.kael.stats.moveSpeed,
+  );
   return { world, body, motor };
 }
 

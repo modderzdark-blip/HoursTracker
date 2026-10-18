@@ -6,7 +6,7 @@ import { HEROES } from '../../src/data/heroes';
 describe('data sanity', () => {
   it('heroes have positive movement stats and 3 skills with cooldowns', () => {
     for (const h of Object.values(HEROES)) {
-      expect(h.movement.moveSpeed).toBeGreaterThan(0);
+      expect(h.stats.moveSpeed).toBeGreaterThan(0);
       expect(h.movement.acceleration).toBeGreaterThan(0);
       expect(h.movement.deceleration).toBeGreaterThan(0);
       expect(h.skills).toHaveLength(3);

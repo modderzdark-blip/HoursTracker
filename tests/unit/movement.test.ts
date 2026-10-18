@@ -44,36 +44,36 @@ describe('CharacterMotor', () => {
   const out = { x: 0, y: 0, z: 0 };
 
   it('reaches top speed at full stick and analog speed at half stick', () => {
-    const m = new CharacterMotor(kael.movement, -28);
+    const m = new CharacterMotor(kael.movement, -28, kael.stats.moveSpeed);
     for (let i = 0; i < 60; i++) m.step(1, 0, dt, true, out);
-    expect(m.planarSpeed).toBeCloseTo(kael.movement.moveSpeed);
-    const half = new CharacterMotor(kael.movement, -28);
+    expect(m.planarSpeed).toBeCloseTo(kael.stats.moveSpeed);
+    const half = new CharacterMotor(kael.movement, -28, kael.stats.moveSpeed);
     for (let i = 0; i < 60; i++) half.step(0, 0.5, dt, true, out);
-    expect(half.planarSpeed).toBeCloseTo(kael.movement.moveSpeed * 0.5);
+    expect(half.planarSpeed).toBeCloseTo(kael.stats.moveSpeed * 0.5);
   });
 
   it('accelerates over time rather than instantly (no robotic snapping)', () => {
-    const m = new CharacterMotor(kael.movement, -28);
+    const m = new CharacterMotor(kael.movement, -28, kael.stats.moveSpeed);
     m.step(1, 0, dt, true, out);
     expect(m.planarSpeed).toBeCloseTo(kael.movement.acceleration * dt);
-    expect(m.planarSpeed).toBeLessThan(kael.movement.moveSpeed);
+    expect(m.planarSpeed).toBeLessThan(kael.stats.moveSpeed);
   });
 
   it('stops when input is released', () => {
-    const m = new CharacterMotor(kael.movement, -28);
+    const m = new CharacterMotor(kael.movement, -28, kael.stats.moveSpeed);
     for (let i = 0; i < 60; i++) m.step(1, 0, dt, true, out);
     for (let i = 0; i < 30; i++) m.step(0, 0, dt, true, out);
     expect(m.planarSpeed).toBe(0);
   });
 
   it('over-long input is clamped to top speed', () => {
-    const m = new CharacterMotor(kael.movement, -28);
+    const m = new CharacterMotor(kael.movement, -28, kael.stats.moveSpeed);
     for (let i = 0; i < 60; i++) m.step(3, 4, dt, true, out);
-    expect(m.planarSpeed).toBeCloseTo(kael.movement.moveSpeed);
+    expect(m.planarSpeed).toBeCloseTo(kael.stats.moveSpeed);
   });
 
   it('turns toward the input at the configured turn rate', () => {
-    const m = new CharacterMotor(kael.movement, -28);
+    const m = new CharacterMotor(kael.movement, -28, kael.stats.moveSpeed);
     m.reset(0); // facing +Z
     m.step(1, 0, dt, true, out); // want +X (yaw π/2)
     expect(m.yaw).toBeCloseTo(((kael.movement.turnRateDeg * Math.PI) / 180) * dt);
@@ -82,14 +82,14 @@ describe('CharacterMotor', () => {
   });
 
   it('keeps facing when the stick is near the centre', () => {
-    const m = new CharacterMotor(kael.movement, -28);
+    const m = new CharacterMotor(kael.movement, -28, kael.stats.moveSpeed);
     m.reset(1);
     m.step(0.01, 0.01, dt, true, out);
     expect(m.yaw).toBe(1);
   });
 
   it('applies gravity in the air and sticks to the ground when grounded', () => {
-    const m = new CharacterMotor(kael.movement, -28);
+    const m = new CharacterMotor(kael.movement, -28, kael.stats.moveSpeed);
     m.step(0, 0, dt, false, out);
     m.step(0, 0, dt, false, out);
     expect(m.verticalVelocity).toBeCloseTo(-28 * 2 * dt);
