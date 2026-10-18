@@ -1,5 +1,6 @@
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { PHYSICS_CONFIG } from '../data/config';
+import { MOVE_QUERY_GROUPS, characterGroups, GROUP } from './groups';
 import type { PhysicsWorld } from './PhysicsWorld';
 
 interface MutableVec {
@@ -31,6 +32,7 @@ export class CharacterBody {
     x: number,
     y: number,
     z: number,
+    membership: number = GROUP.player,
   ) {
     const R = physics.rapier;
     const world = physics.world;
@@ -38,7 +40,10 @@ export class CharacterBody {
     this.body = world.createRigidBody(
       R.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y, z),
     );
-    this.collider = world.createCollider(R.ColliderDesc.capsule(halfHeight, radius), this.body);
+    this.collider = world.createCollider(
+      R.ColliderDesc.capsule(halfHeight, radius).setCollisionGroups(characterGroups(membership)),
+      this.body,
+    );
     this.position.x = x;
     this.position.y = y;
     this.position.z = z;
@@ -59,7 +64,13 @@ export class CharacterBody {
     this.desired.x = dx;
     this.desired.y = dy;
     this.desired.z = dz;
-    this.controller.computeColliderMovement(this.collider, this.desired);
+    // Characters only collide with level geometry; crowd separation keeps them apart softly.
+    this.controller.computeColliderMovement(
+      this.collider,
+      this.desired,
+      undefined,
+      MOVE_QUERY_GROUPS,
+    );
     this.controller.computedMovement(this.corrected);
     this.grounded = this.controller.computedGrounded();
     this.position.x += this.corrected.x;
@@ -80,6 +91,15 @@ export class CharacterBody {
     this.body.setTranslation(this.position, true);
     this.body.setNextKinematicTranslation(this.position);
     this.grounded = false;
+  }
+
+  /** Pooled actors are disabled instead of destroyed (no hits, no queries). */
+  setEnabled(enabled: boolean): void {
+    this.body.setEnabled(enabled);
+  }
+
+  get colliderHandle(): number {
+    return this.collider.handle;
   }
 
   dispose(): void {

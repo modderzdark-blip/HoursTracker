@@ -28,6 +28,12 @@ export class TimeControl {
     return this.slowRemainingMs > 0;
   }
 
+  /** Current game-time rate (0 during hit-stop) — used to scale cosmetic animation. */
+  get currentScale(): number {
+    if (this.hitStopRemainingMs > 0) return 0;
+    return (this.slowRemainingMs > 0 ? this.slowScale : 1) * this.baseScale;
+  }
+
   /** Consumes `realMs` of wall-clock time and returns the game time it maps to. */
   advance(realMs: number): number {
     let remaining = Math.max(realMs, 0);

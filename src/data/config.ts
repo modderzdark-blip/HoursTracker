@@ -60,6 +60,17 @@ export const CAMERA_CONFIG = {
   /** Camera leads the target in its movement direction by up to this many metres. */
   lookAhead: 1.2,
   lookAheadSharpness: 3,
+  /** Boss framing: shift the anchor toward the boss and pull back so both stay on screen. */
+  bossFraming: {
+    anchorShift: 0.35,
+    maxShift: 5,
+    /** Extra distance factor at `farDistance` metres between player and boss. */
+    extraDistance: 0.45,
+    farDistance: 14,
+    sharpness: 3,
+  },
+  /** Blend time back to the follow camera after a cinematic. */
+  cinematicBlendMs: 450,
   shake: {
     /** Trauma decays by this much per second. Shake strength = trauma². */
     decayPerSec: 1.6,

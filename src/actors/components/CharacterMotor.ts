@@ -20,12 +20,14 @@ export class CharacterMotor {
   readonly velocity: PlanarVelocity = { x: 0, z: 0 };
   verticalVelocity = 0;
   yaw = 0;
-  /** 0..1 multiplier for future slows/roots (status effects in M5). */
+  /** 0..1 multiplier from status effects (slow). */
   speedMultiplier = 1;
 
   constructor(
     private readonly movement: HeroMovement,
     private readonly gravity: number,
+    /** Top run speed at full stick deflection (m/s), from the hero's stats. */
+    public moveSpeed: number,
   ) {}
 
   /**
@@ -43,7 +45,7 @@ export class CharacterMotor {
     const m = this.movement;
     const rawMag = Math.hypot(inputX, inputZ);
     const mag = Math.min(rawMag, 1);
-    const speed = m.moveSpeed * this.speedMultiplier;
+    const speed = this.moveSpeed * this.speedMultiplier;
     // Clamp over-long input to the unit circle; magnitude below 1 = analog walk speed.
     const k = rawMag > 1 ? speed / rawMag : speed;
     const targetX = inputX * k;
