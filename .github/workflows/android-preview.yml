@@ -48,6 +48,9 @@ jobs:
         env:
           BUILD_SHA: ${{ github.sha }}
 
+      - name: Drop source maps from the APK (kept for the web build only)
+        run: find dist -name '*.map' -delete
+
       - name: Sync Capacitor
         run: npx cap sync android
 
@@ -83,3 +86,52 @@ jobs:
           gh release upload "$RELEASE_TAG" "$APK_NAME" --clobber
           gh release edit "$RELEASE_TAG" --notes "$NOTES"
           echo "APK: https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${APK_NAME}"
+
+  emulator-smoke:
+    # Boots an Android emulator, installs the APK, starts the game and attaches screenshots +
+    # the WebView console to the pre-release, so every preview is verified on real Android.
+    needs: apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: ashbound-apk
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Emulator smoke test (API 34, Pixel 6)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          ram-size: 3072M
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu swiftshader_indirect -no-boot-anim -no-snapshot -camera-back none -camera-front none
+          disable-animations: true
+          script: bash scripts/ci/emulator-smoke.sh
+
+      - name: Attach emulator screenshots and logs to the pre-release
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la emulator-output || true
+          for f in emulator-output/emulator-1-title.png emulator-output/emulator-2-game.png emulator-output/webview-console.txt emulator-output/status.txt; do
+            [ -f "$f" ] && gh release upload "$RELEASE_TAG" "$f" --clobber || true
+          done
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: emulator-output
+          path: emulator-output/
+          if-no-files-found: ignore
