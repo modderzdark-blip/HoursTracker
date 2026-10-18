@@ -20,6 +20,7 @@ export interface HookState {
   errors: number;
   activeTouches: number;
   joystickActive: boolean;
+  move: { x: number; y: number };
   debugOverlay: boolean;
 }
 

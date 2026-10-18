@@ -91,13 +91,16 @@ test.describe('M1 smoke (Pixel 7 landscape, touch)', () => {
     expect(attacked.joystickActive).toBe(true); // joystick unaffected by the second finger
     await page.screenshot({ path: `${SHOTS}/m1-moving-attack.png` });
 
-    // Release: nothing may stay stuck.
+    // Release: nothing may stay stuck. Input must be zero immediately (frame-rate independent)...
     await touch.upAll();
-    await page.waitForTimeout(600);
     const after = await state(page);
     expect(after.joystickActive).toBe(false);
     expect(after.activeTouches).toBe(0);
-    expect(after.player.speed).toBeLessThan(0.01);
+    expect(after.move).toEqual({ x: 0, y: 0 });
+    // ...and the hero must come to rest (polled: software WebGL can be very slow).
+    await expect
+      .poll(async () => (await state(page)).player.speed, { timeout: 15_000 })
+      .toBeLessThan(0.01);
     expect(errors).toEqual([]);
   });
 
@@ -190,10 +193,14 @@ test.describe('M1 smoke (Pixel 7 landscape, touch)', () => {
     let angle = 0;
     await touch.down(1, 170, 300);
     let tick = 0;
+    let attackTaps = 0;
     while (Date.now() - t0 < 60_000) {
       angle += 0.12;
       await touch.move(1, 170 + Math.cos(angle) * 50, 300 + Math.sin(angle) * 50);
-      if (tick % 6 === 0) await touch.tap(2, attack.x, attack.y, 30);
+      if (tick % 6 === 0) {
+        await touch.tap(2, attack.x, attack.y, 30);
+        attackTaps++;
+      }
       if (tick % 40 === 0) {
         const s = skills[(tick / 40) % 3];
         if (s !== undefined) await touch.tap(3, s.x, s.y, 30);
@@ -228,7 +235,11 @@ test.describe('M1 smoke (Pixel 7 landscape, touch)', () => {
     );
     expect(errors).toEqual([]);
     expect(s.errors).toBe(0);
-    expect(s.attacks).toBeGreaterThan(20);
+    // Every tap must register as exactly one press (touch correctness). Swings depend on game
+    // time, which runs slower than wall time when software WebGL can't keep up, so only a floor.
+    expect(s.presses['attack']).toBe(attackTaps);
+    expect(s.attacks).toBeGreaterThanOrEqual(10);
+    expect(s.move).toEqual({ x: 0, y: 0 });
     expect(s.activeTouches).toBe(0);
     expect(s.joystickActive).toBe(false);
     // No growth trend: under 20 KB/s and under 3 MB net across the minute (after forced GC).
