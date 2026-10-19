@@ -1,9 +1,29 @@
 # Changelog
 
-## [Unreleased]
+## [0.4.0] — Progress & polish (2026-10-19)
+
+### Changed
+
+- **Balance**: heroes now keep pace with the stages (XP curve 40 × L^1.3, more XP per stage,
+  more Dungeon / Tower / Challenge XP); enemies gain less HP and DEF per level; boss HP lowered
+  (Bound King 13000 → 7200, Mother of Ash 11000 → 8000, Warden 9000 → 7800, Penitent 5200 →
+  4300). The Bound King's sweep is narrower and slower, the grab rarer and softer, slam and
+  eruptions weaker, phase hazards rarer, phase multipliers lower. On first clears only, the
+  final boss went from ~370 to ~140 average hits; recommended power follows the new curve.
+- **Animation**: torso banks into turns and leans with acceleration; hits snap the body away
+  from where they land; attacks (heroes and enemies) have anticipation, a snappy strike and
+  follow-through; the run cycle bobs and twists; idle shifts weight.
 
 ### Added
 
+- **Journal**: 3 daily quests + all-done chest, 7-day login calendar (pops up once a day),
+  10 tiered achievements (gems).
+- **Ember Hearth** on the hub: gold, XP and materials build up over real time (12 h cap).
+- **Ember Blessing**: +10% ATK / +12% HP per defeat on a stage (max 3) until it is cleared;
+  shown on the pre-battle panel, the defeat screen and in the battle label.
+- **Bench XP**: unlocked heroes you are not playing earn 40% of the XP.
+- Tests: balance guard, quests, login, hearth, blessing, achievements, body dynamics, strike
+  keys (216 unit tests); e2e for the daily gift and the Journal (13 e2e).
 - **Release signing (M15, optional):** with the `ASHBOUND_*` secrets set, the Android workflow
   also builds a store-signed APK + AAB as a workflow artifact. Skipped without them; the preview
   build is unchanged. UNTESTED (no secrets configured).

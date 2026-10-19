@@ -3,10 +3,11 @@
 Mobile dark-fantasy hack-and-slash action RPG — Three.js + TypeScript + Rapier, no engine.
 Playable in Chrome on Android (GitHub Pages) and as a sideloadable Capacitor APK.
 
-> Status: **0.3.0 — full game loop**: hub, 3 heroes, 3 Adventure chapters × 8 stages (Normal /
+> Status: **0.4.0 — progress & polish**: hub, 3 heroes, 3 Adventure chapters × 8 stages (Normal /
 > Hard / Nightmare), 6 enemy types, 3 bosses + 3 mini-bosses, Dungeon, Demon Tower, Boss
 > Challenge, Arena (AI duels, rating, seasons, leaderboard), XP/levels, gear with upgrades and
-> salvage, loot with pity, skill trees, settings, procedural music and SFX. Characters are still
+> salvage, loot with pity, skill trees, daily quests, login calendar, achievements, Ember Hearth
+> (rewards over time), Ember Blessing (help after defeats), settings, procedural music and SFX. Characters are still
 > procedural placeholder rigs (real models: see [docs/ASSET_LIST.md](docs/ASSET_LIST.md)).
 > See [CHANGELOG.md](CHANGELOG.md) and [docs/TEST_REPORT_FULL.md](docs/TEST_REPORT_FULL.md).
 
@@ -54,6 +55,17 @@ Brann unlocks after 1-4 for 60 souls, Lyra after 1-8 for 120 souls (Heroes scree
 - **Arena** (after chapter 1) — duels against AI-controlled heroes built from a hero, gear and
   skills; rating, 7-day seasons with rewards, local leaderboard.
 - **Demon Tower** (after chapter 2) — endless floors, a boss every 10th, milestone rewards.
+
+### Coming back every day
+
+- **Journal** (hub dock): 3 daily quests (reset at local midnight) plus a chest for finishing
+  all three; a 7-day login calendar (a missed day never resets it); 10 achievements with tiers
+  paying gems.
+- **Ember Hearth** (hub, top left): gold, XP and materials build up over real time, up to
+  12 hours; the rate grows with your Adventure progress. Tap to collect.
+- **Ember Blessing**: each defeat on a stage adds +10% ATK and +12% HP on that stage (up to 3
+  stacks) until you win it, so a wall always turns into a win.
+- Heroes you are not playing earn 40% of the XP, so switching heroes never starts from zero.
 
 ## Project structure
 

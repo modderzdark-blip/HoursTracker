@@ -162,5 +162,21 @@ Each entry: the decision, why, and what would change it.
   changes on the phone can be exploited, which is acceptable for an offline single-player game.
 - **Procedural music** (Web Audio sequencer with look-ahead scheduling) instead of audio files:
   zero download, works offline, separate volume. Replaceable by real tracks later.
+- **Balance is guarded by a test, not by feel alone** (`tests/unit/goals.test.ts`): a player who
+  clears each stage once with rare +3 gear must find every boss within a hit-count band, the
+  final boss at most 1.6× the first chapter boss, and meet the recommended power. 0.3.0 had
+  heroes at level ~9 when reaching the level-24 final boss (~370 average hits to kill); the XP
+  curve (40 × L^1.3), stage XP, per-level enemy HP/DEF and boss HP were retuned together.
+- **Help after defeats is per stage and temporary** (Ember Blessing): it removes walls without
+  making the rest of the game easier, and disappears on the clear so stars still mean
+  something.
+- **Daily systems use local days and wall-clock time, offline** (quests, login calendar,
+  hearth): the same trade-off as dungeon refills — no server, clock changes are exploitable,
+  acceptable offline. A clock moved backwards yields nothing rather than a negative.
+- **Login calendar never resets on a missed day**: retention without punishment.
+- **Secondary motion is procedural, on top of the clips** (`BodyDynamics`): torso lean and
+  directional hit recoil are springs applied after the mixer, so they work for every rig and
+  will also apply to real models later. Attack clips get easing keys (anticipation, snap,
+  follow-through overshoot) generated from the same wind/hit poses — no new data per move.
 - **Left-handed layout = CSS mirror** of the button cluster (labels flipped back) and the
   joystick zone moved right; hit-testing uses live element rects, so it needs no code changes.

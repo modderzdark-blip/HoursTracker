@@ -1,33 +1,35 @@
-# Test Report — 0.3.0 full game loop
+# Test Report — 0.4.0 progress & polish
 
-Build: v0.3.0 · Date: 2026-10-19 · Environment: cloud container (Node 22, headless Chromium 141
+Build: v0.4.0 · Date: 2026-10-19 · Environment: cloud container (Node 22, headless Chromium 141
 via Playwright 1.56.1, SwiftShader software WebGL 2 at ~3–7 FPS). No physical phone was available
 to the developer; everything marked **UNTESTED** needs your phone.
 
 ## Summary
 
-| #   | Check                                               | Result                                                      |
-| --- | --------------------------------------------------- | ----------------------------------------------------------- |
-| 1   | `tsc --noEmit` (app + config/e2e projects)          | **PASS** — 0 errors                                         |
-| 2   | ESLint (`--max-warnings=0`) + Prettier              | **PASS**                                                    |
-| 3   | Vitest unit + integration                           | **PASS** — 193/193 in 15 files                              |
-| 4   | `vite build`                                        | **PASS** — sizes below                                      |
-| 5   | Playwright smoke (Pixel 7 landscape 915×412, touch) | **PASS** — 12/12, incl. hub flow, boss → loot → equip, soak |
-| 6   | Scripted runs of every mode in headless Chrome      | **PASS** — see "Mode runs" (scratch scripts, not in CI)     |
-| 7   | APK build + Android emulator boot (CI)              | **PASS** — build #13: installs, boots to the hub, no errors |
-| 8   | GitHub Pages deploy                                 | **BLOCKED** until Pages is enabled in repository settings   |
-| 9   | Real phone (feel, FPS, heat, audio, music)          | **UNTESTED**                                                |
+| #   | Check                                               | Result                                                    |
+| --- | --------------------------------------------------- | --------------------------------------------------------- |
+| 1   | `tsc --noEmit` (app + config/e2e projects)          | **PASS** — 0 errors                                       |
+| 2   | ESLint (`--max-warnings=0`) + Prettier              | **PASS**                                                  |
+| 3   | Vitest unit + integration                           | **PASS** — 216/216 in 17 files                            |
+| 4   | `vite build`                                        | **PASS** — sizes below                                    |
+| 5   | Playwright smoke (Pixel 7 landscape 915×412, touch) | **PASS** — 13/13, incl. daily gift + Journal, boss, soak  |
+| 6   | Scripted runs of every mode in headless Chrome      | **PASS** — see "Mode runs" (scratch scripts, not in CI)   |
+| 7   | APK build + Android emulator boot (CI)              | Run on push — result in the `ashbound-preview` release    |
+| 8   | GitHub Pages deploy                                 | **BLOCKED** until Pages is enabled in repository settings |
+| 9   | Real phone (feel, FPS, heat, audio, music)          | **UNTESTED**                                              |
 
-## Unit and integration tests (Vitest, 193)
+## Unit and integration tests (Vitest, 216)
 
-| File                         | Covers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `progression.test.ts`        | XP curve (formula, multi-level gains, max level); hero stats with level and gear; gear rolls (substat counts, no duplicates), upgrade success table (+1…+10 = 100%, then lower), failures never destroy/downgrade, all-or-nothing payment, salvage; pity (epic and legendary guarantees, 5000-roll streak check), drop tables; skill-tree costs, prerequisites, level gates, mods; profile equip / salvage / full bag / stage unlock chain / star gems once / difficulty unlocks; profile sanitising                                                                                   |
-| `modes.test.ts`              | Dungeon entries (spend, timed refill, cap, never negative), room planning (distinct, random order, elite last); tower floors (deterministic, boss every 10th, enemy unlock floors, milestones); challenge tiers; arena rating changes (direction, upsets, bounds), opponents (distinct, near rating/power, deterministic), season settle + soft reset, leaderboard                                                                                                                                                                                                                     |
-| `battle.integration.test.ts` | Real Rapier: Kael combo/buffer/dodge/perfect dodge/counter/skills/ult; AI tokens; stagger; boss phases/break/enrage; **Brann** charge (full charge > 2.2× tap) and shockwave reach; **Lyra** arrows at range vs dagger up close, trap springs only on hittable enemies, homing ultimate; **Bulwark** blocks frontal hits (>5× less damage) but not from behind; **Seer** kites and shoots; **Wretch** explodes and dies; **Mother of Ash** flies invulnerable and summons in phase III; **Bound King** grab → hold → slam; **arena duelist** closes in, lands hits, uses several moves |
-| `systems.test.ts`            | Attack tokens, WaveDirector, wallet rules (no negatives / no duplication), stars, save migrations v1→v3 and v2→v3                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `data.test.ts`               | Every arena (props and spawn points clear), chapters (8 stages, rising levels, valid enemies/bosses), boss phases, gear and skill-tree data, mode unlock ids                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| others                       | core, input, movement, physics, save (incl. new settings), quality, combat, damage, actionRunner, debug — as before                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| File                         | Covers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `goals.test.ts`              | **Balance guard** (first-clear player vs every boss: hero level within 5 of stage level, boss hit counts in band, final boss ≤ 1.6× first boss, recommended power met); daily quests (3 distinct, stable per day, locked modes excluded, capped progress, claim once, all-done chest); local day with time zones; login calendar (once a day, 7-day cycle, no reset on missed days); hearth (grows with time and level, 12 h cap, clock rollback gives nothing, collect once); Ember Blessing (stacks to 3, per difficulty, cleared on victory, abandons ignored); achievements (tiers in order, paid once); sanitising of the new save fields; bench XP |
+| `animation.test.ts`          | Body dynamics (front/back/side hit recoil direction, settles, bounded, banks into turns, stable after a 2 s hitch); strike keys (ordered, idle at both ends, overshoot in the swing direction); pose blending                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `progression.test.ts`        | XP curve (formula, multi-level gains, max level); hero stats with level and gear; gear rolls (substat counts, no duplicates), upgrade success table (+1…+10 = 100%, then lower), failures never destroy/downgrade, all-or-nothing payment, salvage; pity (epic and legendary guarantees, 5000-roll streak check), drop tables; skill-tree costs, prerequisites, level gates, mods; profile equip / salvage / full bag / stage unlock chain / star gems once / difficulty unlocks; profile sanitising                                                                                                                                                     |
+| `modes.test.ts`              | Dungeon entries (spend, timed refill, cap, never negative), room planning (distinct, random order, elite last); tower floors (deterministic, boss every 10th, enemy unlock floors, milestones); challenge tiers; arena rating changes (direction, upsets, bounds), opponents (distinct, near rating/power, deterministic), season settle + soft reset, leaderboard                                                                                                                                                                                                                                                                                       |
+| `battle.integration.test.ts` | Real Rapier: Kael combo/buffer/dodge/perfect dodge/counter/skills/ult; AI tokens; stagger; boss phases/break/enrage; **Brann** charge (full charge > 2.2× tap) and shockwave reach; **Lyra** arrows at range vs dagger up close, trap springs only on hittable enemies, homing ultimate; **Bulwark** blocks frontal hits (>5× less damage) but not from behind; **Seer** kites and shoots; **Wretch** explodes and dies; **Mother of Ash** flies invulnerable and summons in phase III; **Bound King** grab → hold → slam; **arena duelist** closes in, lands hits, uses several moves                                                                   |
+| `systems.test.ts`            | Attack tokens, WaveDirector, wallet rules (no negatives / no duplication), stars, save migrations v1→v3 and v2→v3                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `data.test.ts`               | Every arena (props and spawn points clear), chapters (8 stages, rising levels, valid enemies/bosses), boss phases, gear and skill-tree data, mode unlock ids                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| others                       | core, input, movement, physics, save (incl. new settings), quality, combat, damage, actionRunner, debug — as before                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 ## Build
 
@@ -39,9 +41,10 @@ to the developer; everything marked **UNTESTED** needs your phone.
 
 Initial load before the title ≈ 22 KB gzip (budget 10 MB).
 
-## Playwright smoke (12)
+## Playwright smoke (13)
 
-Title (no console errors) · hub → Adventure → stage map → pre-battle → fight with real taps, and
+Title (no console errors) · daily gift pops on the first hub visit, pays, Journal lists 3
+quests and 10 achievements, hearth shown · hub → Adventure → stage map → pre-battle → fight with real taps, and
 every dock screen opens · battle renders within the draw-call budget · joystick + multi-touch
 combo, nothing sticks · skill slide-off release · wave combat kills with real touch · boss stage
 1-8: intro → phase 2 → victory with loot cards → equip raises power · defeat → revive (gems) →
@@ -68,6 +71,22 @@ measured (waves, Warden, Mother of Ash, Bound King, duel). Budget 150.
 Hub · stage map · pre-battle · wave fight · Warden · victory with loot · gear · skills · Lyra's
 ultimate · Brann in the hub · Mother of Ash in flight · The Bound King · Dungeon · Arena · duel ·
 left-handed layout · settings.
+
+## 0.4.0 balance (first clears only, Kael, rare +3 gear of the stage level)
+
+Average hits at skill multiplier 1 (real fights use combos and skills, so fewer taps):
+
+| Stage | Boss          | Hero level before → after | Hits to kill before → after |
+| ----- | ------------- | ------------------------- | --------------------------- |
+| 1-4   | Gaoler        | 2 → 5                     | 50 → 42                     |
+| 1-8   | Hollow Warden | 4 → 8                     | 137 → 95                    |
+| 2-4   | Seer Exalted  | 5 → 11                    | 62 → 47                     |
+| 2-8   | Mother of Ash | 7 → 14                    | 213 → 113                   |
+| 3-4   | Penitent      | 8 → 17                    | 120 → 69                    |
+| 3-8   | Bound King    | 9 → 20                    | 369 → 139                   |
+
+The animation pass was checked with screenshots of running and mid-combo frames in headless
+Chrome (no broken poses, no console errors). How it feels at 60 FPS needs the phone.
 
 ## Fixed during self-testing
 
