@@ -26,7 +26,7 @@ grep -E "Capacitor/Console|chromium" "$OUT/logcat.txt" | tail -300 > "$OUT/webvi
   echo "pid after launch: ${PID:-none}"
   adb logcat -d -b crash || true
   grep -E "com\.ashbound|lmkd|lowmemorykiller|AndroidRuntime|has died|ANR in|Force finishing|onRenderProcessGone|RenderProcessGone|${PID:-NOPID}" \
-    "$OUT/logcat.txt" | grep -vE "Capacitor/Console" | tail -250
+    "$OUT/logcat.txt" | grep -vE "Capacitor/Console|AppsFilter" | tail -250
 } > "$OUT/crash.txt" 2>&1
 if adb shell pidof "$PKG" > /dev/null; then
   echo "app running" | tee "$OUT/status.txt"
