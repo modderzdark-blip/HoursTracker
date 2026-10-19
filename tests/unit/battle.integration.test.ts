@@ -2,7 +2,7 @@ import { Scene } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Actor } from '../../src/actors/Actor';
 import { Boss } from '../../src/actors/Boss';
-import { Enemy } from '../../src/actors/Enemy';
+import { Enemy, UNIT_SCALE } from '../../src/actors/Enemy';
 import { Player } from '../../src/actors/Player';
 import { TrainingDummy } from '../../src/actors/TrainingDummy';
 import { AttackTokenManager } from '../../src/ai/AttackTokens';
@@ -109,7 +109,7 @@ function makeWorld() {
   const addEnemy = (x: number, z: number): Enemy => {
     const e = new Enemy(ENEMIES.thrall, { physics, scene, ctx });
     combat.register(e);
-    e.activate(x, z, 0, 1, 1);
+    e.activate(x, z, 0, UNIT_SCALE);
     actors.push(e);
     targets.push(e);
     enemies.push(e);
@@ -118,7 +118,7 @@ function makeWorld() {
   const addBoss = (x: number, z: number): Boss => {
     const b = new Boss(BOSSES.hollow_warden, { physics, scene, ctx });
     combat.register(b);
-    b.activate(x, z, 0, 1, 1);
+    b.activate(x, z, 0, UNIT_SCALE);
     actors.push(b);
     targets.push(b);
     return b;

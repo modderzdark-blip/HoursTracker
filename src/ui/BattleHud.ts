@@ -25,6 +25,7 @@ export interface BossHudState {
  * Values are cached; the DOM is only touched when something visibly changes.
  */
 export class BattleHud {
+  private readonly heroName: HTMLElement;
   readonly root: HTMLElement;
   private readonly hpFill: HTMLElement;
   private readonly hpGhost: HTMLElement;
@@ -65,7 +66,8 @@ export class BattleHud {
     this.root = el('div', 'bhud');
     // Player panel.
     const panel = el('div', 'bhud-player');
-    panel.append(el('div', 'bhud-name', 'KAEL'));
+    this.heroName = el('div', 'bhud-name', '');
+    panel.append(this.heroName);
     const hpBar = el('div', 'bar bar-hp');
     this.hpGhost = el('div', 'bar-ghost');
     this.hpFill = el('div', 'bar-fill');
@@ -245,6 +247,10 @@ export class BattleHud {
         this.combo.classList.add('is-bump');
       }
     }
+  }
+
+  setHeroName(name: string): void {
+    this.heroName.textContent = name.toUpperCase();
   }
 
   reset(): void {

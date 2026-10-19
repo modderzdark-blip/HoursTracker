@@ -8,6 +8,7 @@ import {
 import { POSE_LIBRARY } from '../anim/poses';
 import { ActionRunner } from '../combat/ActionRunner';
 import type { CombatSystem, StrikeOptions } from '../combat/CombatSystem';
+import type { Effects } from '../combat/Effects';
 import { Cooldowns } from '../combat/Cooldowns';
 import { UltimateMeter } from '../combat/UltimateMeter';
 import type { EventBus } from '../core/EventBus';
@@ -15,9 +16,11 @@ import type { GameEvents } from '../core/events';
 import type { ActionDef, TrailSide } from '../data/combatTypes';
 import { PHYSICS_CONFIG } from '../data/config';
 import { ECONOMY } from '../data/economy';
+import type { StatBlock } from '../data/combatTypes';
 import type { HeroDef, SkillDef } from '../data/heroes';
 import { RIGS } from '../data/rigs';
 import type { InputState } from '../input/InputState';
+import { emptyMods, type HeroMods } from '../progression/skillTree';
 import { GROUP } from '../physics/groups';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { Actor, type HitReceived } from './Actor';
@@ -48,6 +51,12 @@ export interface PlayerDeps {
   readonly basis: { forwardXZ: { x: number; z: number }; rightXZ: { x: number; z: number } };
   /** Enemies the player can target (auto-aim, Umbral Step). */
   readonly targets: () => readonly Actor[];
+  /** Battle stats (level + gear); defaults to the hero's level-1 stats. */
+  readonly stats?: StatBlock;
+  /** Skill-tree modifiers; defaults to none. */
+  readonly mods?: HeroMods;
+  /** Projectiles / ground zones for emitting moves (bows, slams, traps). */
+  readonly effects?: Effects;
 }
 
 const SKILL_ACTIONS = ['skill1', 'skill2', 'skill3'] as const;
@@ -71,6 +80,15 @@ export class Player extends Actor {
   private comboResetMs = 0;
   private actionDef: ActionDef | null = null;
   private skillDef: SkillDef | null = null;
+  private skillSlot = -1;
+  /** Combo currently in use (melee, or the ranged combo for bow heroes). */
+  private comboSet: readonly ActionDef[];
+  /** Hold-to-charge skills: time charged so far and whether the button is still held. */
+  private chargeMs = 0;
+  private charging = false;
+  /** Damage multiplier of the current action from the skill tree (combo / skill / ultimate). */
+  private actionMult = 1;
+  readonly mods: HeroMods;
   private readonly hitSet = new Set<number>();
   private readonly strikeOpts: { -readonly [K in keyof StrikeOptions]: StrikeOptions[K] } = {
     difficultyMod: 1,
@@ -78,6 +96,7 @@ export class Player extends Actor {
     damageMult: 1,
     forceCrit: false,
     counter: false,
+    extraStatus: null,
   };
   private dodgeCooldownMs = 0;
   private readonly dodgeDir = { x: 0, z: 1 };
@@ -111,9 +130,10 @@ export class Player extends Actor {
         a.clip !== undefined ? buildCustomActionClip(a.clip, a, idle) : buildActionClip(a, idle),
       );
     }
+    const stats = deps.stats ?? hero.stats;
     super({
       rig: RIGS[hero.visual.rig],
-      stats: hero.stats,
+      stats,
       poise: 1,
       radius: hero.body.capsuleRadius,
       halfHeight: hero.body.capsuleHalfHeight,
@@ -125,8 +145,13 @@ export class Player extends Actor {
       knockbackResist: 0,
     });
     this.def = hero;
-    this.motor = new CharacterMotor(hero.movement, PHYSICS_CONFIG.gravity, hero.stats.moveSpeed);
-    this.cooldowns = new Cooldowns(hero.skills.map((s) => s.cooldownMs));
+    this.comboSet = hero.combo;
+    this.mods = deps.mods ?? emptyMods();
+    const mods = this.mods;
+    this.motor = new CharacterMotor(hero.movement, PHYSICS_CONFIG.gravity, stats.moveSpeed);
+    this.cooldowns = new Cooldowns(
+      hero.skills.map((s, i) => Math.round(s.cooldownMs * (mods.skillCooldown[i] ?? 1))),
+    );
     this.anim.play('idle', { loop: true, fade: 0 });
   }
 
@@ -149,7 +174,21 @@ export class Player extends Actor {
   }
 
   hasSuperArmor(): boolean {
-    return (this.state === 'skill' || this.state === 'ultimate') && this.runner.hasSuperArmor();
+    if (
+      this.state === 'skill' &&
+      (this.charging || this.mods.skillSuperArmor[this.skillSlot] === true)
+    )
+      return true;
+    return (
+      (this.state === 'attack' || this.state === 'skill' || this.state === 'ultimate') &&
+      this.runner.hasSuperArmor()
+    );
+  }
+
+  /** 0..1 while a hold-to-charge skill is charging (HUD / VFX). */
+  get chargeFrac(): number {
+    const max = this.skillDef?.chargeMaxMs ?? 0;
+    return this.charging && max > 0 ? Math.min(1, this.chargeMs / max) : 0;
   }
 
   get actionId(): string | null {
@@ -276,7 +315,10 @@ export class Player extends Actor {
       return true;
     }
     if (allowAttack && input.consume('attack')) {
-      this.startAttack(this.comboResetMs > 0 ? this.comboIndex : 0);
+      const set = this.pickComboSet();
+      const index = this.comboResetMs > 0 && set === this.comboSet ? this.comboIndex : 0;
+      this.comboSet = set;
+      this.startAttack(index);
       return true;
     }
     return false;
@@ -299,9 +341,19 @@ export class Player extends Actor {
     this.wasRunning = false;
     const counter = this.counterReady;
     this.counterArmed = counter;
-    this.strikeOpts.damageMult = counter ? this.def.dodge.counterDamageMult : 1;
+    const m = this.mods;
+    this.actionMult =
+      state === 'attack'
+        ? m.comboDamage
+        : state === 'ultimate'
+          ? m.ultDamage
+          : (m.skillDamage[this.skillSlot] ?? 1);
+    this.strikeOpts.damageMult =
+      this.actionMult * (counter ? this.def.dodge.counterDamageMult + m.counterBonus : 1);
     this.strikeOpts.forceCrit = counter || this.skillDef?.forceCrit === true;
     this.strikeOpts.counter = counter;
+    this.strikeOpts.extraStatus =
+      state === 'skill' ? (m.skillStatus[this.skillSlot] ?? null) : null;
     if (counter) this.counterUntilMs = -1;
     this.anim.play(def.clip ?? def.id, {
       durationSec: this.runner.totalMs / 1000,
@@ -310,10 +362,22 @@ export class Player extends Actor {
     });
   }
 
+  /** Bow heroes shoot when nothing is in melee range, and switch to the dagger up close. */
+  private pickComboSet(): readonly ActionDef[] {
+    const ranged = this.def.rangedCombo;
+    if (ranged === undefined) return this.def.combo;
+    const reach = this.def.meleeRange ?? 2.5;
+    for (const t of this.deps.targets()) {
+      if (t.alive && this.gapTo(t) <= reach) return this.def.combo;
+    }
+    return ranged;
+  }
+
   startAttack(index: number): void {
-    const def = this.def.combo[index];
+    const def = this.comboSet[index];
     if (def === undefined) return;
     this.skillDef = null;
+    this.skillSlot = -1;
     this.autoAim();
     this.comboIndex = index;
     this.comboResetMs = 0;
@@ -325,6 +389,9 @@ export class Player extends Actor {
     const def = this.def.skills[slot];
     if (def === undefined || !this.cooldowns.tryUse(slot)) return;
     this.skillDef = def;
+    this.skillSlot = slot;
+    this.chargeMs = 0;
+    this.charging = def.special === 'charge';
     if (def.special === 'shadowStep') this.shadowStep(def);
     else this.autoAim();
     this.beginAction(def, 'skill');
@@ -334,6 +401,7 @@ export class Player extends Actor {
   startUltimate(): void {
     if (!this.ultimate.tryConsume()) return;
     this.skillDef = null;
+    this.skillSlot = -1;
     this.autoAim();
     this.beginAction(this.def.ultimate, 'ultimate');
     this.deps.bus.emit('ultimate:charge', { value: 0 });
@@ -346,6 +414,7 @@ export class Player extends Actor {
       this.enterLocomotion();
       return;
     }
+    if (this.charging && this.tickCharge(dtMs)) return;
     const frac = this.runner.advance(dtMs, this.onRunnerHit);
     if (this.runner.sweeping) {
       const first = def.hits[0];
@@ -375,7 +444,7 @@ export class Player extends Actor {
     if (this.runner.canCancel()) {
       if (this.state === 'attack' && this.deps.input.consume('attack')) {
         const next = this.comboIndex + 1;
-        if (next < this.def.combo.length) {
+        if (next < this.comboSet.length) {
           this.startAttack(next);
           return;
         }
@@ -384,11 +453,43 @@ export class Player extends Actor {
     }
     if (this.runner.phase === 'done') {
       if (this.state === 'attack') {
-        this.comboIndex = (this.comboIndex + 1) % this.def.combo.length;
+        this.comboIndex = (this.comboIndex + 1) % this.comboSet.length;
         this.comboResetMs = this.def.comboResetMs;
       }
       this.enterLocomotion();
     }
+  }
+
+  /**
+   * Hold-to-charge: once the wind-up reaches its pose, the action holds there while the button
+   * stays down (up to chargeMaxMs). Returns true while holding (the runner does not advance).
+   */
+  private tickCharge(dtMs: number): boolean {
+    const def = this.skillDef;
+    const max = def?.chargeMaxMs ?? 0;
+    const action = SKILL_ACTIONS[this.skillSlot];
+    const held = action !== undefined && this.deps.input.isHeld(action);
+    if (
+      def === null ||
+      max <= 0 ||
+      this.runner.phase !== 'startup' ||
+      this.runner.startupProgress < 0.6
+    ) {
+      return false;
+    }
+    if (held && this.chargeMs < max) {
+      this.chargeMs = Math.min(max, this.chargeMs + dtMs);
+      this.vel.x = this.vel.z = 0;
+      this.anim.setPaused(true);
+      return true;
+    }
+    // Released (or full): lock in the charge bonus and let the strike play.
+    this.charging = false;
+    this.anim.setPaused(false);
+    const frac = Math.min(1, this.chargeMs / max);
+    this.actionMult *= 1 + ((def.chargeDamageMax ?? 1) - 1) * frac;
+    this.strikeOpts.damageMult = this.actionMult;
+    return false;
   }
 
   /** Bound once so advancing the runner allocates nothing per step. */
@@ -398,9 +499,22 @@ export class Player extends Actor {
     const def = this.actionDef;
     const hit = def?.hits[index];
     if (def === undefined || def === null || hit === undefined) return;
+    if (hit.emit !== undefined) {
+      this.deps.effects?.emit(this, hit.spec, hit.emit, this.strikeOpts);
+      this.consumeCounter();
+      return;
+    }
     // Each timed hit can strike every target again (multi-hit moves); sweeps share one set.
     if (def.sweep !== true) this.hitSet.clear();
     this.strike(hit.spec);
+  }
+
+  private consumeCounter(): void {
+    if (!this.counterArmed) return;
+    this.counterArmed = false;
+    this.strikeOpts.damageMult = this.actionMult;
+    this.strikeOpts.forceCrit = this.skillDef?.forceCrit === true;
+    this.strikeOpts.counter = false;
   }
 
   private strike(spec: ActionDef['hits'][number]['spec']): void {
@@ -408,12 +522,7 @@ export class Player extends Actor {
     if (r.hits > 0) {
       this.deps.bus.emit('time:hitStop', { ms: r.maxHitStopMs });
       if (r.maxShake > 0) this.deps.bus.emit('camera:shake', { trauma: r.maxShake });
-      if (this.counterArmed) {
-        this.counterArmed = false;
-        this.strikeOpts.damageMult = 1;
-        this.strikeOpts.forceCrit = this.skillDef?.forceCrit === true;
-        this.strikeOpts.counter = false;
-      }
+      this.consumeCounter();
     }
   }
 
@@ -508,7 +617,7 @@ export class Player extends Actor {
     this.actionDisp.z += this.dodgeDir.z * step;
     this.vel.x = this.vel.z = 0;
     if (t >= 1) {
-      this.dodgeCooldownMs = d.cooldownMs;
+      this.dodgeCooldownMs = d.cooldownMs * this.mods.dodgeCooldown;
       this.enterLocomotion();
     }
   }
@@ -570,6 +679,8 @@ export class Player extends Actor {
   }
 
   private interruptAction(): void {
+    this.charging = false;
+    this.anim.setPaused(false);
     this.runner.stop();
     this.actionDef = null;
     this.skillDef = null;
@@ -596,10 +707,13 @@ export class Player extends Actor {
   }
 
   private enterLocomotion(): void {
+    this.charging = false;
+    this.anim.setPaused(false);
     this.state = 'locomotion';
     this.stateMs = 0;
     this.actionDef = null;
     this.skillDef = null;
+    this.skillSlot = -1;
     this.runner.stop();
     this.anim.play('idle', { loop: true, fade: 0.18 });
     this.wasRunning = false;
@@ -620,9 +734,9 @@ export class Player extends Actor {
     this.deps.bus.emit('player:revived', {});
   }
 
-  /** Full reset for a new run. */
-  resetForRun(x: number, z: number, yaw: number): void {
-    this.health.reset(1, this.stats.maxHp);
+  /** Full reset for a new run (`hpFrac` < 1 carries damage over, e.g. dungeon rooms). */
+  resetForRun(x: number, z: number, yaw: number, hpFrac = 1): void {
+    this.health.reset(Math.min(1, Math.max(0.05, hpFrac)), this.stats.maxHp);
     this.status.clear();
     this.cooldowns.resetAll();
     this.ultimate.reset();
@@ -631,6 +745,7 @@ export class Player extends Actor {
     this.perfectDodges = 0;
     this.counterUntilMs = -1;
     this.comboIndex = 0;
+    this.comboSet = this.def.combo;
     this.comboResetMs = 0;
     this.dodgeCooldownMs = 0;
     this.invulnMs = 0;

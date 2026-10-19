@@ -30,7 +30,7 @@ export interface FrameRenderInfo {
  */
 export class RenderContext {
   readonly renderer: WebGLRenderer;
-  readonly scene = new Scene();
+  private currentScene = new Scene();
   readonly info: FrameRenderInfo = { calls: 0, triangles: 0, points: 0, lines: 0 };
   private composer: EffectComposer | null = null;
   private renderPass: RenderPass | null = null;
@@ -61,6 +61,16 @@ export class RenderContext {
 
     canvas.addEventListener('webglcontextlost', this.onContextLost, false);
     canvas.addEventListener('webglcontextrestored', this.onContextRestored, false);
+  }
+
+  /** The scene being rendered (each battle and the hub own their own scene). */
+  get scene(): Scene {
+    return this.currentScene;
+  }
+
+  setScene(scene: Scene): void {
+    this.currentScene = scene;
+    if (this.renderPass !== null) this.renderPass.scene = scene;
   }
 
   get bloomEnabled(): boolean {

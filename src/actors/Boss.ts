@@ -1,7 +1,7 @@
 import { BossBrain } from '../ai/BossBrain';
 import type { BossDef } from '../data/bosses';
 import type { EnemyAttackDef } from '../data/enemies';
-import { Enemy, type EnemyDeps } from './Enemy';
+import { Enemy, type EnemyDeps, type EnemyScale } from './Enemy';
 import type { HitReceived } from './Actor';
 
 /** A boss: an Enemy with a BossBrain, a break bar (poise), phases and enrage. */
@@ -33,9 +33,9 @@ export class Boss extends Enemy {
     this.damageMult = damage * (enraged ? this.bossDef.enrageDamageMult : 1);
   }
 
-  override activate(x: number, z: number, yaw: number, hpMult: number, poiseMult: number): void {
-    super.activate(x, z, yaw, hpMult, poiseMult);
-    this.poise.refill(this.bossDef.breakMax * poiseMult);
+  override activate(x: number, z: number, yaw: number, scale: EnemyScale): void {
+    super.activate(x, z, yaw, scale);
+    this.poise.refill(this.bossDef.breakMax * scale.poise);
     this.rig.setWeaponFx(false);
     this.rig.setGlowIntensity(2.2);
     this.bossBrain.beginIntro();

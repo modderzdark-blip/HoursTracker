@@ -8,6 +8,16 @@ import { GROUP } from '../physics/groups';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { Actor, type HitReceived } from './Actor';
 
+/** Multipliers applied to an enemy's base stats when it spawns (level, difficulty, mode). */
+export interface EnemyScale {
+  readonly hp: number;
+  readonly atk: number;
+  readonly def: number;
+  readonly poise: number;
+}
+
+export const UNIT_SCALE: EnemyScale = { hp: 1, atk: 1, def: 1, poise: 1 };
+
 export interface EnemyDeps {
   readonly physics: PhysicsWorld;
   readonly scene: Scene;
@@ -65,10 +75,16 @@ export class Enemy extends Actor {
     return this.def.attacks.find((a) => a.id === id);
   }
 
-  activate(x: number, z: number, yaw: number, hpMult: number, poiseMult: number): void {
-    this.stats = { ...this.def.stats, maxHp: Math.round(this.def.stats.maxHp * hpMult) };
+  activate(x: number, z: number, yaw: number, scale: EnemyScale): void {
+    const b = this.def.stats;
+    this.stats = {
+      ...b,
+      maxHp: Math.round(b.maxHp * scale.hp),
+      atk: Math.round(b.atk * scale.atk),
+      def: Math.round(b.def * scale.def),
+    };
     this.health.reset(1, this.stats.maxHp);
-    this.poise.refill(this.def.poise * poiseMult);
+    this.poise.refill(this.def.poise * scale.poise);
     this.damageMult = 1;
     this.speedMult = 1;
     this.deadMs = 0;

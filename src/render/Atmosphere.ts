@@ -7,6 +7,7 @@ import {
   PMREMGenerator,
   PointLight,
   Vector3,
+  type Scene,
   type Texture,
   type WebGLRenderer,
 } from 'three';
@@ -26,6 +27,7 @@ export class Atmosphere {
   readonly hemi: HemisphereLight;
   readonly braziers: PointLight[] = [];
   private readonly envMap: Texture;
+  private readonly scene: Scene;
   private readonly lightDir = new Vector3();
   private readonly basisRight = new Vector3();
   private readonly basisUp = new Vector3();
@@ -40,6 +42,7 @@ export class Atmosphere {
     private readonly arena: ArenaDef,
   ) {
     const scene = ctx.scene;
+    this.scene = scene;
     const p = arena.palette;
     const l = arena.lighting;
     scene.background = new Color(p.background);
@@ -95,7 +98,7 @@ export class Atmosphere {
     cam.bottom = -this.frustumHalf;
     cam.updateProjectionMatrix();
     for (const b of this.braziers) b.visible = preset.pointLights;
-    if (shadowsChanged) markMaterialsDirty(this.ctx.scene);
+    if (shadowsChanged) markMaterialsDirty(this.scene);
   }
 
   /** Centre the shadow frustum on the focus point, snapped to whole shadow texels. */

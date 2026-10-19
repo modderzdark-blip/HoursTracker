@@ -1,4 +1,4 @@
-import { Enemy, type EnemyDeps } from '../actors/Enemy';
+import { Enemy, type EnemyDeps, type EnemyScale } from '../actors/Enemy';
 import type { CombatSystem } from '../combat/CombatSystem';
 import { ENEMIES, type EnemyId } from '../data/enemies';
 
@@ -36,7 +36,7 @@ export class EnemyRoster {
     return e;
   }
 
-  spawn(id: EnemyId, x: number, z: number, yaw: number, hpMult: number, poiseMult: number): Enemy {
+  spawn(id: EnemyId, x: number, z: number, yaw: number, scale: EnemyScale): Enemy {
     const pool = this.pool(id);
     let e = pool.find((c) => !c.inWorld);
     if (e === undefined) {
@@ -44,7 +44,7 @@ export class EnemyRoster {
       pool.push(e);
       console.warn(`[roster] pool for ${id} grew to ${pool.length}`);
     }
-    e.activate(x, z, yaw, hpMult, poiseMult);
+    e.activate(x, z, yaw, scale);
     this.active.push(e);
     return e;
   }

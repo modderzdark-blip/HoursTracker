@@ -1,7 +1,7 @@
 import { Vector3, type Camera, type Object3D, type Scene } from 'three';
 import type { Actor } from '../actors/Actor';
 import { Boss } from '../actors/Boss';
-import type { Enemy } from '../actors/Enemy';
+import type { Enemy, EnemyScale } from '../actors/Enemy';
 import { Player } from '../actors/Player';
 import { TrainingDummy } from '../actors/TrainingDummy';
 import { buildActionClip, buildCustomActionClip } from '../anim/clipSets';
@@ -13,13 +13,15 @@ import { Sfx } from '../audio/Sfx';
 import { CameraDirector } from '../camera/CameraDirector';
 import type { FollowCamera } from '../camera/FollowCamera';
 import { CombatSystem } from '../combat/CombatSystem';
+import { Effects, type EffectVisuals } from '../combat/Effects';
 import type { EventBus } from '../core/EventBus';
-import type { GameEvents, HitEvent } from '../core/events';
+import type { GameEvents, HitEvent, TeamName } from '../core/events';
 import type { GameClock } from '../core/GameClock';
 import { mulberry32 } from '../core/random';
-import type { ArenaDef } from '../data/arenas';
+import { ARENAS, type ArenaDef } from '../data/arenas';
 import { BOSSES } from '../data/bosses';
-import { DIFFICULTIES } from '../data/difficulty';
+import type { StatBlock } from '../data/combatTypes';
+import { DIFFICULTIES, type DifficultyDef, type DifficultyId } from '../data/difficulty';
 import { ECONOMY } from '../data/economy';
 import type { EnemyId } from '../data/enemies';
 import type { HeroDef } from '../data/heroes';
@@ -29,12 +31,13 @@ import type { StageDef } from '../data/stages';
 import type { StatusId } from '../data/statusEffects';
 import type { InputState } from '../input/InputState';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
+import { enemyScaleFor } from '../progression/enemyScale';
+import type { HeroMods } from '../progression/skillTree';
 import { rateRun } from '../progression/stars';
-import { Wallet } from '../progression/wallet';
+import type { Wallet } from '../progression/wallet';
 import { Atmosphere } from '../render/Atmosphere';
 import type { QualityTarget } from '../render/QualityManager';
 import type { RenderContext } from '../render/RenderContext';
-import type { SaveData } from '../save/SaveStore';
 import { BattleHud } from '../ui/BattleHud';
 import { DamageNumbers } from '../ui/DamageNumbers';
 import { ResultScreen } from '../ui/ResultScreen';
@@ -50,6 +53,7 @@ import { separateCrowd } from './crowd';
 import { EnemyRoster } from './EnemyRoster';
 import { WaveDirector, type WaveWorld } from './WaveDirector';
 
+/** Engine services a battle runs on. The physics world and scene belong to this battle only. */
 export interface BattleDeps {
   readonly ctx: RenderContext;
   readonly physics: PhysicsWorld;
@@ -59,23 +63,56 @@ export interface BattleDeps {
   readonly clock: GameClock;
   readonly audio: AudioManager;
   readonly uiRoot: HTMLElement;
-  readonly save: SaveData;
-  readonly persist: () => void;
-  readonly arena: ArenaDef;
-  readonly hero: HeroDef;
-  readonly stage: StageDef;
   readonly preset: QualityPreset;
+  /** The player's wallet (revives cost gems). */
+  readonly wallet: Wallet;
+  /** Persists wallet changes made during the battle. */
+  readonly commitWallet: () => void;
   /** Enables/disables player input (cinematics, result screens). */
   readonly setInputEnabled: (enabled: boolean) => void;
   readonly vibrate: (ms: number) => void;
+  /** Called once when the battle ends (victory, or the player gives up after a defeat). */
+  readonly onFinish: (outcome: BattleOutcome) => void;
+}
+
+/** What to fight and with whom — chosen by the mode that starts the battle. */
+export interface BattleSetup {
+  readonly stage: StageDef;
+  readonly difficulty: DifficultyId;
+  readonly hero: HeroDef;
+  readonly heroStats: StatBlock;
+  readonly mods: HeroMods;
+  /** Banner / HUD label, e.g. "1-3 · Gate of Soot". */
+  readonly label: string;
+  /** HP fraction to start with (dungeon rooms carry damage over). */
+  readonly startHpFrac: number;
+  /** Extra enemy multipliers on top of level + difficulty (tower floors, challenge tiers). */
+  readonly enemyMult: { readonly hp: number; readonly atk: number };
+  readonly allowRevive: boolean;
+}
+
+export interface BattleOutcome {
+  readonly victory: boolean;
+  /** True when the player left from the pause menu. */
+  readonly abandoned: boolean;
+  readonly timeSec: number;
+  readonly stars: number;
+  readonly damageTaken: number;
+  readonly perfectDodges: number;
+  readonly revives: number;
+  readonly kills: number;
+  readonly bossKilled: boolean;
+  readonly souls: number;
+  readonly hpFrac: number;
 }
 
 const MAX_PARTICLES = 320;
 const DEFEAT_SCREEN_DELAY_MS = 1600;
-const VICTORY_SCREEN_DELAY_MS = 2600;
+const VICTORY_DELAY_MS = 2600;
 const ULT_CLONE_INTERVAL_MS = 220;
 
 const TRAIL_COLORS = { hero: 0xa07cff, enemy: 0xff5a2a, boss: 0xff7a2a } as const;
+const ZONE_COLOR = { enemy: 0xff3a1a, player: 0xb080ff } as const;
 const SPARK = {
   hit: 0xffc890,
   crit: 0xffe070,
@@ -86,18 +123,19 @@ const SPARK = {
 } as const;
 
 /**
- * One battle: arena, hero, training dummy, enemy waves, the boss, all combat feedback (hit-stop,
- * shake, numbers, sparks, trails, SFX), HUD and the victory/defeat flow. Owns everything it
- * creates and disposes it.
+ * One battle: arena, hero, optional training dummy, enemy waves, an optional boss, all combat
+ * feedback (hit-stop, shake, numbers, sparks, trails, SFX), HUD and the defeat/revive flow.
+ * Created when a battle starts and disposed when it ends; owns everything it creates.
  */
 export class BattleMode implements QualityTarget, WaveWorld {
   readonly player: Player;
-  readonly boss: Boss;
+  readonly boss: Boss | null;
   readonly dummy: TrainingDummy;
   readonly roster: EnemyRoster;
   readonly combat: CombatSystem;
   readonly tokens: AttackTokenManager;
-  readonly wallet: Wallet;
+  readonly effects: Effects;
+  readonly arena: ArenaDef;
   director: WaveDirector;
   private readonly builder: ArenaBuilder;
   private readonly atmosphere: Atmosphere;
@@ -118,32 +156,38 @@ export class BattleMode implements QualityTarget, WaveWorld {
   private actorCount = 0;
   private readonly disposers: (() => void)[] = [];
   private readonly scene: Scene;
+  private readonly difficulty: DifficultyDef;
+  private readonly enemyScale: EnemyScale;
   private bossActive = false;
   private bossIntroFinished = false;
   private bossDown = false;
   private runStartMs = 0;
   private resultTimerMs = -1;
   private resultKind: 'victory' | 'defeat' | null = null;
+  private finished = false;
   private soulsThisRun = 0;
   private ultCloneTimer = 0;
   private dotTarget: Actor | null = null;
   private readonly tmp = new Vector3();
   private readonly bossFrame = new Vector3();
   private readonly statusStacks: Record<StatusId, number> = { bleed: 0, burn: 0, slow: 0 };
-  private readonly difficulty;
   /** Debug/test counters. */
   enemiesKilled = 0;
 
-  constructor(private readonly d: BattleDeps) {
+  constructor(
+    private readonly d: BattleDeps,
+    readonly setup: BattleSetup,
+  ) {
     this.scene = d.ctx.scene;
-    this.difficulty = DIFFICULTIES[d.stage.difficulty];
-    this.wallet = new Wallet(d.save.wallet);
-    this.builder = new ArenaBuilder(d.arena, d.physics, d.preset);
+    this.arena = ARENAS[setup.stage.arena];
+    this.difficulty = DIFFICULTIES[setup.difficulty];
+    this.enemyScale = enemyScaleFor(setup.stage.level, setup.difficulty, setup.enemyMult);
+    this.builder = new ArenaBuilder(this.arena, d.physics, d.preset);
     this.builder.addTo(this.scene);
-    this.atmosphere = new Atmosphere(d.ctx, d.arena);
-    this.embers = new EmberField(MAX_PARTICLES, d.arena.palette.ember);
+    this.atmosphere = new Atmosphere(d.ctx, this.arena);
+    this.embers = new EmberField(MAX_PARTICLES, this.arena.palette.ember);
     this.scene.add(this.embers.points);
-    this.telegraphs = new TelegraphDecals(this.scene);
+    this.telegraphs = new TelegraphDecals(this.scene, 32);
     this.sparks = new Sparks(this.scene);
     this.trails = new WeaponTrails(this.scene, 16);
     this.souls = new SoulOrbs(this.scene);
@@ -152,9 +196,19 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.cam = new CameraDirector();
     this.combat = new CombatSystem(d.physics, d.bus, this.rng);
     this.tokens = new AttackTokenManager(this.difficulty.attackTokens);
+    this.effects = new Effects(
+      this.scene,
+      this.combat,
+      d.physics,
+      d.bus,
+      this.effectVisuals,
+      (team) => this.opponentsOf(team),
+      this.rng,
+    );
 
+    const hero = setup.hero;
     this.player = new Player({
-      hero: d.hero,
+      hero,
       physics: d.physics,
       scene: this.scene,
       combat: this.combat,
@@ -163,7 +217,11 @@ export class BattleMode implements QualityTarget, WaveWorld {
       clock: () => d.clock.nowMs,
       basis: d.camera,
       targets: () => this.targetList(),
+      stats: setup.heroStats,
+      mods: setup.mods,
+      effects: this.effects,
     });
+    this.playerList.push(this.player);
     this.combat.register(this.player);
     this.trails.attach(this.player.rig, 'right', TRAIL_COLORS.hero, () => {
       const s = this.player.trailSide();
@@ -183,40 +241,51 @@ export class BattleMode implements QualityTarget, WaveWorld {
       telegraphs: this.telegraphs,
       rng: this.rng,
       difficultyMod: this.difficulty.enemyDamage,
+      effects: this.effects,
+      summon: (id, count) => {
+        for (let i = 0; i < count; i++) this.spawnEnemy(id);
+      },
     };
     this.roster = new EnemyRoster({ physics: d.physics, scene: this.scene, ctx }, this.combat);
     this.prewarmPools();
-    this.boss = new Boss(BOSSES.hollow_warden, { physics: d.physics, scene: this.scene, ctx });
-    this.combat.register(this.boss);
-    this.boss.bossBrain.onShockwave = (x, z) => {
-      this.telegraphs.ring(x, z, BOSSES.hollow_warden.transitionPushRadius, 0xff7a2a, 700);
-      this.sparks.burst(x, 0.4, z, 40, 0xff7a2a, 9, 0, 0, 0.6, 1.4, 0.4);
-    };
-    this.trails.attach(this.boss.rig, 'right', TRAIL_COLORS.boss, () =>
-      this.enemyTrailOn(this.boss),
-    );
+    const bossId = setup.stage.boss;
+    if (bossId !== null) {
+      const def = BOSSES[bossId];
+      const boss = new Boss(def, { physics: d.physics, scene: this.scene, ctx });
+      this.combat.register(boss);
+      boss.bossBrain.onShockwave = (x, z) => {
+        this.telegraphs.ring(x, z, def.transitionPushRadius, 0xff7a2a, 700);
+        this.sparks.burst(x, 0.4, z, 40, 0xff7a2a, 9, 0, 0, 0.6, 1.4, 0.4);
+      };
+      this.trails.attach(boss.rig, 'right', TRAIL_COLORS.boss, () => this.enemyTrailOn(boss));
+      this.boss = boss;
+    } else {
+      this.boss = null;
+    }
     this.dummy = new TrainingDummy(d.physics, this.scene);
     this.combat.register(this.dummy);
 
-    // Ultimate clones use the hero's own slash clips.
-    const idle = POSE_LIBRARY[d.hero.idlePose];
-    const cloneClips = d.hero.combo
+    // Ultimate clones use the hero's own rig and slash clips.
+    const idle = POSE_LIBRARY[hero.idlePose];
+    const cloneClips = hero.combo
       .slice(0, 3)
       .map((a) =>
         a.clip !== undefined ? buildCustomActionClip(a.clip, a, idle) : buildActionClip(a, idle),
       );
+    const rigId = hero.visual.kind === 'rig' ? hero.visual.rig : 'kael';
     this.clones = new ShadowClones(
       this.scene,
-      RIGS.kael,
+      RIGS[rigId],
       cloneClips.map((c) => c.name),
       cloneClips,
-      d.hero.ultimate.clones,
+      hero.ultimate.clones,
     );
 
     this.hud = new BattleHud(d.uiRoot, () => this.director.skipCountdown());
+    this.hud.setHeroName(hero.name);
     this.numbers = new DamageNumbers(d.uiRoot);
     this.results = new ResultScreen(d.uiRoot);
-    this.director = new WaveDirector(d.stage, this);
+    this.director = new WaveDirector(setup.stage, this);
 
     this.combat.onDamage = (attacker, target, amount) => this.onDamage(attacker, target, amount);
     this.wireEvents();
@@ -227,12 +296,12 @@ export class BattleMode implements QualityTarget, WaveWorld {
 
   private prewarmPools(): void {
     const max = new Map<EnemyId, number>();
-    for (const w of this.d.stage.waves) {
+    for (const w of this.setup.stage.waves) {
       const perWave = new Map<EnemyId, number>();
       for (const s of w.spawns) perWave.set(s.enemy, (perWave.get(s.enemy) ?? 0) + s.count);
       for (const [id, n] of perWave) max.set(id, Math.max(max.get(id) ?? 0, n));
     }
-    for (const [id, n] of max) this.roster.prewarm(id, n);
+    for (const [id, n] of max) this.roster.prewarm(id, Math.min(n, this.d.preset.maxActiveEnemies));
   }
 
   private enemyTrailOn(e: Enemy): boolean {
@@ -245,16 +314,70 @@ export class BattleMode implements QualityTarget, WaveWorld {
     );
   }
 
+  private readonly targets: Actor[] = [];
+  private readonly playerList: Actor[] = [];
+
+  private opponentsOf(team: TeamName): readonly Actor[] {
+    return team === 'enemy' ? this.playerList : this.targetList();
+  }
+
+  private readonly effectVisuals: EffectVisuals = {
+    showZone: (x, z, radius, enemy) =>
+      this.telegraphs.show(
+        { kind: 'circle', radius, forward: 0 },
+        x,
+        z,
+        0,
+        enemy ? ZONE_COLOR.enemy : ZONE_COLOR.player,
+      ),
+    updateZone: (h, progress, x, z) => this.telegraphs.update(h, progress, x, z, 0),
+    hideZone: (h) => this.telegraphs.hide(h),
+    blast: (kind, x, z, radius, enemy) => {
+      const color = enemy ? 0xff6a2a : 0xb080ff;
+      switch (kind) {
+        case 'rain':
+          this.sparks.burst(x, 4, z, 16, enemy ? 0xff8a3a : 0xd8c8ff, 1.5, 0, 0, 0.45, 1.1, 7);
+          break;
+        case 'trap':
+          this.telegraphs.ring(x, z, radius * 1.2, color, 450);
+          this.sparks.burst(x, 0.4, z, 30, color, 6, 0, 0, 0.6, 1.3, 0.5);
+          this.sfx.play('slam', 0.6);
+          break;
+        case 'shockwave':
+          this.telegraphs.ring(x, z, radius, color, 520);
+          this.sparks.burst(x, 0.3, z, 30, color, 8, 0, 0, 0.5, 1.2, 0.5);
+          break;
+        case 'meteor':
+          this.telegraphs.ring(x, z, radius * 1.15, 0xff7a2a, 700);
+          this.sparks.burst(x, 0.6, z, 70, 0xff7a2a, 11, 0, 0, 0.8, 1.6, 0.6);
+          this.d.bus.emit('camera:shake', { trauma: 0.6 });
+          this.sfx.play('slam');
+          break;
+        case 'fire':
+        case 'eruption':
+          this.sparks.burst(x, 0.3, z, 26, 0xff6a1a, 5, 0, 0, 0.7, 1.4, -0.6);
+          if (kind === 'eruption') this.sfx.play('slam', 0.5);
+          break;
+        case 'explosion':
+          this.telegraphs.ring(x, z, radius, color, 420);
+          this.sparks.burst(x, 0.8, z, 36, enemy ? 0xff7a2a : 0xc0a0ff, 8, 0, 0, 0.55, 1.3, 0.4);
+          this.sfx.play('slam', 0.5);
+          break;
+        case 'impact':
+          this.sparks.burst(x, 1.1, z, 6, enemy ? 0xffa060 : 0xe0d0ff, 3, 0, 0, 0.3, 0.9, 0.5);
+          break;
+      }
+    },
+  };
+
   private targetList(): readonly Actor[] {
     // Auto-aim/Umbral Step targets: living enemies + boss + dummy.
     this.targets.length = 0;
     for (const e of this.roster.active) if (e.alive) this.targets.push(e);
-    if (this.boss.alive) this.targets.push(this.boss);
+    if (this.boss !== null && this.boss.alive) this.targets.push(this.boss);
     if (this.dummy.alive) this.targets.push(this.dummy);
     return this.targets;
   }
-
-  private readonly targets: Actor[] = [];
 
   private wireEvents(): void {
     const b = this.d.bus;
@@ -280,24 +403,26 @@ export class BattleMode implements QualityTarget, WaveWorld {
       b.on('player:died', () => {
         this.resultKind = 'defeat';
         this.resultTimerMs = DEFEAT_SCREEN_DELAY_MS;
+        this.director.markDefeat();
         this.sfx.play('defeat');
       }),
       b.on('enemy:telegraph', (e) => {
-        const atk = e.attackId;
-        if (atk.startsWith('brute') || atk.startsWith('warden')) this.sfx.play('telegraph');
+        const actor = this.boss !== null && e.actorId === this.boss.id;
+        if (actor || e.attackId.startsWith('brute')) this.sfx.play('telegraph');
       }),
       b.on('boss:phase', (e) => {
         this.hud.showBanner(`PHASE ${e.label}`, 'phase', 1600);
         this.sfx.play('roar');
       }),
       b.on('boss:break', (e) => {
-        if (e.broken) {
+        const boss = this.boss;
+        if (e.broken && boss !== null) {
           this.hud.showBanner('BREAK!', 'break', 1200);
           this.sfx.play('break');
           this.sparks.burst(
-            this.boss.currFeet.x,
+            boss.currFeet.x,
             3,
-            this.boss.currFeet.z,
+            boss.currFeet.z,
             50,
             0xffe070,
             8,
@@ -319,10 +444,14 @@ export class BattleMode implements QualityTarget, WaveWorld {
 
   // ------------------------------------------------------------------ run flow
 
+  /** (Re)starts the battle from the beginning. */
   startRun(): void {
     this.roster.clear();
-    this.boss.brain.reset();
-    this.boss.removeFromWorld();
+    if (this.boss !== null) {
+      this.boss.brain.reset();
+      this.boss.removeFromWorld();
+    }
+    this.effects.clear();
     this.telegraphs.hideAll();
     this.souls.clear();
     this.clones.clear();
@@ -338,29 +467,30 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.bossDown = false;
     this.resultKind = null;
     this.resultTimerMs = -1;
+    this.finished = false;
     this.soulsThisRun = 0;
     this.enemiesKilled = 0;
-    const [sx, , sz] = this.d.arena.spawn;
-    this.player.resetForRun(sx, sz, Math.PI);
-    if (this.d.stage.trainingDummy) {
-      const [dx, dz] = this.d.arena.dummySpawn;
+    const [sx, , sz] = this.arena.spawn;
+    this.player.resetForRun(sx, sz, Math.PI, this.setup.startHpFrac);
+    if (this.setup.stage.trainingDummy) {
+      const [dx, dz] = this.arena.dummySpawn;
       this.dummy.health.reset(1);
       this.dummy.spawnAt(dx, dz, 0);
     } else {
       this.dummy.removeFromWorld();
     }
-    this.director = new WaveDirector(this.d.stage, this);
+    this.director = new WaveDirector(this.setup.stage, this);
     this.runStartMs = this.d.clock.nowMs;
     this.d.camera.snap(this.player.currFeet);
     this.d.setInputEnabled(true);
-    this.hud.showBanner(this.d.stage.name.toUpperCase(), 'wave', 1800);
+    this.hud.showBanner(this.setup.label.toUpperCase(), 'wave', 1800);
   }
 
   // WaveWorld ---------------------------------------------------------
 
   spawnEnemy(id: EnemyId): boolean {
     if (this.roster.aliveCount() >= this.d.preset.maxActiveEnemies) return false;
-    const pts = this.d.arena.spawnPoints;
+    const pts = this.arena.spawnPoints;
     // Prefer spawn points away from the player (never pop in on top of them).
     let best = pts[0];
     let bestScore = -Infinity;
@@ -376,7 +506,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
     const x = best[0] + (this.rng() - 0.5) * 2;
     const z = best[1] + (this.rng() - 0.5) * 2;
     const yaw = Math.atan2(this.player.currFeet.x - x, this.player.currFeet.z - z);
-    const e = this.roster.spawn(id, x, z, yaw, this.difficulty.enemyHp, this.difficulty.enemyPoise);
+    const e = this.roster.spawn(id, x, z, yaw, this.enemyScale);
     if (!this.hasTrail.has(e)) {
       if (this.trails.attach(e.rig, 'right', TRAIL_COLORS.enemy, () => this.enemyTrailOn(e)))
         this.hasTrail.add(e);
@@ -392,29 +522,28 @@ export class BattleMode implements QualityTarget, WaveWorld {
   }
 
   startBossIntro(): void {
+    const boss = this.boss;
+    if (boss === null) return;
     this.removeDummy();
-    const [bx, bz] = this.d.arena.bossSpawn;
+    const [bx, bz] = this.arena.bossSpawn;
     const yaw = Math.atan2(this.player.currFeet.x - bx, this.player.currFeet.z - bz);
-    this.boss.activate(bx, bz, yaw, this.difficulty.enemyHp, this.difficulty.enemyPoise);
+    boss.activate(bx, bz, yaw, this.enemyScale);
     this.bossActive = true;
     this.bossIntroFinished = false;
     this.d.setInputEnabled(false);
-    this.hud.showBanner(
-      `${this.boss.bossDef.name.toUpperCase()}`,
-      'phase',
-      this.boss.bossDef.introMs,
-    );
+    const def = boss.bossDef;
+    this.hud.showBanner(def.name.toUpperCase(), 'phase', def.introMs);
     this.sfx.play('roar');
-    const def = this.boss.bossDef;
+    const scale = boss.rig.def.scale;
     this.cam.play(
       {
         center: this.tmp.set(bx, 0, bz),
-        radius: 10,
-        height: 3,
+        radius: 4 * scale,
+        height: 1.2 * scale,
         fromDeg: (yaw * 180) / Math.PI + 35,
         toDeg: (yaw * 180) / Math.PI - 15,
         durationMs: def.introMs,
-        lookHeight: 3.2,
+        lookHeight: 1.28 * scale,
         endRadiusMult: 0.75,
       },
       () => this.finishBossIntro(),
@@ -423,12 +552,13 @@ export class BattleMode implements QualityTarget, WaveWorld {
   }
 
   private finishBossIntro(): void {
-    if (this.bossIntroFinished) return;
+    const boss = this.boss;
+    if (this.bossIntroFinished || boss === null) return;
     this.bossIntroFinished = true;
     this.d.camera.blendFromCurrent();
     this.d.setInputEnabled(true);
-    this.boss.bossBrain.beginFight();
-    const def = this.boss.bossDef;
+    boss.bossBrain.beginFight();
+    const def = boss.bossDef;
     this.hud.showBoss({
       name: def.name,
       title: def.title,
@@ -484,7 +614,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
 
   onVictory(): void {
     this.resultKind = 'victory';
-    this.resultTimerMs = VICTORY_SCREEN_DELAY_MS;
+    this.resultTimerMs = VICTORY_DELAY_MS;
     this.d.bus.emit('stage:victory', {});
   }
 
@@ -492,17 +622,18 @@ export class BattleMode implements QualityTarget, WaveWorld {
 
   private onDamage(attacker: Actor | null, target: Actor, amount: number): void {
     const p = this.player;
-    const hero = this.d.hero;
-    if (attacker === p && target !== this.dummy) {
-      p.ultimate.add(amount * hero.ultGainPerDamage);
-      this.d.bus.emit('ultimate:charge', { value: p.ultimate.value });
-    } else if (attacker === p) {
+    const hero = this.setup.hero;
+    const gain = this.setup.mods.ultGain;
+    if (attacker === p) {
       // The dummy charges the ultimate at half rate so practice is useful but not abusable.
-      p.ultimate.add(amount * hero.ultGainPerDamage * 0.5);
+      const rate = target === this.dummy ? 0.5 : 1;
+      p.ultimate.add(amount * hero.ultGainPerDamage * gain * rate);
       this.d.bus.emit('ultimate:charge', { value: p.ultimate.value });
+      const leech = this.setup.mods.lifesteal;
+      if (leech > 0 && target !== this.dummy) p.health.heal(amount * leech);
     }
     if (target === p) {
-      p.ultimate.add((amount / p.stats.maxHp) * hero.ultGainPerHpLost);
+      p.ultimate.add((amount / p.stats.maxHp) * hero.ultGainPerHpLost * gain);
       this.d.bus.emit('ultimate:charge', { value: p.ultimate.value });
     }
   }
@@ -560,21 +691,22 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.sfx.play(e.crit ? 'crit' : 'hit');
     this.hud.registerHit();
     if (e.counter) this.numbers.spawn('COUNTER', e.x, e.y + 0.5, e.z, 'info');
-    if (e.poiseBroken && e.targetId !== this.boss.id)
+    if (e.poiseBroken && (this.boss === null || e.targetId !== this.boss.id))
       this.numbers.spawn('STAGGER', e.x, e.y + 0.4, e.z, 'info');
   }
 
   private onDeath(actorId: number, team: string, x: number, z: number): void {
     if (team !== 'enemy') return;
-    if (actorId === this.boss.id) {
+    const boss = this.boss;
+    if (boss !== null && actorId === boss.id) {
       this.bossDown = true;
-      const souls = Math.round(this.boss.bossDef.souls * this.difficulty.rewards);
+      const souls = Math.round(boss.bossDef.souls * this.difficulty.rewards);
       this.soulsThisRun += souls;
       this.souls.burst(x, 2.5, z, Math.min(30, souls));
       this.d.bus.emit('time:slowMotion', { scale: 0.25, ms: 1400 });
       this.d.bus.emit('camera:shake', { trauma: 0.9 });
       this.sfx.play('roar');
-      this.hud.showBanner(`${this.boss.bossDef.name.toUpperCase()} FALLS`, 'phase', 2400);
+      this.hud.showBanner(`${boss.bossDef.name.toUpperCase()} FALLS`, 'phase', 2400);
       this.hud.hideBoss();
       this.d.camera.setFraming(null);
       this.telegraphs.hideAll();
@@ -651,7 +783,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
     };
     put(this.player);
     if (this.dummy.inWorld) put(this.dummy);
-    if (this.boss.inWorld) put(this.boss);
+    if (this.boss !== null && this.boss.inWorld) put(this.boss);
     for (const e of this.roster.active) put(e);
     this.actorCount = n;
   }
@@ -663,10 +795,11 @@ export class BattleMode implements QualityTarget, WaveWorld {
   fixedUpdate(dtSec: number): void {
     const dtMs = dtSec * 1000;
     this.director.update(dtMs);
+    const boss = this.boss;
 
     this.player.think(dtSec);
     if (this.dummy.inWorld) this.dummy.think(dtSec);
-    if (this.boss.inWorld) this.boss.think(dtSec);
+    if (boss !== null && boss.inWorld) boss.think(dtSec);
     for (const e of this.roster.active) e.think(dtSec);
 
     this.collectActors();
@@ -677,15 +810,20 @@ export class BattleMode implements QualityTarget, WaveWorld {
       a.status.tick(dtMs, this.onDot);
     }
     this.dotTarget = null;
+    this.effects.update(dtSec);
     separateCrowd(this.actors, this.actorCount);
     for (let i = 0; i < this.actorCount; i++) this.actors[i]?.integrate(dtSec);
     this.d.physics.step(dtSec);
     this.roster.collectDead();
-    if (this.boss.inWorld && this.boss.readyForRelease) this.boss.removeFromWorld();
+    if (boss !== null && boss.inWorld && boss.readyForRelease) boss.removeFromWorld();
 
     // Ultimate shadow clones strike around targets during the active window.
     const p = this.player;
-    if (p.state === 'ultimate' && p.runner.phase === 'active') {
+    if (
+      p.state === 'ultimate' &&
+      p.runner.phase === 'active' &&
+      this.setup.hero.ultimate.clones > 0
+    ) {
       this.ultCloneTimer -= dtMs;
       if (this.ultCloneTimer <= 0) {
         this.ultCloneTimer = ULT_CLONE_INTERVAL_MS;
@@ -718,72 +856,81 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.sparks.burst(x, 1, z, 10, SPARK.perfect, 3, 0, 0, 0.4, 1.2, 0);
   }
 
+  private outcome(victory: boolean, abandoned: boolean): BattleOutcome {
+    const p = this.player;
+    const timeSec = this.stageTimeSec;
+    const stars = victory
+      ? rateRun(
+          {
+            cleared: true,
+            timeSec,
+            damageTakenFrac: p.damageTaken / p.stats.maxHp,
+            revives: p.revivesUsed,
+          },
+          this.setup.stage.stars,
+        )
+      : 0;
+    return {
+      victory,
+      abandoned,
+      timeSec,
+      stars,
+      damageTaken: p.damageTaken,
+      perfectDodges: p.perfectDodges,
+      revives: p.revivesUsed,
+      kills: this.enemiesKilled,
+      bossKilled: this.bossDown,
+      souls: this.soulsThisRun,
+      hpFrac: p.alive ? p.health.frac : 0,
+    };
+  }
+
+  private finish(victory: boolean, abandoned: boolean): void {
+    if (this.finished) return;
+    this.finished = true;
+    this.d.setInputEnabled(false);
+    this.hud.setVisible(false);
+    this.results.hide();
+    this.d.onFinish(this.outcome(victory, abandoned));
+  }
+
+  /** Leave the battle from the pause menu (counts as a defeat, no rewards). */
+  abandon(): void {
+    this.finish(false, true);
+  }
+
   private showResult(): void {
     if (this.resultKind === 'victory') {
-      const timeSec = (this.d.clock.nowMs - this.runStartMs) / 1000;
-      const stage = this.d.stage;
-      const stars = rateRun(
-        {
-          cleared: true,
-          timeSec,
-          damageTakenFrac: this.player.damageTaken / this.player.stats.maxHp,
-          revives: this.player.revivesUsed,
-        },
-        stage.stars,
-      );
-      const gold = Math.round(stage.rewards.gold * this.difficulty.rewards);
-      const gems = Math.round(stage.rewards.gems * this.difficulty.rewards);
-      this.wallet.add('gold', gold);
-      this.wallet.add('gems', gems);
-      if (this.soulsThisRun > 0) this.wallet.add('souls', this.soulsThisRun);
-      const prev = this.d.save.records[stage.id];
-      const newBest =
-        prev === undefined ||
-        stars > prev.bestStars ||
-        (stars === prev.bestStars && timeSec < prev.bestTimeSec);
-      this.d.save.records[stage.id] = {
-        bestStars: Math.max(stars, prev?.bestStars ?? 0),
-        bestTimeSec:
-          prev === undefined || prev.bestTimeSec <= 0
-            ? timeSec
-            : Math.min(prev.bestTimeSec, timeSec),
-        clears: (prev?.clears ?? 0) + 1,
-      };
-      this.syncWallet();
       this.sfx.play('victory');
-      this.d.setInputEnabled(false);
-      this.hud.setVisible(false);
-      this.results.showVictory(
-        {
-          stars,
-          timeSec,
-          damageTaken: this.player.damageTaken,
-          perfectDodges: this.player.perfectDodges,
-          souls: this.soulsThisRun,
-          gold,
-          gems,
-          newBest,
-        },
-        () => this.startRun(),
-      );
+      this.finish(true, false);
     } else if (this.resultKind === 'defeat') {
       const cost = ECONOMY.reviveCostGems;
-      const revivesLeft = ECONOMY.maxRevivesPerRun - this.player.revivesUsed;
-      const canRevive = revivesLeft > 0 && this.wallet.canAfford('gems', cost);
+      const revivesLeft = this.setup.allowRevive
+        ? ECONOMY.maxRevivesPerRun - this.player.revivesUsed
+        : 0;
+      const canRevive = revivesLeft > 0 && this.d.wallet.canAfford('gems', cost);
       this.d.setInputEnabled(false);
       this.results.showDefeat(
-        { canRevive, reviveCost: cost, gems: this.wallet.get('gems'), revivesLeft },
+        {
+          canRevive,
+          reviveCost: cost,
+          gems: this.d.wallet.get('gems'),
+          revivesLeft,
+          allowRevive: this.setup.allowRevive,
+        },
         () => this.revive(),
         () => this.startRun(),
+        () => this.finish(false, false),
       );
     }
   }
 
   private revive(): void {
-    if (!this.wallet.spend('gems', ECONOMY.reviveCostGems)) return;
-    this.syncWallet();
+    if (!this.d.wallet.spend('gems', ECONOMY.reviveCostGems)) return;
+    this.d.commitWallet();
     this.results.hide();
     this.resultKind = null;
+    this.director.resumeAfterRevive();
     this.player.revive();
     this.d.setInputEnabled(true);
     this.sparks.burst(
@@ -801,17 +948,13 @@ export class BattleMode implements QualityTarget, WaveWorld {
     );
   }
 
-  private syncWallet(): void {
-    this.d.save.wallet = this.wallet.snapshot();
-    this.d.persist();
-  }
-
   render(alpha: number, realDtSec: number, timeScale: number): void {
     const animDt = realDtSec * timeScale;
     for (let i = 0; i < this.actorCount; i++) this.actors[i]?.render(alpha, animDt, realDtSec);
     const feet = this.player.renderFeet;
-    if (this.bossActive && this.bossIntroFinished && this.boss.alive) {
-      this.bossFrame.copy(this.boss.renderFeet);
+    const boss = this.boss;
+    if (boss !== null && this.bossActive && this.bossIntroFinished && boss.alive) {
+      this.bossFrame.copy(boss.renderFeet);
       this.d.camera.setFraming(this.bossFrame);
     }
     if (!this.cam.update(realDtSec, this.d.camera.camera)) {
@@ -825,6 +968,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.atmosphere.update(feet, realDtSec);
     this.embers.update(realDtSec, feet);
     this.telegraphs.tick(realDtSec * 1000);
+    this.effects.render();
     this.sparks.update(realDtSec);
     this.trails.update(realDtSec);
     this.souls.update(realDtSec, feet.x, feet.y + 1.2, feet.z);
@@ -853,24 +997,30 @@ export class BattleMode implements QualityTarget, WaveWorld {
     let line = '';
     let showStart = false;
     if (dir.phase === 'countdown') {
-      line = `Practice on the dummy — enemies in ${Math.ceil(dir.countdownRemainingMs / 1000)}s`;
-      showStart = true;
+      const secs = Math.ceil(dir.countdownRemainingMs / 1000);
+      if (this.setup.stage.trainingDummy) {
+        line = `Practice on the dummy — enemies in ${secs}s`;
+        showStart = true;
+      } else {
+        line = `Get ready… ${secs}`;
+      }
     } else if (dir.phase === 'wave' || dir.phase === 'interwave') {
       line = `Wave ${dir.wave + 1} / ${dir.totalWaves} · ${this.roster.aliveCount() + dir.pendingSpawns} left`;
     }
     this.hud.setWaveLine(line, showStart);
-    if (this.bossActive && this.bossIntroFinished && this.boss.inWorld) {
-      const def = this.boss.bossDef;
+    const boss = this.boss;
+    if (boss !== null && this.bossActive && this.bossIntroFinished && boss.inWorld) {
+      const def = boss.bossDef;
       this.hud.updateBoss(
         {
           name: def.name,
           title: def.title,
-          hpFrac: this.boss.health.frac,
-          breakFrac: this.boss.poise.frac,
-          broken: this.boss.isBroken,
+          hpFrac: boss.health.frac,
+          breakFrac: boss.poise.frac,
+          broken: boss.isBroken,
           phaseMarks: [],
-          enrageInSec: Math.max(0, (def.enrageAfterMs - this.boss.bossBrain.fightMs) / 1000),
-          enraged: this.boss.bossBrain.enraged,
+          enrageInSec: Math.max(0, (def.enrageAfterMs - boss.bossBrain.fightMs) / 1000),
+          enraged: boss.bossBrain.enraged,
         },
         dtSec,
       );
@@ -921,15 +1071,17 @@ export class BattleMode implements QualityTarget, WaveWorld {
   }
 
   damageBoss(frac: number): void {
-    if (!this.boss.alive) return;
-    const amount = Math.ceil(this.boss.health.max * frac);
-    this.boss.health.damage(Math.min(amount, this.boss.health.current - 1));
-    this.boss.bossBrain.checkPhase();
+    const boss = this.boss;
+    if (boss === null || !boss.alive) return;
+    const amount = Math.ceil(boss.health.max * frac);
+    boss.health.damage(Math.min(amount, boss.health.current - 1));
+    boss.bossBrain.checkPhase();
   }
 
   killBoss(): void {
-    if (this.boss.alive)
-      this.combat.applyHit(this.player, this.boss, KILL_SPEC, 0, 1, { difficultyMod: 1e6 });
+    const boss = this.boss;
+    if (boss !== null && boss.alive)
+      this.combat.applyHit(this.player, boss, KILL_SPEC, 0, 1, { difficultyMod: 1e6 });
   }
 
   damagePlayer(frac: number): void {
@@ -955,6 +1107,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
   }
 
   get resultShowing(): 'victory' | 'defeat' | null {
+    if (this.finished) return this.resultKind;
     return this.results.visible ? (this.resultKind ?? null) : null;
   }
 
@@ -968,8 +1121,9 @@ export class BattleMode implements QualityTarget, WaveWorld {
 
   dispose(): void {
     for (const d of this.disposers) d();
+    this.effects.dispose();
     this.player.dispose();
-    this.boss.dispose();
+    this.boss?.dispose();
     this.dummy.dispose();
     this.roster.dispose();
     this.clones.dispose();

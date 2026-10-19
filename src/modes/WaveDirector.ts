@@ -64,8 +64,18 @@ export class WaveDirector {
     this.phaseMs = this.stage.interWaveMs;
   }
 
+  private phaseBeforeDefeat: StagePhase = 'countdown';
+
+  /** Freezes the flow while the defeat screen is up. */
   markDefeat(): void {
-    this.setPhase('defeat');
+    if (this.phase === 'defeat' || this.phase === 'victory') return;
+    this.phaseBeforeDefeat = this.phase;
+    this.phase = 'defeat';
+  }
+
+  /** After a revive the stage continues where it stopped. */
+  resumeAfterRevive(): void {
+    if (this.phase === 'defeat') this.phase = this.phaseBeforeDefeat;
   }
 
   update(dtMs: number): void {

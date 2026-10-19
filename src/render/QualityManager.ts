@@ -58,6 +58,11 @@ export class QualityManager {
     target.applyQuality(this.preset, this.levelValue);
   }
 
+  removeTarget(target: QualityTarget): void {
+    const i = this.targets.indexOf(target);
+    if (i >= 0) this.targets.splice(i, 1);
+  }
+
   /**
    * @param detected previously benchmarked level for 'auto' (skip re-benchmarking when known)
    */
