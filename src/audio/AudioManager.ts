@@ -5,7 +5,7 @@ type AudioContextCtor = typeof AudioContext;
 /**
  * Small Web Audio wrapper. Mobile browsers start audio "locked": the AudioContext must be created
  * or resumed inside a user gesture, so `unlock()` is wired to the first touch. Master → (sfx,
- * music) gain buses; sound playback lands in M5/M13 on top of this.
+ * music) gain buses; Sfx and Music synthesise on top of them.
  */
 export class AudioManager {
   private ctx: AudioContext | null = null;
@@ -71,6 +71,12 @@ export class AudioManager {
   get sfxOutput(): { ctx: AudioContext; bus: GainNode } | null {
     if (this.ctx === null || this.sfx === null || this.ctx.state !== 'running') return null;
     return { ctx: this.ctx, bus: this.sfx };
+  }
+
+  /** Running context + music bus, or null while audio is locked/suspended. */
+  get musicOutput(): { ctx: AudioContext; bus: GainNode } | null {
+    if (this.ctx === null || this.music === null || this.ctx.state !== 'running') return null;
+    return { ctx: this.ctx, bus: this.music };
   }
 
   /** Short synthesized UI tick (original, procedural — no asset needed). */
