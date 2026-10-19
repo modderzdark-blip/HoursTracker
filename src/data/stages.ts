@@ -228,6 +228,277 @@ export const CHAPTERS: readonly ChapterDef[] = [
       parTimeSec: 330,
     },
   ]),
+  buildChapter(2, 'ch2', 'The Smoldering Wastes', 'Fire falls like rain here', 9, [
+    {
+      name: 'Scorched Road',
+      arena: 'ashen_wastes',
+      waves: [
+        [
+          ['thrall', 4],
+          ['seer', 1],
+        ],
+        [
+          ['imp', 5],
+          ['seer', 1],
+        ],
+        [
+          ['bulwark', 1],
+          ['thrall', 3],
+        ],
+      ],
+    },
+    {
+      name: 'The Seers’ Ridge',
+      arena: 'ashen_wastes',
+      waves: [
+        [['seer', 3]],
+        [
+          ['bulwark', 2],
+          ['imp', 3],
+        ],
+        [
+          ['seer', 2],
+          ['thrall', 4],
+        ],
+      ],
+    },
+    {
+      name: 'Wretch Hollow',
+      arena: 'ash_gate',
+      waves: [
+        [
+          ['wretch', 3],
+          ['thrall', 2],
+        ],
+        [
+          ['wretch', 2],
+          ['seer', 2],
+        ],
+        [
+          ['brute', 1],
+          ['wretch', 3],
+        ],
+      ],
+    },
+    {
+      name: 'Choir of Cinders',
+      arena: 'ashen_wastes',
+      kind: 'miniboss',
+      boss: 'seer_exalted',
+      waves: [
+        [
+          ['seer', 2],
+          ['imp', 3],
+        ],
+        [
+          ['bulwark', 2],
+          ['seer', 1],
+        ],
+      ],
+      parTimeSec: 260,
+    },
+    {
+      name: 'Glass Dunes',
+      arena: 'ashen_wastes',
+      waves: [
+        [
+          ['bulwark', 2],
+          ['seer', 2],
+        ],
+        [['wretch', 4]],
+        [
+          ['brute', 2],
+          ['seer', 2],
+        ],
+      ],
+    },
+    {
+      name: 'The Kiln Bridges',
+      arena: 'cinder_court',
+      waves: [
+        [
+          ['thrall', 5],
+          ['wretch', 2],
+        ],
+        [['bulwark', 3]],
+        [
+          ['seer', 3],
+          ['imp', 4],
+        ],
+      ],
+    },
+    {
+      name: 'Ashstorm Plateau',
+      arena: 'ashen_wastes',
+      waves: [
+        [
+          ['brute', 2],
+          ['wretch', 2],
+        ],
+        [
+          ['bulwark', 2],
+          ['seer', 3],
+        ],
+        [
+          ['brute', 1],
+          ['bulwark', 1],
+          ['wretch', 3],
+          ['seer', 1],
+        ],
+      ],
+    },
+    {
+      name: 'Nest of the Mother',
+      arena: 'ashen_wastes',
+      boss: 'mother_of_ash',
+      waves: [
+        [
+          ['imp', 4],
+          ['seer', 2],
+        ],
+        [
+          ['wretch', 3],
+          ['bulwark', 1],
+        ],
+      ],
+      parTimeSec: 380,
+    },
+  ]),
+  buildChapter(3, 'ch3', 'The Bound Spire', 'The tower that holds the king', 17, [
+    {
+      name: 'Spire Foothold',
+      arena: 'bound_spire',
+      waves: [
+        [
+          ['bulwark', 2],
+          ['thrall', 3],
+        ],
+        [
+          ['seer', 2],
+          ['imp', 4],
+        ],
+        [
+          ['brute', 1],
+          ['wretch', 2],
+        ],
+      ],
+    },
+    {
+      name: 'Hall of Chains',
+      arena: 'ash_gate',
+      waves: [
+        [['bulwark', 3]],
+        [
+          ['seer', 3],
+          ['wretch', 2],
+        ],
+        [
+          ['brute', 2],
+          ['bulwark', 1],
+        ],
+      ],
+    },
+    {
+      name: 'The Weeping Stair',
+      arena: 'bound_spire',
+      waves: [
+        [
+          ['wretch', 4],
+          ['seer', 1],
+        ],
+        [
+          ['imp', 6],
+          ['bulwark', 1],
+        ],
+        [
+          ['brute', 2],
+          ['seer', 2],
+        ],
+      ],
+    },
+    {
+      name: 'Penitents’ Gate',
+      arena: 'bound_spire',
+      kind: 'miniboss',
+      boss: 'penitent',
+      waves: [
+        [
+          ['bulwark', 2],
+          ['seer', 2],
+        ],
+        [
+          ['brute', 1],
+          ['wretch', 3],
+        ],
+      ],
+      parTimeSec: 280,
+    },
+    {
+      name: 'Gallery of Ash',
+      arena: 'cinder_court',
+      waves: [
+        [['seer', 4]],
+        [
+          ['bulwark', 3],
+          ['wretch', 2],
+        ],
+        [
+          ['brute', 2],
+          ['imp', 4],
+          ['seer', 1],
+        ],
+      ],
+    },
+    {
+      name: 'The Bleeding Vault',
+      arena: 'bound_spire',
+      waves: [
+        [
+          ['brute', 2],
+          ['bulwark', 2],
+        ],
+        [['wretch', 5]],
+        [
+          ['seer', 3],
+          ['bulwark', 2],
+        ],
+      ],
+    },
+    {
+      name: 'Throne Approach',
+      arena: 'bound_spire',
+      waves: [
+        [
+          ['bulwark', 2],
+          ['seer', 2],
+          ['wretch', 2],
+        ],
+        [['brute', 3]],
+        [
+          ['brute', 1],
+          ['bulwark', 2],
+          ['seer', 2],
+          ['wretch', 2],
+        ],
+      ],
+    },
+    {
+      name: 'The Bound Throne',
+      arena: 'bound_spire',
+      boss: 'bound_king',
+      waves: [
+        [
+          ['bulwark', 2],
+          ['seer', 2],
+        ],
+        [
+          ['brute', 1],
+          ['wretch', 3],
+        ],
+      ],
+      parTimeSec: 420,
+    },
+  ]),
 ];
 
 export function findAdventureStage(id: string): AdventureStageDef | undefined {

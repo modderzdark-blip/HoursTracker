@@ -204,9 +204,129 @@ const ASH_GATE: ArenaDef = {
   },
 };
 
+/** Open, sun-scorched wastes: broken columns, scattered boulders, red haze. */
+const ASHEN_WASTES: ArenaDef = {
+  id: 'ashen_wastes',
+  name: 'The Smoldering Wastes',
+  floorRadius: 26,
+  wall: { segments: 30, height: 2.4, thickness: 1.6 },
+  spawn: [0, 1.2, 9],
+  spawnPoints: [
+    [-19, -4],
+    [19, -4],
+    [-14, 15],
+    [14, 15],
+    [0, -21],
+    [-21, 8],
+    [21, 8],
+    [-9, -18],
+    [9, -18],
+  ],
+  bossSpawn: [0, -9],
+  dummySpawn: [0, 4],
+  pillars: [
+    { x: -10, z: -6, radius: 1, height: 2.2 },
+    { x: 11, z: -8, radius: 1, height: 3.4 },
+    { x: -13, z: 9, radius: 0.9, height: 1.6 },
+    { x: 13, z: 7, radius: 1.1, height: 4.2 },
+  ],
+  blocks: [
+    { position: [-5, 0.35, -15], size: [4, 0.7, 2], rotationYDeg: 25 },
+    { position: [6, 0.5, 16], size: [3, 1, 2.2], rotationYDeg: -15 },
+  ],
+  rocks: [
+    { x: -20, z: -12, scale: 1.8 },
+    { x: 20, z: -13, scale: 1.5 },
+    { x: -18, z: 18, scale: 1.4 },
+    { x: 17, z: 19, scale: 1.7 },
+    { x: -2, z: 22, scale: 1.2 },
+    { x: 22, z: 2, scale: 1.0 },
+    { x: -23, z: 1, scale: 1.1 },
+    { x: 4, z: -23, scale: 1.3 },
+  ],
+  braziers: [
+    { x: -6, z: 2 },
+    { x: 6, z: 2 },
+  ],
+  palette: {
+    background: 0x100806,
+    fog: 0x2a120a,
+    fogDensity: 0.024,
+    floorBase: 0x2e2420,
+    stone: 0x5a4438,
+    ember: 0xff5a10,
+    moonlight: 0xffb080,
+    hemiSky: 0x5a3020,
+    hemiGround: 0x1a0806,
+  },
+  lighting: {
+    moonIntensity: 2.4,
+    moonDirection: [0.6, 0.8, -0.2],
+    hemiIntensity: 0.6,
+    environmentIntensity: 0.3,
+    brazierIntensity: 14,
+    brazierRange: 9,
+  },
+};
+
+/** The demon tower's crown: a ring of tall pillars under violet witch-light. */
+const BOUND_SPIRE: ArenaDef = {
+  id: 'bound_spire',
+  name: 'The Bound Spire',
+  floorRadius: 22,
+  wall: { segments: 28, height: 5, thickness: 1.4 },
+  spawn: [0, 1.2, 8],
+  spawnPoints: [
+    [-17, 0],
+    [17, 0],
+    [0, -17],
+    [-11, 13],
+    [11, 13],
+    [-12, -12],
+    [12, -12],
+  ],
+  bossSpawn: [0, -7],
+  dummySpawn: [0, 3],
+  pillars: [0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
+    const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+    return { x: Math.cos(a) * 14.5, z: Math.sin(a) * 14.5, radius: 0.85, height: 8 };
+  }),
+  blocks: [{ position: [0, 0.3, -15.5], size: [5, 0.6, 2], rotationYDeg: 0 }],
+  rocks: [
+    { x: -6, z: 18, scale: 0.9 },
+    { x: 7, z: 18, scale: 1.0 },
+  ],
+  braziers: [
+    { x: -5, z: -3 },
+    { x: 5, z: -3 },
+    { x: 0, z: 6 },
+  ],
+  palette: {
+    background: 0x07050c,
+    fog: 0x140c22,
+    fogDensity: 0.03,
+    floorBase: 0x221e2a,
+    stone: 0x3e3650,
+    ember: 0xb070ff,
+    moonlight: 0x9080ff,
+    hemiSky: 0x302850,
+    hemiGround: 0x0c0814,
+  },
+  lighting: {
+    moonIntensity: 2,
+    moonDirection: [-0.3, 1, 0.5],
+    hemiIntensity: 0.6,
+    environmentIntensity: 0.35,
+    brazierIntensity: 12,
+    brazierRange: 9,
+  },
+};
+
 export const ARENAS = {
   cinder_court: CINDER_COURT,
   ash_gate: ASH_GATE,
+  ashen_wastes: ASHEN_WASTES,
+  bound_spire: BOUND_SPIRE,
 } as const satisfies Record<string, ArenaDef>;
 
 export type ArenaId = keyof typeof ARENAS;

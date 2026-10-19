@@ -1,4 +1,4 @@
-import type { ActionDef, StatBlock } from './combatTypes';
+import type { ActionDef, HitSpec, StatBlock } from './combatTypes';
 import type { RigId } from './rigs';
 
 /** Enemy attack: `startupMs` is the telegraph (wind-up) time players read and react to. */
@@ -15,13 +15,23 @@ export interface EnemyAttackDef extends ActionDef {
   /** Attack that may immediately follow this one (boss combos). */
   readonly chainNext?: string;
   readonly chainChance?: number;
-  /** 'leap': jump onto the target point locked at telegraph start (boss). */
-  readonly special?: 'leap';
+  /**
+   * 'leap': jump onto the target point locked at telegraph start (boss).
+   * 'explode': the attacker destroys itself when the attack lands (suicide enemies).
+   * 'fly': rise out of reach during the attack (hits are emitted from the air), then land.
+   * 'grab': if the strike connects, the player is held, then takes `grab.spec`.
+   */
+  readonly special?: 'leap' | 'explode' | 'fly' | 'grab';
+  /** Adds summoned when the attack becomes active. */
+  readonly summon?: { readonly enemy: EnemyId; readonly count: number };
+  readonly grab?: { readonly holdMs: number; readonly spec: HitSpec };
+  /** 'fly': hover height (m). */
+  readonly flyHeight?: number;
   /** Track the player's position while telegraphing until this fraction of the telegraph. */
   readonly trackUntil?: number;
 }
 
-export type EnemyId = 'thrall' | 'imp' | 'brute';
+export type EnemyId = 'thrall' | 'imp' | 'brute' | 'bulwark' | 'seer' | 'wretch';
 
 export interface EnemyDef {
   readonly id: string;
@@ -43,6 +53,14 @@ export interface EnemyDef {
   readonly deathMs: number;
   /** 0 = full knockback, 1 = immovable. */
   readonly knockbackResist: number;
+  /** Front shield: hits from inside the arc are blocked (damage × blockMult, poise × poiseMult). */
+  readonly shield?: {
+    readonly arcDeg: number;
+    readonly blockMult: number;
+    readonly poiseMult: number;
+  };
+  /** Ranged enemies back away when the player gets closer than this (edge distance). */
+  readonly preferredRange?: number;
   /** Idle/locomotion pose family. */
   readonly idlePose: 'HUNCHED' | 'NEUTRAL';
   readonly souls: number;
@@ -260,5 +278,272 @@ export const ENEMIES: Readonly<Record<EnemyId, EnemyDef>> = {
     knockbackResist: 0.6,
     idlePose: 'HUNCHED',
     souls: 2,
+  },
+  bulwark: {
+    id: 'bulwark',
+    name: 'Bulwark Sentinel',
+    rig: 'bulwark',
+    stats: {
+      maxHp: 900,
+      atk: 105,
+      def: 70,
+      critChance: 0,
+      critDamage: 1,
+      attackSpeed: 1,
+      moveSpeed: 2.9,
+    },
+    poise: 90,
+    radius: 0.5,
+    halfHeight: 0.62,
+    aggroRange: 20,
+    holdDistance: 4.5,
+    turnRateDeg: 260,
+    shield: { arcDeg: 130, blockMult: 0.12, poiseMult: 0.45 },
+    attacks: [
+      {
+        id: 'bulwark_bash',
+        startupMs: 620,
+        activeMs: 130,
+        recoveryMs: 700,
+        cancelAtMs: 9999,
+        range: 1.8,
+        cooldownMs: 1300,
+        weight: 2,
+        indicator: false,
+        trackUntil: 0.55,
+        hits: [
+          {
+            offsetMs: 0,
+            spec: {
+              damage: 1.2,
+              poise: 25,
+              reaction: 'flinch',
+              knockback: 0.7,
+              hitStopMs: 65,
+              shake: 0.25,
+              shape: { kind: 'arc', range: 2.2, angleDeg: 110 },
+            },
+          },
+        ],
+        move: { distance: 0.5, startMs: 560, endMs: 750, ease: 'out' },
+        trail: 'right',
+        windPose: 'CLUB_WIND',
+        hitPose: 'CLUB_HIT',
+      },
+      {
+        id: 'bulwark_shove',
+        startupMs: 540,
+        activeMs: 160,
+        recoveryMs: 650,
+        cancelAtMs: 9999,
+        range: 1.6,
+        cooldownMs: 2600,
+        weight: 1,
+        indicator: true,
+        trackUntil: 0.5,
+        sweep: true,
+        hits: [
+          {
+            offsetMs: 0,
+            spec: {
+              damage: 0.9,
+              poise: 40,
+              reaction: 'knockback',
+              knockback: 2.6,
+              hitStopMs: 70,
+              shake: 0.3,
+              shape: { kind: 'circle', radius: 1.2, forward: 1 },
+            },
+          },
+        ],
+        move: { distance: 1.4, startMs: 540, endMs: 700, ease: 'out' },
+        trail: 'none',
+        windPose: 'THRUST_WIND',
+        hitPose: 'THRUST_HIT',
+      },
+    ],
+    hurtMs: 280,
+    staggerMs: 2000,
+    knockdownMs: 1200,
+    getupMs: 700,
+    deathMs: 1700,
+    knockbackResist: 0.5,
+    idlePose: 'NEUTRAL',
+    souls: 1,
+  },
+  seer: {
+    id: 'seer',
+    name: 'Ember Seer',
+    rig: 'seer',
+    stats: {
+      maxHp: 380,
+      atk: 95,
+      def: 25,
+      critChance: 0,
+      critDamage: 1,
+      attackSpeed: 1,
+      moveSpeed: 3.4,
+    },
+    poise: 25,
+    radius: 0.38,
+    halfHeight: 0.56,
+    aggroRange: 26,
+    holdDistance: 8,
+    turnRateDeg: 420,
+    preferredRange: 8,
+    attacks: [
+      {
+        id: 'seer_bolt',
+        startupMs: 650,
+        activeMs: 80,
+        recoveryMs: 700,
+        cancelAtMs: 9999,
+        range: 12,
+        cooldownMs: 1700,
+        weight: 3,
+        indicator: false,
+        trackUntil: 0.8,
+        hits: [
+          {
+            offsetMs: 0,
+            spec: {
+              damage: 1,
+              poise: 12,
+              reaction: 'flinch',
+              knockback: 0.5,
+              hitStopMs: 45,
+              shake: 0.15,
+              shape: { kind: 'circle', radius: 0.4, forward: 0 },
+              status: { id: 'burn', chance: 0.3 },
+            },
+            emit: {
+              kind: 'projectile',
+              projectile: {
+                visual: 'bolt',
+                speed: 13,
+                radius: 0.4,
+                rangeM: 16,
+                pierce: false,
+                homing: 0,
+                height: 1.4,
+              },
+              count: 1,
+              spreadDeg: 0,
+              aim: 'target',
+            },
+          },
+        ],
+        trail: 'none',
+        windPose: 'CAST_WIND',
+        hitPose: 'CAST_HIT',
+      },
+      {
+        id: 'seer_blast',
+        startupMs: 700,
+        activeMs: 100,
+        recoveryMs: 800,
+        cancelAtMs: 9999,
+        range: 11,
+        cooldownMs: 5000,
+        weight: 2,
+        indicator: false,
+        trackUntil: 0.9,
+        hits: [
+          {
+            offsetMs: 0,
+            spec: {
+              damage: 1.5,
+              poise: 30,
+              reaction: 'knockback',
+              knockback: 1.6,
+              hitStopMs: 60,
+              shake: 0.3,
+              shape: { kind: 'circle', radius: 2.2, forward: 0 },
+              status: { id: 'burn', chance: 0.6 },
+            },
+            emit: {
+              kind: 'zone',
+              zone: { visual: 'eruption', radius: 2.2, delayMs: 950, ticks: 1, intervalMs: 0 },
+              place: 'target',
+              forward: 0,
+              count: 1,
+              scatter: 0,
+            },
+          },
+        ],
+        trail: 'none',
+        windPose: 'CAST_WIND',
+        hitPose: 'CAST_HIT',
+      },
+    ],
+    hurtMs: 300,
+    staggerMs: 1300,
+    knockdownMs: 1000,
+    getupMs: 600,
+    deathMs: 1500,
+    knockbackResist: 0,
+    idlePose: 'NEUTRAL',
+    souls: 1,
+  },
+  wretch: {
+    id: 'wretch',
+    name: 'Cinder Wretch',
+    rig: 'wretch',
+    stats: {
+      maxHp: 220,
+      atk: 120,
+      def: 15,
+      critChance: 0,
+      critDamage: 1,
+      attackSpeed: 1,
+      moveSpeed: 6,
+    },
+    poise: 15,
+    radius: 0.34,
+    halfHeight: 0.4,
+    aggroRange: 28,
+    holdDistance: 3,
+    turnRateDeg: 600,
+    attacks: [
+      {
+        id: 'wretch_blast',
+        startupMs: 700,
+        activeMs: 60,
+        recoveryMs: 300,
+        cancelAtMs: 9999,
+        range: 1.4,
+        cooldownMs: 1000,
+        weight: 1,
+        indicator: true,
+        special: 'explode',
+        trackUntil: 0.3,
+        hits: [
+          {
+            offsetMs: 0,
+            spec: {
+              damage: 2.4,
+              poise: 40,
+              reaction: 'knockback',
+              knockback: 2.2,
+              hitStopMs: 80,
+              shake: 0.45,
+              shape: { kind: 'circle', radius: 2.6, forward: 0 },
+              status: { id: 'burn', chance: 0.6 },
+            },
+          },
+        ],
+        trail: 'none',
+        windPose: 'CROUCH',
+        hitPose: 'ARMS_WIDE',
+      },
+    ],
+    hurtMs: 220,
+    staggerMs: 900,
+    knockdownMs: 800,
+    getupMs: 400,
+    deathMs: 600,
+    knockbackResist: 0,
+    idlePose: 'HUNCHED',
+    souls: 0,
   },
 };

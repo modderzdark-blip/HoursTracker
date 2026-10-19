@@ -409,7 +409,8 @@ export class BattleMode implements QualityTarget, WaveWorld {
       }),
       b.on('enemy:telegraph', (e) => {
         const actor = this.boss !== null && e.actorId === this.boss.id;
-        if (actor || e.attackId.startsWith('brute')) this.sfx.play('telegraph');
+        if (actor || e.attackId.startsWith('brute') || e.attackId.endsWith('_blast'))
+          this.sfx.play('telegraph');
       }),
       b.on('boss:phase', (e) => {
         this.hud.showBanner(`PHASE ${e.label}`, 'phase', 1600);
@@ -434,6 +435,13 @@ export class BattleMode implements QualityTarget, WaveWorld {
             0.6,
           );
         }
+      }),
+      b.on('enemy:exploded', (e) => {
+        this.effectVisuals.blast('explosion', e.x, e.z, e.radius, true);
+        this.d.bus.emit('camera:shake', { trauma: 0.35 });
+      }),
+      b.on('boss:grab', (e) => {
+        if (e.holding) this.hud.showBanner('GRABBED!', 'warn', 1000);
       }),
       b.on('boss:enrage', () => {
         this.hud.showBanner('ENRAGED', 'warn', 1800);
@@ -655,9 +663,15 @@ export class BattleMode implements QualityTarget, WaveWorld {
       e.x,
       e.y,
       e.z,
-      kind,
+      e.blocked ? 'dot' : kind,
     );
     if (e.dot) return;
+    if (e.blocked) {
+      this.numbers.spawn('BLOCK', e.x, e.y + 0.45, e.z, 'info');
+      this.sparks.burst(e.x, e.y - 0.6, e.z, 10, 0xd0d8e8, 5, -e.dirX, -e.dirZ, 0.3, 0.9, 1);
+      this.sfx.play('hit', 0.5);
+      return;
+    }
     if (isPlayerTarget) {
       this.sparks.burst(
         e.x,
@@ -956,7 +970,11 @@ export class BattleMode implements QualityTarget, WaveWorld {
     const boss = this.boss;
     if (boss !== null && this.bossActive && this.bossIntroFinished && boss.alive) {
       this.bossFrame.copy(boss.renderFeet);
-      this.d.camera.setFraming(this.bossFrame);
+      const size = Math.min(
+        0.6,
+        0.12 * Math.max(0, boss.rig.def.scale - 1.5) + boss.visualLift * 0.05,
+      );
+      this.d.camera.setFraming(this.bossFrame, size);
     }
     if (!this.cam.update(realDtSec, this.d.camera.camera)) {
       this.d.camera.update(

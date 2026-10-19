@@ -11,8 +11,8 @@ import { CombatSystem } from '../../src/combat/CombatSystem';
 import { EventBus } from '../../src/core/EventBus';
 import type { GameEvents } from '../../src/core/events';
 import { GameClock } from '../../src/core/GameClock';
-import { BOSSES } from '../../src/data/bosses';
-import { ENEMIES } from '../../src/data/enemies';
+import { BOSSES, type BossId } from '../../src/data/bosses';
+import { ENEMIES, type EnemyId } from '../../src/data/enemies';
 import { HEROES, type HeroDef } from '../../src/data/heroes';
 import { Effects, type EffectVisuals } from '../../src/combat/Effects';
 import { INPUT_SOURCE } from '../../src/input/actions';
@@ -101,7 +101,11 @@ function makeWorld(hero: HeroDef = kael) {
     })(),
     difficultyMod: 1,
     effects,
+    summon: (id, count) => {
+      for (let i = 0; i < count; i++) summoned.push(addEnemy(6 + i, 6, id));
+    },
   };
+  const summoned: Enemy[] = [];
   const actors: Actor[] = [player];
   const enemies: Enemy[] = [];
   const step = (n = 1, each?: () => void): void => {
@@ -131,8 +135,8 @@ function makeWorld(hero: HeroDef = kael) {
     targets.push(d);
     return d;
   };
-  const addEnemy = (x: number, z: number): Enemy => {
-    const e = new Enemy(ENEMIES.thrall, { physics, scene, ctx });
+  const addEnemy = (x: number, z: number, id: EnemyId = 'thrall'): Enemy => {
+    const e = new Enemy(ENEMIES[id], { physics, scene, ctx });
     combat.register(e);
     e.activate(x, z, 0, UNIT_SCALE);
     actors.push(e);
@@ -140,8 +144,8 @@ function makeWorld(hero: HeroDef = kael) {
     enemies.push(e);
     return e;
   };
-  const addBoss = (x: number, z: number): Boss => {
-    const b = new Boss(BOSSES.hollow_warden, { physics, scene, ctx });
+  const addBoss = (x: number, z: number, id: BossId = 'hollow_warden'): Boss => {
+    const b = new Boss(BOSSES[id], { physics, scene, ctx });
     combat.register(b);
     b.activate(x, z, 0, UNIT_SCALE);
     actors.push(b);
@@ -149,6 +153,7 @@ function makeWorld(hero: HeroDef = kael) {
     return b;
   };
   return {
+    summoned,
     physics,
     effects,
     zonesShown,
@@ -525,5 +530,101 @@ describe('Brann and Lyra (integration)', () => {
     w.step(stepsFor(2600));
     expect(a.health.current).toBeLessThan(a.health.max);
     expect(b.health.current).toBeLessThan(b.health.max);
+  });
+});
+
+describe('new enemies and boss mechanics (integration)', () => {
+  it('Bulwark Sentinel blocks frontal hits but not hits from behind', () => {
+    const front = makeWorld();
+    const a = front.addEnemy(0, -1.6, 'bulwark');
+    a.yaw = 0; // facing +Z, toward the player at the origin
+    front.step(stepsFor(950)); // finish spawning
+    a.yaw = 0;
+    a.brain.enter('idle');
+    const hpA = a.health.current;
+    front.combat.applyHit(front.player, a, kael.combo[0]!.hits[0]!.spec, 0, -1, {
+      difficultyMod: 1,
+    });
+    const blocked = hpA - a.health.current;
+    const back = makeWorld();
+    const b = back.addEnemy(0, -1.6, 'bulwark');
+    back.step(stepsFor(950));
+    b.yaw = Math.PI; // facing away
+    b.brain.enter('idle');
+    const hpB = b.health.current;
+    back.combat.applyHit(back.player, b, kael.combo[0]!.hits[0]!.spec, 0, -1, { difficultyMod: 1 });
+    const open = hpB - b.health.current;
+    expect(blocked).toBeGreaterThan(0);
+    expect(open / blocked).toBeGreaterThan(5);
+  });
+
+  it('Ember Seer keeps its distance and shoots bolts that hurt the player', () => {
+    const w = makeWorld();
+    const s = w.addEnemy(0, -3, 'seer');
+    const hp = w.player.health.current;
+    w.step(stepsFor(3000));
+    expect(s.distanceTo(w.player)).toBeGreaterThan(4);
+    w.step(stepsFor(5000));
+    expect(w.player.health.current).toBeLessThan(hp);
+  });
+
+  it('Cinder Wretch rushes in, explodes and is destroyed', () => {
+    const w = makeWorld();
+    const e = w.addEnemy(0, -8, 'wretch');
+    const hp = w.player.health.current;
+    let died = false;
+    w.bus.on('combat:death', (d) => {
+      if (d.actorId === e.id) died = true;
+    });
+    w.step(stepsFor(5000));
+    expect(died).toBe(true);
+    expect(e.health.dead).toBe(true);
+    expect(w.player.health.current).toBeLessThan(hp);
+  });
+
+  it('Mother of Ash flies out of reach (invulnerable) and summons adds in phase III', () => {
+    const w = makeWorld();
+    w.player.god = true;
+    const m = w.addBoss(0, -6, 'mother_of_ash');
+    m.bossBrain.beginFight();
+    m.health.damage(m.health.max * 0.75);
+    m.bossBrain.checkPhase();
+    let flew = false;
+    let invulnWhileAirborne = true;
+    for (let i = 0; i < stepsFor(40_000); i++) {
+      w.step(1);
+      if (m.visualLift > 2) {
+        flew = true;
+        if (!m.isInvulnerable()) invulnWhileAirborne = false;
+      }
+      if (flew && w.summoned.length > 0) break;
+    }
+    expect(m.bossBrain.phase).toBe(2);
+    expect(flew).toBe(true);
+    expect(invulnWhileAirborne).toBe(true);
+    expect(w.summoned.length).toBeGreaterThan(0);
+  });
+
+  it('The Bound King grabs the player, holds them, then slams for heavy damage', () => {
+    const w = makeWorld();
+    const k = w.addBoss(0, -3.2, 'bound_king');
+    k.bossBrain.beginFight();
+    const grabs: boolean[] = [];
+    w.bus.on('boss:grab', (e) => grabs.push(e.holding));
+
+    // A real player hugs the boss; keep the scripted one close (knockbacks push it away).
+    for (let i = 0; i < stepsFor(40_000) && grabs.length < 2; i++) {
+      w.step(1);
+      if (w.player.health.dead) w.player.revive();
+      if (grabs.length === 0 && w.player.state === 'locomotion' && k.gapTo(w.player) > 2) {
+        const a = k.yaw;
+        w.player.spawnAt(
+          k.currFeet.x + Math.sin(a) * 2.8,
+          k.currFeet.z + Math.cos(a) * 2.8,
+          a + Math.PI,
+        );
+      }
+    }
+    expect(grabs).toEqual([true, false]);
   });
 });
