@@ -644,6 +644,7 @@ export class Player extends Actor {
   // ------------------------------------------------------------------ reactions
 
   onHit(h: HitReceived): void {
+    this.visualLift = 0;
     this.damageTaken += h.amount;
     this.flashHit(0xff3020, 5);
     if (h.killed) {
@@ -672,6 +673,21 @@ export class Player extends Actor {
         this.enterKnockdown();
         break;
     }
+  }
+
+  /** Held by a boss grab: can't act until released (the boss then strikes). */
+  grab(holdMs: number): void {
+    if (this.state === 'dead') return;
+    this.interruptAction();
+    this.enterState('hurt', 'stagger', holdMs);
+    this.anim.play('stagger', { loop: true, fade: 0.08 });
+    this.visualLift = 0.7;
+  }
+
+  /** Ends a grab early (the boss was interrupted). */
+  releaseGrab(): void {
+    if (this.visualLift > 0 && this.state === 'hurt') this.enterLocomotion();
+    this.visualLift = 0;
   }
 
   /** Pushed without damage (boss phase shockwave). */
@@ -712,6 +728,7 @@ export class Player extends Actor {
   }
 
   private enterLocomotion(): void {
+    this.visualLift = 0;
     this.charging = false;
     this.anim.setPaused(false);
     this.state = 'locomotion';

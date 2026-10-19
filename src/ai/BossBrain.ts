@@ -1,6 +1,7 @@
 import type { Boss } from '../actors/Boss';
 import type { Player } from '../actors/Player';
 import type { BossDef } from '../data/bosses';
+import type { HitSpec } from '../data/combatTypes';
 import type { EnemyAttackDef } from '../data/enemies';
 import { EnemyBrain, type BrainContext } from './EnemyBrain';
 
@@ -29,6 +30,10 @@ export class BossBrain extends EnemyBrain {
   private shockwaveDone = false;
   private readonly jumpStart = { x: 0, z: 0 };
   private airborne = false;
+  /** Grab: time left holding the player, and the follow-up hit. */
+  private grabMs = 0;
+  private grabSpec: HitSpec | null = null;
+  private hazardMs = 0;
   /** Called when the phase-change shockwave fires (VFX/SFX/camera). */
   onShockwave: ((x: number, z: number) => void) | null = null;
 
@@ -50,6 +55,9 @@ export class BossBrain extends EnemyBrain {
     this.fightMs = 0;
     this.pendingPhase = -1;
     this.airborne = false;
+    this.grabMs = 0;
+    this.grabSpec = null;
+    this.hazardMs = 0;
   }
 
   beginIntro(): void {
@@ -76,7 +84,9 @@ export class BossBrain extends EnemyBrain {
     if (this.state !== 'intro' && this.state !== 'dead' && this.state !== 'inactive') {
       this.fightMs += dtMs;
       if (!this.enraged && this.fightMs >= this.bossDef.enrageAfterMs) this.enrage();
+      if (this.state !== 'transition') this.tickHazard(dtMs);
     }
+    if (this.grabMs > 0) this.tickGrab(dtMs);
     switch (this.state) {
       case 'intro':
         this.stateMs += dtMs;
@@ -115,6 +125,7 @@ export class BossBrain extends EnemyBrain {
 
   goBroken(): void {
     if (this.state === 'transition' || this.state === 'intro' || this.state === 'dead') return;
+    this.endGrab(false);
     this.interrupt();
     this.airborne = false;
     this.enemy.visualLift = 0;
@@ -124,6 +135,7 @@ export class BossBrain extends EnemyBrain {
   }
 
   private goTransition(phase: number): void {
+    this.endGrab(false);
     this.interrupt();
     this.airborne = false;
     this.enemy.visualLift = 0;
@@ -206,11 +218,83 @@ export class BossBrain extends EnemyBrain {
     super.startTelegraph(atk);
   }
 
+  // ------------------------------------------------------------------ grab
+
+  protected override strike(spec: EnemyAttackDef['hits'][number]['spec']): number {
+    const hits = super.strike(spec);
+    const atk = this.attack;
+    if (hits > 0 && atk?.special === 'grab' && atk.grab !== undefined) {
+      const p = this.ctx.player as Player;
+      if (p.alive) {
+        p.grab(atk.grab.holdMs);
+        this.grabMs = atk.grab.holdMs;
+        this.grabSpec = atk.grab.spec;
+        this.ctx.bus.emit('boss:grab', { holding: true });
+      }
+    }
+    return hits;
+  }
+
+  private tickGrab(dtMs: number): void {
+    this.grabMs -= dtMs;
+    const e = this.enemy;
+    const p = this.ctx.player;
+    // Hold the player in front of the boss.
+    const reach = e.radius + p.radius + 0.6;
+    p.push.x += (e.currFeet.x + Math.sin(e.yaw) * reach - p.currFeet.x) * 0.25;
+    p.push.z += (e.currFeet.z + Math.cos(e.yaw) * reach - p.currFeet.z) * 0.25;
+    if (this.grabMs <= 0) this.endGrab(true);
+  }
+
+  private endGrab(slam: boolean): void {
+    if (this.grabSpec === null) return;
+    const spec = this.grabSpec;
+    this.grabSpec = null;
+    this.grabMs = 0;
+    const p = this.ctx.player as Player;
+    if (slam && p.alive) {
+      const e = this.enemy;
+      const dx = Math.sin(e.yaw);
+      const dz = Math.cos(e.yaw);
+      p.releaseGrab();
+      this.ctx.combat.applyHit(e, p, spec, dx, dz, {
+        difficultyMod: this.ctx.difficultyMod * e.damageMult,
+      });
+      this.ctx.bus.emit('camera:shake', { trauma: spec.shake });
+      this.ctx.bus.emit('time:hitStop', { ms: spec.hitStopMs });
+    } else {
+      p.releaseGrab();
+    }
+    this.ctx.bus.emit('boss:grab', { holding: false });
+  }
+
+  // ------------------------------------------------------------------ hazards
+
+  private tickHazard(dtMs: number): void {
+    const hz = this.bossDef.phases[this.phase]?.hazard;
+    if (hz === undefined || this.ctx.effects === undefined) return;
+    this.hazardMs += dtMs;
+    if (this.hazardMs < hz.everyMs) return;
+    this.hazardMs = 0;
+    const p = this.ctx.player;
+    this.ctx.effects.emit(
+      this.enemy,
+      hz.spec,
+      hz.emit,
+      { difficultyMod: this.ctx.difficultyMod * this.enemy.damageMult },
+      p.currFeet,
+    );
+  }
+
   protected override indicatorOrigin(): { x: number; z: number } {
     return this.attack?.special === 'leap' ? this.lockTarget : this.enemy.currFeet;
   }
 
   protected override applyAttackMovement(atk: EnemyAttackDef, frac: number, dtSec: number): void {
+    if (atk.special === 'fly') {
+      this.flyMovement(atk, dtSec);
+      return;
+    }
     if (atk.special !== 'leap') {
       super.applyAttackMovement(atk, frac, dtSec);
       return;
@@ -238,7 +322,36 @@ export class BossBrain extends EnemyBrain {
     e.visualLift = 4 * BOSS_TUNING.leapHeight * t * (1 - t);
   }
 
+  /** Take off during the wind-up, hover (drifting after the player) while active, then land. */
+  private flyMovement(atk: EnemyAttackDef, dtSec: number): void {
+    const e = this.enemy;
+    const h = atk.flyHeight ?? 4;
+    const r = this.runner;
+    if (r.phase === 'startup') {
+      const t = r.startupProgress;
+      e.visualLift = h * t * t * (3 - 2 * t);
+    } else if (r.phase === 'active') {
+      e.visualLift = h + Math.sin(this.stateMs / 260) * 0.25;
+      const p = this.ctx.player;
+      const dx = p.currFeet.x - e.currFeet.x;
+      const dz = p.currFeet.z - e.currFeet.z;
+      const d = Math.hypot(dx, dz);
+      if (d > 3) {
+        e.actionDisp.x += (dx / d) * 1.6 * dtSec;
+        e.actionDisp.z += (dz / d) * 1.6 * dtSec;
+      }
+      this.turnToward(p.currFeet.x, p.currFeet.z, dtSec);
+    } else if (r.phase === 'recovery') {
+      const span = r.totalMs - r.activeEndMs;
+      const t = span > 0 ? Math.min(1, (r.elapsedMs - r.activeEndMs) / span) : 1;
+      e.visualLift = h * (1 - Math.min(1, t * 1.6));
+    } else {
+      e.visualLift = 0;
+    }
+  }
+
   override goDead(): void {
+    this.endGrab(false);
     super.goDead();
     this.airborne = false;
     this.enemy.visualLift = 0;

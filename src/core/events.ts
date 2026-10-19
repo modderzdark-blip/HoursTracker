@@ -17,6 +17,8 @@ export interface HitEvent {
   killed: boolean;
   poiseBroken: boolean;
   counter: boolean;
+  /** Absorbed by a shield (reduced damage). */
+  blocked: boolean;
   /** Damage over time tick (no hit-stop/shake). */
   dot: boolean;
   status: StatusId | null;
@@ -56,6 +58,8 @@ export interface GameEvents {
   'player:died': Record<string, never>;
   'player:revived': Record<string, never>;
   'enemy:telegraph': { readonly actorId: number; readonly attackId: string };
+  'enemy:exploded': { readonly x: number; readonly z: number; readonly radius: number };
+  'boss:grab': { readonly holding: boolean };
   'boss:phase': { readonly phase: number; readonly label: string };
   'boss:break': { readonly broken: boolean };
   'boss:enrage': Record<string, never>;

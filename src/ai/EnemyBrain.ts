@@ -68,6 +68,9 @@ export const AI_TUNING = {
   launchVy: 7.5,
 } as const;
 
+/** A kiting enemy stops retreating and attacks after backing off this long. */
+const KITE_MAX_MS = 2500;
+
 /**
  * Per-enemy AI state machine:
  * Idle → Patrol → Alert → Chase → Position → Telegraph → Attack → Recover, plus Hurt, Stagger,
@@ -89,6 +92,7 @@ export class EnemyBrain {
   private avoidZ = 0;
   private avoidMs = 0;
   private stepCounter = 0;
+  private kiteMs = 0;
   private readonly patrolTarget = { x: 0, z: 0 };
   protected indicator = -1;
   protected reactionMs = 0;
@@ -248,8 +252,19 @@ export class EnemyBrain {
       return;
     }
     const gap = e.gapTo(p);
+    // Ranged enemies back off to their preferred distance before attacking (but not forever:
+    // after a while cornered they fight).
+    const pref = e.def.preferredRange;
+    if (pref !== undefined && gap < pref * 0.55 && this.kiteMs < KITE_MAX_MS) {
+      this.kiteMs += dtSec * 1000;
+      this.steerAway(dtSec, p.currFeet.x, p.currFeet.z);
+      this.turnToward(p.currFeet.x, p.currFeet.z, dtSec);
+      return;
+    }
+    if (pref === undefined || gap >= pref * 0.55) this.kiteMs = 0;
     const atk = this.pickAttack(gap);
     if (atk !== null && this.ctx.tokens.request(e.id)) {
+      this.kiteMs = 0;
       this.startTelegraph(atk);
       return;
     }
@@ -369,6 +384,7 @@ export class EnemyBrain {
     const phase = this.runner.phase;
     if (phase !== phaseBefore) {
       if (phase === 'active') {
+        if (atk.summon !== undefined) this.ctx.summon?.(atk.summon.enemy, atk.summon.count);
         this.enter('attack');
         e.anim.play(`${atk.id}:strike`, {
           durationSec: (this.runner.totalMs - this.runner.startupEndMs) / 1000,
@@ -417,6 +433,11 @@ export class EnemyBrain {
     const hit = this.attack?.hits[index];
     if (hit === undefined) return;
     if (hit.emit !== undefined) {
+      const p = this.ctx.player;
+      if (this.attack?.special !== 'leap' && p.alive) {
+        this.lockTarget.x = p.currFeet.x;
+        this.lockTarget.z = p.currFeet.z;
+      }
       this.ctx.effects?.emit(
         this.enemy,
         hit.spec,
@@ -428,9 +449,29 @@ export class EnemyBrain {
     }
     if (this.attack?.sweep !== true) this.hitSet.clear();
     this.strike(hit.spec);
+    if (this.attack?.special === 'explode') this.explodeSelf();
   }
 
-  protected strike(spec: EnemyAttackDef['hits'][number]['spec']): void {
+  /** Suicide attack: the enemy is destroyed by its own blast. */
+  private explodeSelf(): void {
+    const e = this.enemy;
+    const shape = this.attack?.hits[0]?.spec.shape;
+    this.ctx.bus.emit('enemy:exploded', {
+      x: e.currFeet.x,
+      z: e.currFeet.z,
+      radius: shape?.kind === 'circle' ? shape.radius : 2,
+    });
+    e.selfDestruct();
+    this.ctx.bus.emit('combat:death', {
+      actorId: e.id,
+      team: e.team,
+      x: e.currFeet.x,
+      z: e.currFeet.z,
+    });
+  }
+
+  /** Melee strike; returns the number of targets hit. */
+  protected strike(spec: EnemyAttackDef['hits'][number]['spec']): number {
     const r = this.ctx.combat.strike(this.enemy, spec, {
       difficultyMod: this.ctx.difficultyMod * this.enemy.damageMult,
       hitSet: this.hitSet,
@@ -439,6 +480,7 @@ export class EnemyBrain {
       this.ctx.bus.emit('time:hitStop', { ms: r.maxHitStopMs });
       this.ctx.bus.emit('camera:shake', { trauma: r.maxShake });
     }
+    return r.hits;
   }
 
   // ------------------------------------------------------------------ reactions
@@ -554,6 +596,15 @@ export class EnemyBrain {
       target,
       ((e.def.turnRateDeg * e.speedMult * Math.PI) / 180) * dtSec,
     );
+  }
+
+  /** Steers directly away from a point (kiting). */
+  protected steerAway(dtSec: number, x: number, z: number): void {
+    const e = this.enemy;
+    const dx = e.currFeet.x - x;
+    const dz = e.currFeet.z - z;
+    const d = Math.hypot(dx, dz) || 1;
+    this.steerDir(dtSec, dx / d, dz / d, 0.8, false);
   }
 
   /** Steers toward a point; returns the remaining distance. */

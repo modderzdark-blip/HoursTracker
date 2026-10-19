@@ -54,6 +54,7 @@ export class CombatSystem {
     killed: false,
     poiseBroken: false,
     counter: false,
+    blocked: false,
     dot: false,
     status: null,
     x: 0,
@@ -169,30 +170,33 @@ export class CombatSystem {
       target.onEvaded();
       return false;
     }
+    const block = target.blockFactor(attacker);
+    const blocked = block < 1;
     computeDamage(
       {
         atk: attacker.stats.atk,
         def: target.stats.def,
         skillMult: spec.damage * (opts.damageMult ?? 1),
-        critChance: attacker.stats.critChance,
+        critChance: blocked ? 0 : attacker.stats.critChance,
         critDamage: attacker.stats.critDamage,
         difficultyMod: opts.difficultyMod,
-        bonusMult: target.damageTakenMult(),
-        forceCrit: opts.forceCrit === true,
+        bonusMult: target.damageTakenMult() * block,
+        forceCrit: !blocked && opts.forceCrit === true,
       },
       this.rng,
       this.dmg,
     );
     const applied = target.health.damage(this.dmg.amount);
     const killed = target.health.dead;
-    const poiseBroken = !killed && target.poise.apply(spec.poise);
+    const poiseBroken =
+      !killed && target.poise.apply(spec.poise * (blocked ? target.blockedPoiseMult() : 1));
     let status: StatusId | null = null;
-    if (!killed && spec.status !== undefined && this.rng() < spec.status.chance) {
+    if (!killed && !blocked && spec.status !== undefined && this.rng() < spec.status.chance) {
       target.status.apply(spec.status.id, attacker.stats.atk, opts.difficultyMod);
       status = spec.status.id;
     }
     const extra = opts.extraStatus;
-    if (!killed && extra !== undefined && extra !== null && this.rng() < extra.chance) {
+    if (!killed && !blocked && extra !== undefined && extra !== null && this.rng() < extra.chance) {
       target.status.apply(extra.status, attacker.stats.atk, opts.difficultyMod);
       status = extra.status;
     }
@@ -205,6 +209,7 @@ export class CombatSystem {
       crit: this.dmg.crit,
       poiseBroken,
       killed,
+      blocked,
     });
     this.onDamage?.(attacker, target, applied);
     const e = this.hitEvent;
@@ -216,6 +221,7 @@ export class CombatSystem {
     e.killed = killed;
     e.poiseBroken = poiseBroken;
     e.counter = opts.counter === true;
+    e.blocked = blocked;
     e.dot = false;
     e.status = status;
     e.x = target.currFeet.x;
@@ -254,6 +260,7 @@ export class CombatSystem {
     e.killed = killed;
     e.poiseBroken = false;
     e.counter = false;
+    e.blocked = false;
     e.dot = true;
     e.status = id;
     e.x = target.currFeet.x;

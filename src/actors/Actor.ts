@@ -21,6 +21,8 @@ export interface HitReceived {
   readonly crit: boolean;
   readonly poiseBroken: boolean;
   readonly killed: boolean;
+  /** Absorbed by a shield. */
+  readonly blocked?: boolean;
 }
 
 export interface ActorOptions {
@@ -126,6 +128,19 @@ export abstract class Actor {
 
   /** Multiplier on incoming damage (e.g. boss break window). */
   damageTakenMult(): number {
+    return 1;
+  }
+
+  /**
+   * Damage multiplier when hit by `attacker` (1 = no block). Shielded enemies return < 1 for
+   * hits from the front.
+   */
+  blockFactor(_attacker: Actor): number {
+    return 1;
+  }
+
+  /** Poise multiplier for blocked hits. */
+  blockedPoiseMult(): number {
     return 1;
   }
 

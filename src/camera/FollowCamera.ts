@@ -56,11 +56,17 @@ export class FollowCamera {
     this.rightXZ.set(Math.cos(yaw), 0, -Math.sin(yaw));
   }
 
-  /** Keep a second point (the boss) in frame; null to stop. */
-  setFraming(point: Vector3 | null): void {
+  /**
+   * Keep a second point (the boss) in frame; null to stop. `sizeBonus` pulls the camera further
+   * back for very large (or airborne) bosses (0.2 = +20% distance).
+   */
+  setFraming(point: Vector3 | null, sizeBonus = 0): void {
     this.framing = point !== null;
     if (point !== null) this.framePoint.copy(point);
+    this.frameSize = Math.max(0, sizeBonus);
   }
+
+  private frameSize = 0;
 
   /** Start from the current camera transform and ease into the follow pose (after cinematics). */
   blendFromCurrent(ms: number = CAMERA_CONFIG.cinematicBlendMs): void {
@@ -106,7 +112,9 @@ export class FollowCamera {
       this.frameShift.copy(this.tmp).multiplyScalar(bf.anchorShift);
       if (this.frameShift.length() > bf.maxShift) this.frameShift.setLength(bf.maxShift);
       this.frameShift.multiplyScalar(this.frameBlend);
-      extra = (Math.min(d, bf.farDistance) / bf.farDistance) * bf.extraDistance * this.frameBlend;
+      extra =
+        ((Math.min(d, bf.farDistance) / bf.farDistance) * bf.extraDistance + this.frameSize) *
+        this.frameBlend;
     } else {
       this.frameShift.set(0, 0, 0);
     }

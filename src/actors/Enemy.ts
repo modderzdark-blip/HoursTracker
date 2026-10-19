@@ -6,6 +6,7 @@ import type { EnemyAttackDef, EnemyDef } from '../data/enemies';
 import { RIGS } from '../data/rigs';
 import { GROUP } from '../physics/groups';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
+import { wrapAngle } from './components/movementMath';
 import { Actor, type HitReceived } from './Actor';
 
 /** Multipliers applied to an enemy's base stats when it spawns (level, difficulty, mode). */
@@ -94,6 +95,32 @@ export class Enemy extends Actor {
     this.brain.goSpawning();
   }
 
+  override blockFactor(attacker: Actor): number {
+    const sh = this.def.shield;
+    if (sh === undefined || attacker === this) return 1;
+    const st = this.brain.state;
+    // The guard drops while staggered, knocked down or mid-air.
+    if (
+      st === 'stagger' ||
+      st === 'knockdown' ||
+      st === 'airborne' ||
+      st === 'getup' ||
+      st === 'broken'
+    )
+      return 1;
+    const toAttacker = Math.atan2(
+      attacker.currFeet.x - this.currFeet.x,
+      attacker.currFeet.z - this.currFeet.z,
+    );
+    return Math.abs(wrapAngle(toAttacker - this.yaw)) <= (sh.arcDeg * Math.PI) / 360
+      ? sh.blockMult
+      : 1;
+  }
+
+  override blockedPoiseMult(): number {
+    return this.def.shield?.poiseMult ?? 1;
+  }
+
   isInvulnerable(): boolean {
     const s = this.brain.state;
     return s === 'spawning' || s === 'dead' || s === 'inactive';
@@ -119,6 +146,11 @@ export class Enemy extends Actor {
       this.knockback(h.dirX, h.dirZ, h.spec.knockback * 0.5);
       return;
     }
+    if (h.blocked === true) {
+      // The shield takes it: a small shove, no flinch.
+      this.knockback(h.dirX, h.dirZ, h.spec.knockback * 0.25);
+      return;
+    }
     if (this.hasSuperArmor()) return;
     switch (h.spec.reaction) {
       case 'flinch':
@@ -140,6 +172,14 @@ export class Enemy extends Actor {
         this.brain.goKnockdown();
         break;
     }
+  }
+
+  /** Suicide attackers: dies on the spot (no killer). */
+  selfDestruct(): void {
+    if (this.health.dead) return;
+    this.health.damage(this.health.current);
+    this.die();
+    this.rig.setVisible(false);
   }
 
   protected die(): void {
