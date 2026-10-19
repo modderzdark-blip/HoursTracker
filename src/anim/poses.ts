@@ -230,6 +230,87 @@ export const DASH_LEAN: Pose = pose(READY, {
   RightLeg: [50, 0, 0],
 });
 
+// ---- Brann (greatsword, two hands) ----
+/** Low guard: the greatsword held across the body, point forward and down. */
+export const GS_READY: Pose = pose(
+  NEUTRAL,
+  {
+    Spine: [10, 10, 0],
+    Chest: [2, 12, 0],
+    RightArm: [-12, 0, -20],
+    RightForeArm: [-15, 0, 0],
+    LeftArm: [-30, 0, -10],
+    LeftForeArm: [-45, 0, 0],
+    LeftUpLeg: [-14, 0, 8],
+    RightUpLeg: [-2, 0, -8],
+    LeftLeg: [18, 0, 0],
+  },
+  [0, -0.08, 0],
+);
+export const GS_SIDE_WIND: Pose = pose(READY, {
+  Spine: [6, -18, 0],
+  Chest: [0, -48, 0],
+  RightArm: [-55, 0, -75],
+  RightForeArm: [-40, 0, 0],
+  LeftArm: [-80, 0, -10],
+  LeftForeArm: [-50, 0, 0],
+});
+export const GS_SIDE_HIT: Pose = pose(READY, {
+  Spine: [16, 20, 0],
+  Chest: [6, 50, 0],
+  RightArm: [-80, 0, 10],
+  RightForeArm: [-10, 0, 0],
+  LeftArm: [-70, 0, 40],
+  LeftForeArm: [-15, 0, 0],
+  LeftUpLeg: [-35, 0, 6],
+  LeftLeg: [35, 0, 0],
+});
+export const CHARGE_HOLD: Pose = pose(
+  OVERHEAD_WIND,
+  {
+    Spine: [-24, 0, 0],
+    Chest: [-8, 0, 0],
+    LeftUpLeg: [-20, 0, 8],
+    RightUpLeg: [15, 0, -8],
+    RightLeg: [25, 0, 0],
+  },
+  [0, -0.2, 0],
+);
+export const SHOULDER: Pose = pose(DASH_LEAN, {
+  Chest: [10, 30, 0],
+  LeftArm: [-20, 0, 10],
+  LeftForeArm: [-100, 0, 0],
+  RightArm: [30, 0, -20],
+});
+
+// ---- Lyra (bow in the left hand, dagger in the right) ----
+export const BOW_DRAW: Pose = pose(NEUTRAL, {
+  Spine: [4, 30, 0],
+  Chest: [0, 25, 0],
+  Head: [0, -45, 0],
+  LeftArm: [-90, 0, 20],
+  LeftForeArm: [-5, 0, 0],
+  RightArm: [-85, 0, -35],
+  RightForeArm: [-125, 0, 0],
+  LeftUpLeg: [-10, 0, 8],
+  RightUpLeg: [6, 0, -8],
+});
+export const BOW_RELEASE: Pose = pose(BOW_DRAW, {
+  RightArm: [-70, 0, -75],
+  RightForeArm: [-30, 0, 0],
+});
+export const AIM_UP: Pose = pose(BOW_DRAW, {
+  Spine: [-12, 30, 0],
+  Chest: [-15, 25, 0],
+  Head: [-30, -45, 0],
+  LeftArm: [-150, 0, 20],
+  RightArm: [-140, 0, -35],
+});
+export const AIM_UP_RELEASE: Pose = pose(AIM_UP, {
+  RightArm: [-120, 0, -75],
+  RightForeArm: [-30, 0, 0],
+});
+
 // ---- Enemy poses ----
 export const CLUB_WIND: Pose = pose(HUNCHED, {
   Spine: [-10, 0, 0],
@@ -361,6 +442,18 @@ export const POSE_LIBRARY = {
   OVERHEAD_WIND,
   OVERHEAD_HIT,
   DASH_LEAN,
+  GS_READY,
+  GS_SIDE_WIND,
+  GS_SIDE_HIT,
+  // Backhand cleave = the side cleave reversed.
+  GS_BACK_WIND: GS_SIDE_HIT,
+  GS_BACK_HIT: GS_SIDE_WIND,
+  CHARGE_HOLD,
+  SHOULDER,
+  BOW_DRAW,
+  BOW_RELEASE,
+  AIM_UP,
+  AIM_UP_RELEASE,
   CLUB_WIND,
   CLUB_HIT,
   POUNCE_WIND,

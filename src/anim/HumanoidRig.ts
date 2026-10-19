@@ -15,6 +15,7 @@ import {
   Skeleton,
   SkinnedMesh,
   SphereGeometry,
+  TorusGeometry,
   Vector3,
   type BufferGeometry,
 } from 'three';
@@ -348,6 +349,43 @@ function buildTemplate(def: RigDef): RigTemplate {
       );
       socket('rightBase', [0, -r, 0.2]);
       socket('rightTip', [0, -r, 1.6]);
+      sockets.leftBase.offset.copy(sockets.rightBase.offset);
+      sockets.leftTip.offset.copy(sockets.rightTip.offset);
+      sockets.leftBase.bone = 'RightHand';
+      sockets.leftTip.bone = 'RightHand';
+      break;
+    }
+    case 'bowDagger': {
+      // Bow in the left hand: an arc whose grip is the fist, limbs along the hand's Z axis.
+      const R = 0.55;
+      const A = Math.PI * 0.85;
+      const bow = new TorusGeometry(R, 0.022, 4, 16, A);
+      bow.rotateZ(-Math.PI / 2 - A / 2);
+      bow.translate(0, R, 0);
+      body.add(bow, 'LeftHand', def.weaponColor, [0, -r, 0], [0, Math.PI / 2, 0]);
+      body.add(new BoxGeometry(0.008, 0.008, 2 * R * Math.sin(A / 2)), 'LeftHand', 0xd8d0c0, [
+        0,
+        R * (1 - Math.cos(A / 2)) - r,
+        0,
+      ]);
+      // Dagger in the right hand.
+      tilt = 0.6;
+      body.add(
+        new BoxGeometry(0.03, 0.05, 0.42),
+        'RightHand',
+        0xc9ccd6,
+        at([0, -r, 0.3]),
+        tiltRot(),
+      );
+      body.add(
+        new BoxGeometry(0.12, 0.03, 0.04),
+        'RightHand',
+        L.trim,
+        at([0, -r, 0.07]),
+        tiltRot(),
+      );
+      socket('rightBase', [0, -r, 0.1]);
+      socket('rightTip', [0, -r, 0.52]);
       sockets.leftBase.offset.copy(sockets.rightBase.offset);
       sockets.leftTip.offset.copy(sockets.rightTip.offset);
       sockets.leftBase.bone = 'RightHand';

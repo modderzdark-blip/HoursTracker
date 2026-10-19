@@ -4,7 +4,7 @@
  * Lengths are metres for a 1.0 scale rig (~1.85 m tall); `scale` multiplies everything.
  */
 
-export type WeaponKind = 'dualBlades' | 'greatsword' | 'claws' | 'club' | 'none';
+export type WeaponKind = 'dualBlades' | 'greatsword' | 'bowDagger' | 'claws' | 'club' | 'none';
 
 export interface RigProportions {
   readonly hipsY: number;
@@ -81,6 +81,54 @@ export const RIGS = {
     },
     weapon: 'dualBlades',
     weaponColor: 0xc9ccd6,
+  },
+  brann: {
+    id: 'brann',
+    scale: 1.08,
+    proportions: {
+      ...HUMAN,
+      torsoRadius: 0.175,
+      limbRadius: 0.065,
+      chestWidth: 1.4,
+      headRadius: 0.135,
+    },
+    look: {
+      body: 0x2e2a26,
+      trim: 0x9a7a3a,
+      skin: 0x8a6650,
+      metal: 0x8c929e,
+      eyes: 0xffb040,
+      hood: false,
+      horns: false,
+      pauldrons: true,
+      rim: 0xffa040,
+    },
+    weapon: 'greatsword',
+    weaponColor: 0xb8bcc8,
+  },
+  lyra: {
+    id: 'lyra',
+    scale: 0.96,
+    proportions: {
+      ...HUMAN,
+      torsoRadius: 0.13,
+      limbRadius: 0.05,
+      chestWidth: 1.1,
+      headRadius: 0.125,
+    },
+    look: {
+      body: 0x1f2a2a,
+      trim: 0x6a8a7a,
+      skin: 0x9a7868,
+      metal: 0xb0b8c0,
+      eyes: 0x9a70ff,
+      hood: true,
+      horns: false,
+      pauldrons: false,
+      rim: 0x9a80ff,
+    },
+    weapon: 'bowDagger',
+    weaponColor: 0x5a4030,
   },
   thrall: {
     id: 'thrall',

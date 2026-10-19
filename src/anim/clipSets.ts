@@ -3,10 +3,14 @@ import type { ActionDef } from '../data/combatTypes';
 import type { EnemyAttackDef } from '../data/enemies';
 import { buildPoseClip, transitionClip, type ClipKey } from './clipBuilder';
 import {
+  AIM_UP,
+  AIM_UP_RELEASE,
   ARMS_WIDE,
+  CHARGE_HOLD,
   CROSS_HIT,
   CROSS_WIND,
   CROUCH,
+  GS_SIDE_HIT,
   LYING,
   OVERHEAD_HIT,
   OVERHEAD_WIND,
@@ -163,6 +167,61 @@ export function buildCustomActionClip(name: string, def: ActionDef, idle: Pose):
         });
       }
       keys.push({ t: a, pose: OVERHEAD_HIT }, { t: 1, pose: idle });
+      return buildPoseClip(name, total, keys);
+    }
+    case 'brann_spin':
+      return buildPoseClip(name, total, [
+        { t: 0, pose: idle },
+        ...spinKeys(GS_SIDE_HIT, s, a, 1.5, 0),
+        { t: 1, pose: idle },
+      ]);
+    case 'brann_ult':
+      // Crouch, leap high with the sword raised, crash down.
+      return buildPoseClip(name, total, [
+        { t: 0, pose: idle },
+        { t: s * 0.3, pose: pose(CROUCH, {}, [0, -0.35, 0]) },
+        { t: s * 0.7, pose: pose(OVERHEAD_WIND, {}, [0, 1.3, 0]) },
+        { t: s, pose: pose(CHARGE_HOLD, {}, [0, 0.9, 0]) },
+        { t: s + (a - s) * 0.4, pose: OVERHEAD_HIT },
+        { t: a + (1 - a) * 0.5, pose: OVERHEAD_HIT },
+        { t: 1, pose: idle },
+      ]);
+    case 'lyra_backflip': {
+      const flip = (deg: number, lift: number): Pose =>
+        pose(
+          CROUCH,
+          {
+            Hips: [deg, 0, 0],
+            LeftUpLeg: [-80, 0, 6],
+            RightUpLeg: [-80, 0, -6],
+            LeftLeg: [100, 0, 0],
+            RightLeg: [100, 0, 0],
+            LeftArm: [-150, 0, 20],
+            RightArm: [-150, 0, -20],
+          },
+          [0, lift, 0],
+        );
+      return buildPoseClip(name, total, [
+        { t: 0, pose: idle },
+        { t: 0.08, pose: pose(CROUCH, {}, [0, -0.2, 0]) },
+        { t: 0.25, pose: flip(-90, 0.6) },
+        { t: 0.45, pose: flip(-200, 0.85) },
+        { t: 0.65, pose: flip(-320, 0.35) },
+        { t: 0.8, pose: pose(CROUCH, {}, [0, -0.25, 0]) },
+        { t: 1, pose: idle },
+      ]);
+    }
+    case 'lyra_ult': {
+      const keys: ClipKey[] = [
+        { t: 0, pose: idle },
+        { t: s, pose: AIM_UP },
+      ];
+      const shots = 8;
+      for (let i = 0; i < shots; i++) {
+        keys.push({ t: s + ((a - s) * (i + 0.4)) / shots, pose: AIM_UP_RELEASE });
+        keys.push({ t: s + ((a - s) * (i + 0.9)) / shots, pose: AIM_UP });
+      }
+      keys.push({ t: a, pose: AIM_UP_RELEASE }, { t: 1, pose: idle });
       return buildPoseClip(name, total, keys);
     }
     default:
