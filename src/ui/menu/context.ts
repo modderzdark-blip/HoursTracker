@@ -16,6 +16,7 @@ export interface MenuNav {
   gear(slot?: GearSlot | null): void;
   skills(): void;
   settings(): void;
+  quests(): void;
   mode(id: ModeId): void;
 }
 

@@ -8,15 +8,17 @@ import type { GearSlot, Rarity } from './items';
 export const XP_CONFIG = {
   maxLevel: 50,
   /** XP needed to go from level L to L+1 = round(base × L^exponent). */
-  base: 110,
-  exponent: 1.5,
+  base: 40,
+  exponent: 1.3,
+  /** Share of XP every other unlocked hero also earns. */
+  benchShare: 0.4,
 } as const;
 
 /** Enemy stats at level L = base × (1 + perLevel × (L − 1)). */
 export const ENEMY_SCALING = {
-  hpPerLevel: 0.1,
+  hpPerLevel: 0.085,
   atkPerLevel: 0.07,
-  defPerLevel: 0.06,
+  defPerLevel: 0.05,
   poisePerLevel: 0.015,
 } as const;
 

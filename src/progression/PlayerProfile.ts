@@ -3,11 +3,36 @@ import { DIFFICULTIES, type DifficultyId } from '../data/difficulty';
 import { HEROES, type HeroId } from '../data/heroes';
 import { GEAR_CONFIG, GEAR_SLOTS, type GearSlot } from '../data/items';
 import { MODES, type ModeId } from '../data/modes';
-import { CACHE_CONFIG, STAR_GEMS } from '../data/progression';
+import {
+  ACHIEVEMENTS,
+  BLESSING_CONFIG,
+  type AchievementStat,
+  type GoalEvent,
+  type QuestDef,
+} from '../data/goals';
+import { CACHE_CONFIG, STAR_GEMS, XP_CONFIG } from '../data/progression';
 import { SKILL_TREES } from '../data/skillTrees';
 import { CHAPTERS, type AdventureStageDef } from '../data/stages';
 import type { SaveData, StageRecord } from '../save/SaveStore';
+import type { RewardBundle } from '../data/goals';
 import { rollItem, salvageValue, tryUpgrade, type GearItem, type UpgradeOutcome } from './gear';
+import {
+  achievementById,
+  blessingFor,
+  claimableTiers,
+  claimDailyBonus,
+  claimLogin,
+  claimQuest,
+  dailyBonusReady,
+  hearthYield,
+  localDay,
+  loginReady,
+  questDone,
+  refreshDaily,
+  trackQuests,
+  type Blessing,
+  type HearthYield,
+} from './goals';
 import { rollItemLevel, rollRarity } from './loot';
 import { computeHeroStats, powerRating } from './heroStats';
 import type { HeroProgress, ProfileData } from './profile';
@@ -92,9 +117,18 @@ export class PlayerProfile {
     return true;
   }
 
-  /** Adds XP to a hero; returns levels gained. */
+  /**
+   * Adds XP to a hero; returns levels gained. Other unlocked heroes earn a share
+   * (`XP_CONFIG.benchShare`) so switching heroes never means starting from scratch.
+   */
   grantXp(id: HeroId, xp: number): number {
     const gained = addXp(this.hero(id), xp);
+    const bench = Math.floor(xp * XP_CONFIG.benchShare);
+    if (bench > 0) {
+      for (const other of Object.keys(this.data.heroes) as HeroId[]) {
+        if (other !== id && this.hero(other).unlocked) addXp(this.hero(other), bench);
+      }
+    }
     this.commit();
     return gained;
   }
@@ -223,6 +257,7 @@ export class PlayerProfile {
     this.data.items = keep;
     if (out.materials > 0) this.wallet.add('materials', out.materials);
     if (out.gold > 0) this.wallet.add('gold', out.gold);
+    this.track('salvage', out.count);
     this.commit();
     return out;
   }
@@ -231,7 +266,14 @@ export class PlayerProfile {
     const item = this.item(uid);
     if (item === undefined) return 'unaffordable';
     const r = tryUpgrade(item, this.wallet, this.rng);
-    if (r === 'success' || r === 'failed') this.commit();
+    if (r === 'success') {
+      this.data.lifetime.upgrades++;
+      this.data.lifetime.bestPlus = Math.max(this.data.lifetime.bestPlus, item.plus);
+    }
+    if (r === 'success' || r === 'failed') {
+      this.track('upgrade', 1);
+      this.commit();
+    }
     return r;
   }
 
@@ -241,10 +283,7 @@ export class PlayerProfile {
    */
   openCache(): GearItem | null {
     if (this.inventoryFull || !this.wallet.spend('tickets', CACHE_CONFIG.ticketCost)) return null;
-    let level = 1;
-    for (const c of CHAPTERS)
-      for (const st of c.stages)
-        if (this.stageClearedAnyDifficulty(st.id)) level = Math.max(level, st.level);
+    const level = this.progressLevel();
     const difficulty: DifficultyId = this.difficultyUnlocked(1, 'nightmare')
       ? 'nightmare'
       : this.difficultyUnlocked(1, 'hard')
@@ -364,5 +403,183 @@ export class PlayerProfile {
   modeUnlocked(mode: ModeId): boolean {
     const req = MODES[mode].requiresStage;
     return req === null || this.stageClearedAnyDifficulty(req);
+  }
+
+  /** Highest Adventure level cleared on any difficulty (1 before the first clear). */
+  progressLevel(): number {
+    let level = 1;
+    for (const c of CHAPTERS)
+      for (const st of c.stages)
+        if (this.stageClearedAnyDifficulty(st.id)) level = Math.max(level, st.level);
+    return level;
+  }
+
+  allStars(): number {
+    let n = 0;
+    for (const c of CHAPTERS) for (const d of DIFFICULTY_ORDER) n += this.totalStars(c.number, d);
+    return n;
+  }
+
+  // ------------------------------------------------------------------ daily quests + login
+
+  private readonly questOpen = (q: QuestDef): boolean =>
+    q.needsMode === undefined || this.modeUnlocked(q.needsMode);
+
+  /** Rolls today's quests if the local day changed. */
+  refreshDaily(nowMs = Date.now()): void {
+    if (refreshDaily(this.data.daily, localDay(nowMs), this.questOpen)) this.commit();
+  }
+
+  /** Counts an event toward today's quests (the caller commits). */
+  track(event: GoalEvent, amount = 1): void {
+    refreshDaily(this.data.daily, localDay(Date.now()), this.questOpen);
+    trackQuests(this.data.daily, event, amount);
+  }
+
+  /**
+   * Everything one finished battle counts toward: quests, lifetime dodges and the Ember
+   * Blessing (a defeat on an Adventure stage adds a stack, the clear removes them).
+   */
+  trackBattle(
+    kind: 'adventure' | 'dungeon' | 'tower' | 'challenge' | 'arena',
+    outcome: {
+      readonly victory: boolean;
+      readonly abandoned: boolean;
+      readonly kills: number;
+      readonly perfectDodges: number;
+      readonly bossKilled: boolean;
+      readonly stars: number;
+    },
+    stage?: { readonly stageId: string; readonly difficulty: DifficultyId },
+  ): void {
+    this.track('kill', outcome.kills);
+    this.track('perfectDodge', outcome.perfectDodges);
+    this.data.lifetime.perfectDodges += Math.max(0, Math.floor(outcome.perfectDodges));
+    if (kind === 'arena') this.track('arenaFight', 1);
+    if (outcome.victory) {
+      this.track('victory', 1);
+      if (outcome.bossKilled) this.track('bossKill', 1);
+      if (kind === 'tower') this.track('towerFloor', 1);
+      if (kind === 'challenge') this.track('challengeWin', 1);
+      if (kind === 'adventure' && outcome.stars >= 3) this.track('threeStars', 1);
+    }
+    if (stage !== undefined) {
+      const key = PlayerProfile.recordKey(stage.stageId, stage.difficulty);
+      if (outcome.victory) delete this.data.blessings[key];
+      else if (!outcome.abandoned)
+        this.data.blessings[key] = Math.min(
+          BLESSING_CONFIG.maxStacks,
+          (this.data.blessings[key] ?? 0) + 1,
+        );
+    }
+    this.commit();
+  }
+
+  claimQuest(id: string): boolean {
+    if (!claimQuest(this.data.daily, id, this.wallet)) return false;
+    this.commit();
+    return true;
+  }
+
+  get dailyBonusReady(): boolean {
+    return dailyBonusReady(this.data.daily);
+  }
+
+  claimDailyBonus(): boolean {
+    if (!claimDailyBonus(this.data.daily, this.wallet)) return false;
+    this.commit();
+    return true;
+  }
+
+  loginReady(nowMs = Date.now()): boolean {
+    return loginReady(this.data.daily, localDay(nowMs));
+  }
+
+  claimLogin(nowMs = Date.now()): RewardBundle | null {
+    const r = claimLogin(this.data.daily, localDay(nowMs), this.wallet);
+    if (r !== null) this.commit();
+    return r;
+  }
+
+  // ------------------------------------------------------------------ hearth
+
+  hearth(nowMs = Date.now()): HearthYield {
+    if (nowMs < this.data.hearth.sinceMs) this.data.hearth.sinceMs = nowMs;
+    return hearthYield(this.data.hearth.sinceMs, nowMs, this.progressLevel());
+  }
+
+  /** Collects the hearth (gold, materials, XP for the selected hero). Null if too early. */
+  collectHearth(nowMs = Date.now()): (HearthYield & { levelsGained: number }) | null {
+    const y = this.hearth(nowMs);
+    if (y.gold <= 0 && y.xp <= 0) return null;
+    this.data.hearth.sinceMs = nowMs;
+    this.wallet.add('gold', y.gold);
+    if (y.materials > 0) this.wallet.add('materials', y.materials);
+    const levelsGained = this.grantXp(this.selectedHero, y.xp);
+    this.commit();
+    return { ...y, levelsGained };
+  }
+
+  // ------------------------------------------------------------------ blessing
+
+  blessing(stageId: string, difficulty: DifficultyId): Blessing {
+    return blessingFor(this.data.blessings[PlayerProfile.recordKey(stageId, difficulty)] ?? 0);
+  }
+
+  // ------------------------------------------------------------------ achievements
+
+  achievementValue(stat: AchievementStat): number {
+    const d = this.data;
+    switch (stat) {
+      case 'kills':
+        return d.lifetime.kills;
+      case 'bossKills':
+        return d.lifetime.bossKills;
+      case 'victories':
+        return d.lifetime.victories;
+      case 'stars':
+        return this.allStars();
+      case 'heroLevel':
+        return Math.max(...Object.values(d.heroes).map((h) => h.level));
+      case 'towerFloor':
+        return d.tower.bestFloor;
+      case 'arenaRating':
+        return d.arena.bestRating;
+      case 'perfectDodges':
+        return d.lifetime.perfectDodges;
+      case 'bestPlus':
+        return d.lifetime.bestPlus;
+      case 'heroes':
+        return Object.values(d.heroes).filter((h) => h.unlocked).length;
+    }
+  }
+
+  achievementClaimable(id: string): number {
+    const a = achievementById(id);
+    if (a === undefined) return 0;
+    return claimableTiers(a, this.data.achievements[id] ?? 0, this.achievementValue(a.stat));
+  }
+
+  /** Claims the next reached tier; returns the gems paid, or 0. */
+  claimAchievement(id: string): number {
+    const a = achievementById(id);
+    if (a === undefined || this.achievementClaimable(id) <= 0) return 0;
+    const tier = this.data.achievements[id] ?? 0;
+    const gems = a.gems[tier] ?? 0;
+    this.data.achievements[id] = tier + 1;
+    if (gems > 0) this.wallet.add('gems', gems);
+    this.commit();
+    return gems;
+  }
+
+  /** Count of things waiting to be claimed (hub badge). */
+  pendingClaims(nowMs = Date.now()): number {
+    let n = 0;
+    this.refreshDaily(nowMs);
+    for (const q of this.data.daily.quests) if (!q.claimed && questDone(q)) n++;
+    if (this.dailyBonusReady) n++;
+    if (this.loginReady(nowMs)) n++;
+    for (const a of ACHIEVEMENTS) if (this.achievementClaimable(a.id) > 0) n++;
+    return n;
   }
 }

@@ -12,7 +12,8 @@ import { fmtInt, fmtTime } from './View';
 
 /** Power a hero of the stage's level with matching common gear would have (difficulty-scaled). */
 export function recommendedPower(level: number, difficulty: DifficultyId): number {
-  const base = powerRating(computeHeroStats(HEROES.kael, level, [], null));
+  // Heroes run a couple of levels behind the stage on first clears; gear makes up the rest.
+  const base = powerRating(computeHeroStats(HEROES.kael, Math.max(1, level - 2), [], null));
   const d = DIFFICULTIES[difficulty];
   return Math.round(base * 0.92 * (1 + (level - 1) * 0.04) * Math.sqrt(d.enemyHp * d.enemyDamage));
 }
@@ -174,10 +175,21 @@ function openPreBattle(ctx: MenuContext, stage: AdventureStageDef, difficulty: D
     el('span', '', `Your power ${fmtInt(power)}`),
     el('span', 'pb-dim', ` / recommended ${fmtInt(rec)}`),
   );
+  const blessing = p.blessing(stage.id, difficulty);
   right.append(
     el('div', 'pb-label', 'Hero'),
     el('div', 'pb-text', `${hero.name} · Level ${p.hero(heroId).level}`),
     powerLine,
+  );
+  if (blessing.stacks > 0)
+    right.append(
+      el(
+        'div',
+        'pb-text pb-blessing',
+        `Ember Blessing ${'✦'.repeat(blessing.stacks)} +${Math.round((blessing.atkMult - 1) * 100)}% ATK · +${Math.round((blessing.hpMult - 1) * 100)}% HP`,
+      ),
+    );
+  right.append(
     el('div', 'pb-label', 'Best'),
     el(
       'div',

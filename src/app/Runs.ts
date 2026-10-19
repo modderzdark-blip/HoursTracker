@@ -29,6 +29,11 @@ import type { MenuContext } from '../ui/menu/context';
 import { renderDefeat, renderVictory, type ResultButton } from '../ui/menu/rewardScreen';
 import type { Menus } from './Menus';
 
+/** Dungeon XP grows with its level so it stays worth running as heroes level up. */
+function dungeonXpScale(level: number): number {
+  return 1 + Math.max(0, level - 1) * 0.12;
+}
+
 /** What the current battle belongs to, so retry / next / rewards know where it came from. */
 export type Run =
   | { readonly kind: 'adventure'; readonly stageId: string; readonly difficulty: DifficultyId }
@@ -145,8 +150,17 @@ export class Runs {
       case 'adventure': {
         const stage = findAdventureStage(run.stageId);
         if (stage === undefined) return null;
+        const base = this.baseSetup(stage, `${stage.chapter}-${stage.index + 1} · ${stage.name}`);
+        const b = this.host.profile.blessing(stage.id, run.difficulty);
+        if (b.stacks === 0) return { ...base, difficulty: run.difficulty };
         return {
-          ...this.baseSetup(stage, `${stage.chapter}-${stage.index + 1} · ${stage.name}`),
+          ...base,
+          label: `${base.label} · Ember Blessing ${'✦'.repeat(b.stacks)}`,
+          heroStats: {
+            ...base.heroStats,
+            atk: Math.round(base.heroStats.atk * b.atkMult),
+            maxHp: Math.round(base.heroStats.maxHp * b.hpMult),
+          },
           difficulty: run.difficulty,
         };
       }
@@ -218,6 +232,11 @@ export class Runs {
       this.host.menus.hub();
       return;
     }
+    this.host.profile.trackBattle(
+      run.kind,
+      outcome,
+      run.kind === 'adventure' ? { stageId: run.stageId, difficulty: run.difficulty } : undefined,
+    );
     switch (run.kind) {
       case 'adventure':
         this.finishAdventure(run, outcome);
@@ -257,7 +276,12 @@ export class Runs {
     };
     if (!outcome.victory) {
       recordDefeat(p, outcome);
-      renderDefeat(this.ctx, `${stage.chapter}-${stage.index + 1} · ${stage.name}`, [
+      const b = p.blessing(stage.id, run.difficulty);
+      const help =
+        b.stacks > 0
+          ? ` — Ember Blessing ${'✦'.repeat(b.stacks)}: +${Math.round((b.atkMult - 1) * 100)}% ATK and +${Math.round((b.hpMult - 1) * 100)}% HP here until you win`
+          : '';
+      renderDefeat(this.ctx, `${stage.chapter}-${stage.index + 1} · ${stage.name}${help}`, [
         toMap,
         { ...retry, primary: true },
       ]);
@@ -339,6 +363,7 @@ export class Runs {
     }
     // Full clear: the big reward.
     p.data.dungeon.runs++;
+    p.track('dungeonRun', 1);
     p.data.dungeon.bestRooms = Math.max(p.data.dungeon.bestRooms, total);
     const summary = grantVictory({
       profile: p,
@@ -348,7 +373,7 @@ export class Runs {
       level: run.level + total - 1,
       drops: 'dungeon',
       gold: DUNGEON_CONFIG.roomGold * total,
-      xp: DUNGEON_CONFIG.roomXp * total,
+      xp: Math.round(DUNGEON_CONFIG.roomXp * total * dungeonXpScale(run.level)),
       rng: this.host.rng,
       title: 'Dungeon cleared',
       subtitle: `${total} rooms · ${DIFFICULTIES[run.difficulty].label}`,
@@ -366,6 +391,7 @@ export class Runs {
     const d = DIFFICULTIES[run.difficulty];
     p.data.dungeon.bestRooms = Math.max(p.data.dungeon.bestRooms, cleared);
     p.data.dungeon.runs++;
+    p.track('dungeonRun', 1);
     if (cleared === 0) {
       p.commit();
       renderDefeat(this.ctx, 'The dungeon claims another hunter. No rooms cleared.', [
@@ -374,7 +400,7 @@ export class Runs {
       return;
     }
     const gold = Math.round(DUNGEON_CONFIG.roomGold * cleared * d.rewards);
-    const xp = Math.round(DUNGEON_CONFIG.roomXp * cleared * d.rewards);
+    const xp = Math.round(DUNGEON_CONFIG.roomXp * cleared * d.rewards * dungeonXpScale(run.level));
     p.wallet.add('gold', gold);
     if (run.souls > 0) p.wallet.add('souls', run.souls);
     const levels = p.grantXp(p.selectedHero, xp);

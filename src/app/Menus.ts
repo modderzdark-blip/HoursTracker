@@ -7,6 +7,7 @@ import { renderGear } from '../ui/menu/gearScreen';
 import { renderHeroes } from '../ui/menu/heroesScreen';
 import { renderHub } from '../ui/menu/hubScreen';
 import { MenuShell } from '../ui/menu/MenuShell';
+import { maybeShowLoginGift, renderQuests } from '../ui/menu/questsScreen';
 import { renderSettings } from '../ui/menu/settingsScreen';
 import { renderSkills } from '../ui/menu/skillsScreen';
 import { renderStageMap } from '../ui/menu/stageMapScreen';
@@ -45,6 +46,11 @@ export class Menus implements MenuNav {
 
   hub(): void {
     renderHub(this.ctx);
+    maybeShowLoginGift(this.ctx);
+  }
+
+  quests(): void {
+    renderQuests(this.ctx);
   }
 
   stageMap(chapter?: number): void {

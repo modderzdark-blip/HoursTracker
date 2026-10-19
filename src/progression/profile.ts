@@ -2,7 +2,9 @@ import type { DifficultyId } from '../data/difficulty';
 import { DEFAULT_HERO, HEROES, type HeroId } from '../data/heroes';
 import { GEAR_CONFIG, GEAR_SLOTS, GEAR_STATS, RARITIES, type GearSlot } from '../data/items';
 import { XP_CONFIG } from '../data/progression';
+import { ACHIEVEMENTS, BLESSING_CONFIG, DAILY_QUESTS } from '../data/goals';
 import type { GearItem, StatRoll } from './gear';
+import { createDailyState, type DailyState } from './goals';
 import type { PityState } from './loot';
 
 /** Per-hero progress as stored in the save. */
@@ -48,6 +50,15 @@ export interface LifetimeStats {
   bossKills: number;
   battles: number;
   victories: number;
+  perfectDodges: number;
+  upgrades: number;
+  /** Highest upgrade level ever reached (kept after salvage). */
+  bestPlus: number;
+}
+
+export interface HearthState {
+  /** Epoch ms since rewards started building up. */
+  sinceMs: number;
 }
 
 export interface ProfileData {
@@ -64,6 +75,12 @@ export interface ProfileData {
   challenge: Record<string, number>;
   arena: ArenaState;
   lifetime: LifetimeStats;
+  daily: DailyState;
+  hearth: HearthState;
+  /** Achievement tiers claimed, by achievement id. */
+  achievements: Record<string, number>;
+  /** Ember Blessing stacks by stage record key (`stageId:difficulty`). */
+  blessings: Record<string, number>;
 }
 
 export const ARENA_START_RATING = 1000;
@@ -98,7 +115,19 @@ export function createDefaultProfile(nowMs = Date.now()): ProfileData {
       seasonStartMs: nowMs,
       opponentSeed: 1,
     },
-    lifetime: { kills: 0, bossKills: 0, battles: 0, victories: 0 },
+    lifetime: {
+      kills: 0,
+      bossKills: 0,
+      battles: 0,
+      victories: 0,
+      perfectDodges: 0,
+      upgrades: 0,
+      bestPlus: 0,
+    },
+    daily: createDailyState(),
+    hearth: { sinceMs: nowMs },
+    achievements: {},
+    blessings: {},
   };
 }
 
@@ -266,6 +295,44 @@ export function sanitizeProfile(raw: unknown, nowMs = Date.now()): ProfileData {
     p.lifetime.bossKills = int(l['bossKills'], 0, 1e12, 0);
     p.lifetime.battles = int(l['battles'], 0, 1e12, 0);
     p.lifetime.victories = int(l['victories'], 0, 1e12, 0);
+    p.lifetime.perfectDodges = int(l['perfectDodges'], 0, 1e12, 0);
+    p.lifetime.upgrades = int(l['upgrades'], 0, 1e12, 0);
+    p.lifetime.bestPlus = int(l['bestPlus'], 0, GEAR_CONFIG.maxPlus, 0);
+  }
+  p.lifetime.bestPlus = p.items.reduce((m, i) => Math.max(m, i.plus), p.lifetime.bestPlus);
+  if (isRecord(raw['daily'])) {
+    const d = raw['daily'];
+    p.daily.day = int(d['day'], -1, 1e7, -1);
+    p.daily.bonusClaimed = d['bonusClaimed'] === true;
+    p.daily.loginDay = int(d['loginDay'], -1, 1e7, -1);
+    p.daily.loginCount = int(d['loginCount'], 0, 1e7, 0);
+    if (Array.isArray(d['quests'])) {
+      for (const q of d['quests']) {
+        if (!isRecord(q)) continue;
+        const def = DAILY_QUESTS.find((x) => x.id === q['id']);
+        if (def === undefined || p.daily.quests.some((x) => x.id === def.id)) continue;
+        p.daily.quests.push({
+          id: def.id,
+          progress: int(q['progress'], 0, def.target, 0),
+          claimed: q['claimed'] === true,
+        });
+      }
+    }
+  }
+  if (isRecord(raw['hearth'])) {
+    p.hearth.sinceMs = Math.min(nowMs, num(raw['hearth']['sinceMs'], nowMs));
+  }
+  if (isRecord(raw['achievements'])) {
+    for (const a of ACHIEVEMENTS) {
+      const t = int(raw['achievements'][a.id], 0, a.tiers.length, 0);
+      if (t > 0) p.achievements[a.id] = t;
+    }
+  }
+  if (isRecord(raw['blessings'])) {
+    for (const [key, stacks] of Object.entries(raw['blessings'])) {
+      const v = int(stacks, 0, BLESSING_CONFIG.maxStacks, 0);
+      if (v > 0 && /^c\d+s\d+:(normal|hard|nightmare)$/.test(key)) p.blessings[key] = v;
+    }
   }
   return p;
 }

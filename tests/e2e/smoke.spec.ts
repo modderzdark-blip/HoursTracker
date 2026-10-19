@@ -36,6 +36,7 @@ test.describe('Ashbound smoke (Pixel 7 landscape, touch)', () => {
       ['dock-heroes', 'heroes'],
       ['dock-gear', 'gear'],
       ['dock-skills', 'skills'],
+      ['dock-quests', 'quests'],
       ['dock-settings', 'settings'],
     ] as const) {
       await page.getByTestId(dock).tap();
@@ -53,6 +54,31 @@ test.describe('Ashbound smoke (Pixel 7 landscape, touch)', () => {
     await page.getByTestId('prebattle-start').tap();
     await expect.poll(async () => (await state(page)).screen, { timeout: 30_000 }).toBe('battle');
     expect((await state(page)).stage.id).toBe('c1s1');
+    expect(errors).toEqual([]);
+  });
+
+  test('daily gift on first hub visit; Journal lists quests and achievements; hearth on the hub', async ({
+    page,
+  }) => {
+    const errors = collectErrors(page);
+    await page.goto('./');
+    await page.locator('.title-start.is-pulsing').waitFor({ timeout: 90_000 });
+    await page.touchscreen.tap(450, 300);
+    const gift = page.getByTestId('login-modal-claim');
+    await expect(gift).toBeVisible();
+    await page.screenshot({ path: `${SHOTS}/02b-daily-gift.png` });
+    const gold = (await state(page)).wallet['gold'] ?? 0;
+    await gift.tap();
+    await expect(gift).toBeHidden();
+    await expect.poll(async () => (await state(page)).wallet['gold']).toBe(gold + 500);
+    await expect(page.getByTestId('hub-hearth')).toBeVisible();
+    await page.getByTestId('dock-quests').tap();
+    await expect(page.getByTestId('menu')).toHaveAttribute('data-screen', 'quests');
+    await expect(page.locator('[data-testid^="quest-q_"]')).toHaveCount(3);
+    await expect(page.locator('[data-testid^="ach-"]')).toHaveCount(10);
+    await expect(page.getByTestId('login-claim')).toHaveCount(0);
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${SHOTS}/02c-journal.png` });
     expect(errors).toEqual([]);
   });
 

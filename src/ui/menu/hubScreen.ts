@@ -1,5 +1,6 @@
 import { HEROES } from '../../data/heroes';
 import { MODE_ORDER, MODES } from '../../data/modes';
+import { HEARTH_CONFIG } from '../../data/goals';
 import { xpToNext } from '../../progression/xp';
 import { el } from '../dom';
 import type { MenuContext } from './context';
@@ -48,6 +49,35 @@ export function renderHub(ctx: MenuContext): void {
     modes.append(b);
   }
 
+  // Ember Hearth: rewards that build up while away.
+  const y = p.hearth();
+  const hearth = el('div', `hub-hearth${y.full ? ' is-full' : ''}`);
+  const hh = Math.floor(y.minutes / 60);
+  hearth.append(
+    el('div', 'hearth-title', 'Ember Hearth'),
+    el(
+      'div',
+      'hearth-line',
+      y.minutes < HEARTH_CONFIG.minCollectMinutes
+        ? 'Kindling… rewards build up over time'
+        : `${hh > 0 ? `${hh}h ` : ''}${y.minutes % 60}m${y.full ? ' (full)' : ''} · ${fmtInt(y.gold)} gold · ${fmtInt(y.xp)} XP${y.materials > 0 ? ` · ${y.materials} mat.` : ''}`,
+    ),
+  );
+  v.tap(hearth, () => {
+    ctx.uiTap();
+    const got = p.collectHearth();
+    if (got === null) {
+      ctx.toast(`The hearth is still kindling (fills over ${HEARTH_CONFIG.capHours} h)`);
+      return;
+    }
+    ctx.toast(
+      `Hearth: +${fmtInt(got.gold)} gold, +${fmtInt(got.xp)} XP${got.materials > 0 ? `, +${got.materials} materials` : ''}${got.levelsGained > 0 ? ' — LEVEL UP!' : ''}`,
+    );
+    if (got.levelsGained > 0) ctx.onHeroChanged(id);
+    ctx.nav.hub();
+  });
+  hearth.dataset['testid'] = 'hub-hearth';
+
   const newItems = p.data.items.filter((i) => i.isNew).length;
   const dock = el('div', 'hub-dock');
   const dockBtn = (label: string, testid: string, fn: () => void, badge = 0): HTMLElement => {
@@ -67,8 +97,9 @@ export function renderHub(ctx: MenuContext): void {
     dockBtn('Heroes', 'dock-heroes', () => ctx.nav.heroes()),
     dockBtn('Gear', 'dock-gear', () => ctx.nav.gear(null), newItems),
     dockBtn('Skills', 'dock-skills', () => ctx.nav.skills()),
+    dockBtn('Journal', 'dock-quests', () => ctx.nav.quests(), p.pendingClaims()),
     dockBtn('Settings', 'dock-settings', () => ctx.nav.settings()),
   );
-  hub.append(info, modes, dock);
+  hub.append(hearth, info, modes, dock);
   v.root.append(hub);
 }

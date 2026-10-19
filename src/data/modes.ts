@@ -191,7 +191,7 @@ export const TOWER_CONFIG = {
     { enemy: 'wretch', floor: 9 },
   ] satisfies readonly { enemy: EnemyId; floor: number }[],
   floorGold: 60,
-  floorXp: 40,
+  floorXp: 90,
   /** Milestones every N floors: one-time gems + tickets (× floor / N). */
   milestoneEvery: 5,
   milestoneGems: 8,
@@ -209,7 +209,7 @@ export const CHALLENGE_CONFIG = {
   /** First clear of a tier: gems = tier × this. */
   firstClearGemsPerTier: 5,
   goldPerTier: 220,
-  xpPerTier: 120,
+  xpPerTier: 200,
   /** Which Adventure stage unlocks each boss for the challenge. */
   bosses: [
     { boss: 'gaoler', stage: 'c1s4', arena: 'ash_gate' },

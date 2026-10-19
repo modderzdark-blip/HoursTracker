@@ -2423,3 +2423,168 @@ body {
 .lb-rating {
   color: var(--gold);
 }
+
+/* ---------- Ember Hearth (hub) ---------- */
+.hub-hearth {
+  position: absolute;
+  top: 2px;
+  left: calc(12px + var(--sl));
+  max-width: min(44vw, 380px);
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 177, 94, 0.45);
+  background: linear-gradient(90deg, rgba(70, 30, 12, 0.9), rgba(26, 14, 10, 0.85));
+}
+
+.hub-hearth.is-pressed {
+  filter: brightness(1.3);
+}
+
+.hub-hearth.is-full {
+  border-color: var(--ember-hot);
+  animation: hearth-glow 1.6s ease-in-out infinite;
+}
+
+@keyframes hearth-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(255, 140, 50, 0);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(255, 140, 50, 0.55);
+  }
+}
+
+.hearth-title {
+  font-family: var(--font-title);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ember-hot);
+}
+
+.hearth-line {
+  font-size: 12px;
+  color: var(--ink);
+}
+
+/* ---------- Journal (quests, login, achievements) ---------- */
+.goal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.goal-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(201, 162, 74, 0.25);
+  background: rgba(20, 14, 13, 0.85);
+}
+
+.goal-row.is-claimed {
+  opacity: 0.55;
+}
+
+.goal-bonus {
+  border-color: rgba(255, 177, 94, 0.5);
+}
+
+.goal-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 14px;
+}
+
+.goal-name {
+  font-weight: 700;
+}
+
+.goal-meta {
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.goal-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.goal-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #c96a2a, var(--ember-hot));
+}
+
+.login-row {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.login-cell {
+  position: relative;
+  min-height: 56px;
+  padding: 4px 3px;
+  border-radius: 8px;
+  border: 1px solid rgba(201, 162, 74, 0.25);
+  background: rgba(20, 14, 13, 0.85);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+.login-cell.is-big {
+  border-color: rgba(208, 160, 255, 0.55);
+}
+
+.login-cell.is-today {
+  border-color: var(--ember-hot);
+  background: linear-gradient(180deg, #6b2c12, #3a160a);
+  animation: hearth-glow 1.4s ease-in-out infinite;
+}
+
+.login-cell.is-done {
+  opacity: 0.5;
+}
+
+.login-day {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.login-reward {
+  font-size: 11px;
+  line-height: 1.15;
+}
+
+.login-check {
+  position: absolute;
+  top: 1px;
+  right: 4px;
+  color: #8fe08a;
+  font-weight: 700;
+}
+
+.login-modal {
+  max-width: min(92vw, 640px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pb-blessing {
+  color: #ffcf7a;
+  font-weight: 700;
+}

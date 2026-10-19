@@ -107,6 +107,12 @@ export async function enterHub(page: Page): Promise<void> {
         window as unknown as { __ashbound?: { state: () => { running: boolean; screen: string } } }
       ).__ashbound?.state().screen === 'hub',
   );
+  // First visit of the day: the daily-gift calendar pops over the hub. Claim it.
+  const gift = page.getByTestId('login-modal-claim');
+  if (await gift.isVisible()) {
+    await gift.tap();
+    await gift.waitFor({ state: 'hidden' });
+  }
 }
 
 /** Title → hub → straight into a stage via the test hook (default: 1-1 with the dummy). */

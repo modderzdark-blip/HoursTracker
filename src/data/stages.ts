@@ -105,7 +105,9 @@ function buildChapter(
       drops: kind === 'boss' ? 'boss' : kind === 'miniboss' ? 'miniboss' : 'stage',
       rewards: {
         gold: Math.round(goldBase * (kind === 'boss' ? 2.5 : kind === 'miniboss' ? 1.6 : 1)),
-        xp: Math.round((60 + level * 28) * (kind === 'boss' ? 2.2 : kind === 'miniboss' ? 1.5 : 1)),
+        xp: Math.round(
+          (100 + level * 45) * (kind === 'boss' ? 2.2 : kind === 'miniboss' ? 1.5 : 1),
+        ),
       },
     };
   });
