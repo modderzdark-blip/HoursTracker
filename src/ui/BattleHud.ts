@@ -164,7 +164,12 @@ export class BattleHud {
 
   showBoss(s: BossHudState): void {
     this.boss.classList.remove('is-hidden');
-    this.bossName.textContent = `${s.name} — ${s.title}`;
+    // Name and title wrap onto two lines on narrow screens rather than being cut off.
+    this.bossName.replaceChildren(
+      el('span', 'boss-name-main', s.name),
+      document.createTextNode(' '),
+      el('span', 'boss-name-title', `— ${s.title}`),
+    );
     this.bossMarks.replaceChildren(
       ...s.phaseMarks.map((m) => {
         const tick = el('div', 'boss-mark');
