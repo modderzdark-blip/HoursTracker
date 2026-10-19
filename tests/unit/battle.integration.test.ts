@@ -15,6 +15,7 @@ import { BOSSES, type BossId } from '../../src/data/bosses';
 import { ENEMIES, type EnemyId } from '../../src/data/enemies';
 import { HEROES, type HeroDef } from '../../src/data/heroes';
 import { Effects, type EffectVisuals } from '../../src/combat/Effects';
+import { DuelistBrain } from '../../src/ai/DuelistBrain';
 import { INPUT_SOURCE } from '../../src/input/actions';
 import { InputState } from '../../src/input/InputState';
 import { separateCrowd } from '../../src/modes/crowd';
@@ -153,6 +154,8 @@ function makeWorld(hero: HeroDef = kael) {
     return b;
   };
   return {
+    scene,
+    targets,
     summoned,
     physics,
     effects,
@@ -626,5 +629,43 @@ describe('new enemies and boss mechanics (integration)', () => {
       }
     }
     expect(grabs).toEqual([true, false]);
+  });
+});
+
+describe('arena duelist (integration)', () => {
+  it('an AI-controlled Brann closes in, lands hits and uses several moves', () => {
+    const w = makeWorld();
+    let brain: DuelistBrain | null = null;
+    const opp = new Player({
+      hero: HEROES.brann,
+      physics: w.physics,
+      scene: w.scene,
+      combat: w.combat,
+      input: w.input,
+      bus: w.bus,
+      clock: () => w.clock.nowMs,
+      basis: { forwardXZ: { x: 0, z: 1 }, rightXZ: { x: 1, z: 0 } },
+      targets: () => [w.player],
+      effects: w.effects,
+      team: 'enemy',
+      human: false,
+      inputSource: () => brain?.input ?? w.input,
+    });
+    w.combat.register(opp);
+    opp.resetForRun(0, -8, 0);
+    brain = new DuelistBrain(opp, w.player, () => 0.3, 0.8);
+    w.targets.push(opp);
+    const used = new Set<string>();
+    const hp = w.player.health.current;
+    for (let i = 0; i < stepsFor(20_000); i++) {
+      brain.think(DT);
+      opp.think(DT);
+      opp.integrate(DT);
+      w.step(1);
+      if (opp.actionId !== null) used.add(opp.actionId);
+      if (w.player.health.dead) break;
+    }
+    expect(w.player.health.current).toBeLessThan(hp);
+    expect(used.size).toBeGreaterThanOrEqual(2);
   });
 });

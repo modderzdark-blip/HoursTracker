@@ -7,6 +7,7 @@ import { TrainingDummy } from '../actors/TrainingDummy';
 import { buildActionClip, buildCustomActionClip } from '../anim/clipSets';
 import { POSE_LIBRARY } from '../anim/poses';
 import { AttackTokenManager } from '../ai/AttackTokens';
+import { DuelistBrain } from '../ai/DuelistBrain';
 import type { BrainContext } from '../ai/EnemyBrain';
 import type { AudioManager } from '../audio/AudioManager';
 import { Sfx } from '../audio/Sfx';
@@ -89,6 +90,18 @@ export interface BattleSetup {
   /** Extra enemy multipliers on top of level + difficulty (tower floors, challenge tiers). */
   readonly enemyMult: { readonly hp: number; readonly atk: number };
   readonly allowRevive: boolean;
+  /** Arena: an AI-controlled hero to defeat (the stage should be a `duel` stage). */
+  readonly duel?: DuelSetup;
+}
+
+export interface DuelSetup {
+  readonly name: string;
+  readonly title: string;
+  readonly hero: HeroDef;
+  readonly stats: StatBlock;
+  readonly mods: HeroMods;
+  /** 0..1 — reaction speed, dodge chance and aggression. */
+  readonly skill: number;
 }
 
 export interface BattleOutcome {
@@ -113,6 +126,8 @@ const ULT_CLONE_INTERVAL_MS = 220;
 
 const TRAIL_COLORS = { enemy: 0xff5a2a, boss: 0xff7a2a } as const;
 const ZONE_COLOR = { enemy: 0xff3a1a, player: 0xb080ff } as const;
+/** World-space movement basis for AI-driven heroes (move.y = +Z, move.x = +X). */
+const WORLD_BASIS = { forwardXZ: { x: 0, z: 1 }, rightXZ: { x: 1, z: 0 } } as const;
 const SPARK = {
   hit: 0xffc890,
   crit: 0xffe070,
@@ -130,6 +145,9 @@ const SPARK = {
 export class BattleMode implements QualityTarget, WaveWorld {
   readonly player: Player;
   readonly boss: Boss | null;
+  /** Arena opponent (AI-controlled hero), if this is a duel. */
+  readonly duelist: Player | null;
+  private readonly duelBrain: DuelistBrain | null;
   readonly dummy: TrainingDummy;
   readonly roster: EnemyRoster;
   readonly combat: CombatSystem;
@@ -168,6 +186,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
   private soulsThisRun = 0;
   private ultCloneTimer = 0;
   private chargeSparkSec = 0;
+  private duelHudShown = false;
   private dotTarget: Actor | null = null;
   private readonly tmp = new Vector3();
   private readonly bossFrame = new Vector3();
@@ -265,6 +284,45 @@ export class BattleMode implements QualityTarget, WaveWorld {
     }
     this.dummy = new TrainingDummy(d.physics, this.scene);
     this.combat.register(this.dummy);
+
+    const duel = setup.duel;
+    if (duel !== undefined) {
+      const brainRef: { brain: DuelistBrain | null } = { brain: null };
+      const opp = new Player({
+        hero: duel.hero,
+        physics: d.physics,
+        scene: this.scene,
+        combat: this.combat,
+        // Replaced right below by the brain's own input (the constructor only stores it).
+        input: d.input,
+        bus: d.bus,
+        clock: () => d.clock.nowMs,
+        basis: WORLD_BASIS,
+        targets: () => this.playerList,
+        stats: duel.stats,
+        mods: duel.mods,
+        effects: this.effects,
+        team: 'enemy',
+        human: false,
+        inputSource: () => brainRef.brain?.input ?? d.input,
+      });
+      this.combat.register(opp);
+      this.trails.attach(opp.rig, 'right', duel.hero.color, () => {
+        const sd = opp.trailSide();
+        return sd === 'right' || sd === 'both';
+      });
+      this.trails.attach(opp.rig, 'left', duel.hero.color, () => {
+        const sd = opp.trailSide();
+        return sd === 'left' || sd === 'both';
+      });
+      const brain = new DuelistBrain(opp, this.player, this.rng, duel.skill);
+      brainRef.brain = brain;
+      this.duelist = opp;
+      this.duelBrain = brain;
+    } else {
+      this.duelist = null;
+      this.duelBrain = null;
+    }
 
     // Ultimate clones use the hero's own rig and slash clips.
     const idle = POSE_LIBRARY[hero.idlePose];
@@ -376,6 +434,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.targets.length = 0;
     for (const e of this.roster.active) if (e.alive) this.targets.push(e);
     if (this.boss !== null && this.boss.alive) this.targets.push(this.boss);
+    if (this.duelist !== null && this.duelist.alive) this.targets.push(this.duelist);
     if (this.dummy.alive) this.targets.push(this.dummy);
     return this.targets;
   }
@@ -487,6 +546,12 @@ export class BattleMode implements QualityTarget, WaveWorld {
       this.dummy.spawnAt(dx, dz, 0);
     } else {
       this.dummy.removeFromWorld();
+    }
+    if (this.duelist !== null) {
+      const [bx, bz] = this.arena.bossSpawn;
+      this.duelist.resetForRun(bx, bz, 0);
+      this.duelBrain?.reset();
+      this.duelHudShown = false;
     }
     this.director = new WaveDirector(this.setup.stage, this);
     this.runStartMs = this.d.clock.nowMs;
@@ -712,6 +777,15 @@ export class BattleMode implements QualityTarget, WaveWorld {
 
   private onDeath(actorId: number, team: string, x: number, z: number): void {
     if (team !== 'enemy') return;
+    if (this.duelist !== null && actorId === this.duelist.id) {
+      this.bossDown = true;
+      this.d.bus.emit('time:slowMotion', { scale: 0.25, ms: 1200 });
+      this.d.bus.emit('camera:shake', { trauma: 0.6 });
+      this.hud.showBanner(`${this.setup.duel?.name.toUpperCase() ?? 'RIVAL'} FALLS`, 'phase', 2200);
+      this.hud.hideBoss();
+      this.d.camera.setFraming(null);
+      return;
+    }
     const boss = this.boss;
     if (boss !== null && actorId === boss.id) {
       this.bossDown = true;
@@ -799,6 +873,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
     put(this.player);
     if (this.dummy.inWorld) put(this.dummy);
     if (this.boss !== null && this.boss.inWorld) put(this.boss);
+    if (this.duelist !== null && this.duelist.inWorld) put(this.duelist);
     for (const e of this.roster.active) put(e);
     this.actorCount = n;
   }
@@ -815,6 +890,12 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.player.think(dtSec);
     if (this.dummy.inWorld) this.dummy.think(dtSec);
     if (boss !== null && boss.inWorld) boss.think(dtSec);
+    const duelist = this.duelist;
+    if (duelist !== null && duelist.inWorld) {
+      // The duelist waits for the countdown, then fights.
+      if (this.director.phase === 'boss') this.duelBrain?.think(dtSec);
+      duelist.think(dtSec);
+    }
     for (const e of this.roster.active) e.think(dtSec);
 
     this.collectActors();
@@ -968,6 +1049,8 @@ export class BattleMode implements QualityTarget, WaveWorld {
     for (let i = 0; i < this.actorCount; i++) this.actors[i]?.render(alpha, animDt, realDtSec);
     const feet = this.player.renderFeet;
     const boss = this.boss;
+    const duelist = this.duelist;
+    if (duelist !== null && duelist.alive) this.d.camera.setFraming(duelist.renderFeet);
     if (boss !== null && this.bossActive && this.bossIntroFinished && boss.alive) {
       this.bossFrame.copy(boss.renderFeet);
       const size = Math.min(
@@ -1038,7 +1121,9 @@ export class BattleMode implements QualityTarget, WaveWorld {
     let showStart = false;
     if (dir.phase === 'countdown') {
       const secs = Math.ceil(dir.countdownRemainingMs / 1000);
-      if (this.setup.stage.trainingDummy) {
+      if (this.setup.duel !== undefined) {
+        line = `Duel begins in ${secs}…`;
+      } else if (this.setup.stage.trainingDummy) {
         line = `Practice on the dummy — enemies in ${secs}s`;
         showStart = true;
       } else {
@@ -1048,6 +1133,36 @@ export class BattleMode implements QualityTarget, WaveWorld {
       line = `Wave ${dir.wave + 1} / ${dir.totalWaves} · ${this.roster.aliveCount() + dir.pendingSpawns} left`;
     }
     this.hud.setWaveLine(line, showStart);
+    const duel = this.setup.duel;
+    if (duel !== undefined && this.duelist !== null && this.duelist.alive && dir.phase === 'boss') {
+      if (!this.duelHudShown) {
+        this.duelHudShown = true;
+        this.hud.showBoss({
+          name: duel.name,
+          title: duel.title,
+          hpFrac: 1,
+          breakFrac: -1,
+          broken: false,
+          phaseMarks: [],
+          enrageInSec: -1,
+          enraged: false,
+        });
+        this.hud.showBanner('FIGHT!', 'phase', 1000);
+      }
+      this.hud.updateBoss(
+        {
+          name: duel.name,
+          title: duel.title,
+          hpFrac: this.duelist.health.frac,
+          breakFrac: -1,
+          broken: false,
+          phaseMarks: [],
+          enrageInSec: -1,
+          enraged: false,
+        },
+        dtSec,
+      );
+    }
     const boss = this.boss;
     if (boss !== null && this.bossActive && this.bossIntroFinished && boss.inWorld) {
       const def = boss.bossDef;
@@ -1124,6 +1239,12 @@ export class BattleMode implements QualityTarget, WaveWorld {
       this.combat.applyHit(this.player, boss, KILL_SPEC, 0, 1, { difficultyMod: 1e6 });
   }
 
+  killDuelist(): void {
+    const d = this.duelist;
+    if (d !== null && d.alive)
+      this.combat.applyHit(this.player, d, KILL_SPEC, 0, 1, { difficultyMod: 1e6 });
+  }
+
   damagePlayer(frac: number): void {
     const p = this.player;
     if (!p.alive) return;
@@ -1162,6 +1283,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
   dispose(): void {
     for (const d of this.disposers) d();
     this.effects.dispose();
+    this.duelist?.dispose();
     this.player.dispose();
     this.boss?.dispose();
     this.dummy.dispose();

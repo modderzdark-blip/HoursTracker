@@ -57,6 +57,12 @@ export interface PlayerDeps {
   readonly mods?: HeroMods;
   /** Projectiles / ground zones for emitting moves (bows, slams, traps). */
   readonly effects?: Effects;
+  /** 'enemy' for an AI-controlled duelist in the Arena. */
+  readonly team?: 'player' | 'enemy';
+  /** Only the human hero emits player events (HUD, camera, slow-motion). Default true. */
+  readonly human?: boolean;
+  /** Where input is read from each step (AI duelists supply their own); defaults to `input`. */
+  readonly inputSource?: () => InputState;
 }
 
 const SKILL_ACTIONS = ['skill1', 'skill2', 'skill3'] as const;
@@ -68,7 +74,9 @@ const LAUNCH_VY = 8;
  * dodge), plus hurt / airborne / knockdown / getup / dead reactions. All timings come from data.
  */
 export class Player extends Actor {
-  readonly team = 'player' as const;
+  readonly team: 'player' | 'enemy';
+  /** Human-controlled (false for an AI duelist). */
+  readonly human: boolean;
   readonly def: HeroDef;
   readonly motor: CharacterMotor;
   readonly cooldowns: Cooldowns;
@@ -143,13 +151,15 @@ export class Player extends Actor {
       radius: hero.body.capsuleRadius,
       halfHeight: hero.body.capsuleHalfHeight,
       physics: deps.physics,
-      membership: GROUP.player,
+      membership: deps.team === 'enemy' ? GROUP.enemy : GROUP.player,
       clips,
       additiveClips: base.additive,
       scene: deps.scene,
       knockbackResist: 0,
     });
     this.def = hero;
+    this.team = deps.team ?? 'player';
+    this.human = deps.human ?? true;
     this.comboSet = hero.combo;
     this.mods = deps.mods ?? emptyMods();
     const mods = this.mods;
@@ -158,6 +168,15 @@ export class Player extends Actor {
       hero.skills.map((s, i) => Math.round(s.cooldownMs * (mods.skillCooldown[i] ?? 1))),
     );
     this.anim.play('idle', { loop: true, fade: 0 });
+  }
+
+  private get input(): InputState {
+    return this.deps.inputSource?.() ?? this.deps.input;
+  }
+
+  /** Player-only events (HUD, camera cinematics, slow motion) are muted for AI duelists. */
+  private emitHuman<K extends keyof GameEvents>(type: K, payload: GameEvents[K]): void {
+    if (this.human) this.deps.bus.emit(type, payload);
   }
 
   // ------------------------------------------------------------------ queries
@@ -266,7 +285,7 @@ export class Player extends Actor {
   }
 
   private readWorldMove(): void {
-    this.deps.input.readMove(this.move);
+    this.input.readMove(this.move);
     const b = this.deps.basis;
     this.moveX = b.forwardXZ.x * this.move.y + b.rightXZ.x * this.move.x;
     this.moveZ = b.forwardXZ.z * this.move.y + b.rightXZ.z * this.move.x;
@@ -303,7 +322,7 @@ export class Player extends Actor {
    * cancel window only allows dodge/skill (handled by the caller for combo chaining).
    */
   private tryStartFromInput(allowAttack: boolean): boolean {
-    const input = this.deps.input;
+    const input = this.input;
     if (this.ultimate.isReady && input.consume('ultimate')) {
       this.startUltimate();
       return true;
@@ -387,7 +406,7 @@ export class Player extends Actor {
     this.comboIndex = index;
     this.comboResetMs = 0;
     this.beginAction(def, 'attack');
-    this.deps.bus.emit('player:action', { kind: 'attack', index });
+    this.emitHuman('player:action', { kind: 'attack', index });
   }
 
   startSkill(slot: number): void {
@@ -400,7 +419,7 @@ export class Player extends Actor {
     if (def.special === 'shadowStep') this.shadowStep(def);
     else this.autoAim();
     this.beginAction(def, 'skill');
-    this.deps.bus.emit('player:action', { kind: 'skill', index: slot });
+    this.emitHuman('player:action', { kind: 'skill', index: slot });
   }
 
   startUltimate(): void {
@@ -409,8 +428,8 @@ export class Player extends Actor {
     this.skillSlot = -1;
     this.autoAim();
     this.beginAction(this.def.ultimate, 'ultimate');
-    this.deps.bus.emit('ultimate:charge', { value: 0 });
-    this.deps.bus.emit('player:action', { kind: 'ultimate', index: 0 });
+    this.emitHuman('ultimate:charge', { value: 0 });
+    this.emitHuman('player:action', { kind: 'ultimate', index: 0 });
   }
 
   private tickAction(dtMs: number): void {
@@ -447,7 +466,7 @@ export class Player extends Actor {
     }
 
     if (this.runner.canCancel()) {
-      if (this.state === 'attack' && this.deps.input.consume('attack')) {
+      if (this.state === 'attack' && this.input.consume('attack')) {
         const next = this.comboIndex + 1;
         if (next < this.comboSet.length) {
           this.startAttack(next);
@@ -473,7 +492,7 @@ export class Player extends Actor {
     const def = this.skillDef;
     const max = def?.chargeMaxMs ?? 0;
     const action = SKILL_ACTIONS[this.skillSlot];
-    const held = action !== undefined && this.deps.input.isHeld(action);
+    const held = action !== undefined && this.input.isHeld(action);
     if (
       def === null ||
       max <= 0 ||
@@ -608,7 +627,7 @@ export class Player extends Actor {
       fade: 0.04,
       restart: true,
     });
-    this.deps.bus.emit('player:action', { kind: 'dodge', index: 0 });
+    this.emitHuman('player:action', { kind: 'dodge', index: 0 });
   }
 
   private tickDodge(): void {
@@ -633,11 +652,11 @@ export class Player extends Actor {
       this.perfectUsed = true;
       this.perfectDodges++;
       this.counterUntilMs = this.deps.clock() + d.counterWindowMs;
-      this.deps.bus.emit('time:slowMotion', { scale: d.slowMoScale, ms: d.slowMoMs });
-      this.deps.bus.emit('player:perfectDodge', { x: this.currFeet.x, z: this.currFeet.z });
-      this.deps.bus.emit('combat:evaded', { targetId: this.id, perfect: true });
+      this.emitHuman('time:slowMotion', { scale: d.slowMoScale, ms: d.slowMoMs });
+      this.emitHuman('player:perfectDodge', { x: this.currFeet.x, z: this.currFeet.z });
+      this.emitHuman('combat:evaded', { targetId: this.id, perfect: true });
     } else {
-      this.deps.bus.emit('combat:evaded', { targetId: this.id, perfect: false });
+      this.emitHuman('combat:evaded', { targetId: this.id, perfect: false });
     }
   }
 
@@ -744,7 +763,7 @@ export class Player extends Actor {
   private die(): void {
     this.interruptAction();
     this.enterState('dead', 'death', 1200);
-    this.deps.bus.emit('player:died', {});
+    this.emitHuman('player:died', {});
   }
 
   revive(): void {
@@ -753,7 +772,7 @@ export class Player extends Actor {
     this.revivesUsed++;
     this.invulnMs = ECONOMY.reviveInvulnMs;
     this.enterState('getup', 'getup', this.def.getupMs);
-    this.deps.bus.emit('player:revived', {});
+    this.emitHuman('player:revived', {});
   }
 
   /** Full reset for a new run (`hpFrac` < 1 carries damage over, e.g. dungeon rooms). */
@@ -774,6 +793,6 @@ export class Player extends Actor {
     this.motor.reset(yaw);
     this.spawnAt(x, z, yaw);
     this.enterLocomotion();
-    this.deps.bus.emit('ultimate:charge', { value: 0 });
+    this.emitHuman('ultimate:charge', { value: 0 });
   }
 }

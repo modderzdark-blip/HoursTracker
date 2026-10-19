@@ -193,7 +193,9 @@ export class BattleHud {
       this.cache.bossGhost = g;
       this.bossGhost.style.transform = `scaleX(${g})`;
     }
-    const b = Math.round(s.breakFrac * 100) / 100;
+    // Duels: no break bar (breakFrac < 0) and no enrage timer (enrageInSec < 0).
+    this.boss.classList.toggle('no-break', s.breakFrac < 0);
+    const b = Math.round(Math.max(0, s.breakFrac) * 100) / 100;
     if (b !== this.cache.brk) {
       this.cache.brk = b;
       this.bossBreak.style.transform = `scaleX(${b})`;
@@ -201,7 +203,9 @@ export class BattleHud {
     this.boss.classList.toggle('is-broken', s.broken);
     const timer = s.enraged
       ? 'ENRAGED'
-      : `Enrage ${Math.floor(s.enrageInSec / 60)}:${String(Math.floor(s.enrageInSec % 60)).padStart(2, '0')}`;
+      : s.enrageInSec < 0
+        ? ''
+        : `Enrage ${Math.floor(s.enrageInSec / 60)}:${String(Math.floor(s.enrageInSec % 60)).padStart(2, '0')}`;
     if (timer !== this.cache.timer) {
       this.cache.timer = timer;
       this.bossTimer.textContent = timer;
