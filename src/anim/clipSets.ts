@@ -19,6 +19,7 @@ import {
   STAGGERED,
   STRIDE_A,
   STRIDE_PASS,
+  blendPose,
   mirror,
   pose,
   type Pose,
@@ -31,29 +32,51 @@ export function buildHumanoidClips(idle: Pose): {
   clips: AnimationClip[];
   additive: AnimationClip[];
 } {
+  const idleRoot = idle.root ?? [0, 0, 0];
+  const hips = idle.r.Hips ?? [0, 0, 0];
   const breathe = pose(idle, { Chest: [(idle.r.Chest?.[0] ?? 0) + 3, 0, 0] }, [
-    0,
-    (idle.root?.[1] ?? 0) - 0.012,
-    0,
+    idleRoot[0],
+    idleRoot[1] - 0.012,
+    idleRoot[2],
   ]);
-  const runA = pose(STRIDE_A, { Spine: [(idle.r.Spine?.[0] ?? 0) + 8, 0, 0] });
+  // Weight shifts from one foot to the other between breaths.
+  const shiftL = pose(breathe, { Hips: [hips[0], hips[1], hips[2] + 2.5] }, [
+    idleRoot[0] + 0.012,
+    idleRoot[1] - 0.012,
+    idleRoot[2],
+  ]);
+  const shiftR = pose(breathe, { Hips: [hips[0], hips[1], hips[2] - 2.5] }, [
+    idleRoot[0] - 0.012,
+    idleRoot[1] - 0.012,
+    idleRoot[2],
+  ]);
+  // Run: body drops on contact, rises on the passing step; hips twist with the legs while the
+  // chest counter-twists.
+  const runA = pose(
+    STRIDE_A,
+    { Spine: [(idle.r.Spine?.[0] ?? 0) + 8, 0, 0], Hips: [0, 7, 0], Chest: [0, -12, 0] },
+    [0, -0.04, 0],
+  );
   const runB = mirror(runA);
+  const pass = pose(STRIDE_PASS, {}, [0, 0.03, 0]);
   const lean = pose(
     idle,
     { Spine: [-25, 0, 0], Chest: [-10, 0, 0], Head: [-15, 0, 0] },
     [0, -0.05, 0],
   );
   const clips = [
-    buildPoseClip('idle', 2.4, [
+    buildPoseClip('idle', 4.8, [
       { t: 0, pose: idle },
-      { t: 0.5, pose: breathe },
+      { t: 0.25, pose: shiftL },
+      { t: 0.5, pose: idle },
+      { t: 0.75, pose: shiftR },
       { t: 1, pose: idle },
     ]),
     buildPoseClip('run', 0.72, [
       { t: 0, pose: runA },
-      { t: 0.25, pose: STRIDE_PASS },
+      { t: 0.25, pose: pass },
       { t: 0.5, pose: runB },
-      { t: 0.75, pose: STRIDE_PASS },
+      { t: 0.75, pose: pass },
       { t: 1, pose: runA },
     ]),
     buildPoseClip('knockdown', 1, [
@@ -100,21 +123,52 @@ export function buildHumanoidClips(idle: Pose): {
   return { clips, additive };
 }
 
+/** Follow-through: the strike swings this far past its hit pose before settling. */
+const OVERSHOOT = 1.12;
+
+/**
+ * Keys for wind → strike → recover with animation principles instead of linear blends: the
+ * wind-up eases in (most of the motion early, then a short settle = anticipation), the strike
+ * snaps (most of the arc in the first part of the active window), overshoots the hit pose
+ * (follow-through), holds, then eases back to idle.
+ */
+export function strikeKeys(
+  idle: Pose,
+  wind: Pose,
+  hit: Pose,
+  startFrac: number,
+  activeEndFrac: number,
+  includeWindUp = true,
+): ClipKey[] {
+  const holdFrac = activeEndFrac + (1 - activeEndFrac) * 0.4;
+  const keys: ClipKey[] = [];
+  if (includeWindUp) {
+    keys.push({ t: 0, pose: idle });
+    if (startFrac > 0.02) keys.push({ t: startFrac * 0.55, pose: blendPose(idle, wind, 0.82) });
+  }
+  keys.push(
+    { t: startFrac, pose: wind },
+    { t: startFrac + (activeEndFrac - startFrac) * 0.4, pose: blendPose(wind, hit, 0.88) },
+    { t: activeEndFrac, pose: blendPose(wind, hit, OVERSHOOT) },
+    { t: holdFrac, pose: hit },
+    { t: holdFrac + (1 - holdFrac) * 0.45, pose: blendPose(hit, idle, 0.3) },
+    { t: 1, pose: idle },
+  );
+  return keys;
+}
+
 /** Whole-action clip (startup → active → recovery) aligned to the action's timing data. */
 export function buildActionClip(def: ActionDef, idle: Pose, speed = 1): AnimationClip {
   const total = (def.startupMs + def.activeMs + def.recoveryMs) / speed;
   const startupFrac = def.startupMs / speed / total;
   const activeEndFrac = (def.startupMs + def.activeMs) / speed / total;
-  const holdFrac = activeEndFrac + (1 - activeEndFrac) * 0.4;
   const wind = POSE_LIBRARY[def.windPose];
   const hit = POSE_LIBRARY[def.hitPose];
-  return buildPoseClip(def.id, total / 1000, [
-    { t: 0, pose: idle },
-    { t: startupFrac, pose: wind },
-    { t: activeEndFrac, pose: hit },
-    { t: holdFrac, pose: hit },
-    { t: 1, pose: idle },
-  ]);
+  return buildPoseClip(
+    def.id,
+    total / 1000,
+    strikeKeys(idle, wind, hit, startupFrac, activeEndFrac),
+  );
 }
 
 function spinKeys(
@@ -296,12 +350,11 @@ export function buildEnemyAttackClips(atk: EnemyAttackDef, idle: Pose): Animatio
     clips.push(transitionClip(`${atk.id}:tele`, atk.startupMs / 1000, idle, wind, 0.15));
   }
   clips.push(
-    buildPoseClip(`${atk.id}:strike`, strikeTotal, [
-      { t: 0, pose: wind },
-      { t: activeFrac, pose: hit },
-      { t: activeFrac + (1 - activeFrac) * 0.45, pose: hit },
-      { t: 1, pose: idle },
-    ]),
+    buildPoseClip(
+      `${atk.id}:strike`,
+      strikeTotal,
+      strikeKeys(idle, wind, hit, 0, activeFrac, false),
+    ),
   );
   return clips;
 }

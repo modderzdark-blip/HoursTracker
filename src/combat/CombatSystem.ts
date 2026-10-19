@@ -200,6 +200,12 @@ export class CombatSystem {
       target.status.apply(extra.status, attacker.stats.atk, opts.difficultyMod);
       status = extra.status;
     }
+    const recoil =
+      (spec.reaction === 'knockdown' ? 2 : spec.reaction === 'knockback' ? 1.5 : 1) *
+      (this.dmg.crit ? 1.3 : 1) *
+      (blocked ? 0.4 : 1) *
+      (target.hasSuperArmor() ? 0.5 : 1);
+    target.recoil(dirX, dirZ, recoil);
     target.onHit({
       attacker,
       spec,

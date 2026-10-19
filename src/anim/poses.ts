@@ -15,6 +15,30 @@ export function pose(base: Pose, r: Pose['r'], root?: readonly [number, number, 
   return { r: { ...base.r, ...r }, root: root ?? base.root ?? [0, 0, 0] };
 }
 
+/**
+ * Per-bone linear blend of two poses (k = 0 → a, 1 → b). k > 1 extrapolates past `b`, used
+ * for follow-through overshoot.
+ */
+export function blendPose(a: Pose, b: Pose, k: number): Pose {
+  const out: Record<string, Rot> = {};
+  const names = new Set([...Object.keys(a.r), ...Object.keys(b.r)]);
+  for (const name of names) {
+    const ra = (a.r as Record<string, Rot | undefined>)[name] ?? [0, 0, 0];
+    const rb = (b.r as Record<string, Rot | undefined>)[name] ?? [0, 0, 0];
+    out[name] = [
+      ra[0] + (rb[0] - ra[0]) * k,
+      ra[1] + (rb[1] - ra[1]) * k,
+      ra[2] + (rb[2] - ra[2]) * k,
+    ];
+  }
+  const pa = a.root ?? [0, 0, 0];
+  const pb = b.root ?? [0, 0, 0];
+  return {
+    r: out,
+    root: [pa[0] + (pb[0] - pa[0]) * k, pa[1] + (pb[1] - pa[1]) * k, pa[2] + (pb[2] - pa[2]) * k],
+  };
+}
+
 /** Mirror a pose left↔right (negate Y/Z rotations, swap sides). */
 export function mirror(p: Pose): Pose {
   const out: Record<string, Rot> = {};

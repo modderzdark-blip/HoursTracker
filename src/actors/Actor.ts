@@ -1,5 +1,6 @@
 import { Vector3, type AnimationClip, type Scene } from 'three';
 import { AnimationController } from '../anim/AnimationController';
+import { BodyDynamics } from '../anim/BodyDynamics';
 import { HumanoidRig } from '../anim/HumanoidRig';
 import { lerpAngle } from './components/movementMath';
 import { Health } from '../combat/Health';
@@ -88,6 +89,9 @@ export abstract class Actor {
   private flash = 0;
   private flashColor = 0xffffff;
   private flashDecay = 6;
+  /** Procedural torso lean and hit recoil on top of the clips. */
+  readonly dynamics = new BodyDynamics();
+  private lastRenderYaw = 0;
 
   protected constructor(opts: ActorOptions) {
     this.stats = opts.stats;
@@ -167,6 +171,8 @@ export abstract class Actor {
     this.rig.setVisible(true);
     this.rig.root.position.copy(this.currFeet);
     this.rig.root.rotation.y = yaw;
+    this.lastRenderYaw = yaw;
+    this.dynamics.reset();
   }
 
   removeFromWorld(): void {
@@ -186,6 +192,11 @@ export abstract class Actor {
 
   stopKnockback(): void {
     this.kb.x = this.kb.z = 0;
+  }
+
+  /** Torso recoil away from a hit (direction = where the hit pushes, strength ~0.5..2.5). */
+  recoil(dirX: number, dirZ: number, strength: number): void {
+    this.dynamics.impulse(dirX, dirZ, this.currYaw, strength);
   }
 
   flashHit(color = 0xffffff, decayPerSec = 6): void {
@@ -250,6 +261,17 @@ export abstract class Actor {
     root.position.y += this.visualLift;
     root.rotation.y = lerpAngle(this.prevYaw, this.currYaw, alpha);
     this.anim.update(animDtSec);
+    if (animDtSec > 0) {
+      let dYaw = root.rotation.y - this.lastRenderYaw;
+      dYaw = Math.atan2(Math.sin(dYaw), Math.cos(dYaw));
+      const turnRate = Math.max(-12, Math.min(12, dYaw / Math.max(realDtSec, 1e-3)));
+      const v = this.renderVelocity;
+      const yaw = root.rotation.y;
+      const forward = v.x * Math.sin(yaw) + v.z * Math.cos(yaw);
+      this.dynamics.update(animDtSec, Math.hypot(v.x, v.z), forward, turnRate);
+      this.dynamics.apply(this.rig.bone('Spine'), this.rig.bone('Chest'));
+    }
+    this.lastRenderYaw = root.rotation.y;
     if (this.flash > 0) {
       this.flash = Math.max(0, this.flash - realDtSec * this.flashDecay);
       this.rig.setFlash(this.flash * 0.9, this.flashColor);
