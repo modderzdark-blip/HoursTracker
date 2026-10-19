@@ -102,6 +102,11 @@ export class AnimationController {
     this.lastNorm = 0;
   }
 
+  /** Freezes / resumes the current clip (hold-to-charge skills hold their wind-up pose). */
+  setPaused(paused: boolean): void {
+    if (this.current !== null) this.current.paused = paused;
+  }
+
   /** Additive hit reaction on top of whatever plays (strength 0..1). */
   react(name: string, strength = 1, durationSec?: number): void {
     const a = this.additive.get(name);

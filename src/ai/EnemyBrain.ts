@@ -3,9 +3,10 @@ import type { Enemy } from '../actors/Enemy';
 import { moveTowardsAngle, wrapAngle } from '../actors/components/movementMath';
 import { ActionRunner } from '../combat/ActionRunner';
 import type { CombatSystem } from '../combat/CombatSystem';
+import type { Effects } from '../combat/Effects';
 import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
-import type { EnemyAttackDef } from '../data/enemies';
+import type { EnemyAttackDef, EnemyId } from '../data/enemies';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import type { TelegraphPort } from '../vfx/telegraphPort';
 import type { AttackTokenManager } from './AttackTokens';
@@ -42,6 +43,10 @@ export interface BrainContext {
   readonly rng: () => number;
   /** Difficulty modifier for enemy damage. */
   readonly difficultyMod: number;
+  /** Projectiles / zones for ranged and area attacks (absent in some unit tests). */
+  readonly effects?: Effects;
+  /** Bosses that summon adds call this. */
+  readonly summon?: (enemy: EnemyId, count: number) => void;
 }
 
 export const AI_TUNING = {
@@ -411,6 +416,16 @@ export class EnemyBrain {
   protected fireHit(index: number): void {
     const hit = this.attack?.hits[index];
     if (hit === undefined) return;
+    if (hit.emit !== undefined) {
+      this.ctx.effects?.emit(
+        this.enemy,
+        hit.spec,
+        hit.emit,
+        { difficultyMod: this.ctx.difficultyMod * this.enemy.damageMult },
+        this.lockTarget,
+      );
+      return;
+    }
     if (this.attack?.sweep !== true) this.hitSet.clear();
     this.strike(hit.spec);
   }

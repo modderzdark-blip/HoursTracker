@@ -18,6 +18,8 @@ export interface StrikeOptions {
   readonly difficultyMod: number;
   /** Targets already hit by this action (each target is hit once per hit window). */
   readonly hitSet: Set<number>;
+  /** Extra status applied on hit (skill-tree modifiers), on top of the hit's own status. */
+  readonly extraStatus?: { readonly status: StatusId; readonly chance: number } | null;
 }
 
 export interface StrikeResult {
@@ -157,7 +159,10 @@ export class CombatSystem {
     spec: HitSpec,
     dirX: number,
     dirZ: number,
-    opts: Pick<StrikeOptions, 'damageMult' | 'forceCrit' | 'counter' | 'difficultyMod'>,
+    opts: Pick<
+      StrikeOptions,
+      'damageMult' | 'forceCrit' | 'counter' | 'difficultyMod' | 'extraStatus'
+    >,
   ): boolean {
     if (!target.alive) return false;
     if (target.isInvulnerable()) {
@@ -185,6 +190,11 @@ export class CombatSystem {
     if (!killed && spec.status !== undefined && this.rng() < spec.status.chance) {
       target.status.apply(spec.status.id, attacker.stats.atk, opts.difficultyMod);
       status = spec.status.id;
+    }
+    const extra = opts.extraStatus;
+    if (!killed && extra !== undefined && extra !== null && this.rng() < extra.chance) {
+      target.status.apply(extra.status, attacker.stats.atk, opts.difficultyMod);
+      status = extra.status;
     }
     target.onHit({
       attacker,

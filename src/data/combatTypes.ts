@@ -31,10 +31,66 @@ export interface HitSpec {
   readonly status?: { readonly id: StatusId; readonly chance: number };
 }
 
+/** A projectile fired by an action (arrows, bolts, fireballs). */
+export interface ProjectileDef {
+  readonly visual: 'arrow' | 'bolt' | 'fireball' | 'shadow';
+  /** m/s */
+  readonly speed: number;
+  /** Hit radius (m). */
+  readonly radius: number;
+  /** Maximum travel distance (m). */
+  readonly rangeM: number;
+  /** Keeps flying after a hit (each target is hit once). */
+  readonly pierce: boolean;
+  /** Turn rate toward the nearest opponent (rad/s); 0 = straight. */
+  readonly homing: number;
+  /** Launch height above the feet (m). */
+  readonly height: number;
+  /** Blast on impact or at the end of its range (fireballs). */
+  readonly explodeRadius?: number;
+}
+
+/** A ground effect: a delayed blast, repeated ticks (rain), or a proximity trap. */
+export interface ZoneDef {
+  readonly visual: 'rain' | 'trap' | 'shockwave' | 'meteor' | 'fire' | 'eruption';
+  readonly radius: number;
+  /** Time before the first hit (shown as a ground telegraph). */
+  readonly delayMs: number;
+  readonly ticks: number;
+  readonly intervalMs: number;
+  /** Trap: waits (up to lifeMs) until an opponent steps inside, then fires its ticks. */
+  readonly trigger?: 'proximity';
+  readonly lifeMs?: number;
+}
+
+/** What a timed hit releases instead of a melee strike. */
+export type EmitDef =
+  | {
+      readonly kind: 'projectile';
+      readonly projectile: ProjectileDef;
+      readonly count: number;
+      /** Total fan angle across `count` projectiles. */
+      readonly spreadDeg: number;
+      /** 'target' aims at the nearest opponent in front (falls back to facing). */
+      readonly aim: 'facing' | 'target';
+    }
+  | {
+      readonly kind: 'zone';
+      readonly zone: ZoneDef;
+      /** Where: on the actor, `forward` m ahead, or at the (locked) target position. */
+      readonly place: 'self' | 'forward' | 'target';
+      readonly forward: number;
+      readonly count: number;
+      /** Random scatter radius around the placement point (multiple zones). */
+      readonly scatter: number;
+    };
+
 export interface TimedHit {
   /** Offset from the start of the active phase. */
   readonly offsetMs: number;
   readonly spec: HitSpec;
+  /** Releases a projectile / zone carrying `spec` instead of a melee strike. */
+  readonly emit?: EmitDef;
 }
 
 /** Data-driven displacement along the facing ("root motion" for placeholder clips). */
