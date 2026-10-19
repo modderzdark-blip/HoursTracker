@@ -1317,12 +1317,48 @@ body {
 }
 
 .menu[data-screen='hub'] {
-  background: linear-gradient(
-    90deg,
-    transparent 30%,
-    rgba(7, 6, 10, 0.55) 60%,
-    rgba(7, 6, 10, 0.8)
-  );
+  background:
+    /* Keeps the hero summary (bottom left) readable over the 3D scene. */
+    radial-gradient(ellipse 45% 40% at 0% 88%, rgba(7, 6, 10, 0.7), transparent 100%),
+    linear-gradient(90deg, transparent 30%, rgba(7, 6, 10, 0.55) 60%, rgba(7, 6, 10, 0.8));
+}
+
+/* Tablets: menus and HUD are laid out for phones; scale them up so they fill a large screen
+   instead of floating small in the corners. Layout happens at the size divided by the scale. */
+@media (min-width: 960px) and (min-height: 600px) {
+  .menu,
+  .bhud,
+  .hud,
+  .pause-menu,
+  .result-screen {
+    --ui-scale: 1.25;
+    right: auto;
+    bottom: auto;
+    width: calc(100% / var(--ui-scale));
+    height: calc(100% / var(--ui-scale));
+    transform: scale(var(--ui-scale));
+    transform-origin: 0 0;
+  }
+}
+
+@media (min-width: 960px) and (min-height: 700px) {
+  .menu,
+  .bhud,
+  .hud,
+  .pause-menu,
+  .result-screen {
+    --ui-scale: 1.4;
+  }
+}
+
+@media (min-width: 1200px) and (min-height: 780px) {
+  .menu,
+  .bhud,
+  .hud,
+  .pause-menu,
+  .result-screen {
+    --ui-scale: 1.5;
+  }
 }
 
 .menu-top {
