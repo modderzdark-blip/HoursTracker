@@ -381,14 +381,8 @@ async function run(page: Page, findings: Finding[]): Promise<void> {
   await expect(page.getByTestId('item-equip')).toBeVisible();
   await screen(page, findings, 'item-compare', MODAL);
   // Upgrade the first bag item that is not maxed yet.
-  for (
-    let i = 1;
-    await page
-      .getByTestId('item-upgrade')
-      .getAttribute('class')
-      .then((c) => (c ?? '').includes('is-disabled'));
-    i++
-  ) {
+  const upgrade = page.getByTestId('item-upgrade');
+  for (let i = 1; ((await upgrade.getAttribute('class')) ?? '').includes('is-disabled'); i++) {
     await page.locator('.modal-panel .btn', { hasText: 'Close' }).tap();
     await page.locator('.item-grid .item-tile').nth(i).tap();
   }
