@@ -3,10 +3,12 @@
 Mobile dark-fantasy hack-and-slash action RPG — Three.js + TypeScript + Rapier, no engine.
 Playable in Chrome on Android (GitHub Pages) and as a sideloadable Capacitor APK.
 
-> Status: **0.2.0 — gameplay prototype**: one stage (practice dummy → 3 waves → 3-phase boss →
-> result screen), full hero moveset, enemy AI, revive, save. Characters are procedural
-> placeholder rigs. See [CHANGELOG.md](CHANGELOG.md) and
-> [docs/TEST_REPORT_PROTOTYPE.md](docs/TEST_REPORT_PROTOTYPE.md).
+> Status: **0.3.0 — full game loop**: hub, 3 heroes, 3 Adventure chapters × 8 stages (Normal /
+> Hard / Nightmare), 6 enemy types, 3 bosses + 3 mini-bosses, Dungeon, Demon Tower, Boss
+> Challenge, Arena (AI duels, rating, seasons, leaderboard), XP/levels, gear with upgrades and
+> salvage, loot with pity, skill trees, settings, procedural music and SFX. Characters are still
+> procedural placeholder rigs (real models: see [docs/ASSET_LIST.md](docs/ASSET_LIST.md)).
+> See [CHANGELOG.md](CHANGELOG.md) and [docs/TEST_REPORT_FULL.md](docs/TEST_REPORT_FULL.md).
 
 ## Play it
 
@@ -18,48 +20,79 @@ Playable in Chrome on Android (GitHub Pages) and as a sideloadable Capacitor APK
 
 ### Controls
 
-| Touch                      | Keyboard  | Action                                                       |
-| -------------------------- | --------- | ------------------------------------------------------------ |
-| Left half: floating stick  | WASD      | Move                                                         |
-| ATTACK                     | J         | 5-hit combo (tap again during a swing; inputs buffer 150 ms) |
-| DODGE                      | Space     | Dash with i-frames; dodge just before a hit = perfect dodge  |
-| Skill 1 / 2 / 3            | 1 / 2 / 3 | Rending Dash / Blade Gyre (steer with stick) / Umbral Step   |
-| ULT (when glowing)         | R         | Hollow Legion — shadow clones                                |
-| Pause (top right)          | Esc       | Pause menu (graphics, restart, copy debug log)               |
-| Triple-tap top-left corner | `         | Debug overlay + cheats                                       |
+| Touch                      | Keyboard  | Action                                                      |
+| -------------------------- | --------- | ----------------------------------------------------------- |
+| Left half: floating stick  | WASD      | Move                                                        |
+| ATTACK                     | J         | Combo (tap again during a swing; inputs buffer 150 ms)      |
+| DODGE                      | Space     | Dash with i-frames; dodge just before a hit = perfect dodge |
+| Skill 1 / 2 / 3            | 1 / 2 / 3 | Hero skills (hold Brann's II to charge)                     |
+| ULT (when glowing)         | R         | Hero ultimate                                               |
+| Pause (top right)          | Esc       | Pause menu (graphics, restart, copy debug log)              |
+| Triple-tap top-left corner | `         | Debug overlay + cheats                                      |
+
+Settings (hub → Settings) change graphics, FPS cap, volumes, vibration, button size and opacity,
+left-handed layout, screen shake and damage numbers.
+
+### Heroes
+
+| Hero  | Style                      | Skills                                                                  | Ultimate                   |
+| ----- | -------------------------- | ----------------------------------------------------------------------- | -------------------------- |
+| Kael  | Dual blades, fast combos   | Rending Dash · Blade Gyre (steerable) · Umbral Step                     | Hollow Legion (clones)     |
+| Brann | Greatsword, super armor    | Earthsplitter (shockwave) · Oathbreaker (hold to charge) · Bulwark Rush | Meteor Cleave              |
+| Lyra  | Bow at range, dagger close | Piercing Gloam · Ashfall Volley (arrow rain) · Snare Leap (trap)        | Gloamstorm (homing arrows) |
+
+Brann unlocks after 1-4 for 60 souls, Lyra after 1-8 for 120 souls (Heroes screen).
+
+### Modes
+
+- **Adventure** — 3 chapters × 8 stages; mini-boss on stage 4, boss on stage 8; 1–3 stars
+  (clear · no revive and little damage · par time). Clearing a chapter on Normal opens Hard,
+  Hard opens Nightmare (tougher enemies, better loot).
+- **Dungeon** (after chapter 1) — 4 random chambers, HP carries over, elite at the end; 5
+  entries refilling one every 4 h.
+- **Boss Challenge** (after 1-4) — defeated bosses at tiers 1–10.
+- **Arena** (after chapter 1) — duels against AI-controlled heroes built from a hero, gear and
+  skills; rating, 7-day seasons with rewards, local leaderboard.
+- **Demon Tower** (after chapter 2) — endless floors, a boss every 10th, milestone rewards.
 
 ## Project structure
 
 ```
 src/
   main.ts          entry: log capture, gesture guards, title screen, lazy-loads the engine chunk
-  app/             composition root (App.ts) — wires systems, debug cheats, test hook
+  app/             App.ts (composition root, hub ↔ battle, test hook), Menus.ts (screen routing),
+                   Runs.ts (turns each mode into battles and outcomes into rewards)
   core/            EventBus, ServiceRegistry, GameLoop (fixed step + interpolation),
                    FixedTimestep, TimeControl (hit-stop / slow-mo), FrameLimiter, GameClock, random
   input/           actions, InputState, InputBuffer, TouchControls, KeyboardInput, GamepadInput,
                    gestureGuards (fullscreen, landscape, no zoom)
-  camera/          FollowCamera, CameraShake (trauma), CameraDirector (boss intro / framing)
+  camera/          FollowCamera (boss framing), CameraShake (trauma), CameraDirector (cinematics)
   render/          RenderContext (renderer + bloom), Atmosphere, QualityManager + qualityLogic,
                    procedural textures, rim light
   physics/         PhysicsWorld (Rapier), CharacterBody (kinematic controller), collision groups
   anim/            HumanoidRig (procedural skinned placeholder, Mixamo bone names), poses,
                    clipBuilder, clipSets, AnimationController (mixer, events, hurt layer, look-at)
-  combat/          damage formula, Health, Poise, StatusEffects, ActionRunner (startup/active/
-                   recovery, cancel windows, i-frames), hitShapes, CombatSystem, Cooldowns, UltimateMeter
-  actors/          Actor, Player, Enemy, Boss, TrainingDummy, components/ (CharacterMotor, movementMath)
-  ai/              EnemyBrain (state machine, whiskers), BossBrain (phases, break, enrage),
-                   AttackTokens (max simultaneous attackers)
-  modes/           BattleMode (orchestrator), WaveDirector, EnemyRoster (pool), crowd, ArenaBuilder
-  progression/     Wallet (currencies), stars (run rating)
-  data/            ALL tunables: config, quality, heroes, rigs, enemies, bosses, stages, arenas,
-                   statusEffects, difficulty, economy, combatTypes
-  save/            SaveStore (versioned JSON v2), backends, migrations, settings
-  ui/              styles.css, TitleScreen, BattleHud, DamageNumbers, ResultScreen, Hud, PauseMenu, ...
-  audio/           AudioManager (Web Audio), Sfx (procedural sound effects)
+  combat/          damage formula, Health, Poise, StatusEffects, ActionRunner, hitShapes,
+                   CombatSystem (one damage pipeline, shields), Effects (projectiles + ground
+                   zones), Cooldowns, UltimateMeter
+  actors/          Actor, Player (human or AI duelist), Enemy, Boss, TrainingDummy, components/
+  ai/              EnemyBrain (state machine, tokens, kiting), BossBrain (phases, break, enrage,
+                   flight, grabs, hazards), DuelistBrain (arena AI), AttackTokens
+  modes/           BattleMode (one battle), WaveDirector, EnemyRoster (pool), HubScene, rewards,
+                   meta (dungeon / tower / challenge / arena rules), crowd, ArenaBuilder
+  progression/     PlayerProfile (one API over the save), xp, gear, loot (pity), skillTree,
+                   heroStats, enemyScale, profile (save schema + sanitising), wallet, stars
+  data/            ALL tunables: config, quality, heroes, skillTrees, rigs, enemies, bosses,
+                   stages (chapters), arenas, items, progression (XP, loot, drop tables),
+                   modes (unlocks + mode rules), statusEffects, difficulty, economy, combatTypes
+  save/            SaveStore (versioned JSON v3), backends, migrations, settings
+  ui/              styles.css, TitleScreen, BattleHud, DamageNumbers, ResultScreen, Hud, PauseMenu,
+                   menu/ (shell, hub, stage map, heroes, gear, skills, modes, rewards, settings)
+  audio/           AudioManager (Web Audio buses), Sfx (procedural effects), Music (procedural)
   vfx/             Sparks, WeaponTrails, TelegraphDecals, SoulOrbs, BlobShadows, ShadowClones, EmberField
   debug/           LogCapture, DebugOverlay (+cheats), FrameStats, deviceInfo, report, clipboard
 public/assets/     models/ animations/ textures/ audio/ (empty until real assets arrive)
-tests/unit/        Vitest (logic, real Rapier physics, battle integration)
+tests/unit/        Vitest (logic, progression, modes, real Rapier physics, battle integration)
 tests/e2e/         Playwright smoke tests (Pixel 7 landscape, real CDP multi-touch, 60 s soak)
 android/           Capacitor 8 Android project
 scripts/ci/        emulator smoke script used by the APK workflow
@@ -112,17 +145,24 @@ so it works under any path and inside Capacitor.
 
 ## Adding content through data
 
-- **Hero**: `HEROES` in `src/data/heroes.ts` — stats, five combo `ActionDef`s (timings, hit
-  shapes, multipliers, move curves, cancel windows), dodge, three skills, ultimate, visual.
-- **Enemy**: add an entry to `ENEMIES` in `src/data/enemies.ts` (stats, rig, poise, attacks with
-  range / cooldown / weight / telegraph / chains, aggro and hold distances, souls dropped) and a rig in `src/data/rigs.ts`. Reference it from
-  a wave in `stages.ts`.
-- **Boss**: `BOSSES` in `src/data/bosses.ts` — stats, phases (HP threshold, attack set, speed and
-  damage multipliers), break bar, enrage timer, intro and transition timings. Set `boss:` in a stage.
-- **Stage**: copy `proto_cinder_court` in `src/data/stages.ts` (waves, spawn intervals,
-  countdown, star rules, rewards) and an arena in `src/data/arenas.ts` (geometry, spawn points,
-  boss/dummy spawns). Every pillar, block and ramp becomes a visual plus a collider.
-- **Status effects / difficulty / economy**: `statusEffects.ts`, `difficulty.ts`, `economy.ts`.
+- **Hero**: `HEROES` in `src/data/heroes.ts` — stats and level growth, unlock rule, combo
+  `ActionDef`s (timings, hit shapes, multipliers, move curves, cancel windows; `emit` for
+  projectiles / zones), optional `rangedCombo`, dodge, three skills (`special: 'charge'`,
+  `'steerable'`, `'shadowStep'`), ultimate, colour. Add its rig in `rigs.ts` and its tree in
+  `skillTrees.ts`.
+- **Enemy**: `ENEMIES` in `src/data/enemies.ts` (stats, rig, poise, attacks with range /
+  cooldown / weight / telegraph / chains / `emit`, `shield`, `preferredRange` for kiting,
+  `special: 'explode'`, souls). Add its id to `EnemyId` and use it in waves.
+- **Boss / mini-boss**: `BOSSES` in `src/data/bosses.ts` — phases (HP threshold, attack set,
+  speed/damage, optional timed `hazard`), break bar, enrage, intro; attacks may use `special:
+'leap' | 'fly' | 'grab'` and `summon`.
+- **Stage / chapter**: `CHAPTERS` in `src/data/stages.ts` (`buildChapter(...)` with waves,
+  arena, boss, kind); arenas in `src/data/arenas.ts`.
+- **Gear / loot / economy**: `src/data/items.ts` (slots, rarities, stats, upgrade table),
+  `src/data/progression.ts` (XP curve, enemy scaling, rarity weights, pity, drop tables),
+  `src/data/economy.ts`.
+- **Modes**: `src/data/modes.ts` — unlocks, dungeon rooms, tower scaling, challenge tiers,
+  arena rating/seasons/opponent names.
 - **Quality presets**: `src/data/quality.ts`; benchmark thresholds in `BENCHMARK_CONFIG`.
 - **Camera**: `CAMERA_CONFIG` in `src/data/config.ts` (distance, height, yaw, FOV, boss framing).
 
@@ -134,7 +174,8 @@ real models can replace them without touching gameplay. The swap is designed as 
 `visual` in `src/data/heroes.ts` from `{ kind: 'rig', rig: 'kael' }` to
 `{ kind: 'gltf', url: 'assets/models/kael.glb', scale: 1 }` — **but the glTF loader itself is
 not implemented yet** (selecting `gltf` throws a clear error). It lands with the asset
-milestone, together with the list of Mixamo files to export.
+milestone. The list of models and animations to fetch is in
+[docs/ASSET_LIST.md](docs/ASSET_LIST.md).
 
 ## Debugging on a phone
 

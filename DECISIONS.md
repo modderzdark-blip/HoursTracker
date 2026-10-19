@@ -125,3 +125,37 @@ Each entry: the decision, why, and what would change it.
   covered by the deterministic integration tests instead.
 - **Warm-up tap in the gesture test:** the first CDP touch on a fresh page took ~2 s in headless
   Chromium, which broke the triple-tap timing; one tap elsewhere first makes it reliable.
+
+## Full game loop (0.3.0)
+
+- **One battle = one scene + one Rapier world**, created on start and disposed on exit. Cheaper
+  to reason about than resetting a long-lived world between very different stages (arenas,
+  bosses, duels) and guarantees nothing leaks between fights. The hub has its own tiny scene.
+- **Menus are DOM screens rebuilt on every change** (`ui/menu/`): the hub/menus are not
+  performance-critical, and full rebuilds keep the code simple and listener-leak-free (each
+  rebuild disposes the previous listeners).
+- **`PlayerProfile` is the only API over the save** for wallet, heroes, gear, skills, records
+  and unlocks. Every change ends with `commit()` (wallet sync + debounced save). Economy rules
+  (no negatives, all-or-nothing spends, auto-salvage on a full bag) live there and in `Wallet`,
+  isolated so IAP could be added later without touching gameplay.
+- **Gear never breaks**: failed upgrades above +10 cost the materials but never destroy or
+  downgrade the item (brief: "no item destruction").
+- **Pity counts drops, not battles**, so multi-drop boss chests don't burn pity faster than
+  single drops.
+- **Moves emit effects through data** (`TimedHit.emit`): arrows, fireballs, rain, traps,
+  shockwaves, meteors and eruptions are all projectiles or ground zones from one pooled
+  `Effects` system, and every hit still goes through `CombatSystem.applyHit` (formula, i-frames,
+  poise, statuses, ultimate charge unchanged).
+- **Arena duels use the real hero code**: the opponent is a `Player` on the enemy team whose
+  input comes from a `DuelistBrain` writing to its own `InputState` (own event bus, so its
+  presses never reach the UI). Same movesets, i-frames and cooldowns as the human — "the same
+  AI system with a duelist behaviour" without a second moveset implementation.
+- **Arena is offline**: opponents are generated from a seed near the player's rating and power
+  (level × number of gear slots searched to match power), seasons are 7 days of real time, the
+  leaderboard is generated per season plus the player. Real online PvP stays out of scope.
+- **Dungeon entries refill on real time** (epoch ms in the save) — no server needed; clock
+  changes on the phone can be exploited, which is acceptable for an offline single-player game.
+- **Procedural music** (Web Audio sequencer with look-ahead scheduling) instead of audio files:
+  zero download, works offline, separate volume. Replaceable by real tracks later.
+- **Left-handed layout = CSS mirror** of the button cluster (labels flipped back) and the
+  joystick zone moved right; hit-testing uses live element rects, so it needs no code changes.

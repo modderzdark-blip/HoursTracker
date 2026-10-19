@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.3.0] — Full game loop (2026-10-19)
+
+### Added
+
+- **Hub**: 3D hero preview, game modes, Heroes / Gear / Skills / Settings, currency bar.
+- **Adventure**: 3 chapters × 8 stages (Ashfall March, The Smoldering Wastes, The Bound Spire),
+  stage map with stars, pre-battle panel (foes, rewards, recommended vs. your power), Normal /
+  Hard / Nightmare per chapter, victory screen with loot reveal, next-stage flow.
+- **Progression**: hero levels (XP curve in data), gear in 6 slots × 5 rarities with random
+  substats, upgrades +1…+15 (success rate drops above +10, nothing is ever destroyed), salvage,
+  locking, bulk salvage, Ember Cache (reward tickets → rare+ item), drop tables per stage and
+  difficulty with epic/legendary pity, skill trees per hero (power, haste, modifiers, core).
+- **Heroes**: Brann (greatsword, super armor, hold-to-charge Oathbreaker, Earthsplitter
+  shockwave, Bulwark Rush, Meteor Cleave) and Lyra (bow at range / dagger up close, Piercing
+  Gloam, Ashfall Volley rain, Snare Leap trap, homing Gloamstorm), unlocked with souls.
+- **Enemies**: Bulwark Sentinel (front shield — flank or stagger it), Ember Seer (kites, bolts,
+  ground eruptions), Cinder Wretch (rushes in and explodes).
+- **Bosses**: Mother of Ash (claws, fire breath, takes flight and rains fireballs, summons
+  adds), The Bound King (sweeps, slams, a grab you must dodge, timed arena eruptions);
+  mini-bosses The Gaoler, The Seer Exalted, The Iron Penitent.
+- **Modes**: Dungeon (random chambers, HP carry-over, elite, timed entries), Demon Tower
+  (endless floors, boss every 10th, milestones), Boss Challenge (10 tiers per boss), Arena
+  (AI duelists built from hero + gear + skills, rating, weekly seasons with rewards, local
+  leaderboard).
+- **Combat systems**: pooled projectiles and ground zones, shields / blocking, kiting AI,
+  summons, boss flight and grabs, hazards; camera pulls back for huge bosses.
+- **Settings**: button size and opacity, left-handed layout, screen shake, damage numbers,
+  volumes (master / effects / music), vibration, graphics, FPS cap.
+- **Music**: procedural soundtrack (hub, battle, boss themes).
+- **Save v3** with migration from v2 (wallet and settings kept).
+- 193 unit/integration tests in 15 files; 12 Playwright smoke tests rewritten for the hub flow.
+
+### Changed
+
+- Each battle builds its own scene and physics world and is disposed afterwards.
+- Enemy stats scale with stage level and difficulty; heroes with level, gear and skills.
+
 ## [0.2.0] — Gameplay prototype (2026-10-18)
 
 ### Added
