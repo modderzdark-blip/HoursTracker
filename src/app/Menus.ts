@@ -19,8 +19,8 @@ export interface MenusOptions {
   readonly uiTap: () => void;
   readonly toast: (text: string) => void;
   readonly onHeroChanged: (id: HeroId) => void;
-  /** Extra mode screens (dungeon, tower, ...) registered by the App. */
-  readonly modeScreens: Partial<Record<ModeId, (ctx: MenuContext) => void>>;
+  /** Screens of the non-Adventure modes. */
+  readonly modeScreens: Readonly<Record<Exclude<ModeId, 'adventure'>, (ctx: MenuContext) => void>>;
 }
 
 /** Owns the menu shell and routes between screens. */
@@ -73,9 +73,7 @@ export class Menus implements MenuNav {
       this.stageMap();
       return;
     }
-    const screen = this.o.modeScreens[id];
-    if (screen !== undefined) screen(this.ctx);
-    else this.o.toast('Coming soon');
+    this.o.modeScreens[id](this.ctx);
   }
 
   setVisible(visible: boolean): void {

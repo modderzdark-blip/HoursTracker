@@ -12,8 +12,8 @@ import { DEBUG_CONFIG, INPUT_CONFIG, LOOP_CONFIG } from '../data/config';
 import type { Currency } from '../data/economy';
 import type { DifficultyId } from '../data/difficulty';
 import { HEROES, type HeroId } from '../data/heroes';
+import { CHAPTERS } from '../data/stages';
 import { QUALITY_PRESETS, type QualityLevel, type QualityPreset } from '../data/quality';
-import { CHAPTERS, findAdventureStage } from '../data/stages';
 import { DebugOverlay } from '../debug/DebugOverlay';
 import { collectDeviceInfo, detectMobile, readHeapMB, type DeviceInfo } from '../debug/deviceInfo';
 import { FrameStats } from '../debug/FrameStats';
@@ -28,7 +28,6 @@ import { KeyboardInput } from '../input/KeyboardInput';
 import { TouchControls } from '../input/TouchControls';
 import { BattleMode, type BattleOutcome, type BattleSetup } from '../modes/BattleMode';
 import { HubScene } from '../modes/HubScene';
-import { grantAdventureVictory, recordDefeat } from '../modes/rewards';
 import { loadRapier, PhysicsWorld, type Rapier } from '../physics/PhysicsWorld';
 import { PlayerProfile } from '../progression/PlayerProfile';
 import { QualityManager, type QualityTarget } from '../render/QualityManager';
@@ -39,9 +38,10 @@ import type { FpsCap } from '../save/settings';
 import { el } from '../ui/dom';
 import { Hud } from '../ui/Hud';
 import type { SettingsPort } from '../ui/menu/context';
-import { renderDefeat, renderVictory, type ResultButton } from '../ui/menu/rewardScreen';
 import { PauseMenu } from '../ui/PauseMenu';
 import { Menus } from './Menus';
+import { Runs } from './Runs';
+import { modeScreens } from '../ui/menu/modeScreens';
 
 export interface AppOptions {
   readonly canvas: HTMLCanvasElement;
@@ -139,6 +139,10 @@ export interface TestHookCommands {
   goHub: () => void;
   /** Test/debug: unlock and select a hero. */
   setHero: (id: HeroId) => void;
+  /** Test/debug: mark the first `count` Adventure stages cleared (3 stars, Normal). */
+  clearStages: (count: number) => void;
+  /** Test/debug: kill the arena duelist. */
+  killDuelist: () => void;
 }
 
 declare global {
@@ -148,13 +152,6 @@ declare global {
 }
 
 const BUILD = { version: __APP_VERSION__, sha: __BUILD_SHA__, time: __BUILD_TIME__ };
-
-/** What the current battle is, so retry / next / rewards know where it came from. */
-type Run = {
-  readonly kind: 'adventure';
-  readonly stageId: string;
-  readonly difficulty: DifficultyId;
-};
 
 function probeDevice(): DeviceInfo {
   const canvas = document.createElement('canvas');
@@ -195,7 +192,7 @@ export class App {
   private readonly rng = mulberry32((Date.now() & 0x7fffffff) | 1);
   private battle: BattleMode | null = null;
   private battlePhysics: PhysicsWorld | null = null;
-  private run: Run | null = null;
+  private readonly runs: Runs;
   private pendingOutcome: BattleOutcome | null = null;
   private saveTimer = 0;
   private resizePending = false;
@@ -257,14 +254,24 @@ export class App {
       uiRoot: opts.uiRoot,
       profile: this.profile,
       actions: {
-        startAdventure: (stageId, difficulty) =>
-          this.beginRun({ kind: 'adventure', stageId, difficulty }),
+        startAdventure: (stageId, difficulty) => this.runs.startAdventure(stageId, difficulty),
+        startDungeon: (difficulty) => this.runs.startDungeon(difficulty),
+        startTower: (floor) => this.runs.startTower(floor),
+        startChallenge: (entry, tier) => this.runs.startChallenge(entry, tier),
+        startArena: (opponent) => this.runs.startArena(opponent),
       },
       settings: this.settingsPort(),
       uiTap: () => opts.audio.playUiClick(),
       toast: (t) => this.hud.showToast(t, 2200),
       onHeroChanged: (id: HeroId) => this.hubScene.setHero(HEROES[id]),
-      modeScreens: {},
+      modeScreens,
+    });
+    this.runs = new Runs({
+      profile: this.profile,
+      menus: this.menus,
+      rng: this.rng,
+      startBattle: (setup) => this.startBattle(setup),
+      refreshHub: () => this.hubScene.setHero(HEROES[this.profile.selectedHero]),
     });
 
     this.pause = new PauseMenu(
@@ -417,30 +424,6 @@ export class App {
     this.menus.hub();
   }
 
-  private beginRun(run: Run): void {
-    const setup = this.buildSetup(run);
-    if (setup === null) return;
-    this.run = run;
-    this.startBattle(setup);
-  }
-
-  private buildSetup(run: Run): BattleSetup | null {
-    const stage = findAdventureStage(run.stageId);
-    if (stage === undefined) return null;
-    const heroId = this.profile.selectedHero;
-    return {
-      stage,
-      difficulty: run.difficulty,
-      hero: HEROES[heroId],
-      heroStats: this.profile.stats(heroId),
-      mods: this.profile.mods(heroId),
-      label: `${stage.chapter}-${stage.index + 1} · ${stage.name}`,
-      startHpFrac: 1,
-      enemyMult: { hp: 1, atk: 1 },
-      allowRevive: true,
-    };
-  }
-
   private startBattle(setup: BattleSetup): void {
     this.endBattle();
     this.menus.setVisible(false);
@@ -508,65 +491,11 @@ export class App {
   /** Runs outside the fixed step: the battle that produced the outcome is disposed here. */
   private handleOutcome(): void {
     const outcome = this.pendingOutcome;
-    const run = this.run;
     this.pendingOutcome = null;
     if (outcome === null) return;
     this.endBattle();
     this.menus.setVisible(true);
-    if (run === null) {
-      this.menus.hub();
-      return;
-    }
-    const heroId = this.profile.selectedHero;
-    const stage = findAdventureStage(run.stageId);
-    if (stage === undefined) {
-      this.menus.hub();
-      return;
-    }
-    const retry: ResultButton = {
-      label: 'Retry',
-      testid: 'result-retry-run',
-      run: () => this.beginRun(run),
-    };
-    const toMap: ResultButton = {
-      label: 'Stage map',
-      testid: 'result-map',
-      run: () => this.menus.stageMap(stage.chapter),
-    };
-    if (!outcome.victory) {
-      recordDefeat(this.profile, outcome);
-      renderDefeat(this.menus.ctx, `${stage.chapter}-${stage.index + 1} · ${stage.name}`, [
-        toMap,
-        { ...retry, primary: true },
-      ]);
-      return;
-    }
-    const summary = grantAdventureVictory(
-      this.profile,
-      heroId,
-      stage,
-      run.difficulty,
-      outcome,
-      this.rng,
-    );
-    this.hubScene.setHero(HEROES[heroId]);
-    const buttons: ResultButton[] = [toMap, retry];
-    const chapter = CHAPTERS.find((c) => c.number === stage.chapter);
-    const next =
-      chapter?.stages[stage.index + 1] ??
-      CHAPTERS.find((c) => c.number === stage.chapter + 1)?.stages[0];
-    if (next !== undefined && this.profile.stageUnlocked(next, run.difficulty)) {
-      buttons.push({
-        label: 'Next stage',
-        primary: true,
-        testid: 'result-next',
-        run: () =>
-          this.beginRun({ kind: 'adventure', stageId: next.id, difficulty: run.difficulty }),
-      });
-    } else {
-      buttons[0] = { ...toMap, primary: true };
-    }
-    renderVictory(this.menus.ctx, summary, buttons);
+    this.runs.finish(outcome);
   }
 
   // ------------------------------------------------------------------ pause / input
@@ -825,13 +754,20 @@ export class App {
       },
       fillUltimate: () => this.fillUltimate(),
       restart: () => this.battle?.startRun(),
-      startStage: (stageId, difficulty = 'normal') =>
-        this.beginRun({ kind: 'adventure', stageId, difficulty }),
+      startStage: (stageId, difficulty = 'normal') => this.runs.startAdventure(stageId, difficulty),
       grant: (c, n) => this.grant(c, n),
       goHub: () => {
         this.endBattle();
         this.showHub();
       },
+      clearStages: (count) => {
+        let n = 0;
+        for (const c of CHAPTERS)
+          for (const st of c.stages)
+            if (n++ < count) this.profile.submitStageResult(st.id, 'normal', 3, 100);
+        if (this.battle === null) this.menus.hub();
+      },
+      killDuelist: () => this.battle?.killDuelist(),
       setHero: (id) => {
         this.profile.hero(id).unlocked = true;
         this.profile.selectHero(id);

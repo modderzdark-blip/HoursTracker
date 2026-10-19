@@ -2272,3 +2272,132 @@ body {
     min-height: 54px;
   }
 }
+
+.bhud-boss.no-break .bar-break {
+  display: none;
+}
+
+/* ---------- Mode pages (dungeon, tower, challenge, arena) ---------- */
+.mode-page {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 20px;
+  height: 100%;
+  overflow-y: auto;
+  touch-action: pan-y;
+}
+
+.mode-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mode-big {
+  font-family: var(--font-title);
+  font-size: 20px;
+  letter-spacing: 0.06em;
+  color: var(--gold);
+}
+
+.milestones {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.milestone {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.milestone.is-claimed {
+  color: var(--ink-dim);
+  text-decoration: line-through;
+}
+
+.challenge-list {
+  height: 100%;
+  overflow-y: auto;
+  touch-action: pan-y;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.challenge-card,
+.opp-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(201, 162, 74, 0.35);
+  background: rgba(22, 15, 13, 0.92);
+}
+
+.challenge-card.is-locked {
+  opacity: 0.6;
+}
+
+.challenge-info {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.challenge-name {
+  font-family: var(--font-title);
+  font-size: 16px;
+  letter-spacing: 0.06em;
+}
+
+.challenge-rec {
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.challenge-rec.is-good {
+  color: #9be08a;
+}
+
+.challenge-rec.is-low {
+  color: #ff8a6a;
+}
+
+.challenge-card .btn,
+.opp-card .btn {
+  min-width: 120px;
+  flex: 0 0 auto;
+}
+
+.leaderboard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  touch-action: pan-y;
+}
+
+.lb-row {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 6px;
+  font-size: 13px;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.lb-row.is-you {
+  background: rgba(160, 70, 20, 0.45);
+  font-weight: 700;
+}
+
+.lb-rank {
+  color: var(--ink-dim);
+}
+
+.lb-rating {
+  color: var(--gold);
+}

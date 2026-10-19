@@ -85,3 +85,10 @@ export const DIFFICULTY_ITEM_LEVEL_BONUS: Readonly<Record<DifficultyId, number>>
 
 /** Gems for the first clear of a stage at each star count (cumulative per star earned). */
 export const STAR_GEMS = [0, 3, 3, 4] as const;
+
+/** Ember Cache: spend reward tickets for one guaranteed rare-or-better item at your level. */
+export const CACHE_CONFIG = {
+  ticketCost: 1,
+  /** Item level = highest Adventure level cleared + this. */
+  levelBonus: 2,
+} as const;

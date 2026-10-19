@@ -99,19 +99,24 @@ export function renderVictory(
   ctx.shell.refreshCurrencies();
 }
 
-/** Short defeat summary after giving up (no rewards). */
+/** Short summary screen: a defeat, or an interlude (dungeon room cleared, dungeon left). */
 export function renderDefeat(
   ctx: MenuContext,
   subtitle: string,
   buttons: readonly ResultButton[],
+  title = 'Defeat',
 ): void {
-  const v = ctx.shell.begin('', null, 'defeat');
+  const isDefeat = title === 'Defeat';
+  const v = ctx.shell.begin('', null, isDefeat ? 'defeat' : 'interlude');
   const wrap = el('div', 'reward');
   wrap.append(
-    el('h2', 'reward-title result-defeat', 'Defeat'),
+    el('h2', `reward-title${isDefeat ? ' result-defeat' : ''}`, title),
     el('div', 'reward-sub', subtitle),
-    el('div', 'reward-time', 'Stronger gear, levels and skills turn the tide. Try again.'),
   );
+  if (isDefeat)
+    wrap.append(
+      el('div', 'reward-time', 'Stronger gear, levels and skills turn the tide. Try again.'),
+    );
   const row = el('div', 'button-row');
   for (const b of buttons) {
     row.append(

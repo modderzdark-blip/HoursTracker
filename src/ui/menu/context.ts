@@ -3,6 +3,7 @@ import type { HeroId } from '../../data/heroes';
 import type { GearSlot } from '../../data/items';
 import type { ModeId } from '../../data/modes';
 import type { QualitySetting } from '../../data/quality';
+import type { ArenaOpponent, ChallengeBoss } from '../../modes/meta';
 import type { PlayerProfile } from '../../progression/PlayerProfile';
 import type { FpsCap, Settings } from '../../save/settings';
 import type { MenuShell } from './MenuShell';
@@ -21,6 +22,11 @@ export interface MenuNav {
 /** Actions that leave the menus (start a battle). */
 export interface MenuActions {
   startAdventure(stageId: string, difficulty: DifficultyId): void;
+  /** False when no dungeon entry is left. */
+  startDungeon(difficulty: DifficultyId): boolean;
+  startTower(floor: number): void;
+  startChallenge(entry: ChallengeBoss, tier: number): void;
+  startArena(opponent: ArenaOpponent): void;
 }
 
 /** What every screen renderer receives. */

@@ -3,11 +3,12 @@ import { DIFFICULTIES, type DifficultyId } from '../data/difficulty';
 import { HEROES, type HeroId } from '../data/heroes';
 import { GEAR_CONFIG, GEAR_SLOTS, type GearSlot } from '../data/items';
 import { MODES, type ModeId } from '../data/modes';
-import { STAR_GEMS } from '../data/progression';
+import { CACHE_CONFIG, STAR_GEMS } from '../data/progression';
 import { SKILL_TREES } from '../data/skillTrees';
 import { CHAPTERS, type AdventureStageDef } from '../data/stages';
 import type { SaveData, StageRecord } from '../save/SaveStore';
-import { salvageValue, tryUpgrade, type GearItem, type UpgradeOutcome } from './gear';
+import { rollItem, salvageValue, tryUpgrade, type GearItem, type UpgradeOutcome } from './gear';
+import { rollItemLevel, rollRarity } from './loot';
 import { computeHeroStats, powerRating } from './heroStats';
 import type { HeroProgress, ProfileData } from './profile';
 import { computeMods, rankUp, type HeroMods } from './skillTree';
@@ -232,6 +233,37 @@ export class PlayerProfile {
     const r = tryUpgrade(item, this.wallet, this.rng);
     if (r === 'success' || r === 'failed') this.commit();
     return r;
+  }
+
+  /**
+   * Ember Cache: spends tickets for one item (rare or better, pity applies) at the player's
+   * progress level. Returns null if unaffordable or the bag is full.
+   */
+  openCache(): GearItem | null {
+    if (this.inventoryFull || !this.wallet.spend('tickets', CACHE_CONFIG.ticketCost)) return null;
+    let level = 1;
+    for (const c of CHAPTERS)
+      for (const st of c.stages)
+        if (this.stageClearedAnyDifficulty(st.id)) level = Math.max(level, st.level);
+    const difficulty: DifficultyId = this.difficultyUnlocked(1, 'nightmare')
+      ? 'nightmare'
+      : this.difficultyUnlocked(1, 'hard')
+        ? 'hard'
+        : 'normal';
+    let rarity = rollRarity(this.rng, difficulty, this.data.pity);
+    if (rarity === 'common') rarity = 'rare';
+    const slots = GEAR_SLOTS;
+    const slot = slots[Math.floor(this.rng() * slots.length)] ?? 'weapon';
+    const item = rollItem(
+      this.rng,
+      this.nextUid(),
+      slot,
+      rarity,
+      rollItemLevel(this.rng, level + CACHE_CONFIG.levelBonus, 'normal', rarity),
+    );
+    this.data.items.push(item);
+    this.commit();
+    return item;
   }
 
   toggleLock(uid: number): void {
