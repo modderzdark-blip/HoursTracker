@@ -15,7 +15,7 @@ import { UltimateMeter } from '../combat/UltimateMeter';
 import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
 import type { ActionDef, TrailSide } from '../data/combatTypes';
-import { PHYSICS_CONFIG } from '../data/config';
+import { INPUT_CONFIG, PHYSICS_CONFIG } from '../data/config';
 import { ECONOMY } from '../data/economy';
 import type { StatBlock } from '../data/combatTypes';
 import type { HeroDef, SkillDef } from '../data/heroes';
@@ -117,6 +117,10 @@ export class Player extends Actor {
   private invulnMs = 0;
   private reactionMs = 0;
   private readonly move = { x: 0, y: 0 };
+  /** Enemy picked by the last auto-aim (attack magnetism). */
+  private aimTarget: Actor | null = null;
+  /** Lunge distance of the current action (data distance adjusted by magnetism). */
+  private lunge = 0;
   /** Camera-relative stick input in world space (magnitude ≤ 1). */
   private moveX = 0;
   private moveZ = 0;
@@ -360,6 +364,7 @@ export class Player extends Actor {
     this.stateMs = 0;
     this.actionDef = def;
     this.runner.start(def, this.stats.attackSpeed);
+    this.lunge = this.lungeFor(def, state);
     this.hitSet.clear();
     this.motor.velocity.x = this.motor.velocity.z = 0;
     this.vel.x = this.vel.z = 0;
@@ -446,7 +451,7 @@ export class Player extends Actor {
       if (first !== undefined) this.strike(first.spec);
     }
     // Data-driven movement along the facing.
-    const dist = def.move?.distance ?? 0;
+    const dist = this.lunge;
     if (frac !== 0 && dist !== 0) {
       this.actionDisp.x += Math.sin(this.yaw) * dist * frac;
       this.actionDisp.z += Math.cos(this.yaw) * dist * frac;
@@ -552,6 +557,7 @@ export class Player extends Actor {
   }
 
   private autoAim(): void {
+    this.aimTarget = null;
     const aim = this.def.autoAim;
     const hasStick = this.moveMag > 0.2;
     const baseYaw = hasStick ? Math.atan2(this.moveX, this.moveZ) : this.yaw;
@@ -570,6 +576,30 @@ export class Player extends Actor {
     }
     if (best !== null) this.faceToward(best.currFeet.x, best.currFeet.z);
     else this.yaw = baseYaw;
+    this.aimTarget = best;
+  }
+
+  /**
+   * Lunge length for an action: melee combo hits stretch toward the auto-aimed enemy (up to
+   * INPUT_CONFIG.aimAssist.maxExtraLungeM) or shrink when it is already within reach.
+   */
+  private lungeFor(def: ActionDef, state: 'attack' | 'skill' | 'ultimate'): number {
+    const base = def.move?.distance ?? 0;
+    const target = this.aimTarget;
+    if (state !== 'attack' || target === null || base <= 0) return base;
+    if (this.def.rangedCombo?.includes(def) === true) return base;
+    const shape = def.hits[0]?.spec.shape;
+    const reach =
+      shape === undefined
+        ? 2
+        : shape.kind === 'arc'
+          ? shape.range
+          : shape.kind === 'circle'
+            ? shape.forward + shape.radius
+            : shape.forward + shape.length;
+    const a = INPUT_CONFIG.aimAssist;
+    const want = this.gapTo(target) - reach * a.stopFraction;
+    return Math.min(base + a.maxExtraLungeM, Math.max(0, want));
   }
 
   private shadowStep(def: SkillDef): void {

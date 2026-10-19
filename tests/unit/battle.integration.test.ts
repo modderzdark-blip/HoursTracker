@@ -190,6 +190,27 @@ describe('player combat (integration)', () => {
     expect(dummy.health.max - dummy.health.current).toBe(69);
   });
 
+  it('attack magnetism: a hit lunges to connect with an enemy out of reach', () => {
+    const w = makeWorld();
+    // Gap ≈ 3.6 m: the arc reaches 2.4 m and the plain lunge is 0.6 m, so without
+    // magnetism this swing would hit air.
+    const dummy = w.addDummy(0, -4.0);
+    const z0 = w.player.currFeet.z;
+    w.press('attack');
+    w.step(stepsFor(400));
+    expect(dummy.health.current).toBeLessThan(dummy.health.max);
+    expect(z0 - w.player.currFeet.z).toBeGreaterThan(1.2);
+  });
+
+  it('attack magnetism: no lunge into an enemy that is already close', () => {
+    const w = makeWorld();
+    w.addDummy(0, -1.1);
+    const z0 = w.player.currFeet.z;
+    w.press('attack');
+    w.step(stepsFor(400));
+    expect(Math.abs(z0 - w.player.currFeet.z)).toBeLessThan(0.15);
+  });
+
   it('presses inside the cancel window chain all 5 combo steps', () => {
     const w = makeWorld();
     w.addDummy(0, -1.4);

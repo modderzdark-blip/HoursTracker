@@ -27,6 +27,15 @@ export const INPUT_CONFIG = {
     /** Fraction of the screen width, from the left edge, where the joystick can spawn. */
     zoneWidthFraction: 0.45,
   },
+  /**
+   * Attack magnetism: when the auto-aimed enemy is out of reach, a melee combo hit lunges up to
+   * this much farther to connect; when it is already close, the lunge shrinks so the hero
+   * stops at `stopFraction` × the hit's reach instead of running through it.
+   */
+  aimAssist: {
+    maxExtraLungeM: 2.2,
+    stopFraction: 0.55,
+  },
   gamepad: {
     deadZone: 0.18,
     responseExponent: 1.25,
