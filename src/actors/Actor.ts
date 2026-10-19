@@ -173,6 +173,7 @@ export abstract class Actor {
     this.rig.root.rotation.y = yaw;
     this.lastRenderYaw = yaw;
     this.dynamics.reset();
+    this.rig.resetSecondary();
   }
 
   removeFromWorld(): void {
@@ -270,6 +271,8 @@ export abstract class Actor {
       const forward = v.x * Math.sin(yaw) + v.z * Math.cos(yaw);
       this.dynamics.update(animDtSec, Math.hypot(v.x, v.z), forward, turnRate);
       this.dynamics.apply(this.rig.bone('Spine'), this.rig.bone('Chest'));
+      const right = -v.x * Math.cos(yaw) + v.z * Math.sin(yaw);
+      this.rig.updateSecondary(animDtSec, forward, right, turnRate);
     }
     this.lastRenderYaw = root.rotation.y;
     if (this.flash > 0) {

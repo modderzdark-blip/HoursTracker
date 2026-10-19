@@ -33,6 +33,7 @@ import { loadRapier, PhysicsWorld, type Rapier } from '../physics/PhysicsWorld';
 import { PlayerProfile } from '../progression/PlayerProfile';
 import { QualityManager, type QualityTarget } from '../render/QualityManager';
 import { guessInitialQuality } from '../render/qualityLogic';
+import { createCharacterEnvironment, setCharacterEnvironment } from '../render/characterEnv';
 import { RenderContext } from '../render/RenderContext';
 import type { SaveData, SaveStore } from '../save/SaveStore';
 import type { FpsCap } from '../save/settings';
@@ -225,6 +226,8 @@ export class App {
     const startLevel: QualityLevel =
       settings.quality === 'auto' ? (settings.detectedQuality ?? guessed) : settings.quality;
     this.ctx = new RenderContext(opts.canvas, QUALITY_PRESETS[startLevel].antialias);
+    // Reflections for character metal/leather (rigs created after this pick it up).
+    setCharacterEnvironment(createCharacterEnvironment(this.ctx.renderer));
     const aspect = window.innerWidth / Math.max(window.innerHeight, 1);
     this.camera = new FollowCamera(aspect);
     this.ctx.setSize(

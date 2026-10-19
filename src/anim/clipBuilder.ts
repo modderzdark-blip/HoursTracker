@@ -5,7 +5,7 @@ import {
   QuaternionKeyframeTrack,
   VectorKeyframeTrack,
 } from 'three';
-import { BONE_NAMES } from './HumanoidRig';
+import { BONE_NAMES } from './skeletonDef';
 import type { Pose } from './poses';
 
 export interface ClipKey {

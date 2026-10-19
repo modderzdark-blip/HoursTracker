@@ -1,4 +1,4 @@
-import type { BoneName } from './HumanoidRig';
+import type { BoneName } from './skeletonDef';
 
 /** Euler XYZ rotation in degrees. Conventions (character faces +Z): arm/leg forward = −X,
  *  spine lean forward = +X, knee bend = +X, twist toward the character's left = +Y,

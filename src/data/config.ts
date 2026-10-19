@@ -44,17 +44,17 @@ export const INPUT_CONFIG = {
 } as const;
 
 export const CAMERA_CONFIG = {
-  fovDeg: 50,
+  fovDeg: 48,
   near: 0.1,
   far: 120,
   /** Horizontal distance behind the target. */
-  distance: 6.8,
+  distance: 5.8,
   /** Height above the target's feet. */
-  height: 6.4,
+  height: 5.0,
   /** Orbit angle around the target (0 = camera looks toward -Z / "north"). */
   yawDeg: 0,
   /** Point on the target the camera aims at, above the feet. */
-  lookAtHeight: 1.0,
+  lookAtHeight: 1.1,
   /** Higher = snappier follow. Exponential smoothing rate (1/s). */
   followSharpness: 9,
   /** Camera leads the target in its movement direction by up to this many metres. */
@@ -116,4 +116,23 @@ export const AUDIO_CONFIG = {
   defaultSfxVolume: 1.0,
   defaultMusicVolume: 0.6,
   uiClick: { frequencyHz: 520, durationMs: 45, gain: 0.12 },
+} as const;
+
+/** Character look (procedural rigs). */
+export const CHARACTER_CONFIG = {
+  /**
+   * Multiplier on every character surface colour (linear space, capped at 1). Rig colours are
+   * authored dark for mood; the lift keeps them readable under the arenas' low-key lighting.
+   */
+  albedoLift: 1.9,
+  /** Strength of the camera-facing rim (fresnel) and how tight it is. */
+  rimStrength: 0.28,
+  rimPower: 4,
+  /** Reflections of the character environment on metal, leather and skin. */
+  envIntensity: 1,
+  /**
+   * Soft camera-relative key light computed in the character shader only (no scene light, so
+   * the arena costs nothing extra). Keeps faces and fronts readable under top-down moonlight.
+   */
+  cameraFill: 0.9,
 } as const;

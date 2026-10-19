@@ -128,6 +128,7 @@ export class HubScene {
       anim.play('idle', { loop: true, fade: 0.3 });
     }
     anim.update(dtSec);
+    this.rig?.updateSecondary(dtSec, 0, 0, 0);
   }
 
   private disposeRig(): void {
