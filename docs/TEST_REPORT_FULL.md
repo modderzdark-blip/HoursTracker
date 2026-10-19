@@ -14,7 +14,7 @@ to the developer; everything marked **UNTESTED** needs your phone.
 | 4   | `vite build`                                        | **PASS** — sizes below                                      |
 | 5   | Playwright smoke (Pixel 7 landscape 915×412, touch) | **PASS** — 12/12, incl. hub flow, boss → loot → equip, soak |
 | 6   | Scripted runs of every mode in headless Chrome      | **PASS** — see "Mode runs" (scratch scripts, not in CI)     |
-| 7   | APK build + Android emulator boot (CI)              | Run on push — result in the `ashbound-preview` release      |
+| 7   | APK build + Android emulator boot (CI)              | **PASS** — build #13: installs, boots to the hub, no errors |
 | 8   | GitHub Pages deploy                                 | **BLOCKED** until Pages is enabled in repository settings   |
 | 9   | Real phone (feel, FPS, heat, audio, music)          | **UNTESTED**                                                |
 
