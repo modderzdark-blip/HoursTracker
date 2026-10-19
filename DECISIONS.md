@@ -106,6 +106,11 @@ Each entry: the decision, why, and what would change it.
   password `android`). Reason: every CI runner would otherwise generate a new debug key and
   Android refuses to update an app signed with a different key. It protects nothing, so it must
   never be used for a store release (that needs a private key in repository secrets).
+- **Store signing is secret-gated** (M15): the release `signingConfig` exists only when
+  `ASHBOUND_KEYSTORE_FILE` is set, and the workflow decodes the keystore from a base64 secret
+  into `$RUNNER_TEMP` and deletes it after the build. `secrets` cannot be read in a step `if:`,
+  so the job exposes only a boolean `HAS_RELEASE_KEY`. Signed outputs go to a workflow artifact,
+  not the public pre-release.
 - **versionCode = workflow run number** so each preview installs over the previous one.
 - **Published to one pre-release (`ashbound-preview`) with `gh release upload --clobber`**: a
   stable download link the tester can bookmark on the phone.

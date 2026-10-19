@@ -22,6 +22,9 @@ jobs:
   apk:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      # `secrets` cannot be read in a step's `if:`, so expose only whether the key exists.
+      HAS_RELEASE_KEY: ${{ secrets.ASHBOUND_KEYSTORE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v5
 
@@ -86,6 +89,34 @@ jobs:
           gh release upload "$RELEASE_TAG" "$APK_NAME" --clobber
           gh release edit "$RELEASE_TAG" --notes "$NOTES"
           echo "APK: https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${APK_NAME}"
+
+      # Store-signed build (M15). Runs only when the four ASHBOUND_* secrets exist; without them
+      # these steps are skipped and the preview above is unaffected.
+      - name: Gradle assembleRelease + bundleRelease (store-signed)
+        if: env.HAS_RELEASE_KEY == 'true'
+        working-directory: android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          KEYSTORE_BASE64: ${{ secrets.ASHBOUND_KEYSTORE_BASE64 }}
+          ASHBOUND_KEYSTORE_PASSWORD: ${{ secrets.ASHBOUND_KEYSTORE_PASSWORD }}
+          ASHBOUND_KEY_ALIAS: ${{ secrets.ASHBOUND_KEY_ALIAS }}
+          ASHBOUND_KEY_PASSWORD: ${{ secrets.ASHBOUND_KEY_PASSWORD }}
+        run: |
+          export ASHBOUND_KEYSTORE_FILE="$RUNNER_TEMP/release.keystore"
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$ASHBOUND_KEYSTORE_FILE"
+          ./gradlew --no-daemon --stacktrace assembleRelease bundleRelease
+          rm -f "$ASHBOUND_KEYSTORE_FILE"
+          mkdir -p ../release-out
+          cp app/build/outputs/apk/release/app-release.apk ../release-out/Ashbound-release.apk
+          cp app/build/outputs/bundle/release/app-release.aab ../release-out/Ashbound-release.aab
+          ls -la ../release-out
+
+      - uses: actions/upload-artifact@v6
+        if: env.HAS_RELEASE_KEY == 'true'
+        with:
+          name: ashbound-release
+          path: release-out/
+          if-no-files-found: error
 
   emulator-smoke:
     # Boots an Android emulator, installs the APK, starts the game and attaches screenshots +

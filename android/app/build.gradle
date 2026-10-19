@@ -26,6 +26,16 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        // Store signing, only when CI provides the secrets (see README "Release signing").
+        // Without them the release build type stays unsigned and nothing else changes.
+        if (System.getenv('ASHBOUND_KEYSTORE_FILE')) {
+            release {
+                storeFile file(System.getenv('ASHBOUND_KEYSTORE_FILE'))
+                storePassword System.getenv('ASHBOUND_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ASHBOUND_KEY_ALIAS')
+                keyPassword System.getenv('ASHBOUND_KEY_PASSWORD')
+            }
+        }
     }
     buildTypes {
         debug {
@@ -34,6 +44,9 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (signingConfigs.findByName('release') != null) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

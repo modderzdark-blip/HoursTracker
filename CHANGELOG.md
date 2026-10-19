@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Release signing (M15, optional):** with the `ASHBOUND_*` secrets set, the Android workflow
+  also builds a store-signed APK + AAB as a workflow artifact. Skipped without them; the preview
+  build is unchanged. UNTESTED (no secrets configured).
+
 ## [0.3.0] — Full game loop (2026-10-19)
 
 ### Added

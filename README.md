@@ -129,6 +129,26 @@ The APK is built by `.github/workflows/android-preview.yml` (tests → web build
 `assembleDebug`, signed with a public test key in `android/app/sideload-test.keystore`; never
 use it for a store release).
 
+### Release signing (store builds, optional)
+
+Only needed for a Play Store upload; the preview APK above does not need it. Create a private
+key once (`keytool` comes with any JDK; without a PC, the Termux app can run
+`pkg install openjdk-17`):
+
+```sh
+keytool -genkeypair -v -keystore release.keystore -alias ashbound \
+  -keyalg RSA -keysize 2048 -validity 10000
+base64 -w0 release.keystore > release.keystore.b64
+```
+
+Add four secrets under **Settings → Secrets and variables → Actions**:
+`ASHBOUND_KEYSTORE_BASE64` (the contents of `release.keystore.b64`),
+`ASHBOUND_KEYSTORE_PASSWORD`, `ASHBOUND_KEY_ALIAS` (`ashbound`) and `ASHBOUND_KEY_PASSWORD`.
+From then on each run also builds a signed `Ashbound-release.apk` and `Ashbound-release.aab`
+(workflow artifact `ashbound-release`, not published to the public pre-release). Keep the
+keystore and passwords safe: losing them means no further updates to a store listing. Without
+the secrets those steps are skipped. **UNTESTED** — no secrets exist in this repository yet.
+
 Every push to `main` or any `ccr-*` branch runs `.github/workflows/deploy-pages.yml`:
 typecheck → lint → format check → unit tests → build → deploy.
 
