@@ -64,7 +64,7 @@ type HookCommand =
 /** Calls a test-hook command in the page. */
 export async function hook(
   page: Page,
-  cmd: HookCommand | 'damageBoss' | 'damagePlayer' | 'setGod' | 'startStage',
+  cmd: HookCommand | 'damageBoss' | 'damagePlayer' | 'setGod' | 'setPaused' | 'startStage',
   arg?: number | boolean | string,
 ): Promise<void> {
   await page.evaluate(
