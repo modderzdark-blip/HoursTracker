@@ -1,5 +1,6 @@
 import { Scene } from 'three';
 import type { AudioManager } from '../audio/AudioManager';
+import { Music } from '../audio/Music';
 import { FollowCamera } from '../camera/FollowCamera';
 import { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
@@ -193,6 +194,7 @@ export class App {
   private battle: BattleMode | null = null;
   private battlePhysics: PhysicsWorld | null = null;
   private readonly runs: Runs;
+  private readonly music: Music;
   private pendingOutcome: BattleOutcome | null = null;
   private saveTimer = 0;
   private resizePending = false;
@@ -238,6 +240,9 @@ export class App {
     // --- Input -------------------------------------------------------------------------
     this.input = new InputState(INPUT_CONFIG.bufferMs, () => this.clock.nowMs, this.bus);
     this.touch = new TouchControls(opts.uiRoot, this.input);
+    this.touch.applyLayout(settings.buttonScale, settings.buttonOpacity, settings.leftHanded);
+    opts.uiRoot.classList.toggle('no-damage-numbers', !settings.showDamageNumbers);
+    this.music = new Music(opts.audio);
     this.keyboard = new KeyboardInput(this.input);
     this.gamepad = new GamepadInput(this.input);
 
@@ -416,6 +421,7 @@ export class App {
   // ------------------------------------------------------------------ hub / battle switching
 
   private showHub(): void {
+    this.music.play('hub');
     this.ctx.setScene(this.hubScene.scene);
     this.touch.setVisible(false);
     this.hud.setPauseVisible(false);
@@ -458,6 +464,7 @@ export class App {
       setup,
     );
     this.battle = battle;
+    this.music.play(setup.duel !== undefined || setup.stage.waves.length === 0 ? 'boss' : 'battle');
     this.quality.addTarget(battle);
     battle.render(1, 0, 1);
     // Compile all shaders (incl. hidden pooled effects) before the first frame of the fight.
@@ -495,6 +502,7 @@ export class App {
     if (outcome === null) return;
     this.endBattle();
     this.menus.setVisible(true);
+    this.music.play('hub');
     this.runs.finish(outcome);
   }
 
@@ -567,6 +575,12 @@ export class App {
         s.vibration = on;
         this.persistSoon();
       },
+      update: (patch) => {
+        Object.assign(s, patch);
+        this.touch.applyLayout(s.buttonScale, s.buttonOpacity, s.leftHanded);
+        this.opts.uiRoot.classList.toggle('no-damage-numbers', !s.showDamageNumbers);
+        this.persistSoon();
+      },
       fullscreen: () => {
         void enterFullscreenLandscape();
       },
@@ -577,7 +591,15 @@ export class App {
   private wireEvents(): void {
     const b = this.bus;
     this.disposers.push(
-      b.on('camera:shake', (e) => this.camera.shake.addTrauma(e.trauma)),
+      b.on('camera:shake', (e) =>
+        this.camera.shake.addTrauma(e.trauma * this.opts.save.settings.screenShake),
+      ),
+      b.on('stage:bossIntro', () => this.music.play('boss')),
+      b.on('stage:victory', () => this.music.stop()),
+      b.on('player:died', () => this.music.stop()),
+      b.on('player:revived', () =>
+        this.music.play(this.battle?.boss?.inWorld === true ? 'boss' : 'battle'),
+      ),
       b.on('time:hitStop', (e) => this.time.hitStop(e.ms)),
       b.on('time:slowMotion', (e) => this.time.slowMotion(e.scale, e.ms)),
       b.on('ultimate:charge', (e) => this.touch.setUltimateCharge(e.value)),
@@ -855,6 +877,7 @@ export class App {
 
   dispose(): void {
     this.loop.stop();
+    this.music.stop();
     for (const d of this.disposers) d();
     this.endBattle();
     this.hubScene.dispose();

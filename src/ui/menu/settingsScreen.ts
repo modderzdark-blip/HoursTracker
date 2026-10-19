@@ -44,7 +44,7 @@ function nearestVolume(v: number): number {
   return best;
 }
 
-/** Settings: graphics, FPS cap, audio, vibration, debug tools. */
+/** Settings: graphics, FPS cap, audio, vibration, controls layout, accessibility, debug tools. */
 export function renderSettings(ctx: MenuContext): void {
   const v = ctx.shell.begin('Settings', () => ctx.nav.hub(), 'settings');
   const s = ctx.settings;
@@ -138,6 +138,90 @@ export function renderSettings(ctx: MenuContext): void {
       ),
     );
   }
+  b.append(
+    segmented<number>(
+      v,
+      'Button size',
+      [
+        { value: 0.85, label: 'S' },
+        { value: 1, label: 'M' },
+        { value: 1.15, label: 'L' },
+        { value: 1.3, label: 'XL' },
+      ],
+      st.buttonScale,
+      (x) => {
+        ctx.uiTap();
+        s.update({ buttonScale: x });
+        again();
+      },
+      'set-btn-scale',
+    ),
+    segmented<number>(
+      v,
+      'Button opacity',
+      [
+        { value: 0.5, label: '50' },
+        { value: 0.7, label: '70' },
+        { value: 0.88, label: '88' },
+        { value: 1, label: '100' },
+      ],
+      st.buttonOpacity,
+      (x) => {
+        ctx.uiTap();
+        s.update({ buttonOpacity: x });
+        again();
+      },
+      'set-btn-opacity',
+    ),
+    segmented<'on' | 'off'>(
+      v,
+      'Damage numbers',
+      [
+        { value: 'on', label: 'On' },
+        { value: 'off', label: 'Off' },
+      ],
+      st.showDamageNumbers ? 'on' : 'off',
+      (x) => {
+        ctx.uiTap();
+        s.update({ showDamageNumbers: x === 'on' });
+        again();
+      },
+      'set-numbers',
+    ),
+  );
+  a.append(
+    segmented<'right' | 'left'>(
+      v,
+      'Layout',
+      [
+        { value: 'right', label: 'Right hand' },
+        { value: 'left', label: 'Left hand' },
+      ],
+      st.leftHanded ? 'left' : 'right',
+      (x) => {
+        ctx.uiTap();
+        s.update({ leftHanded: x === 'left' });
+        again();
+      },
+      'set-hand',
+    ),
+    segmented<number>(
+      v,
+      'Screen shake',
+      [
+        { value: 0, label: 'Off' },
+        { value: 0.5, label: 'Half' },
+        { value: 1, label: 'Full' },
+      ],
+      st.screenShake,
+      (x) => {
+        ctx.uiTap();
+        s.update({ screenShake: x });
+        again();
+      },
+      'set-shake',
+    ),
+  );
   const note = el('p', 'panel-note', '');
   const row = el('div', 'button-row');
   row.append(

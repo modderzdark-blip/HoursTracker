@@ -282,6 +282,28 @@ test.describe('Ashbound smoke (Pixel 7 landscape, touch)', () => {
     expect(errors).toEqual([]);
   });
 
+  test('settings: left-handed layout mirrors the buttons; damage numbers can be hidden', async ({
+    page,
+  }) => {
+    const errors = collectErrors(page);
+    await enterHub(page);
+    await page.getByTestId('dock-settings').tap();
+    await page.getByTestId('set-hand-left').tap();
+    await page.getByTestId('set-btn-scale-1.3').tap();
+    await page.getByTestId('set-numbers-off').tap();
+    await page.getByTestId('menu-back').tap();
+    await hook(page, 'startStage', 'c1s1');
+    await expect.poll(async () => (await state(page)).screen, { timeout: 30_000 }).toBe('battle');
+    const attack = await page.locator('.tc-attack').boundingBox();
+    expect(attack).not.toBeNull();
+    expect((attack?.x ?? 999) + (attack?.width ?? 0) / 2).toBeLessThan(915 / 2);
+    expect(attack?.width ?? 0).toBeGreaterThan(108 * 1.2);
+    await expect(page.locator('.dmg-layer')).toBeHidden();
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOTS}/15-left-handed.png` });
+    expect(errors).toEqual([]);
+  });
+
   test('hidden gesture: triple-tap top-left corner toggles the debug overlay', async ({
     page,
     context,

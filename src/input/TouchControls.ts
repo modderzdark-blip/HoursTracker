@@ -115,6 +115,15 @@ export class TouchControls {
     );
   }
 
+  /** Button size / opacity and the mirrored (left-handed) layout from settings. */
+  applyLayout(scale: number, opacity: number, leftHanded: boolean): void {
+    this.root.style.setProperty('--btn-scale', String(scale));
+    this.root.style.setProperty('--btn-opacity', String(opacity));
+    this.root.classList.toggle('is-left', leftHanded);
+    this.releaseAll();
+    this.resetJoystickVisual();
+  }
+
   /** Disabling (pause menu open) releases every touch and ignores new ones. */
   setEnabled(enabled: boolean): void {
     if (this.enabled === enabled) return;
@@ -271,7 +280,8 @@ export class TouchControls {
   private resetJoystickVisual(): void {
     const r = INPUT_CONFIG.joystick.radiusPx;
     // Resting spot hints where the stick lives; it jumps to wherever the thumb lands.
-    const left = Math.max(r * 1.6, window.innerWidth * 0.14);
+    const inset = Math.max(r * 1.6, window.innerWidth * 0.14);
+    const left = this.root.classList.contains('is-left') ? window.innerWidth - inset : inset;
     const top = window.innerHeight - r * 1.9;
     this.base.classList.add('is-idle');
     this.placeBase(left, top);

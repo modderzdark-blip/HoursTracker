@@ -51,6 +51,15 @@ export interface SettingsPort {
   setDebugOverlay(on: boolean): void;
   setVolume(kind: 'masterVolume' | 'sfxVolume' | 'musicVolume', value: number): void;
   setVibration(on: boolean): void;
+  /** Layout / accessibility options (applied immediately and saved). */
+  update(
+    patch: Partial<
+      Pick<
+        Settings,
+        'buttonScale' | 'buttonOpacity' | 'leftHanded' | 'screenShake' | 'showDamageNumbers'
+      >
+    >,
+  ): void;
   fullscreen(): void;
   copyLog(): Promise<boolean>;
 }

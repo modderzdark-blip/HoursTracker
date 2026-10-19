@@ -510,6 +510,28 @@ body {
   width: 0;
   height: 0;
   pointer-events: none !important;
+  transform: scale(var(--btn-scale, 1));
+  transform-origin: 0 0;
+}
+
+/* Left-handed: the cluster is mirrored to the left edge (labels flipped back), stick on the right. */
+.touch-layer.is-left .tc-cluster {
+  right: auto;
+  left: 0;
+  transform: scale(calc(var(--btn-scale, 1) * -1), var(--btn-scale, 1));
+}
+
+.touch-layer.is-left .tc-btn > * {
+  transform: scaleX(-1);
+}
+
+.touch-layer.is-left .tc-joy-zone {
+  left: auto;
+  right: 0;
+}
+
+.no-damage-numbers .dmg-layer {
+  display: none;
 }
 
 .tc-btn {

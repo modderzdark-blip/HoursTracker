@@ -11,6 +11,21 @@ import {
 import { DEFAULT_SETTINGS, sanitizeSettings } from '../../src/save/settings';
 
 describe('sanitizeSettings', () => {
+  it('clamps layout / accessibility options and keeps valid ones', () => {
+    const s = sanitizeSettings({
+      buttonScale: 9,
+      buttonOpacity: 0.1,
+      leftHanded: true,
+      screenShake: 'x',
+      showDamageNumbers: false,
+    });
+    expect(s.buttonScale).toBe(1.4);
+    expect(s.buttonOpacity).toBe(0.4);
+    expect(s.leftHanded).toBe(true);
+    expect(s.screenShake).toBe(1);
+    expect(s.showDamageNumbers).toBe(false);
+  });
+
   it('returns defaults for garbage', () => {
     expect(sanitizeSettings(null)).toEqual(DEFAULT_SETTINGS);
     expect(sanitizeSettings('x')).toEqual(DEFAULT_SETTINGS);

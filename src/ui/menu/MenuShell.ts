@@ -55,8 +55,11 @@ export class MenuShell {
     }
     top.append(this.back, this.title, bar);
     this.body = el('div', 'menu-body');
+    // Menu lists scroll natively; the game's gesture guard blocks panning everywhere else.
+    this.body.dataset['allowScroll'] = '';
     this.view = new View(this.body);
     this.modalRoot = el('div', 'modal is-hidden');
+    this.modalRoot.dataset['allowScroll'] = '';
     this.modal = new View(el('div', 'panel modal-panel'));
     this.modalRoot.append(this.modal.root);
     this.root.append(top, this.body, this.modalRoot);
