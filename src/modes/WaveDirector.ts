@@ -82,7 +82,10 @@ export class WaveDirector {
     this.phaseMs += dtMs;
     switch (this.phase) {
       case 'countdown':
-        if (this.phaseMs >= this.stage.introCountdownMs) this.startWave(0);
+        if (this.phaseMs >= this.stage.introCountdownMs) {
+          if (this.stage.waves.length > 0) this.startWave(0);
+          else this.afterWaves();
+        }
         break;
       case 'wave':
         this.spawnStep(dtMs);
@@ -93,15 +96,8 @@ export class WaveDirector {
         break;
       case 'interwave':
         if (this.phaseMs >= this.stage.interWaveMs) {
-          if (this.wave + 1 < this.stage.waves.length) {
-            this.startWave(this.wave + 1);
-          } else if (this.stage.boss !== null) {
-            this.setPhase('bossIntro');
-            this.world.startBossIntro();
-          } else {
-            this.setPhase('victory');
-            this.world.onVictory();
-          }
+          if (this.wave + 1 < this.stage.waves.length) this.startWave(this.wave + 1);
+          else this.afterWaves();
         }
         break;
       case 'bossIntro':
@@ -116,6 +112,19 @@ export class WaveDirector {
       case 'victory':
       case 'defeat':
         break;
+    }
+  }
+
+  /** All waves done (or none): boss intro, duel, or victory. */
+  private afterWaves(): void {
+    if (this.stage.duel === true) {
+      this.setPhase('boss');
+    } else if (this.stage.boss !== null) {
+      this.setPhase('bossIntro');
+      this.world.startBossIntro();
+    } else {
+      this.setPhase('victory');
+      this.world.onVictory();
     }
   }
 

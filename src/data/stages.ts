@@ -32,6 +32,8 @@ export interface StageDef {
   readonly introCountdownMs: number;
   readonly waves: readonly WaveDef[];
   readonly boss: BossId | null;
+  /** Arena duel: no waves; the fight ends when the opposing hero falls. */
+  readonly duel?: boolean;
   readonly stars: StarRules;
   /** Pause between a cleared wave and the next. */
   readonly interWaveMs: number;
