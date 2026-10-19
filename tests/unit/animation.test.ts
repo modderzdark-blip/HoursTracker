@@ -72,3 +72,49 @@ describe('strike keys', () => {
     expect(blendPose(a, b, 0.5).root).toEqual([0, 0.5, 0]);
   });
 });
+
+describe('run cycle keeps the feet planted', () => {
+  it('stance foot moves backward at about the running speed (no ice skating)', async () => {
+    const { HumanoidRig } = await import('../../src/anim/HumanoidRig');
+    const { AnimationController } = await import('../../src/anim/AnimationController');
+    const { buildHumanoidClips } = await import('../../src/anim/clipSets');
+    const { runCycleSec } = await import('../../src/anim/locomotion');
+    const { RIGS } = await import('../../src/data/rigs');
+    const { Vector3: V3 } = await import('three');
+    for (const speed of [3, 6.2]) {
+      const rig = new HumanoidRig(RIGS.kael);
+      const clips = buildHumanoidClips(NEUTRAL);
+      const anim = new AnimationController(rig.root, clips.clips, clips.additive);
+      const cycle = runCycleSec(speed, 1);
+      anim.play('run', { loop: true, durationSec: cycle, fade: 0 });
+      const ankle = new V3();
+      const shin = RIGS.kael.proportions.shin;
+      const samples: { y: number; z: number }[] = [];
+      const dt = cycle / 120;
+      for (let i = 0; i < 240; i++) {
+        anim.update(dt);
+        rig.root.updateMatrixWorld(true);
+        ankle.set(0, -shin, 0);
+        rig.bone('LeftLeg').localToWorld(ankle);
+        if (i >= 120) samples.push({ y: ankle.y, z: ankle.z });
+      }
+      // Stance = the lowest third of the cycle; measure the foot's backward speed there.
+      const ys = samples.map((s) => s.y).sort((a, b) => a - b);
+      const cut = ys[Math.floor(ys.length / 3)] ?? 0;
+      let dist = 0;
+      let time = 0;
+      for (let i = 1; i < samples.length; i++) {
+        const a = samples[i - 1];
+        const b = samples[i];
+        if (a === undefined || b === undefined || a.y > cut || b.y > cut) continue;
+        dist += a.z - b.z;
+        time += dt;
+      }
+      const footSpeed = dist / time;
+      expect(footSpeed, `speed ${speed}`).toBeGreaterThan(speed * 0.6);
+      expect(footSpeed, `speed ${speed}`).toBeLessThan(speed * 1.5);
+      anim.dispose();
+      rig.dispose();
+    }
+  });
+});

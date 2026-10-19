@@ -5,6 +5,7 @@ import {
   buildDodgeClips,
   buildHumanoidClips,
 } from '../anim/clipSets';
+import { runCycleSec } from '../anim/locomotion';
 import { POSE_LIBRARY } from '../anim/poses';
 import { ActionRunner } from '../combat/ActionRunner';
 import type { CombatSystem, StrikeOptions } from '../combat/CombatSystem';
@@ -305,7 +306,7 @@ export class Player extends Actor {
     const speed = this.motor.planarSpeed;
     const running = speed > (this.wasRunning ? 0.35 : 0.6);
     if (running) {
-      const cadence = Math.min(1.5, 0.72 * (this.stats.moveSpeed / Math.max(speed, 0.5)));
+      const cadence = runCycleSec(speed, this.rig.def.scale);
       this.anim.play('run', {
         loop: true,
         durationSec: cadence,

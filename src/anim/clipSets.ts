@@ -50,15 +50,19 @@ export function buildHumanoidClips(idle: Pose): {
     idleRoot[1] - 0.012,
     idleRoot[2],
   ]);
-  // Run: body drops on contact, rises on the passing step; hips twist with the legs while the
-  // chest counter-twists.
+  // Run: contact → pass (stance leg under the body, swing leg tucked) → flight → mirrored.
+  // Hips twist with the legs while the chest counter-twists.
   const runA = pose(
     STRIDE_A,
-    { Spine: [(idle.r.Spine?.[0] ?? 0) + 8, 0, 0], Hips: [0, 7, 0], Chest: [0, -12, 0] },
-    [0, -0.04, 0],
+    { Spine: [(idle.r.Spine?.[0] ?? 0) + 8, 0, 0], Hips: [0, 8, 0], Chest: [0, -12, 0] },
+    [0, -0.03, 0],
   );
   const runB = mirror(runA);
-  const pass = pose(STRIDE_PASS, {}, [0, 0.03, 0]);
+  const passL = pose(STRIDE_PASS, { Spine: [(idle.r.Spine?.[0] ?? 0) + 9, 0, 0] });
+  const passR = mirror(passL);
+  // Flight: both feet off the ground between pass and the next contact.
+  const flyL = pose(blendPose(passL, runB, 0.55), {}, [0, 0.045, 0]);
+  const flyR = mirror(flyL);
   const lean = pose(
     idle,
     { Spine: [-25, 0, 0], Chest: [-10, 0, 0], Head: [-15, 0, 0] },
@@ -72,11 +76,13 @@ export function buildHumanoidClips(idle: Pose): {
       { t: 0.75, pose: shiftR },
       { t: 1, pose: idle },
     ]),
-    buildPoseClip('run', 0.72, [
+    buildPoseClip('run', 0.6, [
       { t: 0, pose: runA },
-      { t: 0.25, pose: pass },
+      { t: 0.2, pose: passL },
+      { t: 0.36, pose: flyL },
       { t: 0.5, pose: runB },
-      { t: 0.75, pose: pass },
+      { t: 0.7, pose: passR },
+      { t: 0.86, pose: flyR },
       { t: 1, pose: runA },
     ]),
     buildPoseClip('knockdown', 1, [

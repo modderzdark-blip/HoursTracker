@@ -1,5 +1,6 @@
 import type { Scene } from 'three';
 import { buildEnemyAttackClips, buildHumanoidClips } from '../anim/clipSets';
+import { runCycleSec } from '../anim/locomotion';
 import { POSE_LIBRARY } from '../anim/poses';
 import { EnemyBrain, type BrainContext } from '../ai/EnemyBrain';
 import type { EnemyAttackDef, EnemyDef } from '../data/enemies';
@@ -216,13 +217,7 @@ export class Enemy extends Actor {
   playLocomotion(speed: number): void {
     const moving = speed > (this.wasMoving ? 0.3 : 0.5);
     if (moving) {
-      const cadence = Math.min(
-        1.6,
-        Math.max(
-          0.42,
-          (0.72 * this.def.stats.moveSpeed * 0.55 * this.rig.def.scale) / Math.max(speed, 0.3),
-        ),
-      );
+      const cadence = runCycleSec(speed, this.rig.def.scale);
       this.anim.play('run', { loop: true, durationSec: cadence, fade: 0.15 });
     } else if (
       this.wasMoving ||

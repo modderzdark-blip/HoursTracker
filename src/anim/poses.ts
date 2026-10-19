@@ -97,33 +97,39 @@ export const HUNCHED: Pose = pose(NEUTRAL, {
   RightForeArm: [-40, 0, 0],
 });
 
+/** Running contact: left foot lands in front, right leg pushes off behind. */
 export const STRIDE_A: Pose = pose(NEUTRAL, {
   Spine: [12, 0, 0],
   Chest: [0, -8, 0],
-  LeftUpLeg: [-38, 0, 2],
-  LeftLeg: [12, 0, 0],
-  RightUpLeg: [28, 0, -2],
-  RightLeg: [65, 0, 0],
-  LeftArm: [30, 0, 10],
-  RightArm: [-38, 0, -10],
-  LeftForeArm: [-30, 0, 0],
-  RightForeArm: [-60, 0, 0],
+  LeftUpLeg: [-50, 0, 2],
+  LeftLeg: [16, 0, 0],
+  RightUpLeg: [32, 0, -2],
+  RightLeg: [72, 0, 0],
+  LeftArm: [38, 0, 10],
+  RightArm: [-48, 0, -10],
+  LeftForeArm: [-38, 0, 0],
+  RightForeArm: [-82, 0, 0],
 });
 
+/**
+ * Running pass: left leg under the body carrying the weight, right leg swinging through with
+ * the knee tucked high (mirror it for the other side).
+ */
 export const STRIDE_PASS: Pose = pose(
   NEUTRAL,
   {
-    Spine: [12, 0, 0],
-    LeftUpLeg: [-8, 0, 2],
-    LeftLeg: [35, 0, 0],
-    RightUpLeg: [-8, 0, -2],
-    RightLeg: [35, 0, 0],
-    LeftArm: [-4, 0, 10],
-    RightArm: [-4, 0, -10],
-    LeftForeArm: [-40, 0, 0],
-    RightForeArm: [-40, 0, 0],
+    Spine: [13, 0, 0],
+    Chest: [0, -2, 0],
+    LeftUpLeg: [4, 0, 2],
+    LeftLeg: [28, 0, 0],
+    RightUpLeg: [-28, 0, -2],
+    RightLeg: [108, 0, 0],
+    LeftArm: [6, 0, 10],
+    RightArm: [-12, 0, -10],
+    LeftForeArm: [-50, 0, 0],
+    RightForeArm: [-62, 0, 0],
   },
-  [0, 0.05, 0],
+  [0, -0.035, 0],
 );
 
 /** Lying on the back (knockdown / death). */
