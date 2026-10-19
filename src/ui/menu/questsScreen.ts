@@ -71,13 +71,18 @@ export function renderQuests(ctx: MenuContext): void {
   const left = el('div', 'mode-col');
   const right = el('div', 'mode-col');
 
-  left.append(
+  // The gift calendar spans both columns so its seven days have room on a phone.
+  const gifts = el('div', 'journal-gifts');
+  gifts.append(
     el('div', 'mode-big', 'Daily gifts'),
     calendar(ctx, v, () => {
       claimLogin(ctx);
       rerender();
     }),
-    el('div', 'pb-label', `Daily quests · new in ${untilMidnight(now)}`),
+  );
+  left.append(
+    el('div', 'mode-big', 'Daily quests'),
+    el('div', 'pb-label', `New quests in ${untilMidnight(now)}`),
   );
   const d = p.data.daily;
   for (const q of d.quests) {
@@ -182,7 +187,7 @@ export function renderQuests(ctx: MenuContext): void {
     list.append(row);
   }
   right.append(list);
-  wrap.append(left, right);
+  wrap.append(gifts, left, right);
   v.root.append(wrap);
 }
 

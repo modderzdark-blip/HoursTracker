@@ -81,7 +81,7 @@ export function renderStageMap(ctx: MenuContext, chapterNumber: number): void {
     'map-stars',
     `★ ${p.totalStars(chapter.number, difficulty)} / ${chapter.stages.length * 3}`,
   );
-  top.append(tabs, el('div', 'map-sub', chapter.subtitle), total, diffs);
+  top.append(tabs, total, diffs);
 
   const path = el('div', 'map-path');
   const n = chapter.stages.length;
@@ -123,7 +123,9 @@ export function renderStageMap(ctx: MenuContext, chapterNumber: number): void {
   line.setAttribute('points', points.join(' '));
   svg.append(line);
   path.prepend(svg);
-  v.root.append(top, path);
+  const page = el('div', 'map');
+  page.append(top, el('div', 'map-sub', chapter.subtitle), path);
+  v.root.append(page);
 }
 
 function openPreBattle(ctx: MenuContext, stage: AdventureStageDef, difficulty: DifficultyId): void {
