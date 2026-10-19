@@ -3,6 +3,7 @@ import {
   TouchDriver,
   centerOf,
   collectErrors,
+  enterHub,
   heapAfterGC,
   hook,
   slope,
@@ -23,6 +24,38 @@ test.describe('Ashbound smoke (Pixel 7 landscape, touch)', () => {
     expect(errors).toEqual([]);
   });
 
+  test('hub → Adventure → stage 1-1 with real taps; gear, skills and heroes screens open', async ({
+    page,
+  }) => {
+    const errors = collectErrors(page);
+    await enterHub(page);
+    await expect(page.getByTestId('menu')).toHaveAttribute('data-screen', 'hub');
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOTS}/02-hub.png` });
+    for (const [dock, screen] of [
+      ['dock-heroes', 'heroes'],
+      ['dock-gear', 'gear'],
+      ['dock-skills', 'skills'],
+      ['dock-settings', 'settings'],
+    ] as const) {
+      await page.getByTestId(dock).tap();
+      await expect(page.getByTestId('menu')).toHaveAttribute('data-screen', screen);
+      await page.getByTestId('menu-back').tap();
+      await expect(page.getByTestId('menu')).toHaveAttribute('data-screen', 'hub');
+    }
+    await page.getByTestId('mode-adventure').tap();
+    await expect(page.getByTestId('menu')).toHaveAttribute('data-screen', 'map');
+    await page.screenshot({ path: `${SHOTS}/03-map.png` });
+    await page.getByTestId('stage-c1s2').tap();
+    await expect(page.locator('.modal-panel')).toBeHidden();
+    await page.getByTestId('stage-c1s1').tap();
+    await expect(page.getByTestId('prebattle-start')).toBeVisible();
+    await page.getByTestId('prebattle-start').tap();
+    await expect.poll(async () => (await state(page)).screen, { timeout: 30_000 }).toBe('battle');
+    expect((await state(page)).stage.id).toBe('c1s1');
+    expect(errors).toEqual([]);
+  });
+
   test('battle renders: arena, hero, dummy, HUD; within the draw-call budget', async ({ page }) => {
     const errors = collectErrors(page);
     await startGame(page);
@@ -35,7 +68,7 @@ test.describe('Ashbound smoke (Pixel 7 landscape, touch)', () => {
     expect(s.drawCalls).toBeLessThan(150);
     await expect(page.getByTestId('touch-layer')).toBeVisible();
     await expect(page.getByTestId('start-now')).toBeVisible();
-    const shot = await page.screenshot({ path: `${SHOTS}/02-practice.png` });
+    const shot = await page.screenshot({ path: `${SHOTS}/04-practice.png` });
     const variance = await page.evaluate(async (b64) => {
       const img = new Image();
       img.src = `data:image/png;base64,${b64}`;
@@ -137,41 +170,52 @@ test.describe('Ashbound smoke (Pixel 7 landscape, touch)', () => {
     const s = await state(page);
     expect(s.stage.killed).toBeGreaterThanOrEqual(1);
     expect(s.ultimate).toBeGreaterThan(0);
-    await page.screenshot({ path: `${SHOTS}/03-wave.png` });
+    await page.screenshot({ path: `${SHOTS}/05-wave.png` });
     expect(errors).toEqual([]);
   });
 
-  test('boss: intro cinematic → phased fight → victory screen with rewards', async ({ page }) => {
+  test('boss stage 1-8: intro → phases → victory with loot → gear equip raises power', async ({
+    page,
+  }) => {
     test.setTimeout(180_000);
     const errors = collectErrors(page);
-    await startGame(page);
+    await startGame(page, 'c1s8');
     await hook(page, 'setGod', true);
-    const gemsBefore = (await state(page)).wallet['gems'] ?? 0;
+    const before = await state(page);
     await hook(page, 'skipToBoss');
     await expect.poll(async () => (await state(page)).boss.active, { timeout: 30_000 }).toBe(true);
     expect((await state(page)).cinematic).toBe(true);
-    await page.screenshot({ path: `${SHOTS}/04-boss-intro.png` });
+    await page.screenshot({ path: `${SHOTS}/06-boss-intro.png` });
     await expect
       .poll(async () => (await state(page)).stage.phase, { timeout: 30_000 })
       .toBe('boss');
     await expect(page.getByTestId('boss-bar')).toBeVisible();
     await page.waitForTimeout(1500);
-    await page.screenshot({ path: `${SHOTS}/05-boss-fight.png` });
+    await page.screenshot({ path: `${SHOTS}/07-boss-fight.png` });
     await hook(page, 'damageBoss', 0.45);
     await expect.poll(async () => (await state(page)).boss.phase, { timeout: 30_000 }).toBe(1);
     await page.waitForTimeout(2500);
-    await page.screenshot({ path: `${SHOTS}/06-boss-phase2.png` });
+    await page.screenshot({ path: `${SHOTS}/08-boss-phase2.png` });
     await hook(page, 'killBoss');
-    await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByTestId('result-screen')).toHaveAttribute('data-result', 'victory');
-    await page.waitForTimeout(1200);
-    await page.screenshot({ path: `${SHOTS}/07-victory.png` });
+    await expect.poll(async () => (await state(page)).screen, { timeout: 60_000 }).toBe('victory');
+    await page.waitForTimeout(2500);
+    await page.screenshot({ path: `${SHOTS}/09-victory.png` });
     const s = await state(page);
-    expect(s.wallet['gems']).toBe(gemsBefore + 5);
+    expect(s.wallet['gold']).toBeGreaterThan(before.wallet['gold'] ?? 0);
     expect(s.wallet['souls']).toBeGreaterThanOrEqual(25);
-    await page.getByTestId('result-again').tap();
-    await expect(page.getByTestId('result-screen')).toBeHidden();
-    expect((await state(page)).stage.phase).toBe('countdown');
+    expect(s.items).toBeGreaterThanOrEqual(3);
+    expect(s.hero.xp + s.hero.level).toBeGreaterThan(before.hero.xp + before.hero.level);
+    await expect(page.locator('.loot-card')).toHaveCount(s.items);
+    // Equip the first item from the bag: power goes up.
+    await page.getByTestId('result-map').tap();
+    await expect(page.getByTestId('menu')).toHaveAttribute('data-screen', 'map');
+    await page.getByTestId('menu-back').tap();
+    await page.getByTestId('dock-gear').tap();
+    const powerBefore = (await state(page)).hero.power;
+    await page.locator('.item-grid .item-tile').first().tap();
+    await page.getByTestId('item-equip').tap();
+    await expect.poll(async () => (await state(page)).hero.power).toBeGreaterThan(powerBefore);
+    await page.screenshot({ path: `${SHOTS}/10-gear.png` });
     expect(errors).toEqual([]);
   });
 
@@ -184,7 +228,7 @@ test.describe('Ashbound smoke (Pixel 7 landscape, touch)', () => {
     await hook(page, 'damagePlayer', 1);
     await expect(page.getByTestId('result-screen')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId('result-screen')).toHaveAttribute('data-result', 'defeat');
-    await page.screenshot({ path: `${SHOTS}/08-defeat.png` });
+    await page.screenshot({ path: `${SHOTS}/11-defeat.png` });
     await page.getByTestId('result-revive').tap();
     await expect(page.getByTestId('result-screen')).toBeHidden();
     let s = await state(page);
@@ -197,6 +241,11 @@ test.describe('Ashbound smoke (Pixel 7 landscape, touch)', () => {
     await page.getByTestId('result-retry').tap();
     s = await state(page);
     expect(s.player.hp).toBe(s.player.maxHp);
+    // Give up → defeat summary in the menus, no rewards.
+    await hook(page, 'damagePlayer', 1);
+    await expect(page.getByTestId('result-giveup')).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId('result-giveup').tap();
+    await expect.poll(async () => (await state(page)).screen, { timeout: 15_000 }).toBe('defeat');
     expect(errors).toEqual([]);
   });
 
@@ -210,13 +259,13 @@ test.describe('Ashbound smoke (Pixel 7 landscape, touch)', () => {
     await page.getByTestId('hud-pause').tap();
     await expect(page.getByTestId('pause-menu')).toBeVisible();
     expect((await state(page)).paused).toBe(true);
-    await page.screenshot({ path: `${SHOTS}/09-pause.png` });
+    await page.screenshot({ path: `${SHOTS}/12-pause.png` });
     await page.getByTestId('copy-log').tap();
     await expect(page.getByTestId('copy-result')).toContainText('copied');
     const clip = await page.evaluate(() => navigator.clipboard.readText());
     expect(clip).toContain('=== ASHBOUND DEBUG LOG ===');
     expect(clip).toContain('gpuRenderer');
-    expect(clip).toContain('stage countdown');
+    expect(clip).toContain('stage c1s1 countdown');
     await page.locator('.segment[data-value="30"]').tap();
     await page.locator('.segment[data-value="high"]').tap();
     await page.waitForFunction(
@@ -228,7 +277,7 @@ test.describe('Ashbound smoke (Pixel 7 landscape, touch)', () => {
     await page.getByTestId('pause-resume').tap();
     await expect(page.getByTestId('pause-menu')).toBeHidden();
     await page.waitForTimeout(1200);
-    await page.screenshot({ path: `${SHOTS}/10-high.png` });
+    await page.screenshot({ path: `${SHOTS}/13-high.png` });
     expect((await state(page)).paused).toBe(false);
     expect(errors).toEqual([]);
   });
@@ -244,7 +293,7 @@ test.describe('Ashbound smoke (Pixel 7 landscape, touch)', () => {
     await page.waitForTimeout(600);
     await expect(page.locator('.debug-text')).toContainText('FPS');
     await expect(page.locator('.debug-text')).toContainText('draws');
-    await page.screenshot({ path: `${SHOTS}/11-debug.png` });
+    await page.screenshot({ path: `${SHOTS}/14-debug.png` });
     // The first CDP touch after a quiet period takes ~2 s to dispatch in headless Chromium
     // (measured: no long tasks in the page). Warm the input path with a tap on empty screen.
     await touch.tap(5, 450, 220, 30);

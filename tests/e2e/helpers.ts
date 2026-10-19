@@ -4,6 +4,7 @@ export interface HookState {
   ready: boolean;
   running: boolean;
   paused: boolean;
+  screen: string;
   player: {
     x: number;
     y: number;
@@ -21,6 +22,7 @@ export interface HookState {
   ultimate: number;
   skillReady: boolean[];
   stage: {
+    id: string;
     phase: string;
     wave: number;
     enemiesAlive: number;
@@ -36,6 +38,8 @@ export interface HookState {
     state: string;
     breakFrac: number;
   };
+  hero: { id: string; level: number; xp: number; power: number };
+  items: number;
   wallet: Record<string, number>;
   tokensInUse: number;
   telegraphs: number;
@@ -55,13 +59,13 @@ export interface HookState {
 }
 
 type HookCommand =
-  'skipCountdown' | 'killAll' | 'skipToBoss' | 'killBoss' | 'restart' | 'fillUltimate';
+  'skipCountdown' | 'killAll' | 'skipToBoss' | 'killBoss' | 'restart' | 'fillUltimate' | 'goHub';
 
 /** Calls a test-hook command in the page. */
 export async function hook(
   page: Page,
-  cmd: HookCommand | 'damageBoss' | 'damagePlayer' | 'setGod',
-  arg?: number | boolean,
+  cmd: HookCommand | 'damageBoss' | 'damagePlayer' | 'setGod' | 'startStage',
+  arg?: number | boolean | string,
 ): Promise<void> {
   await page.evaluate(
     ([c, a]) => {
@@ -92,21 +96,36 @@ export async function state(page: Page): Promise<HookState> {
   });
 }
 
-export async function startGame(page: Page): Promise<void> {
+/** Title → tap → hub. */
+export async function enterHub(page: Page): Promise<void> {
   await page.goto('./');
   await page.locator('.title-start.is-pulsing').waitFor({ timeout: 90_000 });
   await page.touchscreen.tap(450, 300);
   await page.waitForFunction(
     () =>
       (
-        window as unknown as { __ashbound?: { state: () => { running: boolean; frames: number } } }
-      ).__ashbound?.state().running === true,
+        window as unknown as { __ashbound?: { state: () => { running: boolean; screen: string } } }
+      ).__ashbound?.state().screen === 'hub',
   );
-  // Let a few frames render.
+}
+
+/** Title → hub → straight into a stage via the test hook (default: 1-1 with the dummy). */
+export async function startGame(page: Page, stageId = 'c1s1'): Promise<void> {
+  await enterHub(page);
+  await hook(page, 'startStage', stageId);
   await page.waitForFunction(
     () =>
+      (window as unknown as { __ashbound: { state: () => { screen: string } } }).__ashbound.state()
+        .screen === 'battle',
+  );
+  // Let a few frames render.
+  const start = (await state(page)).frames;
+  await page.waitForFunction(
+    (f) =>
       ((window as unknown as { __ashbound: { state: () => { frames: number } } }).__ashbound.state()
-        .frames ?? 0) > 10,
+        .frames ?? 0) >
+      f + 10,
+    start,
   );
 }
 
