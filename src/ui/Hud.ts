@@ -6,6 +6,7 @@ export class Hud {
   private readonly toast: HTMLElement;
   private toastTimer = 0;
   private readonly disposePause: () => void;
+  private readonly pause: HTMLElement;
 
   constructor(container: HTMLElement, stageLabel: string, onPause: () => void) {
     this.root = el('div', 'hud');
@@ -15,6 +16,7 @@ export class Hud {
     pause.dataset['testid'] = 'hud-pause';
     pause.append(el('span', 'hud-pause-bar'), el('span', 'hud-pause-bar'));
     this.disposePause = onTap(pause, onPause);
+    this.pause = pause;
     this.toast = el('div', 'hud-toast is-hidden');
     this.root.append(pause, this.toast);
     if (stageLabel.length > 0) this.root.append(el('div', 'hud-stage', stageLabel));
@@ -26,6 +28,11 @@ export class Hud {
     this.toast.classList.remove('is-hidden');
     window.clearTimeout(this.toastTimer);
     this.toastTimer = window.setTimeout(() => this.toast.classList.add('is-hidden'), ms);
+  }
+
+  /** The pause button only exists in battle; toasts show everywhere. */
+  setPauseVisible(visible: boolean): void {
+    this.pause.classList.toggle('is-hidden', !visible);
   }
 
   setVisible(visible: boolean): void {

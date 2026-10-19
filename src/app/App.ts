@@ -1,16 +1,19 @@
+import { Scene } from 'three';
 import type { AudioManager } from '../audio/AudioManager';
 import { FollowCamera } from '../camera/FollowCamera';
 import { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
 import { GameClock } from '../core/GameClock';
 import { GameLoop } from '../core/GameLoop';
+import { mulberry32 } from '../core/random';
 import { ServiceRegistry } from '../core/ServiceRegistry';
 import { TimeControl } from '../core/TimeControl';
-import { TEST_ARENA } from '../data/arenas';
 import { DEBUG_CONFIG, INPUT_CONFIG, LOOP_CONFIG } from '../data/config';
-import { DEFAULT_HERO, HEROES } from '../data/heroes';
+import type { Currency } from '../data/economy';
+import type { DifficultyId } from '../data/difficulty';
+import { HEROES, type HeroId } from '../data/heroes';
 import { QUALITY_PRESETS, type QualityLevel, type QualityPreset } from '../data/quality';
-import { DEFAULT_STAGE, STAGES } from '../data/stages';
+import { CHAPTERS, findAdventureStage } from '../data/stages';
 import { DebugOverlay } from '../debug/DebugOverlay';
 import { collectDeviceInfo, detectMobile, readHeapMB, type DeviceInfo } from '../debug/deviceInfo';
 import { FrameStats } from '../debug/FrameStats';
@@ -23,8 +26,11 @@ import { GamepadInput } from '../input/GamepadInput';
 import { InputState } from '../input/InputState';
 import { KeyboardInput } from '../input/KeyboardInput';
 import { TouchControls } from '../input/TouchControls';
-import { BattleMode } from '../modes/BattleMode';
-import { loadRapier, PhysicsWorld } from '../physics/PhysicsWorld';
+import { BattleMode, type BattleOutcome, type BattleSetup } from '../modes/BattleMode';
+import { HubScene } from '../modes/HubScene';
+import { grantAdventureVictory, recordDefeat } from '../modes/rewards';
+import { loadRapier, PhysicsWorld, type Rapier } from '../physics/PhysicsWorld';
+import { PlayerProfile } from '../progression/PlayerProfile';
 import { QualityManager, type QualityTarget } from '../render/QualityManager';
 import { guessInitialQuality } from '../render/qualityLogic';
 import { RenderContext } from '../render/RenderContext';
@@ -32,7 +38,10 @@ import type { SaveData, SaveStore } from '../save/SaveStore';
 import type { FpsCap } from '../save/settings';
 import { el } from '../ui/dom';
 import { Hud } from '../ui/Hud';
+import type { SettingsPort } from '../ui/menu/context';
+import { renderDefeat, renderVictory, type ResultButton } from '../ui/menu/rewardScreen';
 import { PauseMenu } from '../ui/PauseMenu';
+import { Menus } from './Menus';
 
 export interface AppOptions {
   readonly canvas: HTMLCanvasElement;
@@ -57,6 +66,8 @@ export interface TestHookState {
   ready: boolean;
   running: boolean;
   paused: boolean;
+  /** 'battle' during a fight, otherwise the menu screen id ('hub', 'map', 'victory', ...). */
+  screen: string;
   player: {
     x: number;
     y: number;
@@ -74,6 +85,7 @@ export interface TestHookState {
   ultimate: number;
   skillReady: boolean[];
   stage: {
+    id: string;
     phase: string;
     wave: number;
     enemiesAlive: number;
@@ -89,6 +101,8 @@ export interface TestHookState {
     state: string;
     breakFrac: number;
   };
+  hero: { id: string; level: number; xp: number; power: number };
+  items: number;
   wallet: Record<string, number>;
   tokensInUse: number;
   telegraphs: number;
@@ -119,6 +133,9 @@ export interface TestHookCommands {
   setGod: (on: boolean) => void;
   fillUltimate: () => void;
   restart: () => void;
+  startStage: (stageId: string, difficulty?: DifficultyId) => void;
+  grant: (currency: Currency, amount: number) => void;
+  goHub: () => void;
 }
 
 declare global {
@@ -129,6 +146,13 @@ declare global {
 
 const BUILD = { version: __APP_VERSION__, sha: __BUILD_SHA__, time: __BUILD_TIME__ };
 
+/** What the current battle is, so retry / next / rewards know where it came from. */
+type Run = {
+  readonly kind: 'adventure';
+  readonly stageId: string;
+  readonly difficulty: DifficultyId;
+};
+
 function probeDevice(): DeviceInfo {
   const canvas = document.createElement('canvas');
   const gl = canvas.getContext('webgl2');
@@ -137,6 +161,11 @@ function probeDevice(): DeviceInfo {
   return info;
 }
 
+/**
+ * Composition root. Owns the renderer, loop, input, quality, HUD shell, debug tools and the
+ * player profile; switches between the hub (menus over a 3D hero preview) and battles (a fresh
+ * BattleMode with its own scene and physics world per fight).
+ */
 export class App {
   readonly bus = new EventBus<GameEvents>();
   readonly services = new ServiceRegistry<AppServices>();
@@ -144,12 +173,10 @@ export class App {
   readonly clock = new GameClock();
   private readonly ctx: RenderContext;
   private readonly camera: FollowCamera;
-  private readonly physics: PhysicsWorld;
   private readonly input: InputState;
   private readonly touch: TouchControls;
   private readonly keyboard: KeyboardInput;
   private readonly gamepad: GamepadInput;
-  private readonly mode: BattleMode;
   private readonly quality: QualityManager;
   private readonly loop: GameLoop;
   private readonly hud: Hud;
@@ -159,6 +186,14 @@ export class App {
   private readonly vignette: HTMLElement;
   private readonly device: DeviceInfo;
   private readonly disposers: (() => void)[] = [];
+  private readonly profile: PlayerProfile;
+  private readonly menus: Menus;
+  private readonly hubScene: HubScene;
+  private readonly rng = mulberry32((Date.now() & 0x7fffffff) | 1);
+  private battle: BattleMode | null = null;
+  private battlePhysics: PhysicsWorld | null = null;
+  private run: Run | null = null;
+  private pendingOutcome: BattleOutcome | null = null;
   private saveTimer = 0;
   private resizePending = false;
   private running = false;
@@ -166,14 +201,13 @@ export class App {
 
   static async create(opts: AppOptions): Promise<App> {
     const rapier = await loadRapier();
-    return new App(opts, new PhysicsWorld(rapier));
+    return new App(opts, rapier);
   }
 
   private constructor(
     private readonly opts: AppOptions,
-    physics: PhysicsWorld,
+    private readonly rapier: Rapier,
   ) {
-    this.physics = physics;
     const settings = opts.save.settings;
 
     // --- Rendering & quality -------------------------------------------------------------
@@ -189,12 +223,17 @@ export class App {
     const startLevel: QualityLevel =
       settings.quality === 'auto' ? (settings.detectedQuality ?? guessed) : settings.quality;
     this.ctx = new RenderContext(opts.canvas, QUALITY_PRESETS[startLevel].antialias);
-    this.camera = new FollowCamera(window.innerWidth / Math.max(window.innerHeight, 1));
+    const aspect = window.innerWidth / Math.max(window.innerHeight, 1);
+    this.camera = new FollowCamera(aspect);
     this.ctx.setSize(
       window.innerWidth,
       window.innerHeight,
       QUALITY_PRESETS[startLevel].maxPixelRatio,
     );
+    opts.audio.setVolumes(settings.masterVolume, settings.sfxVolume, settings.musicVolume);
+
+    // --- Profile -----------------------------------------------------------------------
+    this.profile = new PlayerProfile(opts.save, () => this.persistSoon(), this.rng);
 
     // --- Input -------------------------------------------------------------------------
     this.input = new InputState(INPUT_CONFIG.bufferMs, () => this.clock.nowMs, this.bus);
@@ -202,31 +241,27 @@ export class App {
     this.keyboard = new KeyboardInput(this.input);
     this.gamepad = new GamepadInput(this.input);
 
-    // --- UI shell (vignette under everything, pause button) -----------------------------
+    // --- UI shell (vignette under everything, HUD with pause + toasts) -------------------
     this.vignette = el('div', 'vignette');
     opts.uiRoot.prepend(this.vignette);
     this.hud = new Hud(opts.uiRoot, '', () => this.setPaused(true));
 
-    // --- Battle ------------------------------------------------------------------------
-    this.mode = new BattleMode({
-      ctx: this.ctx,
-      physics: this.physics,
-      camera: this.camera,
-      input: this.input,
-      bus: this.bus,
-      clock: this.clock,
-      audio: opts.audio,
+    // --- Hub ---------------------------------------------------------------------------
+    this.hubScene = new HubScene();
+    this.hubScene.setAspect(aspect);
+    this.hubScene.setHero(HEROES[this.profile.selectedHero]);
+    this.menus = new Menus({
       uiRoot: opts.uiRoot,
-      save: opts.save,
-      persist: () => this.persistSoon(),
-      arena: TEST_ARENA,
-      hero: HEROES[DEFAULT_HERO],
-      stage: STAGES[DEFAULT_STAGE],
-      preset: QUALITY_PRESETS[startLevel],
-      setInputEnabled: (on) => this.setGameplayInput(on),
-      vibrate: (ms) => {
-        if (settings.vibration && typeof navigator.vibrate === 'function') navigator.vibrate(ms);
+      profile: this.profile,
+      actions: {
+        startAdventure: (stageId, difficulty) =>
+          this.beginRun({ kind: 'adventure', stageId, difficulty }),
       },
+      settings: this.settingsPort(),
+      uiTap: () => opts.audio.playUiClick(),
+      toast: (t) => this.hud.showToast(t, 2200),
+      onHeroChanged: (id: HeroId) => this.hubScene.setHero(HEROES[id]),
+      modeScreens: {},
     });
 
     this.pause = new PauseMenu(
@@ -239,25 +274,19 @@ export class App {
       },
       {
         onResume: () => this.setPaused(false),
-        onQuality: (q) => {
-          settings.quality = q;
-          if (q === 'auto') settings.detectedQuality = null;
-          this.quality.setSetting(q, this.quality.level, settings.detectedQuality);
-          this.updateQualityLabel();
-          this.persistSoon();
-        },
-        onFpsCap: (cap: FpsCap) => {
-          settings.fpsCap = cap;
-          if (!this.quality.benchmarkRunning) this.loop.limiter.setCap(cap);
-          this.persistSoon();
-        },
+        onQuality: (q) => this.settingsPort().setQuality(q),
+        onFpsCap: (cap: FpsCap) => this.settingsPort().setFpsCap(cap),
         onDebugOverlay: (on) => this.overlay.setVisible(on),
         onFullscreen: () => {
           void enterFullscreenLandscape();
         },
         onRespawn: () => {
-          this.mode.startRun();
+          this.battle?.startRun();
           this.setPaused(false);
+        },
+        onLeave: () => {
+          this.setPaused(false);
+          this.battle?.abandon();
         },
         onCopyLog: () => this.copyDebugLog(),
         onUiTap: () => opts.audio.playUiClick(),
@@ -277,17 +306,27 @@ export class App {
           }),
       },
       { label: 'ULT', run: () => this.fillUltimate() },
-      { label: 'CD', run: () => this.mode.player.cooldowns.resetAll() },
+      { label: 'CD', run: () => this.battle?.player.cooldowns.resetAll() },
       {
         label: 'God',
         run: () => {
-          this.mode.player.god = !this.mode.player.god;
-          this.hud.showToast(this.mode.player.god ? 'God mode ON' : 'God mode OFF');
+          const b = this.battle;
+          if (b === null) return;
+          b.player.god = !b.player.god;
+          this.hud.showToast(b.player.god ? 'God mode ON' : 'God mode OFF');
         },
       },
-      { label: 'Kill', run: () => this.mode.killAllEnemies() },
-      { label: 'Boss', run: () => this.mode.skipToBoss() },
-      { label: '-50%', run: () => this.mode.damageBoss(0.35) },
+      { label: 'Kill', run: () => this.battle?.killAllEnemies() },
+      { label: 'Boss', run: () => this.battle?.skipToBoss() },
+      { label: '-50%', run: () => this.battle?.damageBoss(0.35) },
+      {
+        label: '+Gold',
+        run: () => {
+          this.grant('gold', 5000);
+          this.grant('materials', 200);
+          this.grant('souls', 200);
+        },
+      },
     ]);
     this.overlay.onToggle = (visible) => {
       settings.showDebugOverlay = visible;
@@ -307,14 +346,17 @@ export class App {
       {
         preUpdate: () => this.gamepad.poll(),
         fixedUpdate: (dt) => {
+          const b = this.battle;
+          if (b === null || this.pendingOutcome !== null) return;
           this.clock.tick(dt);
-          this.mode.fixedUpdate(dt);
+          b.fixedUpdate(dt);
         },
         render: (alpha, dt) => this.renderFrame(alpha, dt),
         frameEnd: (interval, steps) => {
           this.stats.push(interval, steps);
-          this.quality.onFrame(interval);
+          if (this.battle !== null) this.quality.onFrame(interval);
           this.overlay.refresh();
+          if (this.pendingOutcome !== null) this.handleOutcome();
         },
       },
       settings.fpsCap,
@@ -325,7 +367,6 @@ export class App {
       applyQuality: (preset: QualityPreset) => this.applyRendererQuality(preset),
     };
     this.quality.addTarget(rendererTarget);
-    this.quality.addTarget(this.mode);
     this.quality.onDetected = (level) => {
       settings.detectedQuality = level;
       this.updateQualityLabel();
@@ -347,30 +388,191 @@ export class App {
 
     this.wireEvents();
     this.installTestHook();
-    this.mode.render(1, 0, 1);
-    // Compile all shaders (incl. hidden pooled effects) behind the title screen.
-    this.mode.warmShaders(this.camera.camera);
-    this.ctx.render(this.camera.camera);
+    this.ctx.setScene(this.hubScene.scene);
+    this.hubScene.update(0);
+    this.ctx.renderer.compile(this.hubScene.scene, this.hubScene.camera);
+    this.ctx.render(this.hubScene.camera);
   }
 
   /** Called from the title screen tap. */
   start(): void {
     if (this.running) return;
     this.running = true;
-    this.touch.setVisible(true);
-    this.hud.setVisible(true);
-    this.mode.startRun();
+    this.showHub();
     this.loop.start();
-    const s = this.opts.save.settings;
-    if (s.quality === 'auto' && s.detectedQuality === null) this.quality.startBenchmark();
-    this.updateQualityLabel();
     console.info(`[app] started; quality ${this.quality.level} (${this.quality.setting})`);
   }
 
+  // ------------------------------------------------------------------ hub / battle switching
+
+  private showHub(): void {
+    this.ctx.setScene(this.hubScene.scene);
+    this.touch.setVisible(false);
+    this.hud.setPauseVisible(false);
+    this.applyInputEnabled(false);
+    this.menus.setVisible(true);
+    this.menus.hub();
+  }
+
+  private beginRun(run: Run): void {
+    const setup = this.buildSetup(run);
+    if (setup === null) return;
+    this.run = run;
+    this.startBattle(setup);
+  }
+
+  private buildSetup(run: Run): BattleSetup | null {
+    const stage = findAdventureStage(run.stageId);
+    if (stage === undefined) return null;
+    const heroId = this.profile.selectedHero;
+    return {
+      stage,
+      difficulty: run.difficulty,
+      hero: HEROES[heroId],
+      heroStats: this.profile.stats(heroId),
+      mods: this.profile.mods(heroId),
+      label: `${stage.chapter}-${stage.index + 1} · ${stage.name}`,
+      startHpFrac: 1,
+      enemyMult: { hp: 1, atk: 1 },
+      allowRevive: true,
+    };
+  }
+
+  private startBattle(setup: BattleSetup): void {
+    this.endBattle();
+    this.menus.setVisible(false);
+    const scene = new Scene();
+    this.ctx.setScene(scene);
+    const physics = new PhysicsWorld(this.rapier);
+    this.battlePhysics = physics;
+    this.time.reset();
+    this.camera.setFraming(null);
+    const battle = new BattleMode(
+      {
+        ctx: this.ctx,
+        physics,
+        camera: this.camera,
+        input: this.input,
+        bus: this.bus,
+        clock: this.clock,
+        audio: this.opts.audio,
+        uiRoot: this.opts.uiRoot,
+        preset: this.quality.preset,
+        wallet: this.profile.wallet,
+        commitWallet: () => this.profile.commit(),
+        setInputEnabled: (on) => this.setGameplayInput(on),
+        vibrate: (ms) => {
+          if (this.opts.save.settings.vibration && typeof navigator.vibrate === 'function')
+            navigator.vibrate(ms);
+        },
+        onFinish: (outcome) => {
+          this.pendingOutcome = outcome;
+        },
+      },
+      setup,
+    );
+    this.battle = battle;
+    this.quality.addTarget(battle);
+    battle.render(1, 0, 1);
+    // Compile all shaders (incl. hidden pooled effects) before the first frame of the fight.
+    battle.warmShaders(this.camera.camera);
+    this.touch.setVisible(true);
+    this.hud.setPauseVisible(true);
+    this.setGameplayInput(true);
+    this.input.releaseAll();
+    this.loop.requestRender();
+    const s = this.opts.save.settings;
+    if (s.quality === 'auto' && s.detectedQuality === null && !this.quality.benchmarkRunning)
+      this.quality.startBenchmark();
+  }
+
+  private endBattle(): void {
+    const b = this.battle;
+    if (b === null) return;
+    this.quality.removeTarget(b);
+    b.dispose();
+    this.battle = null;
+    this.battlePhysics?.dispose();
+    this.battlePhysics = null;
+    this.touch.setVisible(false);
+    this.hud.setPauseVisible(false);
+    this.applyInputEnabled(false);
+    this.input.releaseAll();
+    this.time.reset();
+    this.ctx.setScene(this.hubScene.scene);
+  }
+
+  /** Runs outside the fixed step: the battle that produced the outcome is disposed here. */
+  private handleOutcome(): void {
+    const outcome = this.pendingOutcome;
+    const run = this.run;
+    this.pendingOutcome = null;
+    if (outcome === null) return;
+    this.endBattle();
+    this.menus.setVisible(true);
+    if (run === null) {
+      this.menus.hub();
+      return;
+    }
+    const heroId = this.profile.selectedHero;
+    const stage = findAdventureStage(run.stageId);
+    if (stage === undefined) {
+      this.menus.hub();
+      return;
+    }
+    const retry: ResultButton = {
+      label: 'Retry',
+      testid: 'result-retry-run',
+      run: () => this.beginRun(run),
+    };
+    const toMap: ResultButton = {
+      label: 'Stage map',
+      testid: 'result-map',
+      run: () => this.menus.stageMap(stage.chapter),
+    };
+    if (!outcome.victory) {
+      recordDefeat(this.profile, outcome);
+      renderDefeat(this.menus.ctx, `${stage.chapter}-${stage.index + 1} · ${stage.name}`, [
+        toMap,
+        { ...retry, primary: true },
+      ]);
+      return;
+    }
+    const summary = grantAdventureVictory(
+      this.profile,
+      heroId,
+      stage,
+      run.difficulty,
+      outcome,
+      this.rng,
+    );
+    this.hubScene.setHero(HEROES[heroId]);
+    const buttons: ResultButton[] = [toMap, retry];
+    const chapter = CHAPTERS.find((c) => c.number === stage.chapter);
+    const next =
+      chapter?.stages[stage.index + 1] ??
+      CHAPTERS.find((c) => c.number === stage.chapter + 1)?.stages[0];
+    if (next !== undefined && this.profile.stageUnlocked(next, run.difficulty)) {
+      buttons.push({
+        label: 'Next stage',
+        primary: true,
+        testid: 'result-next',
+        run: () =>
+          this.beginRun({ kind: 'adventure', stageId: next.id, difficulty: run.difficulty }),
+      });
+    } else {
+      buttons[0] = { ...toMap, primary: true };
+    }
+    renderVictory(this.menus.ctx, summary, buttons);
+  }
+
+  // ------------------------------------------------------------------ pause / input
+
   setPaused(paused: boolean): void {
+    if (this.battle === null && paused) return;
     if (paused === this.loop.isPaused) return;
     this.loop.setPaused(paused);
-    this.applyInputEnabled(!paused && this.inputEnabled);
+    this.applyInputEnabled(!paused && this.inputEnabled && this.battle !== null);
     if (paused) {
       this.input.releaseAll();
       this.pause.show();
@@ -383,7 +585,7 @@ export class App {
   /** Gameplay input on/off (cinematics, result screens) — independent from pausing. */
   private setGameplayInput(on: boolean): void {
     this.inputEnabled = on;
-    this.applyInputEnabled(on && !this.loop?.isPaused);
+    this.applyInputEnabled(on && !this.loop?.isPaused && this.battle !== null);
     if (!on) this.input.releaseAll();
   }
 
@@ -394,8 +596,50 @@ export class App {
   }
 
   private fillUltimate(): void {
-    this.mode.player.ultimate.add(1);
-    this.bus.emit('ultimate:charge', { value: this.mode.player.ultimate.value });
+    const b = this.battle;
+    if (b === null) return;
+    b.player.ultimate.add(1);
+    this.bus.emit('ultimate:charge', { value: b.player.ultimate.value });
+  }
+
+  private grant(c: Currency, n: number): void {
+    this.profile.wallet.add(c, n);
+    this.profile.commit();
+    this.menus.shell.refreshCurrencies();
+  }
+
+  private settingsPort(): SettingsPort {
+    const s = this.opts.save.settings;
+    return {
+      settings: s,
+      activeQualityLabel: () => this.qualityLabel(),
+      setQuality: (q) => {
+        s.quality = q;
+        if (q === 'auto') s.detectedQuality = null;
+        this.quality.setSetting(q, this.quality.level, s.detectedQuality);
+        this.updateQualityLabel();
+        this.persistSoon();
+      },
+      setFpsCap: (cap) => {
+        s.fpsCap = cap;
+        if (!this.quality.benchmarkRunning) this.loop.limiter.setCap(cap);
+        this.persistSoon();
+      },
+      setDebugOverlay: (on) => this.overlay.setVisible(on),
+      setVolume: (kind, value) => {
+        s[kind] = Math.min(1, Math.max(0, value));
+        this.opts.audio.setVolumes(s.masterVolume, s.sfxVolume, s.musicVolume);
+        this.persistSoon();
+      },
+      setVibration: (on) => {
+        s.vibration = on;
+        this.persistSoon();
+      },
+      fullscreen: () => {
+        void enterFullscreenLandscape();
+      },
+      copyLog: () => this.copyDebugLog(),
+    };
   }
 
   private wireEvents(): void {
@@ -406,7 +650,8 @@ export class App {
       b.on('time:slowMotion', (e) => this.time.slowMotion(e.scale, e.ms)),
       b.on('ultimate:charge', (e) => this.touch.setUltimateCharge(e.value)),
       b.on('input:pressed', (e) => {
-        if (e.action === 'pause' && this.running) this.setPaused(!this.loop.isPaused);
+        if (e.action === 'pause' && this.running && this.battle !== null)
+          this.setPaused(!this.loop.isPaused);
       }),
     );
     const onResize = (): void => {
@@ -440,7 +685,7 @@ export class App {
     portrait.addEventListener('change', onOrientation);
     // Tap anywhere during a cinematic (boss intro) to skip it.
     const onCanvasTap = (): void => {
-      if (this.mode.cinematicActive) this.mode.skipCinematic();
+      if (this.battle?.cinematicActive === true) this.battle.skipCinematic();
     };
     this.opts.canvas.addEventListener('pointerdown', onCanvasTap);
     this.disposers.push(() => {
@@ -453,7 +698,7 @@ export class App {
       this.opts.canvas.removeEventListener('pointerdown', onCanvasTap);
     });
     this.touch.setVisible(false);
-    this.hud.setVisible(false);
+    this.hud.setPauseVisible(false);
   }
 
   private resize(): void {
@@ -461,7 +706,8 @@ export class App {
     const h = window.innerHeight;
     this.ctx.setSize(w, h, this.quality.preset.maxPixelRatio);
     this.camera.setAspect(w / Math.max(h, 1));
-    this.mode.applyQuality(this.quality.preset, this.quality.level);
+    this.hubScene.setAspect(w / Math.max(h, 1));
+    this.battle?.applyQuality(this.quality.preset, this.quality.level);
     this.loop.requestRender();
   }
 
@@ -473,19 +719,29 @@ export class App {
   }
 
   private renderFrame(alpha: number, dtSec: number): void {
-    this.mode.render(alpha, dtSec, this.time.currentScale);
-    const cd = this.mode.player.cooldowns;
+    const b = this.battle;
+    if (b === null) {
+      this.hubScene.update(dtSec);
+      this.ctx.render(this.hubScene.camera);
+      return;
+    }
+    b.render(alpha, dtSec, this.time.currentScale);
+    const cd = b.player.cooldowns;
     for (let i = 0; i < cd.count; i++) {
       this.touch.setSkillCooldown(i, cd.fraction(i), cd.remainingMs(i) / 1000);
     }
     this.ctx.render(this.camera.camera);
   }
 
-  private updateQualityLabel(): void {
+  private qualityLabel(): string {
     const q = this.quality;
     const running = q.benchmarkRunning ? ' — measuring…' : '';
     const auto = q.setting === 'auto' ? 'auto-detected ' : '';
-    this.pause.setActiveQualityLabel(`Active: ${auto}${q.preset.label}${running}`);
+    return `Active: ${auto}${q.preset.label}${running}`;
+  }
+
+  private updateQualityLabel(): void {
+    this.pause.setActiveQualityLabel(this.qualityLabel());
   }
 
   private persistSoon(): void {
@@ -505,25 +761,33 @@ export class App {
     const r = this.ctx.info;
     const mem = this.ctx.renderer.info.memory;
     const progs = this.ctx.renderer.info.programs?.length ?? 0;
-    const m = this.mode;
-    const p = m.player;
     const heap = readHeapMB();
     const [bw, bh] = this.ctx.drawingBufferSize;
     const q = this.quality;
-    const boss = m.boss;
     const lines = [
       `FPS ${s.fps.toFixed(1)}  frame ${s.meanMs.toFixed(1)}ms  p95 ${s.percentileMs(95).toFixed(1)}  max ${s.maxMs.toFixed(1)}`,
       `logic ${LOOP_CONFIG.logicHz}Hz steps ${s.lastSteps}  dropped ${this.loop.timestep.droppedMs.toFixed(0)}ms  cap ${this.loop.limiter.capFps || 'off'}`,
       `draws ${r.calls}  tris ${(r.triangles / 1000).toFixed(1)}k  pts ${r.points}`,
       `geo ${mem.geometries}  tex ${mem.textures}  progs ${progs}`,
-      `entities ${1 + m.roster.active.length + (boss.inWorld ? 1 : 0)}  enemies ${m.roster.aliveCount()}  pool ${m.roster.pooledCount}  tokens ${m.tokens.count}/${m.tokens.max}  telegraphs ${m.telegraphCount}`,
       `heap ${heap ? `${heap.used.toFixed(1)} / ${heap.limit.toFixed(0)} MB` : 'n/a (Chrome only)'}`,
       `quality ${q.preset.label} (${q.setting})${q.benchmarkRunning ? ' benchmarking' : ''}  bench ${q.lastBenchmarkMedianMs > 0 ? `${q.lastBenchmarkMedianMs.toFixed(1)}ms` : '—'}`,
       `DPR ${window.devicePixelRatio.toFixed(2)}→${this.ctx.currentPixelRatio.toFixed(2)}  view ${window.innerWidth}x${window.innerHeight}  buffer ${bw}x${bh}`,
-      `hero ${p.state} ${p.actionId ?? ''} hp ${Math.ceil(p.health.current)}/${p.health.max} ult ${(p.ultimate.value * 100).toFixed(0)}%`,
-      `stage ${m.director.phase} wave ${m.director.wave + 1}/${m.director.totalWaves} t ${m.stageTimeSec.toFixed(0)}s  boss ${boss.inWorld ? `${boss.brain.state} p${boss.bossBrain.phase + 1} ${Math.ceil(boss.health.current)}` : '—'}`,
-      `time ${this.time.isFrozen ? 'HITSTOP' : this.time.isSlowed ? 'SLOW' : 'normal'}  trauma ${this.camera.shake.currentTrauma.toFixed(2)}  log ${this.opts.log.errorCount}E/${this.opts.log.warnCount}W`,
     ];
+    const m = this.battle;
+    if (m !== null) {
+      const p = m.player;
+      const boss = m.boss;
+      lines.push(
+        `entities ${1 + m.roster.active.length + (boss?.inWorld === true ? 1 : 0)}  enemies ${m.roster.aliveCount()}  pool ${m.roster.pooledCount}  tokens ${m.tokens.count}/${m.tokens.max}  telegraphs ${m.telegraphCount}`,
+        `hero ${p.state} ${p.actionId ?? ''} hp ${Math.ceil(p.health.current)}/${p.health.max} ult ${(p.ultimate.value * 100).toFixed(0)}%`,
+        `stage ${m.setup.stage.id} ${m.director.phase} wave ${m.director.wave + 1}/${m.director.totalWaves} t ${m.stageTimeSec.toFixed(0)}s  boss ${boss?.inWorld === true ? `${boss.brain.state} p${boss.bossBrain.phase + 1} ${Math.ceil(boss.health.current)}` : '—'}`,
+      );
+    } else {
+      lines.push(`menu ${this.menus.shell.screen}  items ${this.profile.data.items.length}`);
+    }
+    lines.push(
+      `time ${this.time.isFrozen ? 'HITSTOP' : this.time.isSlowed ? 'SLOW' : 'normal'}  trauma ${this.camera.shake.currentTrauma.toFixed(2)}  log ${this.opts.log.errorCount}E/${this.opts.log.warnCount}W`,
+    );
     return lines.join('\n');
   }
 
@@ -547,63 +811,81 @@ export class App {
     window.__ashbound = {
       version: `${BUILD.version}+${BUILD.sha}`,
       setPaused: (paused) => this.setPaused(paused),
-      skipCountdown: () => this.mode.director.skipCountdown(),
-      killAll: () => this.mode.killAllEnemies(),
-      skipToBoss: () => this.mode.skipToBoss(),
-      damageBoss: (frac) => this.mode.damageBoss(frac),
-      killBoss: () => this.mode.killBoss(),
-      damagePlayer: (frac) => this.mode.damagePlayer(frac),
+      skipCountdown: () => this.battle?.director.skipCountdown(),
+      killAll: () => this.battle?.killAllEnemies(),
+      skipToBoss: () => this.battle?.skipToBoss(),
+      damageBoss: (frac) => this.battle?.damageBoss(frac),
+      killBoss: () => this.battle?.killBoss(),
+      damagePlayer: (frac) => this.battle?.damagePlayer(frac),
       setGod: (on) => {
-        this.mode.player.god = on;
+        if (this.battle !== null) this.battle.player.god = on;
       },
       fillUltimate: () => this.fillUltimate(),
-      restart: () => this.mode.startRun(),
+      restart: () => this.battle?.startRun(),
+      startStage: (stageId, difficulty = 'normal') =>
+        this.beginRun({ kind: 'adventure', stageId, difficulty }),
+      grant: (c, n) => this.grant(c, n),
+      goHub: () => {
+        this.endBattle();
+        this.showHub();
+      },
       state: () => {
-        const m = this.mode;
-        const p = m.player;
+        const m = this.battle;
+        const p = m?.player;
         const heap = readHeapMB();
         const presses: Record<string, number> = {};
         for (const a of INPUT_ACTIONS) presses[a] = this.input.pressCount(a);
+        const heroId = this.profile.selectedHero;
+        const boss = m?.boss ?? null;
         return {
           ready: true,
           running: this.running,
           paused: this.loop.isPaused,
+          screen: m !== null ? 'battle' : this.menus.shell.screen,
           player: {
-            x: p.currFeet.x,
-            y: p.currFeet.y,
-            z: p.currFeet.z,
-            grounded: p.body.grounded,
-            speed: Math.hypot(p.vel.x, p.vel.z),
-            yaw: p.yaw,
-            hp: p.health.current,
-            maxHp: p.health.max,
-            state: p.state,
-            comboIndex: p.comboIndex,
-            action: p.actionId,
+            x: p?.currFeet.x ?? 0,
+            y: p?.currFeet.y ?? 0,
+            z: p?.currFeet.z ?? 0,
+            grounded: p?.body.grounded ?? false,
+            speed: p === undefined ? 0 : Math.hypot(p.vel.x, p.vel.z),
+            yaw: p?.yaw ?? 0,
+            hp: p?.health.current ?? 0,
+            maxHp: p?.health.max ?? 0,
+            state: p?.state ?? 'none',
+            comboIndex: p?.comboIndex ?? 0,
+            action: p?.actionId ?? null,
           },
           presses,
-          ultimate: p.ultimate.value,
-          skillReady: [0, 1, 2].map((i) => p.cooldowns.isReady(i)),
+          ultimate: p?.ultimate.value ?? 0,
+          skillReady: [0, 1, 2].map((i) => p?.cooldowns.isReady(i) ?? false),
           stage: {
-            phase: m.director.phase,
-            wave: m.director.wave,
-            enemiesAlive: m.roster.aliveCount(),
-            killed: m.enemiesKilled,
-            result: m.resultShowing,
-            timeSec: m.stageTimeSec,
+            id: m?.setup.stage.id ?? '',
+            phase: m?.director.phase ?? 'none',
+            wave: m?.director.wave ?? -1,
+            enemiesAlive: m?.roster.aliveCount() ?? 0,
+            killed: m?.enemiesKilled ?? 0,
+            result: m?.resultShowing ?? null,
+            timeSec: m?.stageTimeSec ?? 0,
           },
           boss: {
-            active: m.boss.inWorld,
-            hp: m.boss.health.current,
-            maxHp: m.boss.health.max,
-            phase: m.boss.bossBrain.phase,
-            state: m.boss.brain.state,
-            breakFrac: m.boss.poise.frac,
+            active: boss?.inWorld ?? false,
+            hp: boss?.health.current ?? 0,
+            maxHp: boss?.health.max ?? 0,
+            phase: boss?.bossBrain.phase ?? 0,
+            state: boss?.brain.state ?? 'none',
+            breakFrac: boss?.poise.frac ?? 0,
           },
-          wallet: { ...m.wallet.snapshot() },
-          tokensInUse: m.tokens.count,
-          telegraphs: m.telegraphCount,
-          cinematic: m.cinematicActive,
+          hero: {
+            id: heroId,
+            level: this.profile.hero(heroId).level,
+            xp: this.profile.hero(heroId).xp,
+            power: this.profile.power(heroId),
+          },
+          items: this.profile.data.items.length,
+          wallet: { ...this.profile.wallet.snapshot() },
+          tokensInUse: m?.tokens.count ?? 0,
+          telegraphs: m?.telegraphCount ?? 0,
+          cinematic: m?.cinematicActive ?? false,
           quality: this.quality.level,
           qualitySetting: this.quality.setting,
           benchmarkRunning: this.quality.benchmarkRunning,
@@ -625,7 +907,9 @@ export class App {
   dispose(): void {
     this.loop.stop();
     for (const d of this.disposers) d();
-    this.mode.dispose();
+    this.endBattle();
+    this.hubScene.dispose();
+    this.menus.dispose();
     this.touch.dispose();
     this.keyboard.dispose();
     this.gamepad.dispose();
@@ -633,7 +917,6 @@ export class App {
     this.pause.dispose();
     this.overlay.dispose();
     this.vignette.remove();
-    this.physics.dispose();
     this.ctx.dispose();
     this.bus.clear();
     delete window.__ashbound;

@@ -17,6 +17,7 @@ export interface PauseMenuHandlers {
   readonly onDebugOverlay: (on: boolean) => void;
   readonly onFullscreen: () => void;
   readonly onRespawn: () => void;
+  readonly onLeave: () => void;
   readonly onCopyLog: () => Promise<boolean>;
   readonly onUiTap: () => void;
 }
@@ -101,6 +102,12 @@ export class PauseMenu {
         h.onRespawn();
       }),
     );
+    const leave = this.button('Leave battle', 'btn', () => {
+      h.onUiTap();
+      h.onLeave();
+    });
+    leave.dataset['testid'] = 'pause-leave';
+    actions.append(leave);
     actions.append(row);
 
     const copy = this.button('Copy debug log', 'btn btn-accent', () => {
