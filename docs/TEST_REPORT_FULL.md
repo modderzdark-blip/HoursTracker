@@ -14,9 +14,15 @@ to the developer; everything marked **UNTESTED** needs your phone.
 | 4   | `vite build`                                        | **PASS** — sizes below                                    |
 | 5   | Playwright smoke (Pixel 7 landscape 915×412, touch) | **PASS** — 13/13, incl. daily gift + Journal, boss, soak  |
 | 6   | Scripted runs of every mode in headless Chrome      | **PASS** — see "Mode runs" (scratch scripts, not in CI)   |
-| 7   | APK build + Android emulator boot (CI)              | Run on push — result in the `ashbound-preview` release    |
+| 7   | APK build + Android emulator boot (CI)              | **PASS** — build #17 (see note below)                     |
 | 8   | GitHub Pages deploy                                 | **BLOCKED** until Pages is enabled in repository settings |
 | 9   | Real phone (feel, FPS, heat, audio, music)          | **UNTESTED**                                              |
+
+**Emulator note:** build #16 (same game code as #17) failed once: the app process ended about
+26 s after reaching the hub, with no JS error in the WebView console. The script now saves
+Android's crash buffer and process-death lines (`crash.txt` in the release). The rerun (#17)
+passed, and a 60 s hub idle in headless Chrome stays flat (heap ~10 MB, no errors). Not
+reproduced; if the app ever closes on its own on your phone, please report it.
 
 ## Unit and integration tests (Vitest, 216)
 
