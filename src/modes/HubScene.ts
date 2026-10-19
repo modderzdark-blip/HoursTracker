@@ -42,14 +42,14 @@ export class HubScene {
   private readonly dais: Mesh;
   private readonly ring: Mesh;
   private readonly fire: PointLight;
-  private readonly focus = new Vector3(0, 1, 0);
+  private readonly focus = new Vector3(0, 1.05, 0);
 
   constructor() {
     const s = this.scene;
     s.background = new Color(0x07060a);
     s.fog = new FogExp2(0x120c10, 0.06);
     s.add(new HemisphereLight(0x5a4a70, 0x1a0c08, 0.9));
-    const key = new DirectionalLight(0xffd2a0, 2.2);
+    const key = new DirectionalLight(0xffd2a0, 2.6);
     key.position.set(-3, 5, 4);
     s.add(key);
     const rim = new DirectionalLight(0x8090ff, 1.6);
@@ -112,7 +112,7 @@ export class HubScene {
   update(dtSec: number): void {
     this.time += dtSec;
     const a = Math.sin(this.time * 0.12) * 0.25;
-    this.camera.position.set(Math.sin(a) * 5.4, 2.1, Math.cos(a) * 5.4);
+    this.camera.position.set(Math.sin(a) * 4.5, 1.85, Math.cos(a) * 4.5);
     this.camera.lookAt(this.focus);
     this.fire.intensity = 11 + Math.sin(this.time * 9) * 0.8 + Math.sin(this.time * 21) * 0.6;
     this.embers.update(dtSec, this.focus);
