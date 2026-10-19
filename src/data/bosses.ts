@@ -28,7 +28,7 @@ export interface BossDef extends EnemyDef {
   readonly transitionPushRadius: number;
 }
 
-export type BossId = 'hollow_warden';
+export type BossId = 'hollow_warden' | 'gaoler';
 
 const heavy = (damage: number, shape: HitSpec['shape'], extra: Partial<HitSpec> = {}): HitSpec => ({
   damage,
@@ -194,7 +194,138 @@ const WARDEN_ATTACKS: readonly EnemyAttackDef[] = [
   },
 ];
 
+const GAOLER_ATTACKS: readonly EnemyAttackDef[] = [
+  {
+    id: 'gaoler_slam',
+    startupMs: 900,
+    activeMs: 150,
+    recoveryMs: 850,
+    cancelAtMs: 9999,
+    range: 2.8,
+    cooldownMs: 1500,
+    weight: 3,
+    indicator: true,
+    trackUntil: 0.5,
+    hits: [
+      {
+        offsetMs: 0,
+        spec: heavy(
+          1.9,
+          { kind: 'circle', radius: 3, forward: 2 },
+          { reaction: 'knockdown', knockback: 2.4 },
+        ),
+      },
+    ],
+    trail: 'right',
+    windPose: 'SLAM_WIND',
+    hitPose: 'SLAM_HIT',
+  },
+  {
+    id: 'gaoler_sweep',
+    startupMs: 700,
+    activeMs: 170,
+    recoveryMs: 700,
+    cancelAtMs: 9999,
+    range: 3.2,
+    cooldownMs: 1200,
+    weight: 2,
+    indicator: true,
+    trackUntil: 0.5,
+    chainNext: 'gaoler_slam',
+    chainChance: 0.4,
+    hits: [{ offsetMs: 0, spec: heavy(1.4, { kind: 'arc', range: 4.2, angleDeg: 170 }) }],
+    trail: 'right',
+    windPose: 'SWEEP_WIND',
+    hitPose: 'SWEEP_HIT',
+  },
+  {
+    id: 'gaoler_charge',
+    startupMs: 850,
+    activeMs: 350,
+    recoveryMs: 900,
+    cancelAtMs: 9999,
+    range: 10,
+    minRange: 3.5,
+    cooldownMs: 3200,
+    weight: 2,
+    indicator: true,
+    trackUntil: 0.6,
+    sweep: true,
+    hits: [
+      {
+        offsetMs: 0,
+        spec: heavy(
+          1.6,
+          { kind: 'circle', radius: 1.6, forward: 0.8 },
+          { reaction: 'knockdown', knockback: 3 },
+        ),
+      },
+    ],
+    move: { distance: 7.5, startMs: 850, endMs: 1200, ease: 'linear' },
+    trail: 'none',
+    windPose: 'CROUCH',
+    hitPose: 'DASH_LEAN',
+  },
+];
+
 export const BOSSES: Readonly<Record<BossId, BossDef>> = {
+  gaoler: {
+    id: 'gaoler',
+    name: 'The Gaoler',
+    title: 'Chainmaster of the Ash Pits',
+    rig: 'gaoler',
+    stats: {
+      maxHp: 4200,
+      atk: 125,
+      def: 60,
+      critChance: 0,
+      critDamage: 1,
+      attackSpeed: 1,
+      moveSpeed: 2.9,
+    },
+    poise: 380,
+    radius: 0.85,
+    halfHeight: 1.05,
+    aggroRange: 60,
+    holdDistance: 3.5,
+    turnRateDeg: 200,
+    attacks: GAOLER_ATTACKS,
+    hurtMs: 0,
+    staggerMs: 3000,
+    knockdownMs: 0,
+    getupMs: 0,
+    deathMs: 2600,
+    knockbackResist: 1,
+    idlePose: 'HUNCHED',
+    souls: 12,
+    phases: [
+      {
+        fromHpFrac: 1,
+        attacks: ['gaoler_slam', 'gaoler_sweep', 'gaoler_charge'],
+        speedMult: 1,
+        damageMult: 1,
+        weaponFx: false,
+        label: 'I',
+      },
+      {
+        fromHpFrac: 0.45,
+        attacks: ['gaoler_slam', 'gaoler_sweep', 'gaoler_charge'],
+        speedMult: 1.2,
+        damageMult: 1.15,
+        weaponFx: true,
+        label: 'II',
+      },
+    ],
+    breakMax: 380,
+    breakStunMs: 3200,
+    breakDamageBonus: 0.5,
+    enrageAfterMs: 150_000,
+    enrageDamageMult: 1.4,
+    enrageSpeedMult: 1.25,
+    introMs: 2600,
+    transitionMs: 1500,
+    transitionPushRadius: 5.5,
+  },
   hollow_warden: {
     id: 'hollow_warden',
     name: 'The Hollow Warden',

@@ -42,7 +42,7 @@ export interface DodgeDef {
   readonly counterDamageMult: number;
 }
 
-export type SkillSpecial = 'none' | 'shadowStep' | 'steerable';
+export type SkillSpecial = 'none' | 'shadowStep' | 'steerable' | 'charge';
 
 export interface SkillDef extends ActionDef {
   readonly name: string;
@@ -53,6 +53,10 @@ export interface SkillDef extends ActionDef {
   /** For 'steerable': movement speed multiplier while active. */
   readonly steerSpeedMult?: number;
   readonly forceCrit?: boolean;
+  /** For 'charge': hold the button to charge up to this long (wind-up pose held). */
+  readonly chargeMaxMs?: number;
+  /** For 'charge': damage multiplier at full charge (scales linearly from 1). */
+  readonly chargeDamageMax?: number;
 }
 
 export interface UltimateDef extends ActionDef {
@@ -65,12 +69,22 @@ export interface HeroDef {
   readonly id: HeroId;
   readonly name: string;
   readonly epithet: string;
+  /** One-line playstyle description for the hero screen. */
+  readonly role: string;
+  /** Stats at level 1 without gear. */
   readonly stats: StatBlock;
+  /** Per level: stat = base × (1 + growth × (level − 1)). */
+  readonly growth: { readonly maxHp: number; readonly atk: number; readonly def: number };
+  /** null = available from the start. */
+  readonly unlock: { readonly souls: number; readonly afterStage: string } | null;
   readonly movement: HeroMovement;
   readonly body: HeroBody;
   readonly visual: HeroVisual;
   readonly idlePose: 'READY' | 'NEUTRAL';
   readonly combo: readonly ActionDef[];
+  /** Optional ranged combo, used when no enemy is within `meleeRange` (bow heroes). */
+  readonly rangedCombo?: readonly ActionDef[];
+  readonly meleeRange?: number;
   /** If no attack input arrives this long after a combo step ends, the combo resets. */
   readonly comboResetMs: number;
   readonly dodge: DodgeDef;
@@ -102,6 +116,9 @@ export const HEROES: Readonly<Record<HeroId, HeroDef>> = {
     id: 'kael',
     name: 'Kael',
     epithet: 'the Twin Fang',
+    role: 'Dual blades — fast, combo-heavy and mobile.',
+    growth: { maxHp: 0.08, atk: 0.07, def: 0.06 },
+    unlock: null,
     stats: {
       maxHp: 1200,
       atk: 100,

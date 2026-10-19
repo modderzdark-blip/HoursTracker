@@ -1,6 +1,6 @@
 /**
- * Test arena layout. Each entry produces both a visual and a static collider, so the arena is
- * changed purely by editing this data.
+ * Arena layouts. Each entry produces both a visual and a static collider, so an arena is
+ * changed (or a new one added) purely by editing this data.
  */
 
 export interface PillarDef {
@@ -68,9 +68,9 @@ export interface ArenaDef {
   };
 }
 
-export const TEST_ARENA: ArenaDef = {
-  id: 'test_arena',
-  name: 'Cinder Court (test arena)',
+const CINDER_COURT: ArenaDef = {
+  id: 'cinder_court',
+  name: 'Cinder Court',
   floorRadius: 24,
   wall: { segments: 28, height: 3.2, thickness: 1.4 },
   spawn: [0, 1.2, 6],
@@ -139,3 +139,74 @@ export const TEST_ARENA: ArenaDef = {
     brazierRange: 9,
   },
 };
+
+/** A tighter ruined gatehouse: a pillar colonnade, rubble and red-tinted haze. */
+const ASH_GATE: ArenaDef = {
+  id: 'ash_gate',
+  name: 'Gate of Soot',
+  floorRadius: 21,
+  wall: { segments: 26, height: 4, thickness: 1.4 },
+  spawn: [0, 1.2, 8],
+  spawnPoints: [
+    [-15, -4],
+    [15, -4],
+    [-10, 13],
+    [10, 13],
+    [0, -16],
+    [-16, 6],
+    [16, 6],
+  ],
+  bossSpawn: [0, -8],
+  dummySpawn: [0, 3],
+  pillars: [
+    { x: -9, z: -9, radius: 0.9, height: 7 },
+    { x: 9, z: -9, radius: 0.9, height: 7 },
+    { x: -11, z: 0, radius: 0.9, height: 4.5 },
+    { x: 11, z: 0, radius: 0.9, height: 7 },
+    { x: -9, z: 9, radius: 0.9, height: 2.6 },
+    { x: 9, z: 9, radius: 0.9, height: 7 },
+  ],
+  blocks: [
+    { position: [-4.5, 0.45, -13], size: [3.5, 0.9, 1.6], rotationYDeg: 12 },
+    { position: [5, 0.6, -12.5], size: [2.6, 1.2, 2.6], rotationYDeg: -25 },
+    { position: [0, 0.3, 14], size: [4, 0.6, 1.4], rotationYDeg: 0 },
+  ],
+  rocks: [
+    { x: -16, z: -10, scale: 1.3 },
+    { x: 16, z: -11, scale: 1.1 },
+    { x: -14, z: 12, scale: 1.0 },
+    { x: 15, z: 12, scale: 1.4 },
+    { x: -4, z: 17, scale: 0.9 },
+    { x: 6, z: -17, scale: 1.0 },
+  ],
+  braziers: [
+    { x: -5, z: -4 },
+    { x: 5, z: -4 },
+  ],
+  palette: {
+    background: 0x0a0607,
+    fog: 0x1c0d0b,
+    fogDensity: 0.032,
+    floorBase: 0x2c2321,
+    stone: 0x52423e,
+    ember: 0xff6a1a,
+    moonlight: 0xc8a0ff,
+    hemiSky: 0x40303a,
+    hemiGround: 0x220e08,
+  },
+  lighting: {
+    moonIntensity: 1.9,
+    moonDirection: [0.5, 1, 0.3],
+    hemiIntensity: 0.6,
+    environmentIntensity: 0.3,
+    brazierIntensity: 16,
+    brazierRange: 10,
+  },
+};
+
+export const ARENAS = {
+  cinder_court: CINDER_COURT,
+  ash_gate: ASH_GATE,
+} as const satisfies Record<string, ArenaDef>;
+
+export type ArenaId = keyof typeof ARENAS;
