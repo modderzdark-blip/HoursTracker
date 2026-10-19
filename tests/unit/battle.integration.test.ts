@@ -13,7 +13,8 @@ import type { GameEvents } from '../../src/core/events';
 import { GameClock } from '../../src/core/GameClock';
 import { BOSSES } from '../../src/data/bosses';
 import { ENEMIES } from '../../src/data/enemies';
-import { HEROES } from '../../src/data/heroes';
+import { HEROES, type HeroDef } from '../../src/data/heroes';
+import { Effects, type EffectVisuals } from '../../src/combat/Effects';
 import { INPUT_SOURCE } from '../../src/input/actions';
 import { InputState } from '../../src/input/InputState';
 import { separateCrowd } from '../../src/modes/crowd';
@@ -38,7 +39,7 @@ const noTelegraphs: TelegraphPort = {
   hide: () => undefined,
 };
 
-function makeWorld() {
+function makeWorld(hero: HeroDef = kael) {
   const physics = new PhysicsWorld(rapier);
   physics.addStaticCuboid(0, -0.5, 0, 60, 0.5, 60);
   const scene = new Scene();
@@ -48,8 +49,29 @@ function makeWorld() {
   // rng = 0.99: never crits, status chances < 0.99 never apply (deterministic damage).
   const combat = new CombatSystem(physics, bus, () => 0.99);
   const targets: Actor[] = [];
+  const zonesShown: number[] = [];
+  const visuals: EffectVisuals = {
+    showZone: () => {
+      zonesShown.push(1);
+      return -1;
+    },
+    updateZone: () => undefined,
+    hideZone: () => undefined,
+    blast: () => undefined,
+  };
+  const playerList: Actor[] = [];
+  const effects = new Effects(
+    scene,
+    combat,
+    physics,
+    bus,
+    visuals,
+    (team) => (team === 'enemy' ? playerList : targets),
+    () => 0.5,
+  );
   const player = new Player({
-    hero: kael,
+    hero,
+    effects,
     physics,
     scene,
     combat,
@@ -60,6 +82,7 @@ function makeWorld() {
     targets: () => targets,
   });
   combat.register(player);
+  playerList.push(player);
   player.resetForRun(0, 0, Math.PI); // facing -Z
   const tokens = new AttackTokenManager(2);
   const ctx: BrainContext = {
@@ -77,6 +100,7 @@ function makeWorld() {
       };
     })(),
     difficultyMod: 1,
+    effects,
   };
   const actors: Actor[] = [player];
   const enemies: Enemy[] = [];
@@ -88,6 +112,7 @@ function makeWorld() {
         if (a instanceof TrainingDummy) a.think(DT);
         else if (a instanceof Enemy) a.think(DT);
       }
+      effects.update(DT);
       separateCrowd(actors, actors.length);
       for (const a of actors) a.integrate(DT);
       physics.step(DT);
@@ -125,6 +150,8 @@ function makeWorld() {
   };
   return {
     physics,
+    effects,
+    zonesShown,
     bus,
     clock,
     input,
@@ -423,5 +450,80 @@ describe('boss (integration)', () => {
     w.bus.on('combat:evaded', () => evaded++);
     w.step(stepsFor(8000));
     expect(evaded).toBeGreaterThan(0);
+  });
+});
+
+describe('Brann and Lyra (integration)', () => {
+  const brann = HEROES.brann;
+  const lyra = HEROES.lyra;
+
+  it('Brann: holding Oathbreaker charges it; a full charge hits much harder than a tap', () => {
+    const run = (holdMs: number): number => {
+      const w = makeWorld(brann);
+      const dummy = w.addDummy(0, -2.2);
+      w.input.press('skill2', INPUT_SOURCE.keyboard);
+      w.step(stepsFor(holdMs));
+      w.input.release('skill2', INPUT_SOURCE.keyboard);
+      w.step(stepsFor(900));
+      return dummy.health.max - dummy.health.current;
+    };
+    const tap = run(30);
+    const full = run(2000);
+    expect(tap).toBeGreaterThan(0);
+    expect(full / tap).toBeGreaterThan(2.2);
+  });
+
+  it('Brann: Earthsplitter shockwave reaches enemies well beyond the slam itself', () => {
+    const w = makeWorld(brann);
+    const near = w.addDummy(0, -2.5);
+    const far = w.addDummy(4.5, -2.5);
+    w.press('skill1');
+    w.step(stepsFor(900));
+    expect(near.health.current).toBeLessThan(near.health.max);
+    expect(far.health.current).toBeLessThan(far.health.max);
+  });
+
+  it('Lyra: shoots arrows at distant enemies and stabs with the dagger up close', () => {
+    const w = makeWorld(lyra);
+    const far = w.addDummy(0, -9);
+    w.press('attack');
+    w.step(1);
+    expect(w.player.actionId).toBe('lyra_shot1');
+    w.step(stepsFor(200));
+    expect(w.effects.activeProjectiles).toBe(1);
+    w.step(stepsFor(600));
+    expect(far.health.current).toBeLessThan(far.health.max);
+    expect(w.effects.activeProjectiles).toBe(0);
+    const w2 = makeWorld(lyra);
+    w2.addDummy(0, -1.4);
+    w2.press('attack');
+    w2.step(1);
+    expect(w2.player.actionId).toBe('lyra_stab1');
+  });
+
+  it('Lyra: Snare Leap backflips away and leaves a trap that springs on an enemy', () => {
+    const w = makeWorld(lyra);
+    w.press('skill3');
+    w.step(stepsFor(500));
+    expect(w.player.currFeet.z).toBeGreaterThan(3);
+    expect(w.effects.activeZones).toBe(1);
+    // The trap waits while the enemy is still spawning (invulnerable), then springs.
+    const e = w.addEnemy(0, 0.3);
+    w.step(stepsFor(400));
+    expect(w.effects.activeZones).toBe(1);
+    w.step(stepsFor(900));
+    expect(e.health.current).toBeLessThan(e.health.max);
+    expect(w.effects.activeZones).toBe(0);
+  });
+
+  it('Lyra: Gloamstorm fires homing arrows that find targets around her', () => {
+    const w = makeWorld(lyra);
+    const a = w.addDummy(5, 0);
+    const b = w.addDummy(-5, 0);
+    w.player.ultimate.add(1);
+    w.press('ultimate');
+    w.step(stepsFor(2600));
+    expect(a.health.current).toBeLessThan(a.health.max);
+    expect(b.health.current).toBeLessThan(b.health.max);
   });
 });

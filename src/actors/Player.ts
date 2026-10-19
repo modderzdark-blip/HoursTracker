@@ -124,7 +124,12 @@ export class Player extends Actor {
     const idle = POSE_LIBRARY[hero.idlePose];
     const base = buildHumanoidClips(idle);
     const clips = [...base.clips, ...buildDodgeClips(idle)];
-    const all: ActionDef[] = [...hero.combo, ...hero.skills, hero.ultimate];
+    const all: ActionDef[] = [
+      ...hero.combo,
+      ...(hero.rangedCombo ?? []),
+      ...hero.skills,
+      hero.ultimate,
+    ];
     for (const a of all) {
       clips.push(
         a.clip !== undefined ? buildCustomActionClip(a.clip, a, idle) : buildActionClip(a, idle),

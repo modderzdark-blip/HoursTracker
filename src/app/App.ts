@@ -106,6 +106,7 @@ export interface TestHookState {
   wallet: Record<string, number>;
   tokensInUse: number;
   telegraphs: number;
+  effects: { projectiles: number; zones: number };
   cinematic: boolean;
   quality: QualityLevel;
   qualitySetting: string;
@@ -136,6 +137,8 @@ export interface TestHookCommands {
   startStage: (stageId: string, difficulty?: DifficultyId) => void;
   grant: (currency: Currency, amount: number) => void;
   goHub: () => void;
+  /** Test/debug: unlock and select a hero. */
+  setHero: (id: HeroId) => void;
 }
 
 declare global {
@@ -829,6 +832,12 @@ export class App {
         this.endBattle();
         this.showHub();
       },
+      setHero: (id) => {
+        this.profile.hero(id).unlocked = true;
+        this.profile.selectHero(id);
+        this.hubScene.setHero(HEROES[id]);
+        if (this.battle === null) this.menus.hub();
+      },
       state: () => {
         const m = this.battle;
         const p = m?.player;
@@ -885,6 +894,10 @@ export class App {
           wallet: { ...this.profile.wallet.snapshot() },
           tokensInUse: m?.tokens.count ?? 0,
           telegraphs: m?.telegraphCount ?? 0,
+          effects: {
+            projectiles: m?.effects.activeProjectiles ?? 0,
+            zones: m?.effects.activeZones ?? 0,
+          },
           cinematic: m?.cinematicActive ?? false,
           quality: this.quality.level,
           qualitySetting: this.quality.setting,

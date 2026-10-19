@@ -111,7 +111,7 @@ const DEFEAT_SCREEN_DELAY_MS = 1600;
 const VICTORY_DELAY_MS = 2600;
 const ULT_CLONE_INTERVAL_MS = 220;
 
-const TRAIL_COLORS = { hero: 0xa07cff, enemy: 0xff5a2a, boss: 0xff7a2a } as const;
+const TRAIL_COLORS = { enemy: 0xff5a2a, boss: 0xff7a2a } as const;
 const ZONE_COLOR = { enemy: 0xff3a1a, player: 0xb080ff } as const;
 const SPARK = {
   hit: 0xffc890,
@@ -167,6 +167,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
   private finished = false;
   private soulsThisRun = 0;
   private ultCloneTimer = 0;
+  private chargeSparkSec = 0;
   private dotTarget: Actor | null = null;
   private readonly tmp = new Vector3();
   private readonly bossFrame = new Vector3();
@@ -223,11 +224,11 @@ export class BattleMode implements QualityTarget, WaveWorld {
     });
     this.playerList.push(this.player);
     this.combat.register(this.player);
-    this.trails.attach(this.player.rig, 'right', TRAIL_COLORS.hero, () => {
+    this.trails.attach(this.player.rig, 'right', hero.color, () => {
       const s = this.player.trailSide();
       return s === 'right' || s === 'both';
     });
-    this.trails.attach(this.player.rig, 'left', TRAIL_COLORS.hero, () => {
+    this.trails.attach(this.player.rig, 'left', hero.color, () => {
       const s = this.player.trailSide();
       return s === 'left' || s === 'both';
     });
@@ -964,6 +965,27 @@ export class BattleMode implements QualityTarget, WaveWorld {
         realDtSec,
         this.player.stats.moveSpeed,
       );
+    }
+    const charge = this.player.chargeFrac;
+    if (charge > 0) {
+      this.chargeSparkSec -= realDtSec;
+      if (this.chargeSparkSec <= 0) {
+        this.chargeSparkSec = 0.12;
+        this.sparks.burst(
+          feet.x,
+          1.4,
+          feet.z,
+          4 + Math.round(charge * 10),
+          this.setup.hero.color,
+          2 + charge * 3,
+          0,
+          0,
+          0.35,
+          1,
+          -0.4,
+        );
+        if (charge >= 1) this.player.flashHit(0xffd080, 10);
+      }
     }
     this.atmosphere.update(feet, realDtSec);
     this.embers.update(realDtSec, feet);

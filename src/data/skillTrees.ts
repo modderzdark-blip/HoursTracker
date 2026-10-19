@@ -209,4 +209,40 @@ export const SKILL_TREES: Readonly<Record<HeroId, readonly SkillNodeDef[]>> = {
     }),
     ...coreBranch('kael', 'Hollow Legion'),
   ],
+  brann: [
+    ...skillBranch('brann', 0, 'Earthsplitter', 0, {
+      name: 'Molten Fissure',
+      description: 'Earthsplitter sets enemies ablaze.',
+      effect: { kind: 'skillStatus', skill: 0, status: 'burn', chance: 1 },
+    }),
+    ...skillBranch('brann', 1, 'Oathbreaker', 1, {
+      name: 'Sundering Oath',
+      description: 'Oathbreaker opens bleeding wounds.',
+      effect: { kind: 'skillStatus', skill: 1, status: 'bleed', chance: 1 },
+    }),
+    ...skillBranch('brann', 2, 'Bulwark Rush', 2, {
+      name: 'Crippling Rush',
+      description: 'Bulwark Rush slows enemies it hits.',
+      effect: { kind: 'skillStatus', skill: 2, status: 'slow', chance: 1 },
+    }),
+    ...coreBranch('brann', 'Meteor Cleave'),
+  ],
+  lyra: [
+    ...skillBranch('lyra', 0, 'Piercing Gloam', 0, {
+      name: 'Searing Gloam',
+      description: 'Piercing Gloam burns everything it passes through.',
+      effect: { kind: 'skillStatus', skill: 0, status: 'burn', chance: 1 },
+    }),
+    ...skillBranch('lyra', 1, 'Ashfall Volley', 1, {
+      name: 'Barbed Volley',
+      description: 'Ashfall Volley arrows cause bleeding.',
+      effect: { kind: 'skillStatus', skill: 1, status: 'bleed', chance: 0.5 },
+    }),
+    ...skillBranch('lyra', 2, 'Snare Leap', 2, {
+      name: 'Steadfast Leap',
+      description: 'Snare Leap gains super armor.',
+      effect: { kind: 'skillSuperArmor', skill: 2 },
+    }),
+    ...coreBranch('lyra', 'Gloamstorm'),
+  ],
 };

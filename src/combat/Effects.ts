@@ -383,9 +383,10 @@ export class Effects {
     }
   }
 
+  /** Traps only spring on opponents that can be hit (not spawning / dodging). */
   private anyOpponentIn(z: Zone): boolean {
     for (const t of this.opponents(z.team)) {
-      if (!t.alive) continue;
+      if (!t.alive || t.isInvulnerable()) continue;
       if (Math.hypot(t.currFeet.x - z.x, t.currFeet.z - z.z) <= z.def.radius + t.radius)
         return true;
     }
