@@ -156,7 +156,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           ls -la emulator-output || true
-          for f in emulator-output/emulator-1-title.png emulator-output/emulator-2-game.png emulator-output/webview-console.txt emulator-output/status.txt; do
+          for f in emulator-output/emulator-1-title.png emulator-output/emulator-2-game.png emulator-output/webview-console.txt emulator-output/status.txt emulator-output/crash.txt; do
             [ -f "$f" ] && gh release upload "$RELEASE_TAG" "$f" --clobber || true
           done
 
