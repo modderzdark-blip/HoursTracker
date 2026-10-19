@@ -389,7 +389,7 @@ export class App {
       settings.detectedQuality = level;
       this.updateQualityLabel();
       this.persistSoon();
-      this.hud.showToast(`Graphics: ${QUALITY_PRESETS[level].label} (auto)`);
+      // No toast: it would pop up mid-fight. The detected level shows in Settings and Pause.
     };
     this.quality.onBenchmarkStateChange = (running) => {
       this.loop.limiter.setCap(running ? 0 : settings.fpsCap);

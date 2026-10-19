@@ -10,7 +10,20 @@ interface Num {
   life: number;
   readonly pos: Vector3;
   jitter: number;
+  /** Screen-space lift (px) chosen on the first frame so labels never sit on each other. */
+  lift: number;
+  placed: boolean;
+  /** Last drawn box (px) for the overlap test. */
+  x: number;
+  y: number;
+  w: number;
 }
+
+/** Row height (px) used when stacking labels that would overlap. */
+const ROW_PX = 26;
+const MAX_ROWS = 4;
+/** Labels never rise into the top strip of the screen (HUD bars, wave text). */
+const TOP_SAFE_FRAC = 0.17;
 
 const LIFE: Readonly<Record<NumberKind, number>> = {
   normal: 0.75,
@@ -37,7 +50,19 @@ export class DamageNumbers {
       const n = el('div', 'dmg');
       n.style.opacity = '0';
       this.root.append(n);
-      this.pool.push({ el: n, active: false, age: 0, life: 1, pos: new Vector3(), jitter: 0 });
+      this.pool.push({
+        el: n,
+        active: false,
+        age: 0,
+        life: 1,
+        pos: new Vector3(),
+        jitter: 0,
+        lift: 0,
+        placed: false,
+        x: 0,
+        y: 0,
+        w: 0,
+      });
     }
     container.append(this.root);
   }
@@ -51,6 +76,9 @@ export class DamageNumbers {
     n.life = LIFE[kind];
     n.pos.set(x, y, z);
     n.jitter = (Math.random() - 0.5) * 36;
+    n.lift = 0;
+    n.placed = false;
+    n.w = 14 + text.length * (kind === 'info' ? 13 : 15);
     n.el.textContent = text;
     n.el.className = `dmg dmg-${kind}`;
   }
@@ -70,12 +98,36 @@ export class DamageNumbers {
         n.el.style.opacity = '0';
         continue;
       }
-      const sx = (this.v.x * 0.5 + 0.5) * width + n.jitter * t;
-      const sy = (-this.v.y * 0.5 + 0.5) * height - 46 * t;
+      const bx = (this.v.x * 0.5 + 0.5) * width;
+      const by = (-this.v.y * 0.5 + 0.5) * height;
+      if (!n.placed) {
+        // First frame: take the lowest free row above the anchor.
+        n.placed = true;
+        for (let row = 0; row < MAX_ROWS; row++) {
+          const y = by - row * ROW_PX;
+          if (!this.overlaps(n, bx, y)) {
+            n.lift = row * ROW_PX;
+            break;
+          }
+          n.lift = row * ROW_PX;
+        }
+      }
+      const sx = bx + n.jitter * t;
+      const sy = Math.max(height * TOP_SAFE_FRAC, by - n.lift - 46 * t);
+      n.x = sx;
+      n.y = sy;
       const pop = t < 0.12 ? 1.35 - t * 2.9 : 1;
       n.el.style.transform = `translate3d(${sx.toFixed(1)}px, ${sy.toFixed(1)}px, 0) translate(-50%, -50%) scale(${pop.toFixed(2)})`;
       n.el.style.opacity = (t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3).toFixed(2);
     }
+  }
+
+  private overlaps(self: Num, x: number, y: number): boolean {
+    for (const o of this.pool) {
+      if (o === self || !o.active || !o.placed) continue;
+      if (Math.abs(o.y - y) < ROW_PX - 2 && Math.abs(o.x - x) < (o.w + self.w) / 2) return true;
+    }
+    return false;
   }
 
   clear(): void {
