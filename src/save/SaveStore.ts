@@ -1,4 +1,5 @@
 import { ECONOMY } from '../data/economy';
+import { createDefaultProfile, sanitizeProfile, type ProfileData } from '../progression/profile';
 import { emptyBalances, type Balances } from '../progression/wallet';
 import type { StorageBackend } from './backends';
 import { CURRENT_SAVE_VERSION, SAVE_MIGRATIONS, migrate, type MigrationTable } from './migrations';
@@ -16,7 +17,9 @@ export interface SaveData {
   updatedAt: string;
   settings: Settings;
   wallet: Balances;
+  /** Best result per `${stageId}:${difficulty}`. */
   records: Record<string, StageRecord>;
+  profile: ProfileData;
 }
 
 export const SAVE_KEY = 'save';
@@ -31,6 +34,7 @@ export function createDefaultSave(now = new Date()): SaveData {
     settings: { ...DEFAULT_SETTINGS },
     wallet: { ...emptyBalances(), gems: ECONOMY.startingGems },
     records: {},
+    profile: createDefaultProfile(now.getTime()),
   };
 }
 
@@ -76,6 +80,7 @@ export function normalizeSave(raw: Record<string, unknown>): SaveData {
     settings: sanitizeSettings(raw['settings']),
     wallet: sanitizeWallet(raw['wallet']),
     records: sanitizeRecords(raw['records']),
+    profile: sanitizeProfile(raw['profile']),
   };
 }
 

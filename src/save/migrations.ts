@@ -6,7 +6,7 @@
 export type Migration = (data: Record<string, unknown>) => Record<string, unknown>;
 export type MigrationTable = Readonly<Record<number, Migration>>;
 
-export const CURRENT_SAVE_VERSION = 2;
+export const CURRENT_SAVE_VERSION = 3;
 
 /**
  * Starting grant as it was when v2 shipped. Frozen on purpose: a migration must produce the same
@@ -21,6 +21,12 @@ export const SAVE_MIGRATIONS: MigrationTable = {
     wallet: { gold: 0, gems: STARTING_GEMS, souls: 0, materials: 0, tickets: 0 },
     records: {},
   }),
+  /**
+   * v2 (battle prototype) → v3: adds the profile (heroes, gear, modes). Stage ids changed with the
+   * Adventure map, so prototype records are dropped; wallet and settings carry over. The profile's
+   * defaults are filled in by sanitizeProfile.
+   */
+  2: (d) => ({ ...d, records: {}, profile: {} }),
 };
 
 export class MigrationError extends Error {}

@@ -92,7 +92,8 @@ function fakeWorld(cap = 99): WaveWorld & {
 const STAGE: StageDef = {
   id: 's',
   name: 'S',
-  difficulty: 'normal',
+  arena: 'cinder_court',
+  level: 1,
   trainingDummy: true,
   introCountdownMs: 1000,
   waves: [
@@ -108,7 +109,6 @@ const STAGE: StageDef = {
   boss: 'hollow_warden',
   stars: { maxDamageTakenFrac: 1, parTimeSec: 60 },
   interWaveMs: 500,
-  rewards: { gold: 1, gems: 1 },
 };
 
 describe('WaveDirector', () => {
@@ -225,8 +225,8 @@ describe('star rating', () => {
   });
 });
 
-describe('save migration v1 → v2', () => {
-  it('adds the wallet (with the starting gems) and records to an M1 save', () => {
+describe('save migrations', () => {
+  it('v1 → current: adds the wallet (with the starting gems), records and a profile', () => {
     const v1 = {
       version: 1,
       createdAt: '2026-10-18T00:00:00.000Z',
@@ -235,11 +235,32 @@ describe('save migration v1 → v2', () => {
     };
     const migrated = migrate(v1, CURRENT_SAVE_VERSION, SAVE_MIGRATIONS);
     const save = normalizeSave(migrated);
-    expect(save.version).toBe(2);
+    expect(save.version).toBe(CURRENT_SAVE_VERSION);
     expect(save.settings.quality).toBe('low');
     expect(save.settings.fpsCap).toBe(30);
     expect(save.wallet).toEqual({ gold: 0, gems: 20, souls: 0, materials: 0, tickets: 0 });
     expect(save.records).toEqual({});
+    expect(save.profile.heroes.kael.unlocked).toBe(true);
+    expect(save.profile.items).toEqual([]);
+  });
+
+  it('v2 (battle prototype) → v3: keeps wallet and settings, drops prototype records', () => {
+    const v2 = {
+      version: 2,
+      createdAt: '2026-10-18T00:00:00.000Z',
+      updatedAt: '2026-10-18T00:00:00.000Z',
+      settings: { quality: 'medium', fpsCap: 60, vibration: false },
+      wallet: { gold: 300, gems: 15, souls: 40, materials: 0, tickets: 0 },
+      records: { proto_cinder_court: { bestStars: 3, bestTimeSec: 200, clears: 4 } },
+    };
+    const save = normalizeSave(migrate(v2, CURRENT_SAVE_VERSION, SAVE_MIGRATIONS));
+    expect(save.version).toBe(3);
+    expect(save.wallet).toEqual({ gold: 300, gems: 15, souls: 40, materials: 0, tickets: 0 });
+    expect(save.settings.vibration).toBe(false);
+    expect(save.records).toEqual({});
+    expect(save.profile.selectedHero).toBe('kael');
+    expect(save.profile.heroes.kael.level).toBe(1);
+    expect(save.profile.pity).toEqual({ sinceEpic: 0, sinceLegendary: 0 });
   });
 
   it('normalizeSave repairs corrupt wallet/records', () => {
