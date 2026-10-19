@@ -16,6 +16,7 @@
   --st: env(safe-area-inset-top, 0px);
   --sb: env(safe-area-inset-bottom, 0px);
   --btn-opacity: 0.88;
+  --tile: 64px;
 }
 
 *,
@@ -158,6 +159,8 @@ body {
   font-size: 16px;
   font-weight: 600;
   letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-align: center;
   cursor: pointer;
   transition:
     transform 80ms ease,
@@ -199,9 +202,10 @@ body {
 
 .setting-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 6px 12px;
 }
 
 .setting-label {
@@ -213,12 +217,25 @@ body {
 .segmented {
   display: flex;
   gap: 6px;
+  min-width: 0;
+}
+
+/* In a settings row the options take the rest of the line, or a full line of their own. */
+.setting-row .segmented {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+
+.setting-row .segment {
+  flex: 1 1 0;
+  max-width: 96px;
 }
 
 .segment {
-  min-width: 56px;
+  min-width: 48px;
   min-height: 48px;
   padding: 0 12px;
+  white-space: nowrap;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -367,7 +384,7 @@ body {
   bottom: calc(8px + var(--sb));
   right: calc(12px + var(--sr));
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   color: rgba(169, 156, 140, 0.6);
 }
 
@@ -432,14 +449,21 @@ body {
 
 .hud-toast {
   position: absolute;
-  top: calc(52px + var(--st));
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 8px 16px;
-  border-radius: 999px;
-  background: rgba(16, 11, 10, 0.85);
+  /* Just below the menu top bar, centred, never wider than the safe screen. */
+  top: calc(54px + var(--st));
+  left: calc(16px + var(--sl));
+  right: calc(16px + var(--sr));
+  width: fit-content;
+  max-width: min(560px, calc(100% - 32px - var(--sl) - var(--sr)));
+  margin: 0 auto;
+  padding: 8px 18px;
+  border-radius: 12px;
+  background: rgba(16, 11, 10, 0.94);
   border: 1px solid var(--panel-edge);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
   font-size: 14px;
+  line-height: 1.35;
+  text-align: center;
   pointer-events: none !important;
 }
 
@@ -1253,16 +1277,21 @@ body {
 }
 
 .menu-title {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-width: 0;
   font-family: var(--font-title);
   letter-spacing: 0.12em;
+  line-height: 1.2;
   text-transform: uppercase;
   color: var(--gold);
-  font-size: 15px;
-  white-space: nowrap;
+  font-size: clamp(13px, 1.7vw, 16px);
+  /* Long titles (chapter names) wrap to a second line instead of being cut. */
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .currency-bar {
@@ -1274,17 +1303,41 @@ body {
 .currency {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px 0 8px;
   border-radius: 999px;
   background: rgba(16, 11, 10, 0.8);
   border: 1px solid rgba(201, 162, 74, 0.25);
   font-size: 13px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .currency-icon {
   font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .menu-top {
+    gap: 8px;
+  }
+  .currency-bar {
+    gap: 4px;
+  }
+  .currency {
+    gap: 3px;
+    height: 28px;
+    padding: 0 7px 0 6px;
+    font-size: 12px;
+  }
+  .currency-icon {
+    font-size: 12px;
+  }
+  .menu-title {
+    letter-spacing: 0.06em;
+  }
 }
 
 .currency-gold .currency-icon {
