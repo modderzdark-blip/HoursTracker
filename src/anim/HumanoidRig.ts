@@ -246,6 +246,52 @@ function buildTemplate(def: RigDef): RigTemplate {
       ]);
     }
   }
+  if (L.wings === true) {
+    for (const side of [1, -1]) {
+      body.add(
+        new BoxGeometry(1.25, 0.04, 0.55),
+        'Chest',
+        L.trim,
+        [side * 0.62, p.chestLen * 0.85, -0.2],
+        [0, side * -0.35, side * 0.45],
+      );
+      body.add(
+        new BoxGeometry(0.95, 0.035, 0.45),
+        'Chest',
+        L.body,
+        [side * 1.28, p.chestLen * 1.25, -0.42],
+        [0, side * -0.6, side * 0.75],
+      );
+      glow.add(
+        new BoxGeometry(1.9, 0.03, 0.04),
+        'Chest',
+        L.rim,
+        [side * 0.95, p.chestLen * 1.05, -0.08],
+        [0, side * -0.45, side * 0.55],
+      );
+    }
+  }
+  if (L.extraArms === true) {
+    for (const side of [1, -1]) {
+      for (const k of [0, 1]) {
+        const y = p.chestLen * (0.15 + k * 0.3);
+        body.add(
+          cap(r * 1.05, p.upperArm * 1.1),
+          'Chest',
+          L.skin,
+          [side * (p.shoulderX + 0.18), y, -0.05 - k * 0.04],
+          [0.4 - k * 0.6, 0, side * (1.2 + k * 0.25)],
+        );
+        body.add(
+          new ConeGeometry(r * 0.9, p.foreArm * 0.7, 5),
+          'Chest',
+          L.trim,
+          [side * (p.shoulderX + 0.48), y - 0.12, 0.05 - k * 0.08],
+          [Math.PI, 0, side * 0.5],
+        );
+      }
+    }
+  }
   // Arms.
   for (const side of ['Left', 'Right'] as const) {
     const sx = side === 'Left' ? 1 : -1;
@@ -386,6 +432,44 @@ function buildTemplate(def: RigDef): RigTemplate {
       );
       socket('rightBase', [0, -r, 0.1]);
       socket('rightTip', [0, -r, 0.52]);
+      sockets.leftBase.offset.copy(sockets.rightBase.offset);
+      sockets.leftTip.offset.copy(sockets.rightTip.offset);
+      sockets.leftBase.bone = 'RightHand';
+      sockets.leftTip.bone = 'RightHand';
+      break;
+    }
+    case 'shieldMace': {
+      tilt = 0.6;
+      body.add(new BoxGeometry(0.46, 0.62, 0.05), 'LeftHand', L.trim, [0, -r - 0.06, 0.1]);
+      body.add(new BoxGeometry(0.32, 0.44, 0.06), 'LeftHand', metal, [0, -r - 0.06, 0.13]);
+      body.add(
+        new CylinderGeometry(0.035, 0.03, 0.6, 6),
+        'RightHand',
+        L.trim,
+        at([0, -r, 0.3]),
+        tiltRot(Math.PI / 2),
+      );
+      body.add(new SphereGeometry(0.1, 8, 6), 'RightHand', metal, at([0, -r, 0.62]));
+      socket('rightBase', [0, -r, 0.15]);
+      socket('rightTip', [0, -r, 0.68]);
+      sockets.leftBase.offset.copy(sockets.rightBase.offset);
+      sockets.leftTip.offset.copy(sockets.rightTip.offset);
+      sockets.leftBase.bone = 'RightHand';
+      sockets.leftTip.bone = 'RightHand';
+      break;
+    }
+    case 'staff': {
+      tilt = 0.2;
+      body.add(
+        new CylinderGeometry(0.025, 0.03, 1.5, 6),
+        'RightHand',
+        metal,
+        at([0, -r, 0.35]),
+        tiltRot(Math.PI / 2),
+      );
+      glow.add(new SphereGeometry(0.09, 8, 6), 'RightHand', L.rim, at([0, -r, 1.12]));
+      socket('rightBase', [0, -r, 0.9]);
+      socket('rightTip', [0, -r, 1.15]);
       sockets.leftBase.offset.copy(sockets.rightBase.offset);
       sockets.leftTip.offset.copy(sockets.rightTip.offset);
       sockets.leftBase.bone = 'RightHand';

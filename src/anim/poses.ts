@@ -311,6 +311,27 @@ export const AIM_UP_RELEASE: Pose = pose(AIM_UP, {
   RightForeArm: [-30, 0, 0],
 });
 
+// ---- Casters ----
+export const CAST_WIND: Pose = pose(NEUTRAL, {
+  Spine: [-8, 0, 0],
+  Chest: [-6, 0, 0],
+  Head: [-12, 0, 0],
+  LeftArm: [-150, 0, 30],
+  RightArm: [-150, 0, -30],
+  LeftForeArm: [-30, 0, 0],
+  RightForeArm: [-30, 0, 0],
+});
+export const CAST_HIT: Pose = pose(NEUTRAL, {
+  Spine: [18, 0, 0],
+  Chest: [8, 0, 0],
+  LeftArm: [-85, 0, 8],
+  RightArm: [-85, 0, -8],
+  LeftForeArm: [-5, 0, 0],
+  RightForeArm: [-5, 0, 0],
+  LeftUpLeg: [-25, 0, 6],
+  LeftLeg: [25, 0, 0],
+});
+
 // ---- Enemy poses ----
 export const CLUB_WIND: Pose = pose(HUNCHED, {
   Spine: [-10, 0, 0],
@@ -454,6 +475,8 @@ export const POSE_LIBRARY = {
   BOW_RELEASE,
   AIM_UP,
   AIM_UP_RELEASE,
+  CAST_WIND,
+  CAST_HIT,
   CLUB_WIND,
   CLUB_HIT,
   POUNCE_WIND,

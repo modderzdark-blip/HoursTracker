@@ -4,7 +4,8 @@
  * Lengths are metres for a 1.0 scale rig (~1.85 m tall); `scale` multiplies everything.
  */
 
-export type WeaponKind = 'dualBlades' | 'greatsword' | 'bowDagger' | 'claws' | 'club' | 'none';
+export type WeaponKind =
+  'dualBlades' | 'greatsword' | 'bowDagger' | 'shieldMace' | 'staff' | 'claws' | 'club' | 'none';
 
 export interface RigProportions {
   readonly hipsY: number;
@@ -35,6 +36,10 @@ export interface RigLook {
   readonly horns: boolean;
   readonly pauldrons: boolean;
   readonly rim: number;
+  /** Large membrane wings on the back (Mother of Ash). */
+  readonly wings?: boolean;
+  /** A second pair of arms from the chest (The Bound King). */
+  readonly extraArms?: boolean;
 }
 
 export interface RigDef {
@@ -215,6 +220,152 @@ export const RIGS = {
     },
     weapon: 'club',
     weaponColor: 0x4a4440,
+  },
+  bulwark: {
+    id: 'bulwark',
+    scale: 1.12,
+    proportions: { ...HUMAN, torsoRadius: 0.17, limbRadius: 0.065, chestWidth: 1.35 },
+    look: {
+      body: 0x34302c,
+      trim: 0x7a6a50,
+      skin: 0x4a403a,
+      metal: 0x7a7e88,
+      eyes: 0xff5020,
+      hood: false,
+      horns: false,
+      pauldrons: true,
+      rim: 0xff7a40,
+    },
+    weapon: 'shieldMace',
+    weaponColor: 0x6a6e78,
+  },
+  penitent: {
+    id: 'penitent',
+    scale: 1.9,
+    proportions: { ...HUMAN, torsoRadius: 0.2, limbRadius: 0.08, chestWidth: 1.45, neckLen: 0.05 },
+    look: {
+      body: 0x24222a,
+      trim: 0x9a8a60,
+      skin: 0x3a3440,
+      metal: 0x8a8e9a,
+      eyes: 0xffd060,
+      hood: true,
+      horns: false,
+      pauldrons: true,
+      rim: 0xffc060,
+    },
+    weapon: 'shieldMace',
+    weaponColor: 0x8a8e9a,
+  },
+  seer: {
+    id: 'seer',
+    scale: 1,
+    proportions: { ...HUMAN, torsoRadius: 0.13, limbRadius: 0.045, chestWidth: 1.05 },
+    look: {
+      body: 0x3a1a1a,
+      trim: 0xb0602a,
+      skin: 0x5a3a30,
+      metal: 0x3a2a22,
+      eyes: 0xffa030,
+      hood: true,
+      horns: false,
+      pauldrons: false,
+      rim: 0xff8a3a,
+    },
+    weapon: 'staff',
+    weaponColor: 0x3a2a22,
+  },
+  seer_elder: {
+    id: 'seer_elder',
+    scale: 1.7,
+    proportions: { ...HUMAN, torsoRadius: 0.14, limbRadius: 0.05, chestWidth: 1.1 },
+    look: {
+      body: 0x4a1410,
+      trim: 0xe0a040,
+      skin: 0x6a3a2a,
+      metal: 0x2a1a14,
+      eyes: 0xffe070,
+      hood: true,
+      horns: true,
+      pauldrons: false,
+      rim: 0xffb040,
+    },
+    weapon: 'staff',
+    weaponColor: 0x2a1a14,
+  },
+  wretch: {
+    id: 'wretch',
+    scale: 0.8,
+    proportions: {
+      ...HUMAN,
+      headRadius: 0.15,
+      torsoRadius: 0.17,
+      chestWidth: 1.0,
+      limbRadius: 0.05,
+    },
+    look: {
+      body: 0x5a2008,
+      trim: 0xff7a1a,
+      skin: 0x8a3a10,
+      metal: 0x1a1a1a,
+      eyes: 0xffe060,
+      hood: false,
+      horns: false,
+      pauldrons: false,
+      rim: 0xffa040,
+    },
+    weapon: 'none',
+    weaponColor: 0,
+  },
+  mother: {
+    id: 'mother',
+    scale: 2.4,
+    proportions: {
+      ...HUMAN,
+      torsoRadius: 0.16,
+      limbRadius: 0.06,
+      chestWidth: 1.3,
+      headRadius: 0.14,
+    },
+    look: {
+      body: 0x2a1410,
+      trim: 0x5a1a10,
+      skin: 0x4a2418,
+      metal: 0xe0c8a0,
+      eyes: 0xffd040,
+      hood: false,
+      horns: true,
+      pauldrons: false,
+      rim: 0xff6a20,
+      wings: true,
+    },
+    weapon: 'claws',
+    weaponColor: 0xe0c8a0,
+  },
+  king: {
+    id: 'king',
+    scale: 2.7,
+    proportions: {
+      ...HUMAN,
+      torsoRadius: 0.2,
+      limbRadius: 0.075,
+      chestWidth: 1.55,
+      headRadius: 0.13,
+    },
+    look: {
+      body: 0x1a1420,
+      trim: 0xb08a3a,
+      skin: 0x2e2238,
+      metal: 0xd8c8a0,
+      eyes: 0xc070ff,
+      hood: false,
+      horns: true,
+      pauldrons: true,
+      rim: 0xb070ff,
+      extraArms: true,
+    },
+    weapon: 'claws',
+    weaponColor: 0xd8c8a0,
   },
   warden: {
     id: 'warden',
