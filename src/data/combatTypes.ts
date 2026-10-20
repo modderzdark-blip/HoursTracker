@@ -127,6 +127,17 @@ export interface FxCue {
   readonly mirror?: boolean;
   /** Screen cue: flash strength (0..1); smoke: number of puffs. */
   readonly amount?: number;
+  /** Repeat the cue this many times (default 1), `every` seconds apart. */
+  readonly repeat?: number;
+  readonly every?: number;
+  /** Extra yaw added per repeat (radians): spinning slash storms. */
+  readonly spin?: number;
+  /** Random scatter radius around the placement point (m). */
+  readonly spread?: number;
+  /** Camera shake (trauma 0..1) when the cue fires. */
+  readonly shake?: number;
+  /** Slow motion when the cue fires: time scale for this many ms. */
+  readonly slowMoMs?: number;
 }
 
 /** A timed action (combo step, skill, ultimate, enemy attack). Times in ms at speed 1. */

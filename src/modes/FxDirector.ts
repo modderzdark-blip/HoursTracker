@@ -1,6 +1,7 @@
 import { Color } from 'three';
 import type { Actor } from '../actors/Actor';
-import type { HitEvent } from '../core/events';
+import type { EventBus } from '../core/EventBus';
+import type { GameEvents, HitEvent } from '../core/events';
 import type { ActionDef, FxCue } from '../data/combatTypes';
 import type { RenderContext } from '../render/RenderContext';
 import type { Fx } from '../vfx/Fx';
@@ -10,11 +11,13 @@ interface Pending {
   t: number;
   readonly actor: Actor;
   readonly cue: FxCue;
+  /** Repeat index (spin offset). */
+  readonly n: number;
   readonly color: number;
   readonly target: { readonly x: number; readonly z: number } | null;
 }
 
-const MAX_PENDING = 64;
+const MAX_PENDING = 160;
 
 /**
  * Turns combat into visuals: plays the cues an action carries (or an automatic slash arc for
@@ -33,6 +36,8 @@ export class FxDirector {
     private readonly fx: Fx,
     private readonly sparks: Sparks,
     private readonly ctx: RenderContext,
+    private readonly bus: EventBus<GameEvents> | null = null,
+    private readonly rand: () => number = Math.random,
   ) {}
 
   /** An action began: schedule its cues (`speed` = action speed multiplier). */
@@ -46,10 +51,14 @@ export class FxDirector {
     const cues = def.fx ?? defaultCues(def);
     const k = 1 / Math.max(0.2, speed);
     for (const cue of cues) {
-      if (this.pending.length >= MAX_PENDING) this.pending.shift();
       const at = cue.at ?? 'start';
-      const t = at === 'start' ? 0 : at === 'active' ? (def.startupMs / 1000) * k : at * k;
-      this.pending.push({ t, actor, cue, color: cue.color ?? color, target });
+      const t0 = at === 'start' ? 0 : at === 'active' ? (def.startupMs / 1000) * k : at * k;
+      const reps = Math.max(1, cue.repeat ?? 1);
+      for (let n = 0; n < reps; n++) {
+        if (this.pending.length >= MAX_PENDING) this.pending.shift();
+        const t = t0 + n * (cue.every ?? 0.1) * k;
+        this.pending.push({ t, actor, cue, n, color: cue.color ?? color, target });
+      }
     }
   }
 
@@ -128,17 +137,26 @@ export class FxDirector {
   private fire(p: Pending): void {
     const a = p.actor;
     const c = p.cue;
-    const yaw = a.yaw + (c.yawOffset ?? 0);
+    const yaw = a.yaw + (c.yawOffset ?? 0) + (c.spin ?? 0) * p.n;
     const fx = Math.sin(a.yaw);
     const fz = Math.cos(a.yaw);
     // Right of the facing direction (yaw 0 faces +Z, right is −X).
     const rx = -fz;
     const rz = fx;
     const [of, ou, or] = c.offset ?? [0, 0, 0];
-    const base = c.atTarget === true && p.target !== null ? p.target : a.currFeet;
-    const x = base.x + (c.atTarget === true ? 0 : fx * of + rx * or);
-    const z = base.z + (c.atTarget === true ? 0 : fz * of + rz * or);
-    const y = (c.atTarget === true ? 0 : a.currFeet.y) + ou;
+    const onTarget = c.atTarget === true && p.target !== null;
+    const base = onTarget && p.target !== null ? p.target : a.currFeet;
+    let x = base.x + fx * of + rx * or;
+    let z = base.z + fz * of + rz * or;
+    const y = (onTarget ? 0 : a.currFeet.y) + ou;
+    if (c.spread !== undefined && c.spread > 0) {
+      const ang = this.rand() * Math.PI * 2;
+      const r = Math.sqrt(this.rand()) * c.spread;
+      x += Math.cos(ang) * r;
+      z += Math.sin(ang) * r;
+    }
+    if (c.shake !== undefined) this.bus?.emit('camera:shake', { trauma: c.shake });
+    if (c.slowMoMs !== undefined) this.bus?.emit('time:slowMotion', { scale: 0.3, ms: c.slowMoMs });
     switch (c.shape) {
       case 'smoke':
         this.fx.smokeBurst(x, y, z, c.amount ?? 8, c.scale ?? 1, 0.15);

@@ -8,6 +8,7 @@ export default defineConfig(
   {
     ignores: [
       'dist/',
+      '.claude/',
       'node_modules/',
       'playwright-report/',
       'test-results/',

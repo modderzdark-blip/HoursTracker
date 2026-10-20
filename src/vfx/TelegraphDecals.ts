@@ -137,7 +137,7 @@ export class TelegraphDecals implements TelegraphPort {
     return -1;
   }
 
-  show(shape: HitShape, x: number, z: number, yaw: number, color: number): number {
+  show(shape: HitShape, x: number, z: number, yaw: number, color: number, opacity = 1): number {
     const i = this.acquire();
     const d = this.decals[i];
     if (d === undefined) return -1;
@@ -146,7 +146,7 @@ export class TelegraphDecals implements TelegraphPort {
     d.shape = shape;
     const u = d.mat.uniforms;
     (u['uColor'] as { value: Color }).value.setHex(telegraphColor(color));
-    (u['uOpacity'] as { value: number }).value = 1;
+    (u['uOpacity'] as { value: number }).value = opacity;
     (u['uProgress'] as { value: number }).value = 0;
     if (shape.kind === 'box') {
       (u['uMode'] as { value: number }).value = 1;

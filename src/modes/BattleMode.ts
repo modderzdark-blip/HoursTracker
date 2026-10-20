@@ -214,7 +214,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.telegraphs = new TelegraphDecals(this.scene, 32);
     this.sparks = new Sparks(this.scene);
     this.fx = new Fx(this.scene);
-    this.fxd = new FxDirector(this.fx, this.sparks, d.ctx);
+    this.fxd = new FxDirector(this.fx, this.sparks, d.ctx, d.bus);
     this.trails = new WeaponTrails(this.scene, 16);
     this.souls = new SoulOrbs(this.scene);
     this.blobs = new BlobShadows(this.scene);
@@ -394,6 +394,8 @@ export class BattleMode implements QualityTarget, WaveWorld {
         z,
         0,
         enemy ? ZONE_COLOR.enemy : ZONE_COLOR.player,
+        // The hero's own zones are a faint hint; enemy zones must read clearly.
+        enemy ? 1 : 0.28,
       ),
     updateZone: (h, progress, x, z) => this.telegraphs.update(h, progress, x, z, 0),
     hideZone: (h) => this.telegraphs.hide(h),

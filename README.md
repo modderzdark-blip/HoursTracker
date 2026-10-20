@@ -43,9 +43,9 @@ Audio and Gameplay. The pause menu has quick camera distance and shake settings.
 
 | Hero  | Style                      | Skills                                                                  | Ultimate                   |
 | ----- | -------------------------- | ----------------------------------------------------------------------- | -------------------------- |
-| Kael  | Dual blades, fast combos   | Rending Dash · Blade Gyre (steerable) · Umbral Step                     | Hollow Legion (clones)     |
-| Brann | Greatsword, super armor    | Earthsplitter (shockwave) · Oathbreaker (hold to charge) · Bulwark Rush | Meteor Cleave              |
-| Lyra  | Bow at range, dagger close | Piercing Gloam · Ashfall Volley (arrow rain) · Snare Leap (trap)        | Gloamstorm (homing arrows) |
+| Kael  | Dual blades, fast combos   | Phantom Rush · Blade Tempest (steerable) · Umbral Execution                     | Night of a Thousand Blades (clones)     |
+| Brann | Greatsword, super armor    | Titan Fault (shockwave) · Oathbreaker (hold to charge) · Juggernaut | Cataclysm              |
+| Lyra  | Bow at range, dagger close | Starpiercer · Starfall Volley (arrow rain) · Moonlit Snare (trap)        | Gloamstorm (homing arrows) |
 
 Brann unlocks after 1-4 for 60 souls, Lyra after 1-8 for 120 souls (Heroes screen).
 

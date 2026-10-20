@@ -14,7 +14,7 @@ const LIFE_SEC = 0.75;
 const FADE_FROM = 0.4;
 
 /**
- * Ultimate "Hollow Legion": translucent shadow copies of the hero that appear around targets and
+ * Ultimate "Night of a Thousand Blades": translucent shadow copies of the hero that appear around targets and
  * strike. Pooled rigs (created at load), each playing one of the hero's real slash clips.
  */
 export class ShadowClones {

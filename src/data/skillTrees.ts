@@ -192,27 +192,27 @@ const coreBranch = (prefix: string, ultName: string): SkillNodeDef[] => [
 
 export const SKILL_TREES: Readonly<Record<HeroId, readonly SkillNodeDef[]>> = {
   kael: [
-    ...skillBranch('kael', 0, 'Rending Dash', 0, {
+    ...skillBranch('kael', 0, 'Phantom Rush', 0, {
       name: 'Deep Rend',
-      description: 'Rending Dash also burns enemies.',
+      description: 'Phantom Rush also burns enemies.',
       effect: { kind: 'skillStatus', skill: 0, status: 'burn', chance: 1 },
     }),
-    ...skillBranch('kael', 1, 'Blade Gyre', 1, {
+    ...skillBranch('kael', 1, 'Blade Tempest', 1, {
       name: 'Crippling Gyre',
-      description: 'Blade Gyre slows enemies it hits.',
+      description: 'Blade Tempest slows enemies it hits.',
       effect: { kind: 'skillStatus', skill: 1, status: 'slow', chance: 0.6 },
     }),
-    ...skillBranch('kael', 2, 'Umbral Step', 2, {
+    ...skillBranch('kael', 2, 'Umbral Execution', 2, {
       name: 'Unstoppable Shade',
-      description: 'Umbral Step gains super armor.',
+      description: 'Umbral Execution gains super armor.',
       effect: { kind: 'skillSuperArmor', skill: 2 },
     }),
-    ...coreBranch('kael', 'Hollow Legion'),
+    ...coreBranch('kael', 'Night of a Thousand Blades'),
   ],
   brann: [
-    ...skillBranch('brann', 0, 'Earthsplitter', 0, {
+    ...skillBranch('brann', 0, 'Titan Fault', 0, {
       name: 'Molten Fissure',
-      description: 'Earthsplitter sets enemies ablaze.',
+      description: 'Titan Fault sets enemies ablaze.',
       effect: { kind: 'skillStatus', skill: 0, status: 'burn', chance: 1 },
     }),
     ...skillBranch('brann', 1, 'Oathbreaker', 1, {
@@ -220,27 +220,27 @@ export const SKILL_TREES: Readonly<Record<HeroId, readonly SkillNodeDef[]>> = {
       description: 'Oathbreaker opens bleeding wounds.',
       effect: { kind: 'skillStatus', skill: 1, status: 'bleed', chance: 1 },
     }),
-    ...skillBranch('brann', 2, 'Bulwark Rush', 2, {
+    ...skillBranch('brann', 2, 'Juggernaut', 2, {
       name: 'Crippling Rush',
-      description: 'Bulwark Rush slows enemies it hits.',
+      description: 'Juggernaut slows enemies it hits.',
       effect: { kind: 'skillStatus', skill: 2, status: 'slow', chance: 1 },
     }),
-    ...coreBranch('brann', 'Meteor Cleave'),
+    ...coreBranch('brann', 'Cataclysm'),
   ],
   lyra: [
-    ...skillBranch('lyra', 0, 'Piercing Gloam', 0, {
+    ...skillBranch('lyra', 0, 'Starpiercer', 0, {
       name: 'Searing Gloam',
-      description: 'Piercing Gloam burns everything it passes through.',
+      description: 'Starpiercer burns everything it passes through.',
       effect: { kind: 'skillStatus', skill: 0, status: 'burn', chance: 1 },
     }),
-    ...skillBranch('lyra', 1, 'Ashfall Volley', 1, {
+    ...skillBranch('lyra', 1, 'Starfall Volley', 1, {
       name: 'Barbed Volley',
-      description: 'Ashfall Volley arrows cause bleeding.',
+      description: 'Starfall Volley arrows cause bleeding.',
       effect: { kind: 'skillStatus', skill: 1, status: 'bleed', chance: 0.5 },
     }),
-    ...skillBranch('lyra', 2, 'Snare Leap', 2, {
+    ...skillBranch('lyra', 2, 'Moonlit Snare', 2, {
       name: 'Steadfast Leap',
-      description: 'Snare Leap gains super armor.',
+      description: 'Moonlit Snare gains super armor.',
       effect: { kind: 'skillSuperArmor', skill: 2 },
     }),
     ...coreBranch('lyra', 'Gloamstorm'),

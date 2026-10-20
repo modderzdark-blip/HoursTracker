@@ -57,7 +57,7 @@ export interface PlayerDeps {
   readonly clock: () => number;
   /** Camera ground basis for camera-relative movement. */
   readonly basis: { forwardXZ: { x: number; z: number }; rightXZ: { x: number; z: number } };
-  /** Enemies the player can target (auto-aim, Umbral Step). */
+  /** Enemies the player can target (auto-aim, Umbral Execution). */
   readonly targets: () => readonly Actor[];
   /** Battle stats (level + gear); defaults to the hero's level-1 stats. */
   readonly stats?: StatBlock;
@@ -474,7 +474,7 @@ export class Player extends Actor {
       this.actionDisp.x += Math.sin(this.yaw) * dist * frac;
       this.actionDisp.z += Math.cos(this.yaw) * dist * frac;
     }
-    // Steerable skills (Blade Gyre) let the stick move the hero at reduced speed.
+    // Steerable skills (Blade Tempest) let the stick move the hero at reduced speed.
     if (
       this.state === 'skill' &&
       this.skillDef?.special === 'steerable' &&
