@@ -126,6 +126,17 @@ export class Player extends Actor {
   private readonly move = { x: 0, y: 0 };
   /** Enemy picked by the last auto-aim (attack magnetism). */
   private aimTarget: Actor | null = null;
+
+  /** The action being performed (combo step, skill, ultimate), if any. */
+  get currentAction(): ActionDef | null {
+    return this.actionDef;
+  }
+
+  /** Where the auto-aim points (the aimed enemy's feet), if anything is targeted. */
+  get aimPoint(): { readonly x: number; readonly z: number } | null {
+    const t = this.aimTarget;
+    return t !== null && t.alive ? t.currFeet : null;
+  }
   /** Lunge distance of the current action (data distance adjusted by magnetism). */
   private lunge = 0;
   /** Camera-relative stick input in world space (magnitude ≤ 1). */

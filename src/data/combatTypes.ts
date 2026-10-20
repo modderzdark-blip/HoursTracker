@@ -103,6 +103,32 @@ export interface MoveSpec {
 
 export type TrailSide = 'right' | 'left' | 'both' | 'none';
 
+/** Shaped battle effects (src/vfx/Fx.ts). */
+export type FxShape = 'ring' | 'slash' | 'pillar' | 'flash' | 'cracks' | 'nova';
+
+/**
+ * A visual cue an action plays: a shaped effect, a smoke puff or a screen flash, at the action's
+ * start, when it becomes active, or after a delay; placed in the actor's frame.
+ */
+export interface FxCue {
+  readonly shape: FxShape | 'smoke' | 'screen';
+  /** 'start' (default), 'active' (the strike), or seconds after the start (at speed 1). */
+  readonly at?: 'start' | 'active' | number;
+  /** Offset in the actor's frame: forward, up, right (m). */
+  readonly offset?: readonly [number, number, number];
+  /** Place at the action's locked target instead of the actor (leaps, rains, meteors). */
+  readonly atTarget?: boolean;
+  readonly scale?: number;
+  readonly color?: number;
+  readonly life?: number;
+  /** Slash roll: 0 horizontal sweep, ±π/2 vertical chop. */
+  readonly tilt?: number;
+  readonly yawOffset?: number;
+  readonly mirror?: boolean;
+  /** Screen cue: flash strength (0..1); smoke: number of puffs. */
+  readonly amount?: number;
+}
+
 /** A timed action (combo step, skill, ultimate, enemy attack). Times in ms at speed 1. */
 export interface ActionDef {
   readonly id: string;
@@ -123,6 +149,8 @@ export interface ActionDef {
   readonly hitPose: PoseName;
   /** Optional custom clip name (spins, rolls) instead of the wind/hit transition. */
   readonly clip?: string;
+  /** Visual cues (melee actions without any get an automatic slash arc). */
+  readonly fx?: readonly FxCue[];
 }
 
 /** Core combat stats. Same shape for heroes, enemies and bosses. */

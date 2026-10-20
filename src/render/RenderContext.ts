@@ -118,6 +118,11 @@ export class RenderContext {
     this.setPost({ bloom: enabled, grade: enabled }, camera);
   }
 
+  /** Momentary screen flash / colour fringing (needs the grading pass: Medium and High). */
+  setScreenFx(r: number, g: number, b: number, aberration: number): void {
+    this.gradePass?.setScreenFx(r, g, b, aberration);
+  }
+
   /** Colour grade for the current scene (each arena has its own). */
   setGrade(grade: ColorGrade): void {
     this.grade = grade;

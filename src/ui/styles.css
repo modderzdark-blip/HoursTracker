@@ -287,6 +287,9 @@ body {
 
 /* ---------- Title ---------- */
 .title-screen {
+  /* Symmetric side padding: a camera cut-out on one side must not push the title off-centre. */
+  padding-left: calc(16px + max(var(--sl), var(--sr)));
+  padding-right: calc(16px + max(var(--sl), var(--sr)));
   background:
     radial-gradient(ellipse at 50% 120%, rgba(255, 106, 26, 0.35), transparent 55%),
     radial-gradient(ellipse at 50% 40%, #1a1012 0%, #07060a 70%);
@@ -1083,19 +1086,20 @@ body {
 }
 
 .bhud-banner {
-  /* Free band between the screen edge and the action-button cluster (see the media query). */
-  --band-l: calc(16px + var(--sl));
-  --band-r: calc(16px + var(--sr));
+  /* True screen centre (symmetric margins, so a camera cut-out on one side does not shift it). */
+  --edge: calc(16px + max(var(--sl), var(--sr)));
   position: absolute;
   top: 30%;
-  left: calc((var(--band-l) + 100% - var(--band-r)) / 2);
+  left: 50%;
   width: max-content;
-  max-width: calc(100% - var(--band-l) - var(--band-r));
+  max-width: calc(100% - 2 * var(--edge));
   transform: translate(-50%, -50%);
   font-family: var(--font-title);
   font-size: clamp(20px, 4.4vw, 42px);
   line-height: 1.2;
   letter-spacing: 0.18em;
+  /* Letter spacing trails the last glyph; pad the start so the text itself is centred. */
+  padding-left: 0.18em;
   text-align: center;
   text-wrap: balance;
   color: #f4e3c4;
@@ -1105,18 +1109,12 @@ body {
   opacity: 0;
 }
 
-/* Phones: the button cluster fills the right-hand side, so banners centre in the space left of
-   it (or right of it when the controls are mirrored for left-handed play). */
+/* Phones: keep it above the action buttons and below the top HUD. */
 @media (max-height: 560px) {
   .bhud-banner {
-    --band-r: calc(290px + var(--sr));
-    /* Mid-screen: below the HUD and combo counter, above the joystick's usual spot. */
-    top: 50%;
+    top: 31%;
     font-size: clamp(18px, 3vw, 26px);
-  }
-  #ui-root:has(.touch-layer.is-left) .bhud-banner {
-    --band-l: calc(290px + var(--sl));
-    --band-r: calc(16px + var(--sr));
+    max-width: min(calc(100% - 2 * var(--edge)), 60vw);
   }
 }
 

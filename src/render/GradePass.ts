@@ -40,6 +40,8 @@ uniform float uVignette;
 uniform float uGrain;
 uniform float uTime;
 uniform vec2 uResolution;
+uniform vec3 uFlash;
+uniform float uAberr;
 varying vec2 vUv;
 
 float hash(vec2 p) {
@@ -51,6 +53,12 @@ float hash(vec2 p) {
 void main() {
   vec4 src = texture2D(tDiffuse, vUv);
   vec3 c = src.rgb;
+  if (uAberr > 0.0001) {
+    // Colour fringing toward the edges (big hits, ultimates).
+    vec2 dir = (vUv - 0.5) * uAberr;
+    c.r = texture2D(tDiffuse, vUv + dir).r;
+    c.b = texture2D(tDiffuse, vUv - dir).b;
+  }
   float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
   c = mix(vec3(l), c, uSat);
   c = (c - 0.5) * uContrast + 0.5;
@@ -61,6 +69,7 @@ void main() {
   c *= 1.0 - uVignette * smoothstep(0.25, 0.75, length(d));
   // Fine film grain hides banding in the dark fog gradients.
   c += (hash(vUv * uResolution + fract(uTime) * 61.0) - 0.5) * uGrain;
+  c += uFlash;
   gl_FragColor = vec4(clamp(c, 0.0, 1.0), src.a);
 }`;
 
@@ -86,6 +95,8 @@ export class GradePass extends Pass {
         uGrain: { value: grain },
         uTime: { value: 0 },
         uResolution: { value: new Vector2(1, 1) },
+        uFlash: { value: new Color(0, 0, 0) },
+        uAberr: { value: 0 },
       },
       vertexShader,
       fragmentShader,
@@ -103,6 +114,13 @@ export class GradePass extends Pass {
     if (u['uSat'] !== undefined) u['uSat'].value = g.saturation;
     if (u['uContrast'] !== undefined) u['uContrast'].value = g.contrast;
     if (u['uVignette'] !== undefined) u['uVignette'].value = g.vignette;
+  }
+
+  /** Momentary screen flash (added colour) and colour fringing; 0 = off. */
+  setScreenFx(r: number, g: number, b: number, aberration: number): void {
+    (this.material.uniforms['uFlash']?.value as Color).setRGB(r, g, b);
+    const a = this.material.uniforms['uAberr'];
+    if (a !== undefined) a.value = aberration;
   }
 
   setGrain(amount: number): void {

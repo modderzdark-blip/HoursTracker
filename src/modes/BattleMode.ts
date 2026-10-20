@@ -47,6 +47,8 @@ import { EmberField } from '../vfx/EmberField';
 import { ShadowClones } from '../vfx/ShadowClones';
 import { SoulOrbs } from '../vfx/SoulOrbs';
 import { Sparks } from '../vfx/Sparks';
+import { Fx } from '../vfx/Fx';
+import { FxDirector } from './FxDirector';
 import { TelegraphDecals } from '../vfx/TelegraphDecals';
 import { WeaponTrails } from '../vfx/WeaponTrails';
 import { ArenaBuilder } from './ArenaBuilder';
@@ -160,6 +162,8 @@ export class BattleMode implements QualityTarget, WaveWorld {
   private readonly embers: EmberField;
   private readonly telegraphs: TelegraphDecals;
   private readonly sparks: Sparks;
+  private readonly fx: Fx;
+  private readonly fxd: FxDirector;
   private readonly trails: WeaponTrails;
   private readonly souls: SoulOrbs;
   private readonly blobs: BlobShadows;
@@ -209,6 +213,8 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.scene.add(this.embers.points);
     this.telegraphs = new TelegraphDecals(this.scene, 32);
     this.sparks = new Sparks(this.scene);
+    this.fx = new Fx(this.scene);
+    this.fxd = new FxDirector(this.fx, this.sparks, d.ctx);
     this.trails = new WeaponTrails(this.scene, 16);
     this.souls = new SoulOrbs(this.scene);
     this.blobs = new BlobShadows(this.scene);
@@ -467,6 +473,19 @@ export class BattleMode implements QualityTarget, WaveWorld {
         this.sfx.play('defeat');
       }),
       b.on('enemy:telegraph', (e) => {
+        const who =
+          this.boss !== null && this.boss.id === e.actorId
+            ? this.boss
+            : this.roster.active.find((x) => x.id === e.actorId);
+        const atk = who?.attackById(e.attackId);
+        if (who !== undefined && atk !== undefined)
+          this.fxd.playAction(
+            who,
+            atk,
+            who.actionSpeed,
+            who === this.boss ? TRAIL_COLORS.boss : TRAIL_COLORS.enemy,
+            this.player.currFeet,
+          );
         const actor = this.boss !== null && e.actorId === this.boss.id;
         if (actor || e.attackId.startsWith('brute') || e.attackId.endsWith('_blast'))
           this.sfx.play('telegraph');
@@ -514,6 +533,8 @@ export class BattleMode implements QualityTarget, WaveWorld {
 
   /** (Re)starts the battle from the beginning. */
   startRun(): void {
+    this.fx.clear();
+    this.fxd.clear();
     this.roster.clear();
     if (this.boss !== null) {
       this.boss.brain.reset();
@@ -732,6 +753,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
       e.blocked ? 'dot' : kind,
     );
     if (e.dot) return;
+    this.fxd.hit(e);
     if (e.blocked) {
       this.numbers.spawn('BLOCK', e.x, e.y + 0.45, e.z, 'info');
       this.sparks.burst(e.x, e.y - 0.6, e.z, 10, 0xd0d8e8, 5, -e.dirX, -e.dirZ, 0.3, 0.9, 1);
@@ -778,6 +800,8 @@ export class BattleMode implements QualityTarget, WaveWorld {
 
   private onDeath(actorId: number, team: string, x: number, z: number): void {
     if (team !== 'enemy') return;
+    const big = (this.boss !== null && actorId === this.boss.id) || actorId === this.duelist?.id;
+    this.fxd.death(x, z, big ? 0xffb050 : 0xff7a3a, big);
     if (this.duelist !== null && actorId === this.duelist.id) {
       this.bossDown = true;
       this.d.bus.emit('time:slowMotion', { scale: 0.25, ms: 1200 });
@@ -814,6 +838,15 @@ export class BattleMode implements QualityTarget, WaveWorld {
   }
 
   private onPlayerAction(kind: 'attack' | 'dodge' | 'skill' | 'ultimate', index: number): void {
+    const def = this.player.currentAction;
+    if (kind !== 'dodge' && def !== null)
+      this.fxd.playAction(
+        this.player,
+        def,
+        this.player.stats.attackSpeed,
+        this.setup.hero.color,
+        this.player.aimPoint,
+      );
     switch (kind) {
       case 'attack':
         this.sfx.play(index >= 3 ? 'swingHeavy' : 'swing');
@@ -1095,6 +1128,8 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.telegraphs.tick(realDtSec * 1000);
     this.effects.render();
     this.sparks.update(realDtSec);
+    this.fx.update(realDtSec);
+    this.fxd.update(realDtSec);
     this.trails.update(realDtSec);
     this.souls.update(realDtSec, feet.x, feet.y + 1.2, feet.z);
     this.clones.update(animDt);
@@ -1293,6 +1328,8 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.clones.dispose();
     this.trails.dispose();
     this.sparks.dispose();
+    this.fxd.clear();
+    this.fx.dispose();
     this.souls.dispose();
     this.blobs.dispose();
     this.telegraphs.dispose();

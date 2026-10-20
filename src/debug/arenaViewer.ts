@@ -2,7 +2,8 @@
  * Dev-only arena viewer (dev/arena-viewer.html with `npm run dev`; not part of the build).
  * Builds an arena exactly as a battle does (layout, synthesized materials, sky, lights, post)
  * and renders it from a free camera. URL params: arena=cinder_court, q=high|medium|low,
- * cam=x,y,z (camera position), look=x,y,z (target), fov=50, t=seconds of animation.
+ * cam=x,y,z (camera position), look=x,y,z (target), fov=50, t=seconds of animation,
+ * fx=slash,ring,... (effects spawned in a row along x) and fxt=seconds into them.
  */
 import { PerspectiveCamera, Vector3 } from 'three';
 import { ARENAS, type ArenaId } from '../data/arenas';
@@ -12,6 +13,7 @@ import { loadRapier, PhysicsWorld } from '../physics/PhysicsWorld';
 import { Atmosphere } from '../render/Atmosphere';
 import { RenderContext } from '../render/RenderContext';
 import { createCharacterEnvironment, setCharacterEnvironment } from '../render/characterEnv';
+import { Fx, type FxShape } from '../vfx/Fx';
 
 const params = new URLSearchParams(location.search);
 const arena = ARENAS[(params.get('arena') ?? 'cinder_court') as ArenaId];
@@ -43,6 +45,27 @@ async function main(): Promise<void> {
   camera.position.copy(vec(params.get('cam'), [0, 9, 22]));
   camera.lookAt(vec(params.get('look'), [0, 1, 0]));
   ctx.setPost({ bloom: preset.bloom, grade: preset.grade }, camera);
+  const fxList = (params.get('fx') ?? '').split(',').filter((x) => x !== '') as FxShape[];
+  if (fxList.length > 0) {
+    const fx = new Fx(ctx.scene);
+    const color = Number(params.get('fxc') ?? '0xff8a3d');
+    fxList.forEach((shape, i) => {
+      const x = (i - (fxList.length - 1) / 2) * 4;
+      fx.spawn(shape, {
+        x,
+        y: shape === 'slash' || shape === 'flash' || shape === 'nova' ? 1 : 0,
+        z: 0,
+        yaw: 0.6,
+        tilt: shape === 'slash' && i % 2 === 1 ? Math.PI / 2 : -0.2,
+        scale: shape === 'pillar' ? 0.8 : 1.8,
+        color,
+        life: 1,
+      });
+    });
+    fx.smokeBurst(0, 0.5, 2, 12, 1.5, 0.15);
+    const fxt = Number(params.get('fxt') ?? '0.3');
+    for (let i = 0; i < Math.round(fxt * 30); i++) fx.update(1 / 30);
+  }
   const steps = Math.round(Number(params.get('t') ?? '0.5') * 30);
   for (let i = 0; i < steps; i++) {
     atmosphere.update(new Vector3(0, 0, 0), 1 / 30);
