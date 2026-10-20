@@ -29,6 +29,10 @@ export interface HitSpec {
   readonly shake: number;
   readonly shape: HitShape;
   readonly status?: { readonly id: StatusId; readonly chance: number };
+  /** Heals the attacker this fraction of the damage dealt (life drain). */
+  readonly drain?: number;
+  /** Drags the target toward the attacker instead of pushing it away (taunts, hooks). */
+  readonly pull?: boolean;
 }
 
 /** A projectile fired by an action (arrows, bolts, fireballs). */
@@ -160,6 +164,8 @@ export interface ActionDef {
   readonly sweep?: boolean;
   readonly move?: MoveSpec;
   readonly superArmor?: boolean;
+  /** Multiplier on damage taken while the action runs (guard stances; 1 = none). */
+  readonly damageTakenMult?: number;
   readonly invulnerable?: { readonly fromMs: number; readonly toMs: number };
   readonly trail: TrailSide;
   /** Animation: wind-up pose, hit pose; the clip is built to match the timings. */

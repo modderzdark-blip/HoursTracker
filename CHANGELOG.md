@@ -1,9 +1,26 @@
 # Changelog
 
-## [0.8.0] — Heroes, Monsters & Spectacle (unreleased)
+## [0.8.0] — Heroes, Monsters & Spectacle (2026-10-20)
 
 ### Added
 
+- **Five new heroes** (8 in all), each with its own body, weapon, idle stance, poses, combo,
+  three skills, an ultimate with layered colour-matched effects, and a skill tree:
+  - **Garrick, the Iron Bastion** (tank, tower shield + warhammer): shield bashes and slams,
+    Rampart Charge, Challenge Roar (drags nearby enemies in and slows them), Iron Vigil (a
+    steerable guard stance taking 70 % less damage), ultimate Bastion Fall. Unlocks after 2-4.
+  - **Seraphine, the Ember Witch** (fire staff): fire-bolt combo ending in an exploding fireball,
+    Cinder Wave, Frost Nova, Starfall Brand, ultimate Pyre of Heaven (meteor storm). After 2-8.
+  - **Ryn, the Ashfist** (bare fists): six-hit punch-and-kick combo with short dashes, Comet Kick,
+    Cyclone Heel, Skybreaker Palm (launcher), ultimate Hundred Ash Fists. After 3-4.
+  - **Valka, the Storm Lance** (spear): long thrusts and sweeps, Thunderdive (leaps onto the
+    target), Piercing Gale, Tempest Wheel, ultimate Skyfall Lances. After 3-8.
+  - **Morrow, the Gravecaller** (scythe + grave magic): reaps and soul orbs that drain life,
+    Grave Tithe (life-drain zone), Hex Rupture, Wraith Orbs, ultimate Ossuary Bloom. After 4-4.
+- Move data: `special: 'leap'`, guard stances (`damageTakenMult`), life drain and pulling hits.
+- Arena opponents can be any of the eight heroes.
+- Tests: data, balance against the original heroes, unlocks, and real-physics fights for every
+  new move; the UI audit visits the last hero on the Heroes screen.
 - **Effects library**: glowing slash arcs that follow the swing, expanding shockwaves, light
   pillars, burning ground fissures, energy novas, impact flashes, smoke, screen flashes and
   colour fringing. Skills and enemy attacks list their effects as data; plain melee swings get
@@ -23,6 +40,7 @@
 
 ### Changed
 
+- The Heroes screen lists the roster in two columns so all eight fit on a phone.
 - **Skills and ultimates of Kael, Brann and Lyra redesigned** with new names and effects:
   Phantom Rush (a longer dash that ends in a burst), Blade Tempest, Umbral Execution, Night of a
   Thousand Blades; Titan Fault (the ground splits ahead and erupts far away), Juggernaut (ends

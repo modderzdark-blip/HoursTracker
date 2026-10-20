@@ -13,7 +13,7 @@ const SRC = INPUT_SOURCE.keyboard;
 export function actionReach(
   a: ActionDef & Partial<Pick<SkillDef, 'special' | 'targetRange'>>,
 ): number {
-  if (a.special === 'shadowStep') return a.targetRange ?? 8;
+  if (a.special === 'shadowStep' || a.special === 'leap') return a.targetRange ?? 8;
   const hit = a.hits[0];
   if (hit === undefined) return 3;
   const emit = hit.emit;

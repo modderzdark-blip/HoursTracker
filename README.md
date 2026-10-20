@@ -3,9 +3,12 @@
 Mobile dark-fantasy hack-and-slash action RPG — Three.js + TypeScript + Rapier, no engine.
 Playable in Chrome on Android (GitHub Pages) and as a sideloadable Capacitor APK.
 
-> Status: **0.7.0 — graphics overhaul** (sculpted arenas with GPU-made PBR materials, sky, fire,
-> mist, colour grading; detailed characters), on top of 0.6.0: hub, 3 heroes, 4 Adventure chapters × 8 stages
-> (Normal / Hard / Nightmare), 8 enemy types, 9 bosses (3 of them creatures: a beast, a giant
+> Status: **0.8.0 — heroes, monsters & spectacle** (8 heroes incl. a tank, a fire witch, a
+> martial artist, a lancer and a scythe necromancer; redesigned skills and ultimates; an effects
+> library with lights, shockwaves, fissures, novas and scorch marks; 6 new bullet-pattern enemies;
+> moonlight shafts), on top of 0.7.0 (sculpted arenas with GPU-made PBR materials, sky, fire,
+> mist, colour grading; detailed characters): hub, 4 Adventure chapters × 8 stages
+> (Normal / Hard / Nightmare), 14 enemy types, 9 bosses (3 of them creatures: a beast, a giant
 > spider and a burrowing wyrm), Dungeon, Demon Tower, Boss Challenge, daily Hunts, Arena (AI duels, rating, seasons, leaderboard), XP/levels, gear with upgrades and
 > salvage, loot with pity, skill trees, daily quests, login calendar, achievements, Ember Hearth
 > (rewards over time), Ember Blessing (help after defeats), settings, procedural music and SFX. Characters are
@@ -48,6 +51,14 @@ Audio and Gameplay. The pause menu has quick camera distance and shake settings.
 | Lyra  | Bow at range, dagger close | Starpiercer · Starfall Volley (arrow rain) · Moonlit Snare (trap)        | Gloamstorm (homing arrows) |
 
 Brann unlocks after 1-4 for 60 souls, Lyra after 1-8 for 120 souls (Heroes screen).
+
+| Hero      | Style                             | Skills                                                                                  | Ultimate                                   | Unlock         |
+| --------- | --------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------ | -------------- |
+| Garrick   | Tower shield + warhammer, tank    | Rampart Charge · Challenge Roar (pulls, slows) · Iron Vigil (guard stance, −70% damage) | Bastion Fall (shield slam, shockwave dome) | 2-4, 160 souls |
+| Seraphine | Fire staff, ranged caster         | Cinder Wave (flame cone) · Frost Nova (slows) · Starfall Brand (meteor on target)       | Pyre of Heaven (meteor storm)              | 2-8, 200 souls |
+| Ryn       | Bare fists, fastest combo         | Comet Kick (flying kick) · Cyclone Heel (spin kicks) · Skybreaker Palm (launcher)       | Hundred Ash Fists (flurry + shockwave)     | 3-4, 240 souls |
+| Valka     | Spear, longest reach              | Thunderdive (leap onto the target) · Piercing Gale (dash) · Tempest Wheel (spin, slows) | Skyfall Lances (lightning barrage)         | 3-8, 280 souls |
+| Morrow    | Scythe + grave magic, drains life | Grave Tithe (life-drain zone) · Hex Rupture (curse eruption) · Wraith Orbs (homing)     | Ossuary Bloom (grave eruptions)            | 4-4, 320 souls |
 
 ### Modes
 
@@ -190,7 +201,9 @@ so it works under any path and inside Capacitor.
   `ActionDef`s (timings, hit shapes, multipliers, move curves, cancel windows; `emit` for
   projectiles / zones), optional `rangedCombo`, dodge, three skills (`special: 'charge'`,
   `'steerable'`, `'shadowStep'`), ultimate, colour. Add its rig in `rigs.ts` and its tree in
-  `skillTrees.ts`.
+  `skillTrees.ts`. The newer heroes each live in a module in `src/data/heroKits/`; their moves
+  also use `special: 'leap'` (land on the aimed enemy), `damageTakenMult` (guard stances),
+  `drain` (life steal per hit), `pull` (drag targets in) and `fx` visual cues.
 - **Enemy**: `ENEMIES` in `src/data/enemies.ts` (stats, rig, poise, attacks with range /
   cooldown / weight / telegraph / chains / `emit`, `shield`, `preferredRange` for kiting,
   `special: 'explode'`, souls). Add its id to `EnemyId` and use it in waves.

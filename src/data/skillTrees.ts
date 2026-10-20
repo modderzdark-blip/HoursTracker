@@ -245,4 +245,94 @@ export const SKILL_TREES: Readonly<Record<HeroId, readonly SkillNodeDef[]>> = {
     }),
     ...coreBranch('lyra', 'Gloamstorm'),
   ],
+  garrick: [
+    ...skillBranch('garrick', 0, 'Rampart Charge', 0, {
+      name: 'Crushing Rampart',
+      description: 'Rampart Charge opens bleeding wounds.',
+      effect: { kind: 'skillStatus', skill: 0, status: 'bleed', chance: 1 },
+    }),
+    ...skillBranch('garrick', 1, 'Challenge Roar', 1, {
+      name: 'Scorching Challenge',
+      description: 'Challenge Roar sets the dragged enemies ablaze.',
+      effect: { kind: 'skillStatus', skill: 1, status: 'burn', chance: 1 },
+    }),
+    ...skillBranch('garrick', 2, 'Iron Vigil', 2, {
+      name: 'Spiked Vigil',
+      description: 'Iron Vigil pulses make enemies bleed.',
+      effect: { kind: 'skillStatus', skill: 2, status: 'bleed', chance: 0.6 },
+    }),
+    ...coreBranch('garrick', 'Bastion Fall'),
+  ],
+  seraphine: [
+    ...skillBranch('seraphine', 0, 'Cinder Wave', 0, {
+      name: 'Choking Cinders',
+      description: 'Cinder Wave also slows the enemies it scorches.',
+      effect: { kind: 'skillStatus', skill: 0, status: 'slow', chance: 1 },
+    }),
+    ...skillBranch('seraphine', 1, 'Frost Nova', 1, {
+      name: 'Unbroken Focus',
+      description: 'Frost Nova gains super armor.',
+      effect: { kind: 'skillSuperArmor', skill: 1 },
+    }),
+    ...skillBranch('seraphine', 2, 'Starfall Brand', 2, {
+      name: 'Shattering Star',
+      description: 'Starfall Brand shards cause bleeding.',
+      effect: { kind: 'skillStatus', skill: 2, status: 'bleed', chance: 1 },
+    }),
+    ...coreBranch('seraphine', 'Pyre of Heaven'),
+  ],
+  ryn: [
+    ...skillBranch('ryn', 0, 'Comet Kick', 0, {
+      name: 'Burning Comet',
+      description: 'Comet Kick sets enemies ablaze.',
+      effect: { kind: 'skillStatus', skill: 0, status: 'burn', chance: 1 },
+    }),
+    ...skillBranch('ryn', 1, 'Cyclone Heel', 1, {
+      name: 'Rending Heel',
+      description: 'Cyclone Heel kicks cause bleeding.',
+      effect: { kind: 'skillStatus', skill: 1, status: 'bleed', chance: 0.6 },
+    }),
+    ...skillBranch('ryn', 2, 'Skybreaker Palm', 2, {
+      name: 'Rooted Palm',
+      description: 'Skybreaker Palm gains super armor.',
+      effect: { kind: 'skillSuperArmor', skill: 2 },
+    }),
+    ...coreBranch('ryn', 'Hundred Ash Fists'),
+  ],
+  valka: [
+    ...skillBranch('valka', 0, 'Thunderdive', 0, {
+      name: 'Searing Dive',
+      description: 'Thunderdive scorches the ground it lands on.',
+      effect: { kind: 'skillStatus', skill: 0, status: 'burn', chance: 1 },
+    }),
+    ...skillBranch('valka', 1, 'Piercing Gale', 1, {
+      name: 'Gale Wall',
+      description: 'Piercing Gale gains super armor.',
+      effect: { kind: 'skillSuperArmor', skill: 1 },
+    }),
+    ...skillBranch('valka', 2, 'Tempest Wheel', 2, {
+      name: 'Barbed Wheel',
+      description: 'Tempest Wheel cuts cause bleeding.',
+      effect: { kind: 'skillStatus', skill: 2, status: 'bleed', chance: 0.6 },
+    }),
+    ...coreBranch('valka', 'Skyfall Lances'),
+  ],
+  morrow: [
+    ...skillBranch('morrow', 0, 'Grave Tithe', 0, {
+      name: 'Binding Tithe',
+      description: 'Grave Tithe slows everything standing in it.',
+      effect: { kind: 'skillStatus', skill: 0, status: 'slow', chance: 1 },
+    }),
+    ...skillBranch('morrow', 1, 'Hex Rupture', 1, {
+      name: 'Pyre Hex',
+      description: 'Hex Rupture also sets enemies ablaze.',
+      effect: { kind: 'skillStatus', skill: 1, status: 'burn', chance: 1 },
+    }),
+    ...skillBranch('morrow', 2, 'Wraith Orbs', 2, {
+      name: 'Chilling Wraiths',
+      description: 'Wraith Orbs slow the enemies they find.',
+      effect: { kind: 'skillStatus', skill: 2, status: 'slow', chance: 1 },
+    }),
+    ...coreBranch('morrow', 'Ossuary Bloom'),
+  ],
 };

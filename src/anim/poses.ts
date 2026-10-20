@@ -476,6 +476,515 @@ export const ROAR: Pose = pose(NEUTRAL, {
   RightForeArm: [-40, 0, 0],
 });
 
+// ---- Garrick (tower shield in the left hand, warhammer in the right) ----
+/** Shield arm: forearm raised, wrist turned so the shield face looks forward. */
+const SHIELD_UP: Pose['r'] = {
+  LeftArm: [-48, 0, 6],
+  LeftForeArm: [-58, 0, 0],
+  LeftHand: [88, 0, 0],
+};
+export const BASTION_READY: Pose = pose(
+  NEUTRAL,
+  {
+    ...SHIELD_UP,
+    Spine: [10, 8, 0],
+    Chest: [2, 6, 0],
+    RightArm: [-18, 0, -20],
+    RightForeArm: [-40, 0, 0],
+    LeftUpLeg: [-18, 0, 10],
+    RightUpLeg: [6, 0, -12],
+    LeftLeg: [24, 0, 0],
+    RightLeg: [14, 0, 0],
+  },
+  [0, -0.07, 0],
+);
+export const HAMMER_WIND: Pose = pose(SLASH_R_WIND, SHIELD_UP, [0, -0.06, 0]);
+export const HAMMER_HIT: Pose = pose(SLASH_R_HIT, SHIELD_UP, [0, -0.1, 0]);
+export const BASH_WIND: Pose = pose(
+  BASTION_READY,
+  {
+    Spine: [4, -22, 0],
+    Chest: [0, -26, 0],
+    LeftArm: [-30, 0, 22],
+    LeftForeArm: [-72, 0, 0],
+    LeftHand: [92, 0, 0],
+    RightArm: [-20, 0, -28],
+  },
+  [0, -0.12, 0],
+);
+export const BASH_HIT: Pose = pose(
+  BASTION_READY,
+  {
+    Spine: [22, 18, 0],
+    Chest: [6, 24, 0],
+    LeftArm: [-82, 0, -4],
+    LeftForeArm: [-12, 0, 0],
+    LeftHand: [82, 0, 0],
+    RightArm: [12, 0, -30],
+    RightForeArm: [-50, 0, 0],
+    LeftUpLeg: [-44, 0, 8],
+    LeftLeg: [48, 0, 0],
+    RightUpLeg: [22, 0, -6],
+    RightLeg: [10, 0, 0],
+  },
+  [0, -0.14, 0],
+);
+export const SHIELD_SLAM_WIND: Pose = pose(
+  BASTION_READY,
+  {
+    Spine: [-16, 0, 0],
+    Chest: [-6, 0, 0],
+    LeftArm: [-158, 0, 18],
+    LeftForeArm: [-22, 0, 0],
+    LeftHand: [10, 0, 0],
+    RightArm: [-150, 0, -24],
+    RightForeArm: [-25, 0, 0],
+  },
+  [0, -0.06, 0],
+);
+export const SHIELD_SLAM_HIT: Pose = pose(
+  BASTION_READY,
+  {
+    Spine: [38, 0, 0],
+    Chest: [10, 0, 0],
+    LeftArm: [-62, 0, 8],
+    LeftForeArm: [-12, 0, 0],
+    LeftHand: [30, 0, 0],
+    RightArm: [-42, 0, -16],
+    RightForeArm: [-10, 0, 0],
+    LeftUpLeg: [-46, 0, 8],
+    LeftLeg: [56, 0, 0],
+    RightUpLeg: [12, 0, -8],
+  },
+  [0, -0.26, 0],
+);
+export const WAR_CRY: Pose = pose(
+  BASTION_READY,
+  {
+    Spine: [-18, 0, 0],
+    Chest: [-10, 0, 0],
+    Head: [-22, 0, 0],
+    LeftArm: [-62, 0, 48],
+    LeftForeArm: [-40, 0, 0],
+    LeftHand: [70, 0, 0],
+    RightArm: [-110, 0, -62],
+    RightForeArm: [-30, 0, 0],
+  },
+  [0, -0.1, 0],
+);
+export const GUARD_HOLD: Pose = pose(
+  BASTION_READY,
+  {
+    Spine: [24, 0, 0],
+    Chest: [6, 0, 0],
+    LeftArm: [-70, 0, 4],
+    LeftForeArm: [-48, 0, 0],
+    LeftHand: [104, 0, 0],
+    RightArm: [-30, 0, -12],
+    RightForeArm: [-75, 0, 0],
+    LeftUpLeg: [-40, 0, 12],
+    RightUpLeg: [-10, 0, -14],
+    LeftLeg: [55, 0, 0],
+    RightLeg: [40, 0, 0],
+  },
+  [0, -0.2, 0],
+);
+
+// ---- Seraphine (staff in the right hand; the wrist angle aims it) ----
+export const STAFF_READY: Pose = pose(NEUTRAL, {
+  Spine: [4, 6, 0],
+  RightArm: [-22, 0, -16],
+  RightForeArm: [-62, 0, 0],
+  RightHand: [-6, 0, 0],
+  LeftArm: [-24, 0, 14],
+  LeftForeArm: [-62, 0, 0],
+  LeftUpLeg: [-8, 0, 6],
+  RightUpLeg: [2, 0, -6],
+});
+export const STAFF_CAST_WIND: Pose = pose(STAFF_READY, {
+  Spine: [-6, -24, 0],
+  Chest: [0, -24, 0],
+  RightArm: [-128, 0, -38],
+  RightForeArm: [-40, 0, 0],
+  RightHand: [70, 0, 0],
+  LeftArm: [-70, 0, 30],
+  LeftForeArm: [-60, 0, 0],
+});
+export const STAFF_CAST_HIT: Pose = pose(STAFF_READY, {
+  Spine: [16, 18, 0],
+  Chest: [6, 18, 0],
+  RightArm: [-86, 0, -4],
+  RightForeArm: [-6, 0, 0],
+  RightHand: [48, 0, 0],
+  LeftArm: [-55, 0, 32],
+  LeftForeArm: [-45, 0, 0],
+  LeftUpLeg: [-26, 0, 6],
+  LeftLeg: [26, 0, 0],
+});
+export const STAFF_RAISE: Pose = pose(STAFF_READY, {
+  Spine: [-12, 0, 0],
+  Chest: [-8, 0, 0],
+  Head: [-22, 0, 0],
+  RightArm: [-165, 0, -10],
+  RightForeArm: [-10, 0, 0],
+  RightHand: [74, 0, 0],
+  LeftArm: [-150, 0, 30],
+  LeftForeArm: [-30, 0, 0],
+});
+export const NOVA_WIND: Pose = pose(
+  STAFF_READY,
+  {
+    Spine: [22, 0, 0],
+    Chest: [8, 0, 0],
+    RightArm: [-40, 0, -8],
+    RightForeArm: [-100, 0, 0],
+    RightHand: [40, 0, 0],
+    LeftArm: [-40, 0, 8],
+    LeftForeArm: [-105, 0, 0],
+    LeftUpLeg: [-40, 0, 8],
+    RightUpLeg: [-30, 0, -8],
+    LeftLeg: [60, 0, 0],
+    RightLeg: [50, 0, 0],
+  },
+  [0, -0.2, 0],
+);
+export const NOVA_HIT: Pose = pose(
+  STAFF_READY,
+  {
+    Spine: [-8, 0, 0],
+    Head: [-12, 0, 0],
+    RightArm: [-26, 0, -22],
+    RightForeArm: [-62, 0, 0],
+    RightHand: [-12, 0, 0],
+    LeftArm: [-25, 0, 78],
+    LeftForeArm: [-8, 0, 0],
+    LeftUpLeg: [-14, 0, 14],
+    RightUpLeg: [-4, 0, -14],
+  },
+  [0, -0.08, 0],
+);
+
+// ---- Ryn (bare-handed: punches and kicks) ----
+export const FIST_READY: Pose = pose(
+  NEUTRAL,
+  {
+    Spine: [10, -14, 0],
+    Chest: [2, -10, 0],
+    Head: [0, 18, 0],
+    LeftArm: [-52, 0, 24],
+    LeftForeArm: [-112, 0, 0],
+    RightArm: [-36, 0, -30],
+    RightForeArm: [-122, 0, 0],
+    LeftUpLeg: [-26, 0, 8],
+    LeftLeg: [26, 0, 0],
+    RightUpLeg: [12, 0, -8],
+    RightLeg: [22, 0, 0],
+  },
+  [0, -0.07, 0],
+);
+export const JAB_WIND: Pose = pose(FIST_READY, { Chest: [2, -26, 0] }, [0, -0.09, 0]);
+export const JAB_HIT: Pose = pose(
+  FIST_READY,
+  {
+    Spine: [14, -4, 0],
+    Chest: [4, 22, 0],
+    LeftArm: [-88, 0, 4],
+    LeftForeArm: [-4, 0, 0],
+    LeftUpLeg: [-36, 0, 8],
+    LeftLeg: [36, 0, 0],
+  },
+  [0, -0.1, 0],
+);
+export const PUNCH_R_WIND: Pose = pose(FIST_READY, {
+  Chest: [0, -32, 0],
+  RightArm: [-28, 0, -36],
+  RightForeArm: [-125, 0, 0],
+});
+export const PUNCH_R_HIT: Pose = pose(
+  FIST_READY,
+  {
+    Spine: [16, 14, 0],
+    Chest: [4, 34, 0],
+    RightArm: [-90, 0, 2],
+    RightForeArm: [-4, 0, 0],
+    LeftArm: [-40, 0, 30],
+    LeftForeArm: [-115, 0, 0],
+    LeftUpLeg: [-36, 0, 8],
+    LeftLeg: [36, 0, 0],
+    RightUpLeg: [18, 0, -6],
+  },
+  [0, -0.1, 0],
+);
+export const KICK_WIND: Pose = pose(
+  FIST_READY,
+  {
+    Spine: [-6, -8, 0],
+    RightUpLeg: [-82, 0, -4],
+    RightLeg: [105, 0, 0],
+    LeftLeg: [16, 0, 0],
+  },
+  [0, -0.02, 0],
+);
+export const KICK_HIT: Pose = pose(
+  FIST_READY,
+  {
+    Spine: [-16, -6, 0],
+    RightUpLeg: [-98, 0, -4],
+    RightLeg: [4, 0, 0],
+    LeftUpLeg: [-6, 0, 6],
+    LeftLeg: [10, 0, 0],
+    LeftArm: [-30, 0, 40],
+    RightArm: [10, 0, -42],
+    RightForeArm: [-60, 0, 0],
+  },
+  [0, -0.02, 0],
+);
+/** Leg swung out to the side (spinning kicks turn this pose around the hips). */
+export const ROUNDHOUSE: Pose = pose(
+  FIST_READY,
+  {
+    Spine: [6, 0, 18],
+    Chest: [0, 0, 6],
+    RightUpLeg: [-20, 0, -78],
+    RightLeg: [12, 0, 0],
+    LeftUpLeg: [-6, 0, 4],
+    LeftLeg: [12, 0, 0],
+    LeftArm: [-20, 0, 70],
+    LeftForeArm: [-30, 0, 0],
+    RightArm: [-30, 0, -40],
+  },
+  [0, 0.02, 0],
+);
+export const PALM_WIND: Pose = pose(
+  FIST_READY,
+  {
+    Spine: [-4, 0, 0],
+    Chest: [-4, 0, 0],
+    LeftArm: [24, 0, 22],
+    LeftForeArm: [-104, 0, 0],
+    RightArm: [24, 0, -22],
+    RightForeArm: [-104, 0, 0],
+    LeftUpLeg: [-36, 0, 12],
+    RightUpLeg: [-20, 0, -12],
+    LeftLeg: [50, 0, 0],
+    RightLeg: [40, 0, 0],
+  },
+  [0, -0.14, 0],
+);
+export const PALM_HIT: Pose = pose(
+  FIST_READY,
+  {
+    Spine: [24, 0, 0],
+    Chest: [6, 0, 0],
+    Head: [0, 0, 0],
+    LeftArm: [-84, 0, -8],
+    LeftForeArm: [-4, 0, 0],
+    LeftHand: [-70, 0, 0],
+    RightArm: [-84, 0, 8],
+    RightForeArm: [-4, 0, 0],
+    RightHand: [-70, 0, 0],
+    LeftUpLeg: [-48, 0, 8],
+    LeftLeg: [52, 0, 0],
+    RightUpLeg: [22, 0, -6],
+    RightLeg: [8, 0, 0],
+  },
+  [0, -0.16, 0],
+);
+export const RISING_KICK: Pose = pose(
+  FIST_READY,
+  {
+    Spine: [-22, 0, 0],
+    Chest: [-6, 0, 0],
+    Head: [-10, 0, 0],
+    RightUpLeg: [-150, 0, -6],
+    RightLeg: [2, 0, 0],
+    LeftUpLeg: [6, 0, 4],
+    LeftLeg: [6, 0, 0],
+    LeftArm: [20, 0, 40],
+    RightArm: [25, 0, -40],
+    RightForeArm: [-30, 0, 0],
+  },
+  [0, 0.16, 0],
+);
+export const FLYING_KICK: Pose = pose(
+  FIST_READY,
+  {
+    Spine: [-12, 0, 0],
+    RightUpLeg: [-84, 0, -2],
+    RightLeg: [2, 0, 0],
+    LeftUpLeg: [-34, 0, 6],
+    LeftLeg: [112, 0, 0],
+    LeftArm: [30, 0, 42],
+    LeftForeArm: [-40, 0, 0],
+    RightArm: [32, 0, -42],
+    RightForeArm: [-40, 0, 0],
+  },
+  [0, 0.32, 0],
+);
+
+// ---- Valka (spear in the right hand; the wrist angle aims it) ----
+export const SPEAR_READY: Pose = pose(
+  NEUTRAL,
+  {
+    Spine: [8, -16, 0],
+    Chest: [2, -10, 0],
+    Head: [0, 20, 0],
+    RightArm: [-12, 0, -16],
+    RightForeArm: [-58, 0, 0],
+    RightHand: [14, 0, 0],
+    LeftArm: [-58, 0, -14],
+    LeftForeArm: [-40, 0, 0],
+    LeftUpLeg: [-24, 0, 8],
+    LeftLeg: [24, 0, 0],
+    RightUpLeg: [10, 0, -10],
+    RightLeg: [18, 0, 0],
+  },
+  [0, -0.08, 0],
+);
+export const SPEAR_THRUST_WIND: Pose = pose(
+  SPEAR_READY,
+  {
+    Spine: [-4, -24, 0],
+    Chest: [0, -24, 0],
+    RightArm: [24, 0, -22],
+    RightForeArm: [-82, 0, 0],
+    RightHand: [30, 0, 0],
+    LeftArm: [-48, 0, -6],
+    LeftForeArm: [-50, 0, 0],
+    RightUpLeg: [18, 0, -10],
+  },
+  [0, -0.1, 0],
+);
+export const SPEAR_THRUST_HIT: Pose = pose(
+  SPEAR_READY,
+  {
+    Spine: [24, 8, 0],
+    Chest: [4, 14, 0],
+    RightArm: [-86, 0, -2],
+    RightForeArm: [-5, 0, 0],
+    RightHand: [36, 0, 0],
+    LeftArm: [-62, 0, -18],
+    LeftForeArm: [-18, 0, 0],
+    LeftUpLeg: [-52, 0, 6],
+    LeftLeg: [56, 0, 0],
+    RightUpLeg: [26, 0, -4],
+    RightLeg: [8, 0, 0],
+  },
+  [0, -0.18, 0],
+);
+export const SPEAR_SWEEP_WIND: Pose = pose(SWEEP_WIND, { RightHand: [86, 0, 0] }, [0, -0.06, 0]);
+export const SPEAR_SWEEP_HIT: Pose = pose(
+  SWEEP_HIT,
+  { RightHand: [86, 0, 0], RightUpLeg: [18, 0, -8] },
+  [0, -0.12, 0],
+);
+export const SPEAR_RAISE: Pose = pose(
+  SPEAR_READY,
+  {
+    Spine: [-14, 0, 0],
+    Chest: [-6, 0, 0],
+    Head: [-8, 0, 0],
+    RightArm: [-158, 0, -14],
+    RightForeArm: [-22, 0, 0],
+    RightHand: [150, 0, 0],
+    LeftArm: [-120, 0, 20],
+    LeftForeArm: [-30, 0, 0],
+  },
+  [0, -0.04, 0],
+);
+export const SPEAR_IMPALE: Pose = pose(
+  SPEAR_READY,
+  {
+    Spine: [36, 0, 0],
+    Chest: [8, 0, 0],
+    RightArm: [-42, 0, -6],
+    RightForeArm: [-10, 0, 0],
+    RightHand: [62, 0, 0],
+    LeftArm: [-50, 0, -14],
+    LeftForeArm: [-20, 0, 0],
+    LeftUpLeg: [-50, 0, 10],
+    RightUpLeg: [-20, 0, -10],
+    LeftLeg: [70, 0, 0],
+    RightLeg: [60, 0, 0],
+  },
+  [0, -0.3, 0],
+);
+
+// ---- Morrow (scythe in the right hand, the left hand casts) ----
+export const SCYTHE_READY: Pose = pose(
+  NEUTRAL,
+  {
+    Spine: [8, 10, 0],
+    Chest: [2, 8, 0],
+    RightArm: [-22, 0, -16],
+    RightForeArm: [-48, 0, 0],
+    RightHand: [-55, 0, 0],
+    LeftArm: [-36, 0, -6],
+    LeftForeArm: [-70, 0, 0],
+    LeftUpLeg: [-12, 0, 8],
+    RightUpLeg: [4, 0, -8],
+    LeftLeg: [14, 0, 0],
+  },
+  [0, -0.04, 0],
+);
+export const REAP_WIND: Pose = pose(
+  SCYTHE_READY,
+  {
+    Spine: [6, -18, 0],
+    Chest: [0, -50, 0],
+    RightArm: [-62, 0, -72],
+    RightForeArm: [-30, 0, 0],
+    RightHand: [30, 0, 0],
+    LeftArm: [-72, 0, -12],
+    LeftForeArm: [-50, 0, 0],
+  },
+  [0, -0.06, 0],
+);
+export const REAP_HIT: Pose = pose(
+  SCYTHE_READY,
+  {
+    Spine: [14, 16, 0],
+    Chest: [4, 56, 0],
+    RightArm: [-86, 0, 8],
+    RightForeArm: [-5, 0, 0],
+    RightHand: [30, 0, 0],
+    LeftArm: [-40, 0, 34],
+    LeftForeArm: [-20, 0, 0],
+    LeftUpLeg: [-32, 0, 6],
+    LeftLeg: [32, 0, 0],
+  },
+  [0, -0.12, 0],
+);
+export const SCYTHE_RAISE: Pose = pose(SCYTHE_READY, {
+  Spine: [-10, 0, 0],
+  Chest: [-6, 0, 0],
+  Head: [-12, 0, 0],
+  RightArm: [-150, 0, -26],
+  RightForeArm: [-20, 0, 0],
+  RightHand: [60, 0, 0],
+  LeftArm: [-92, 0, 10],
+  LeftForeArm: [-6, 0, 0],
+});
+export const HEX_WIND: Pose = pose(SCYTHE_READY, {
+  Spine: [0, 18, 0],
+  Chest: [-4, 22, 0],
+  LeftArm: [12, 0, 32],
+  LeftForeArm: [-112, 0, 0],
+});
+export const HEX_HIT: Pose = pose(
+  SCYTHE_READY,
+  {
+    Spine: [14, -14, 0],
+    Chest: [4, -24, 0],
+    LeftArm: [-88, 0, -4],
+    LeftForeArm: [-4, 0, 0],
+    LeftHand: [-40, 0, 0],
+    LeftUpLeg: [-30, 0, 8],
+    LeftLeg: [30, 0, 0],
+  },
+  [0, -0.08, 0],
+);
+
 export const POSE_LIBRARY = {
   NEUTRAL,
   READY,
@@ -521,6 +1030,52 @@ export const POSE_LIBRARY = {
   THRUST_WIND,
   THRUST_HIT,
   ROAR,
+  BASTION_READY,
+  HAMMER_WIND,
+  HAMMER_HIT,
+  // Backhand with the hammer = the forward swing reversed.
+  HAMMER_BACK_WIND: HAMMER_HIT,
+  HAMMER_BACK_HIT: HAMMER_WIND,
+  BASH_WIND,
+  BASH_HIT,
+  SHIELD_SLAM_WIND,
+  SHIELD_SLAM_HIT,
+  WAR_CRY,
+  GUARD_HOLD,
+  STAFF_READY,
+  STAFF_CAST_WIND,
+  STAFF_CAST_HIT,
+  STAFF_RAISE,
+  NOVA_WIND,
+  NOVA_HIT,
+  FIST_READY,
+  JAB_WIND,
+  JAB_HIT,
+  PUNCH_R_WIND,
+  PUNCH_R_HIT,
+  KICK_WIND,
+  KICK_HIT,
+  ROUNDHOUSE,
+  PALM_WIND,
+  PALM_HIT,
+  RISING_KICK,
+  FLYING_KICK,
+  SPEAR_READY,
+  SPEAR_THRUST_WIND,
+  SPEAR_THRUST_HIT,
+  SPEAR_SWEEP_WIND,
+  SPEAR_SWEEP_HIT,
+  SPEAR_RAISE,
+  SPEAR_IMPALE,
+  SCYTHE_READY,
+  REAP_WIND,
+  REAP_HIT,
+  // Backhand reap = the forward reap reversed.
+  REAP_BACK_WIND: REAP_HIT,
+  REAP_BACK_HIT: REAP_WIND,
+  SCYTHE_RAISE,
+  HEX_WIND,
+  HEX_HIT,
 } as const;
 
 export type PoseName = keyof typeof POSE_LIBRARY;
