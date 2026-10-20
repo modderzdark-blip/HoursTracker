@@ -51,7 +51,7 @@ void main() {
   vec3 c = mix(uColor * vec3(1.0, 0.45, 0.2), uColor, body);
   c = mix(c, vec3(1.0, 0.92, 0.7), core * 0.85);
   float a = body * (0.65 + 0.35 * n);
-  gl_FragColor = vec4(c * a * 1.6, a);
+  gl_FragColor = vec4(c * a * 1.15, a);
 }`;
 
 /**

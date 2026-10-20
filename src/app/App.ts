@@ -277,7 +277,7 @@ export class App {
     this.hud = new Hud(opts.uiRoot, '', () => this.setPaused(true));
 
     // --- Hub ---------------------------------------------------------------------------
-    this.hubScene = new HubScene();
+    this.hubScene = new HubScene(this.ctx.renderer);
     this.hubScene.setAspect(aspect);
     this.hubScene.setHero(HEROES[this.profile.selectedHero]);
     this.menus = new Menus({
@@ -437,6 +437,7 @@ export class App {
     this.wireEvents();
     this.installTestHook();
     this.ctx.setScene(this.hubScene.scene);
+    this.ctx.setGrade(this.hubScene.grade);
     this.hubScene.update(0);
     this.ctx.renderer.compile(this.hubScene.scene, this.hubScene.camera);
     this.ctx.render(this.hubScene.camera);
@@ -456,6 +457,7 @@ export class App {
   private showHub(): void {
     this.music.play('hub');
     this.ctx.setScene(this.hubScene.scene);
+    this.ctx.setGrade(this.hubScene.grade);
     this.touch.setVisible(false);
     this.hud.setPauseVisible(false);
     this.applyInputEnabled(false);
@@ -527,6 +529,7 @@ export class App {
     this.input.releaseAll();
     this.time.reset();
     this.ctx.setScene(this.hubScene.scene);
+    this.ctx.setGrade(this.hubScene.grade);
   }
 
   /** Runs outside the fixed step: the battle that produced the outcome is disposed here. */

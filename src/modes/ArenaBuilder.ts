@@ -616,7 +616,7 @@ export class ArenaBuilder {
       coals.setMatrixAt(i, this.m);
       this.physics.addStaticCylinder(b.x, 0.7, b.z, 0.7, 0.42);
       this.colliderCount++;
-      this.flameSpots.push({ x: b.x, y: 1.36, z: b.z, size: 1.05 });
+      this.flameSpots.push({ x: b.x, y: 1.36, z: b.z, size: 0.7 });
     });
     this.finishInstanced(stands, 'brazier-stands');
     this.finishInstanced(feet, 'brazier-feet');
