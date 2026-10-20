@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.8.0] — Heroes, Monsters & Spectacle (unreleased)
+
+### Added
+
+- **Effects library**: glowing slash arcs that follow the swing, expanding shockwaves, light
+  pillars, burning ground fissures, energy novas, impact flashes, smoke, screen flashes and
+  colour fringing. Skills and enemy attacks list their effects as data; plain melee swings get
+  slash arcs shaped by the swing automatically.
+- **Effects light up the arena**: explosions, slams, novas and big deaths flash a real light
+  on the floor, walls and characters around them (Medium/High).
+- **Moonlight shafts**: soft beams with drifting dust slant down into every arena
+  (Medium/High).
+- **Scorch marks**: big ground effects and boss deaths leave charred, ember-speckled marks that
+  fade over several seconds.
+- **New enemies** with bullet patterns that are busy but readable: Ember Wisps (fans of fire
+  orbs), Hex Wisps (rotating rings and spirals of hex orbs), Gloom Bats (diving swarms),
+  Hexcallers (curse eruptions under your feet, homing bolts), Revenants (fast double cuts and
+  lunges) and Magma Golems (expanding quake rings, thrown fireballs). Some swarm enemies attack
+  freely instead of waiting for their turn.
+- Every stage, Dungeon room and Tower floor mixes the new enemies in.
+
+### Changed
+
+- **Skills and ultimates of Kael, Brann and Lyra redesigned** with new names and effects:
+  Phantom Rush (a longer dash that ends in a burst), Blade Tempest, Umbral Execution, Night of a
+  Thousand Blades; Titan Fault (the ground splits ahead and erupts far away), Juggernaut (ends
+  in a shockwave), Cataclysm; Starpiercer, Starfall Volley, Moonlit Snare.
+- Bloom (glow) now also runs on Medium quality.
+- "Tap to begin" and the mid-screen wave banner are truly centred on every screen, including
+  phones with notches.
+
 ## [0.7.0] — Graphics overhaul (2026-10-20)
 
 ### Changed
