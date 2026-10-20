@@ -1391,7 +1391,25 @@ body {
   }
 }
 
-/* Settings → HUD scale (battle HUD) and Larger menu text (menus, pause, results). */
+/* Settings → HUD scale (battle HUD) and Larger menu text (menus, pause, results).
+   Like the touch buttons (--btn-max), the HUD scale is capped on the shortest phones so the
+   player panel, boss bar and banners keep clear of each other and of the action buttons. */
+#ui-root.hud-scaled {
+  --hud-eff: min(var(--hud-scale, 1), var(--hud-max, 2));
+}
+
+@media (max-height: 380px) {
+  #ui-root.hud-scaled {
+    --hud-max: 1.2;
+  }
+}
+
+@media (max-height: 340px) {
+  #ui-root.hud-scaled {
+    --hud-max: 1.1;
+  }
+}
+
 #ui-root.hud-scaled .bhud,
 #ui-root.hud-scaled .hud,
 #ui-root.large-text .menu,
@@ -1407,13 +1425,54 @@ body {
 
 #ui-root.hud-scaled .bhud,
 #ui-root.hud-scaled .hud {
-  --ui-scale: calc(var(--ui-base, 1) * var(--hud-scale, 1));
+  --ui-scale: calc(var(--ui-base, 1) * var(--hud-eff, 1));
 }
 
 #ui-root.large-text .menu,
 #ui-root.large-text .pause-menu,
 #ui-root.large-text .result-screen {
   --ui-scale: calc(var(--ui-base, 1) * 1.15);
+}
+
+/* With a scaled HUD the centre banners keep their usual size and band (they are sized for the
+   free space beside the touch buttons, which do not scale with the HUD). The px offsets of the
+   band are divided by the HUD scale and the banner is drawn at 1 / scale around its anchor. */
+#ui-root.hud-scaled .bhud-banner {
+  left: calc(50% + (var(--band-l) - var(--band-r)) / (2 * var(--hud-eff)));
+  max-width: calc(100% * var(--hud-eff) - var(--band-l) - var(--band-r));
+  scale: calc(1 / var(--hud-eff));
+  transform-origin: 0 0;
+}
+
+/* Tablets: the larger player panel and boss bar reach further down; banners move below them. */
+@media (min-height: 561px) {
+  #ui-root.hud-scaled .bhud-banner {
+    top: 40%;
+  }
+}
+
+/* A taller HP bar so its number never touches the bar edge at odd scale factors. */
+#ui-root.hud-scaled .bar-hp {
+  height: 18px;
+}
+
+/* The combo counter stays below the (larger) player panel but keeps its normal size. */
+#ui-root.hud-scaled .bhud-combo {
+  scale: calc(1 / var(--hud-eff));
+  transform-origin: 0 0;
+}
+
+/* Short phones: the boss bar would grow into the action buttons, so it keeps its 100% size
+   (still placed between the scaled player panel and pause button). */
+@media (max-height: 430px) {
+  #ui-root.hud-scaled .bhud-boss {
+    right: auto;
+    width: calc(
+      (100% - 84px - min(26vw, 240px) - 22px - var(--sl) - 80px - var(--sr)) * var(--hud-eff)
+    );
+    scale: calc(1 / var(--hud-eff));
+    transform-origin: 0 0;
+  }
 }
 
 .menu-top {

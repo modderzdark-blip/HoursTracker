@@ -751,7 +751,7 @@ function buildDisplay(k: SettingsKit, _ctx: MenuContext, out: HTMLElement): void
       ),
       k.slider(
         'HUD scale',
-        'Size of the health bars, boss bar and banners.',
+        'Size of the health bar, boss bar and pause button (limited on very small screens).',
         SETTING_RANGES.hudScale,
         0.05,
         pct,
