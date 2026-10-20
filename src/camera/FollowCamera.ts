@@ -1,6 +1,7 @@
 import { PerspectiveCamera, Quaternion, Vector3 } from 'three';
 import { CAMERA_CONFIG } from '../data/config';
 import { CameraShake, type ShakeSample } from './CameraShake';
+import { DEFAULT_CAMERA_OPTIONS, type CameraOptions } from './cameraOptions';
 
 /** Frame-rate independent exponential smoothing factor. */
 export function smoothingFactor(sharpness: number, dtSec: number): number {
@@ -35,17 +36,37 @@ export class FollowCamera {
   private blendTotalMs = 0;
   private readonly blendPos = new Vector3();
   private readonly blendQuat = new Quaternion();
+  /** Live parameters from the camera settings (CAMERA_CONFIG scaled); see setOptions(). */
+  private opts: CameraOptions = DEFAULT_CAMERA_OPTIONS;
 
-  constructor(aspect: number) {
+  constructor(aspect: number, options: CameraOptions = DEFAULT_CAMERA_OPTIONS) {
     const c = CAMERA_CONFIG;
-    this.camera = new PerspectiveCamera(c.fovDeg, aspect, c.near, c.far);
-    this.recomputeOffset();
+    this.camera = new PerspectiveCamera(options.fovDeg, aspect, c.near, c.far);
+    this.setOptions(options);
   }
 
-  /** Re-read distance/height/yaw from config (debug tweaks or per-stage overrides). */
+  get options(): CameraOptions {
+    return this.opts;
+  }
+
+  /**
+   * Applies the player's camera settings immediately: distance / height move the follow offset,
+   * FOV changes the lens, and sharpness / look-ahead / shake are read every frame. Boss framing
+   * scales this offset and cinematics blend back into it, so both keep working.
+   */
+  setOptions(options: CameraOptions): void {
+    this.opts = options;
+    this.recomputeOffset(options.distance, options.height);
+    if (this.camera.fov !== options.fovDeg) {
+      this.camera.fov = options.fovDeg;
+      this.camera.updateProjectionMatrix();
+    }
+  }
+
+  /** Re-read distance/height/yaw (defaults: the live options; debug tweaks or per-stage overrides). */
   recomputeOffset(
-    distance: number = CAMERA_CONFIG.distance,
-    height: number = CAMERA_CONFIG.height,
+    distance: number = this.opts.distance,
+    height: number = this.opts.height,
     yawDeg: number = CAMERA_CONFIG.yawDeg,
   ): void {
     const yaw = (yawDeg * Math.PI) / 180;
@@ -94,10 +115,12 @@ export class FollowCamera {
    */
   update(target: Vector3, velocity: Vector3, dtSec: number, maxSpeed: number): void {
     const c = CAMERA_CONFIG;
-    this.anchor.lerp(target, smoothingFactor(c.followSharpness, dtSec));
+    const o = this.opts;
+    this.anchor.lerp(target, smoothingFactor(o.followSharpness, dtSec));
     const speedRatio = maxSpeed > 0 ? Math.min(velocity.length() / maxSpeed, 1) : 0;
     this.tmp.set(velocity.x, 0, velocity.z);
-    if (this.tmp.lengthSq() > 1e-6) this.tmp.normalize().multiplyScalar(c.lookAhead * speedRatio);
+    if (this.tmp.lengthSq() > 1e-6 && o.lookAhead > 0)
+      this.tmp.normalize().multiplyScalar(o.lookAhead * speedRatio);
     else this.tmp.set(0, 0, 0);
     this.lead.lerp(this.tmp, smoothingFactor(c.lookAheadSharpness, dtSec));
     // Boss framing: blend the anchor toward the boss and pull the camera back with distance.
@@ -139,12 +162,13 @@ export class FollowCamera {
     this.camera.lookAt(this.lookTarget);
 
     const s = this.shake.update(dtSec, this.shakeSample);
-    if (s.x !== 0 || s.y !== 0 || s.rollRad !== 0) {
+    const k = this.opts.shake;
+    if (k > 0 && (s.x !== 0 || s.y !== 0 || s.rollRad !== 0)) {
       // lookAt() updated the quaternion but not yet the matrix, so derive the axes from it.
       this.right.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
       this.up.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
-      this.camera.position.addScaledVector(this.right, s.x).addScaledVector(this.up, s.y);
-      this.camera.rotateZ(s.rollRad);
+      this.camera.position.addScaledVector(this.right, s.x * k).addScaledVector(this.up, s.y * k);
+      this.camera.rotateZ(s.rollRad * k);
     }
   }
 }
