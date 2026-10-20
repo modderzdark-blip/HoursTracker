@@ -11,6 +11,7 @@ import { findAdventureStage } from '../../src/data/stages';
 import { buildOpponent } from '../../src/modes/meta';
 import { computeHeroStats, powerRating } from '../../src/progression/heroStats';
 import { PlayerProfile } from '../../src/progression/PlayerProfile';
+import { sanitizeProfile } from '../../src/progression/profile';
 import { createDefaultSave } from '../../src/save/SaveStore';
 
 const ORIGINAL: readonly HeroId[] = ['kael', 'brann', 'lyra'];
@@ -209,6 +210,24 @@ describe('new heroes: progression and arena', () => {
     expect(p.wallet.get('souls')).toBe(0);
     expect(p.selectHero('garrick')).toBe(true);
     expect(p.stats('garrick').maxHp).toBe(HEROES.garrick.stats.maxHp);
+  });
+
+  it('a save from before the new heroes keeps its heroes and gains the new ones, locked', () => {
+    const p = sanitizeProfile({
+      selectedHero: 'brann',
+      heroes: {
+        kael: { unlocked: true, level: 12 },
+        brann: { unlocked: true, level: 9 },
+        lyra: { unlocked: false, level: 1 },
+      },
+    });
+    expect(p.selectedHero).toBe('brann');
+    expect(p.heroes.kael.level).toBe(12);
+    expect(p.heroes.brann.unlocked).toBe(true);
+    for (const id of NEW_HEROES) {
+      expect(p.heroes[id].unlocked).toBe(false);
+      expect(p.heroes[id].level).toBe(1);
+    }
   });
 
   it.each(NEW_HEROES)('%s: arena opponents are built near the target power', (id) => {
