@@ -48,6 +48,36 @@ void main() {
 }
 `;
 
+/**
+ * High-contrast replacement for red / orange enemy telegraphs ("Colour-blind friendly
+ * telegraphs"): a bright yellow that red-green colour-blind players see as clearly distinct
+ * from the warm arena floor, embers and blood-red HUD.
+ */
+export const COLORBLIND_TELEGRAPH_COLOR = 0xffe14a;
+
+/** The usual enemy telegraph red (AI_TUNING.telegraphColor), for previews in the settings. */
+export const DEFAULT_TELEGRAPH_COLOR = 0xff3a1a;
+
+let colorblindTelegraphs = false;
+
+/** Set from the settings; applies to every telegraph / ring shown from now on. */
+export function setColorblindTelegraphs(on: boolean): void {
+  colorblindTelegraphs = on;
+}
+
+/** True for warm red / orange hues (the enemy danger colours). */
+export function isDangerColor(color: number): boolean {
+  const r = (color >> 16) & 0xff;
+  const g = (color >> 8) & 0xff;
+  const b = color & 0xff;
+  return r >= 0xb0 && r > g * 1.35 && r > b * 1.6;
+}
+
+/** Colour actually drawn for a requested telegraph colour under the current palette. */
+export function telegraphColor(color: number, colorblind = colorblindTelegraphs): number {
+  return colorblind && isDangerColor(color) ? COLORBLIND_TELEGRAPH_COLOR : color;
+}
+
 interface Decal {
   readonly mesh: Mesh;
   readonly mat: ShaderMaterial;
@@ -115,7 +145,7 @@ export class TelegraphDecals implements TelegraphPort {
     d.ring = false;
     d.shape = shape;
     const u = d.mat.uniforms;
-    (u['uColor'] as { value: Color }).value.setHex(color);
+    (u['uColor'] as { value: Color }).value.setHex(telegraphColor(color));
     (u['uOpacity'] as { value: number }).value = 1;
     (u['uProgress'] as { value: number }).value = 0;
     if (shape.kind === 'box') {
@@ -162,7 +192,7 @@ export class TelegraphDecals implements TelegraphPort {
     d.shape = null;
     const u = d.mat.uniforms;
     (u['uMode'] as { value: number }).value = 2;
-    (u['uColor'] as { value: Color }).value.setHex(color);
+    (u['uColor'] as { value: Color }).value.setHex(telegraphColor(color));
     (u['uOpacity'] as { value: number }).value = 1;
     (u['uProgress'] as { value: number }).value = 0;
     d.mesh.scale.set(radius, 1, radius);
