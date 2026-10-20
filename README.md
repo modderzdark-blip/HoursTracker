@@ -49,6 +49,14 @@ Audio and Gameplay. The pause menu has quick camera distance and shake settings.
 
 Brann unlocks after 1-4 for 60 souls, Lyra after 1-8 for 120 souls (Heroes screen).
 
+| Hero      | Style                             | Skills                                                                                  | Ultimate                                   | Unlock         |
+| --------- | --------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------ | -------------- |
+| Garrick   | Tower shield + warhammer, tank    | Rampart Charge · Challenge Roar (pulls, slows) · Iron Vigil (guard stance, −70% damage) | Bastion Fall (shield slam, shockwave dome) | 2-4, 160 souls |
+| Seraphine | Fire staff, ranged caster         | Cinder Wave (flame cone) · Frost Nova (slows) · Starfall Brand (meteor on target)       | Pyre of Heaven (meteor storm)              | 2-8, 200 souls |
+| Ryn       | Bare fists, fastest combo         | Comet Kick (flying kick) · Cyclone Heel (spin kicks) · Skybreaker Palm (launcher)       | Hundred Ash Fists (flurry + shockwave)     | 3-4, 240 souls |
+| Valka     | Spear, longest reach              | Thunderdive (leap onto the target) · Piercing Gale (dash) · Tempest Wheel (spin, slows) | Skyfall Lances (lightning barrage)         | 3-8, 280 souls |
+| Morrow    | Scythe + grave magic, drains life | Grave Tithe (life-drain zone) · Hex Rupture (curse eruption) · Wraith Orbs (homing)     | Ossuary Bloom (grave eruptions)            | 4-4, 320 souls |
+
 ### Modes
 
 - **Adventure** — 4 chapters × 8 stages (chapter 4, The Hollow Deep, is the creature chapter
@@ -190,7 +198,9 @@ so it works under any path and inside Capacitor.
   `ActionDef`s (timings, hit shapes, multipliers, move curves, cancel windows; `emit` for
   projectiles / zones), optional `rangedCombo`, dodge, three skills (`special: 'charge'`,
   `'steerable'`, `'shadowStep'`), ultimate, colour. Add its rig in `rigs.ts` and its tree in
-  `skillTrees.ts`.
+  `skillTrees.ts`. The newer heroes each live in a module in `src/data/heroKits/`; their moves
+  also use `special: 'leap'` (land on the aimed enemy), `damageTakenMult` (guard stances),
+  `drain` (life steal per hit), `pull` (drag targets in) and `fx` visual cues.
 - **Enemy**: `ENEMIES` in `src/data/enemies.ts` (stats, rig, poise, attacks with range /
   cooldown / weight / telegraph / chains / `emit`, `shield`, `preferredRange` for kiting,
   `special: 'explode'`, souls). Add its id to `EnemyId` and use it in waves.
