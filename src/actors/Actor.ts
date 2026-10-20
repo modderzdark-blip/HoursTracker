@@ -1,6 +1,7 @@
 import { Vector3, type AnimationClip, type Scene } from 'three';
 import { AnimationController } from '../anim/AnimationController';
 import { BodyDynamics } from '../anim/BodyDynamics';
+import type { CharacterAnimator, CharacterRig } from '../anim/characterTypes';
 import { HumanoidRig } from '../anim/HumanoidRig';
 import { lerpAngle } from './components/movementMath';
 import { Health } from '../combat/Health';
@@ -28,6 +29,8 @@ export interface HitReceived {
 
 export interface ActorOptions {
   readonly rig: RigDef;
+  /** A ready-made body (creatures); when given, `rig` / `clips` are not used. */
+  readonly body?: { readonly rig: CharacterRig; readonly anim: CharacterAnimator };
   readonly stats: StatBlock;
   readonly poise: number;
   readonly radius: number;
@@ -54,8 +57,8 @@ export abstract class Actor {
   private static nextId = 1;
   readonly id = Actor.nextId++;
   abstract readonly team: TeamName;
-  readonly rig: HumanoidRig;
-  readonly anim: AnimationController;
+  readonly rig: CharacterRig;
+  readonly anim: CharacterAnimator;
   readonly body: CharacterBody;
   readonly health: Health;
   readonly poise: Poise;
@@ -100,8 +103,14 @@ export abstract class Actor {
     this.knockbackResist = opts.knockbackResist;
     this.health = new Health(opts.stats.maxHp);
     this.poise = new Poise(opts.poise);
-    this.rig = new HumanoidRig(opts.rig);
-    this.anim = new AnimationController(this.rig.root, opts.clips, opts.additiveClips);
+    if (opts.body !== undefined) {
+      this.rig = opts.body.rig;
+      this.anim = opts.body.anim;
+    } else {
+      const rig = new HumanoidRig(opts.rig);
+      this.rig = rig;
+      this.anim = new AnimationController(rig.root, opts.clips, opts.additiveClips);
+    }
     this.anim.setLookBone(this.rig.bone('Head'));
     this.body = new CharacterBody(
       opts.physics,

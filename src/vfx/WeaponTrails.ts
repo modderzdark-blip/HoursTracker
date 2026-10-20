@@ -10,7 +10,8 @@ import {
   Vector3,
   type Scene,
 } from 'three';
-import type { HumanoidRig, SocketName } from '../anim/HumanoidRig';
+import type { CharacterRig } from '../anim/characterTypes';
+import type { SocketName } from '../anim/HumanoidRig';
 
 const SEGMENTS = 14;
 
@@ -43,7 +44,7 @@ class Trail {
   readonly material: ShaderMaterial;
   private filled = 0;
   private fade = 0;
-  rig: HumanoidRig | null = null;
+  rig: CharacterRig | null = null;
   base: SocketName = 'rightBase';
   tip: SocketName = 'rightTip';
   emitting: () => boolean = () => false;
@@ -146,7 +147,7 @@ export class WeaponTrails {
   }
 
   attach(
-    rig: HumanoidRig,
+    rig: CharacterRig,
     side: 'right' | 'left',
     color: number,
     emitting: () => boolean,
@@ -161,7 +162,7 @@ export class WeaponTrails {
     return true;
   }
 
-  detach(rig: HumanoidRig): void {
+  detach(rig: CharacterRig): void {
     for (const t of this.trails) if (t.rig === rig) t.release();
   }
 
