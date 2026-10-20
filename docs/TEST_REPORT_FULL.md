@@ -1,22 +1,45 @@
-# Test Report — 0.5.0 look & feel
+# Test Report — 0.6.0 beasts, hunts & settings
 
-Build: v0.5.0 · Date: 2026-10-20 · Environment: cloud container (Node 22, headless Chromium 141
+Build: v0.6.0 · Date: 2026-10-20 · Environment: cloud container (Node 22, headless Chromium 141
 via Playwright 1.56.1, SwiftShader software WebGL 2 at ~3–7 FPS). No physical phone was available
 to the developer; everything marked **UNTESTED** needs your phone.
 
 ## Summary
 
-| #   | Check                                          | Result                                                         |
-| --- | ---------------------------------------------- | -------------------------------------------------------------- |
-| 1   | `tsc --noEmit` (app + config/e2e projects)     | **PASS** — 0 errors                                            |
-| 2   | ESLint (`--max-warnings=0`) + Prettier         | **PASS**                                                       |
-| 3   | Vitest unit + integration                      | **PASS** — 238/238 in 18 files                                 |
-| 4   | `vite build`                                   | **PASS** — sizes below                                         |
-| 5   | Playwright smoke + UI layout audit (touch)     | **PASS** — 14/14; audit 0 issues at 640×320, 800×360, 1280×800 |
-| 6   | Scripted runs of every mode in headless Chrome | **PASS** — see "Mode runs" (scratch scripts, not in CI)        |
-| 7   | APK build + Android emulator boot (CI)         | Run on push — result in the `ashbound-preview` release         |
-| 8   | GitHub Pages deploy                            | **BLOCKED** until Pages is enabled in repository settings      |
-| 9   | Real phone (feel, FPS, heat, audio, music)     | **UNTESTED**                                                   |
+| #   | Check                                         | Result                                                                                                                  |
+| --- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 1   | `tsc --noEmit` (app + config/e2e projects)    | **PASS** — 0 errors                                                                                                     |
+| 2   | ESLint (`--max-warnings=0`) + Prettier        | **PASS**                                                                                                                |
+| 3   | Vitest unit + integration                     | **PASS** — 290/290 in 20 files                                                                                          |
+| 4   | `vite build`                                  | **PASS**                                                                                                                |
+| 5   | Playwright smoke + settings + UI layout audit | 15/17 in the full run; the 2 failures (triple-tap overlay, 60 s soak) **pass on re-run** — see note; audit **0 issues** |
+| 6   | Creature boss fights in headless Chrome       | **PASS** — 4-4, 4-6, 4-8 intro → phase 2 with god mode, no errors (scratch script)                                      |
+| 7   | APK build + Android emulator boot (CI)        | **PASS** — run #23                                                                                                      |
+| 8   | GitHub Pages deploy                           | **BLOCKED** until Pages is enabled in repository settings                                                               |
+| 9   | Real phone (feel, FPS, heat, audio, music)    | **UNTESTED**                                                                                                            |
+
+**0.6.0 e2e note:** in the full 18-minute run the machine rendered at ~3 FPS (software WebGL);
+the soak's "a hit landed in 60 s" check and the triple-tap gesture timed out. Re-run alone on
+the same build (6.7 FPS) both passed. Treated as timing in the slow container, not fixed.
+
+## 0.6.0 checks
+
+- **Creatures**: every creature builds valid skinned geometry (weights sum to 1, indices valid,
+  triangle budgets); every mode and attack motion gives finite poses and cross-fades without
+  jumps; the run cycle moves legs/tail; the head turns toward the target.
+- **Creature bosses (integration, real physics)**: each fights through all 3 phases using ≥ 4
+  different attacks; the wyrm's burrow makes it untouchable, tunnels to the player and erupts
+  there; the Brood Weaver summons broodlings; hounds and broodlings attack; a Swift omen speeds
+  the boss through phases and enrage.
+- **Hunts**: daily board (3 different bosses, same all day, more omens later on the board),
+  only defeated bosses, rank scaling, omen multipliers, replay pay, midnight reset, save
+  sanitising.
+- **Balance guard**: chapters 1–3 beatable on first clears with rare +3 gear; chapter 4 with
+  epic gear; hero level keeps within 5 of the stage level.
+- **Settings**: sanitising, old-save migration and option mappings (unit); every settings
+  section in the UI audit; e2e for applying options.
+- **UNTESTED on a phone**: how the creature bosses look and feel, burrow / pounce / charge
+  fairness, FPS with the larger creatures, the new camera and control options.
 
 **Emulator note:** build #16 (same game code as #17) failed once: the app process ended about
 26 s after reaching the hub, with no JS error in the WebView console. The script now saves
