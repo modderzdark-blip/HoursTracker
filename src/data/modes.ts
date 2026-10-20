@@ -179,8 +179,17 @@ export const TOWER_CONFIG = {
     'gaoler',
     'seer_exalted',
     'penitent',
+    'ash_behemoth',
+    'brood_weaver',
+    'cinder_wyrm',
   ] satisfies readonly BossId[],
-  arenas: ['cinder_court', 'ash_gate', 'ashen_wastes', 'bound_spire'] satisfies readonly ArenaId[],
+  arenas: [
+    'cinder_court',
+    'ash_gate',
+    'ashen_wastes',
+    'bound_spire',
+    'hollow_deep',
+  ] satisfies readonly ArenaId[],
   /** Enemy types allowed from these floors on. */
   enemyUnlocks: [
     { enemy: 'thrall', floor: 1 },
@@ -189,6 +198,8 @@ export const TOWER_CONFIG = {
     { enemy: 'seer', floor: 5 },
     { enemy: 'bulwark', floor: 7 },
     { enemy: 'wretch', floor: 9 },
+    { enemy: 'ash_hound', floor: 12 },
+    { enemy: 'broodling', floor: 14 },
   ] satisfies readonly { enemy: EnemyId; floor: number }[],
   floorGold: 60,
   floorXp: 90,
@@ -218,6 +229,9 @@ export const CHALLENGE_CONFIG = {
     { boss: 'mother_of_ash', stage: 'c2s8', arena: 'ashen_wastes' },
     { boss: 'penitent', stage: 'c3s4', arena: 'bound_spire' },
     { boss: 'bound_king', stage: 'c3s8', arena: 'bound_spire' },
+    { boss: 'ash_behemoth', stage: 'c4s4', arena: 'hollow_deep' },
+    { boss: 'brood_weaver', stage: 'c4s6', arena: 'hollow_deep' },
+    { boss: 'cinder_wyrm', stage: 'c4s8', arena: 'hollow_deep' },
   ] satisfies readonly { boss: BossId; stage: string; arena: ArenaId }[],
 } as const;
 

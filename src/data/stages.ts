@@ -88,6 +88,8 @@ function buildChapter(
     const level = firstLevel + index;
     const kind = s.kind ?? (s.boss !== undefined ? 'boss' : 'normal');
     const goldBase = 90 + level * 30;
+    // Deeper chapters pay more XP so heroes keep pace with the steeper enemy levels.
+    const xpMult = 1 + 0.15 * (number - 1);
     return {
       id: `c${number}s${index + 1}`,
       name: s.name,
@@ -106,7 +108,7 @@ function buildChapter(
       rewards: {
         gold: Math.round(goldBase * (kind === 'boss' ? 2.5 : kind === 'miniboss' ? 1.6 : 1)),
         xp: Math.round(
-          (100 + level * 45) * (kind === 'boss' ? 2.2 : kind === 'miniboss' ? 1.5 : 1),
+          (100 + level * 45) * xpMult * (kind === 'boss' ? 2.2 : kind === 'miniboss' ? 1.5 : 1),
         ),
       },
     };
@@ -501,6 +503,141 @@ export const CHAPTERS: readonly ChapterDef[] = [
         ],
       ],
       parTimeSec: 420,
+    },
+  ]),
+  buildChapter(4, 'ch4', 'The Hollow Deep', 'What sleeps beneath the ash', 25, [
+    {
+      name: 'Mouth of the Deep',
+      arena: 'hollow_deep',
+      waves: [
+        [
+          ['ash_hound', 3],
+          ['thrall', 2],
+        ],
+        [
+          ['broodling', 5],
+          ['seer', 1],
+        ],
+        [
+          ['brute', 1],
+          ['ash_hound', 3],
+        ],
+      ],
+    },
+    {
+      name: 'Webbed Galleries',
+      arena: 'hollow_deep',
+      waves: [
+        [['broodling', 6]],
+        [
+          ['bulwark', 2],
+          ['broodling', 4],
+        ],
+        [
+          ['seer', 2],
+          ['ash_hound', 3],
+        ],
+      ],
+    },
+    {
+      name: 'The Kennels of Ash',
+      arena: 'ashen_wastes',
+      waves: [
+        [['ash_hound', 5]],
+        [
+          ['brute', 2],
+          ['ash_hound', 2],
+        ],
+        [
+          ['wretch', 3],
+          ['ash_hound', 4],
+        ],
+      ],
+    },
+    {
+      name: 'Gorgrath’s Den',
+      arena: 'hollow_deep',
+      kind: 'miniboss',
+      boss: 'ash_behemoth',
+      waves: [
+        [
+          ['ash_hound', 3],
+          ['bulwark', 1],
+        ],
+        [
+          ['ash_hound', 2],
+          ['seer', 2],
+        ],
+      ],
+      parTimeSec: 300,
+    },
+    {
+      name: 'The Silk Chasm',
+      arena: 'hollow_deep',
+      waves: [
+        [
+          ['broodling', 5],
+          ['wretch', 2],
+        ],
+        [
+          ['bulwark', 2],
+          ['seer', 2],
+        ],
+        [
+          ['broodling', 6],
+          ['brute', 1],
+        ],
+      ],
+    },
+    {
+      name: 'Heart of the Brood',
+      arena: 'hollow_deep',
+      kind: 'miniboss',
+      boss: 'brood_weaver',
+      waves: [
+        [['broodling', 6]],
+        [
+          ['broodling', 3],
+          ['seer', 2],
+        ],
+      ],
+      parTimeSec: 300,
+    },
+    {
+      name: 'Molten Burrows',
+      arena: 'hollow_deep',
+      waves: [
+        [
+          ['ash_hound', 3],
+          ['broodling', 3],
+        ],
+        [
+          ['brute', 2],
+          ['seer', 2],
+        ],
+        [
+          ['bulwark', 2],
+          ['ash_hound', 3],
+          ['wretch', 2],
+        ],
+      ],
+    },
+    {
+      name: 'The Wyrm’s Coil',
+      arena: 'hollow_deep',
+      boss: 'cinder_wyrm',
+      waves: [
+        [
+          ['ash_hound', 3],
+          ['broodling', 3],
+        ],
+        [
+          ['brute', 1],
+          ['bulwark', 1],
+          ['seer', 2],
+        ],
+      ],
+      parTimeSec: 440,
     },
   ]),
 ];

@@ -226,6 +226,7 @@ describe('bench XP', () => {
  * Balance guard: a player who clears each Adventure stage once (no grinding) with rare +3
  * gear of the stage level must find every boss beatable, and the final boss must not be a
  * wall. "Hits" are average hits at skill multiplier 1 (real fights use combos and skills).
+ * Chapter 4 is the grind chapter: it expects epic gear (Hunts, boss drops) instead of rare.
  */
 describe('boss balance along the Adventure', () => {
   const rows: {
@@ -246,7 +247,8 @@ describe('boss balance along the Adventure', () => {
       if (s.boss !== null) {
         const b = BOSSES[s.boss];
         const gear = GEAR_SLOTS.map((slot, i) => {
-          const it = rollItem(rng, i + 1, slot, 'rare', Math.max(1, s.level - 1));
+          const rarity = ch.number >= 4 ? 'epic' : 'rare';
+          const it = rollItem(rng, i + 1, slot, rarity, Math.max(1, s.level - 1));
           it.plus = 3;
           return it;
         });

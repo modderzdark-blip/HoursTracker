@@ -322,11 +322,72 @@ const BOUND_SPIRE: ArenaDef = {
   },
 };
 
+/** A cavern under the wastes: stalagmites, glowing fungus and an open floor for big beasts. */
+const HOLLOW_DEEP: ArenaDef = {
+  id: 'hollow_deep',
+  name: 'The Hollow Deep',
+  floorRadius: 24,
+  wall: { segments: 30, height: 6, thickness: 1.8 },
+  spawn: [0, 1.2, 9],
+  spawnPoints: [
+    [-18, 2],
+    [18, 2],
+    [-13, 13],
+    [13, 13],
+    [-13, -13],
+    [13, -13],
+    [-7, -18],
+  ],
+  bossSpawn: [0, -6],
+  dummySpawn: [0, 4],
+  pillars: [
+    { x: -15, z: -6, radius: 1.2, height: 7 },
+    { x: 15, z: -6, radius: 1.2, height: 7 },
+    { x: -9, z: 17, radius: 0.9, height: 4 },
+    { x: 9, z: 17, radius: 0.9, height: 5.5 },
+    { x: 0, z: -18, radius: 1.4, height: 9 },
+  ],
+  blocks: [],
+  rocks: [
+    { x: -19, z: -11, scale: 1.6 },
+    { x: 19, z: -11, scale: 1.5 },
+    { x: -20, z: 10, scale: 1.2 },
+    { x: 20, z: 9, scale: 1.3 },
+    { x: -4, z: 20, scale: 1.1 },
+    { x: 5, z: -21, scale: 1.2 },
+  ],
+  braziers: [
+    { x: -9, z: 0 },
+    { x: 9, z: 0 },
+    { x: 0, z: -15 },
+  ],
+  palette: {
+    background: 0x040706,
+    fog: 0x0a120e,
+    fogDensity: 0.03,
+    floorBase: 0x23271f,
+    stone: 0x3c4238,
+    ember: 0x8aff5a,
+    moonlight: 0x8ac8a8,
+    hemiSky: 0x283a32,
+    hemiGround: 0x0c0a08,
+  },
+  lighting: {
+    moonIntensity: 1.9,
+    moonDirection: [0.35, 1, 0.4],
+    hemiIntensity: 0.6,
+    environmentIntensity: 0.35,
+    brazierIntensity: 12,
+    brazierRange: 10,
+  },
+};
+
 export const ARENAS = {
   cinder_court: CINDER_COURT,
   ash_gate: ASH_GATE,
   ashen_wastes: ASHEN_WASTES,
   bound_spire: BOUND_SPIRE,
+  hollow_deep: HOLLOW_DEEP,
 } as const satisfies Record<string, ArenaDef>;
 
 export type ArenaId = keyof typeof ARENAS;
