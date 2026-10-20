@@ -3,7 +3,8 @@
 Mobile dark-fantasy hack-and-slash action RPG — Three.js + TypeScript + Rapier, no engine.
 Playable in Chrome on Android (GitHub Pages) and as a sideloadable Capacitor APK.
 
-> Status: **0.6.0 — beasts, hunts & settings**: hub, 3 heroes, 4 Adventure chapters × 8 stages
+> Status: **0.7.0 — graphics overhaul** (sculpted arenas with GPU-made PBR materials, sky, fire,
+> mist, colour grading; detailed characters), on top of 0.6.0: hub, 3 heroes, 4 Adventure chapters × 8 stages
 > (Normal / Hard / Nightmare), 8 enemy types, 9 bosses (3 of them creatures: a beast, a giant
 > spider and a burrowing wyrm), Dungeon, Demon Tower, Boss Challenge, daily Hunts, Arena (AI duels, rating, seasons, leaderboard), XP/levels, gear with upgrades and
 > salvage, loot with pity, skill trees, daily quests, login calendar, achievements, Ember Hearth

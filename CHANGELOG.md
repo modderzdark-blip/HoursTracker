@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.7.0] — Graphics overhaul (2026-10-20)
+
+### Changed
+
+- **Arenas rebuilt**: every surface is a high-resolution PBR material (colour, normal,
+  occlusion/roughness) made on the GPU when the arena loads: cut flagstones with uneven, chipped,
+  sunken and missing stones and dirty joints, cracked earth, ashlar masonry, layered rock, wet
+  cave stone with reflective puddles; floors blend in patches of a second surface. Props are
+  sculpted: noise-carved boulders, fluted columns built to their real size, broken stumps,
+  buttressed ruined walls, fallen drums, rubble, bones and skulls, cave stalagmites, a cliff ring
+  and distant peaks, all with baked shading in the crevices.
+- **Sky and atmosphere**: sky dome with moon, stars and drifting clouds (a dark vault in the cave),
+  animated fire on braziers and new wall torches, low drifting mist, and a colour-grading pass
+  (cool shadows, warm highlights, contrast, vignette, film grain) on Medium and High.
+- **Hub**: the hero stands on a carved dais in a moonlit ruined shrine with columns, braziers,
+  cliffs and mist.
+- **Characters**: cloth folds and weave, leather grain and creases, dented and scratched metal
+  with uneven polish, and grime toward the feet, generated on the surface (fades out at a
+  distance so nothing shimmers).
+
+### Added
+
+- Dev arena viewer (`/dev/arena-viewer.html` with `npm run dev`); test hook `setQuality`.
+- Tests: environment shapes (validity, baked occlusion, triangle budgets, column proportions).
+
 ## [0.6.0] — Beasts, Hunts & Settings (2026-10-20)
 
 ### Added

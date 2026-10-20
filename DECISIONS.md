@@ -219,3 +219,24 @@ Each entry: the decision, why, and what would change it.
 - **Hunts reuse the boss roster** with omens (stat / speed / adds modifiers) rather than new
   content per day; the board is a pure function of the local day, so it survives restarts with
   no server, and early bosses scale to the player's progress so every boss stays worth hunting.
+
+## Graphics overhaul (0.7.0)
+
+- **Materials are synthesized on the GPU at load, not shipped as files.** The free texture
+  libraries (Poly Haven, ambientCG) are blocked from the build environment, and the brief asks for
+  original assets anyway. `TextureSynth` renders tileable albedo / normal / ORM maps from
+  material programs (Voronoi, periodic gradient noise, ridged noise) into mip-mapped render
+  targets in about 0.1–0.3 s per arena, cached while the arena is reused. The APK stays small:
+  download size is not what makes graphics look good, and 1024² maps per material are what a
+  phone can afford in GPU memory (≈ 60 MB per arena on High).
+- **Triplanar world-space mapping** for props and cliffs: sculpted geometry needs no UVs and
+  textures never stretch; floors use the cheaper top-down projection plus a noise-masked second
+  surface.
+- **Baked occlusion in vertex colours instead of SSAO**: GTAO re-renders the scene (normals +
+  depth) and is too heavy for mid-range phones; crevice and contact darkening is computed once
+  when the shapes are built.
+- **Character detail is procedural in rest-pose space** (3D noise on the bind-pose position),
+  so it sticks to the body while it animates and needs no UVs on the procedural rigs; it fades
+  where it would be smaller than a pixel.
+- **Grading after tone mapping** (display-referred) so the same grade reads the same in every
+  arena; it replaces the CSS vignette when on (Medium/High).
