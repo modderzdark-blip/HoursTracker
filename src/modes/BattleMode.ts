@@ -48,6 +48,7 @@ import { ShadowClones } from '../vfx/ShadowClones';
 import { SoulOrbs } from '../vfx/SoulOrbs';
 import { Sparks } from '../vfx/Sparks';
 import { Fx } from '../vfx/Fx';
+import { FxLights } from '../vfx/FxLights';
 import { FxDirector } from './FxDirector';
 import { TelegraphDecals } from '../vfx/TelegraphDecals';
 import { WeaponTrails } from '../vfx/WeaponTrails';
@@ -164,6 +165,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
   private readonly sparks: Sparks;
   private readonly fx: Fx;
   private readonly fxd: FxDirector;
+  private readonly fxLights: FxLights;
   private readonly trails: WeaponTrails;
   private readonly souls: SoulOrbs;
   private readonly blobs: BlobShadows;
@@ -214,7 +216,8 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.telegraphs = new TelegraphDecals(this.scene, 32);
     this.sparks = new Sparks(this.scene);
     this.fx = new Fx(this.scene);
-    this.fxd = new FxDirector(this.fx, this.sparks, d.ctx, d.bus);
+    this.fxLights = new FxLights(this.scene);
+    this.fxd = new FxDirector(this.fx, this.sparks, d.ctx, d.bus, Math.random, this.fxLights);
     this.trails = new WeaponTrails(this.scene, 16);
     this.souls = new SoulOrbs(this.scene);
     this.blobs = new BlobShadows(this.scene);
@@ -1230,6 +1233,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.sparks.setPixelRatio(pr);
     this.sparks.density = preset.particleCount / MAX_PARTICLES + 0.25;
     this.blobs.setStrength(preset.shadows ? 0.4 : 0.6);
+    this.fxLights.setEnabled(preset.pointLights);
   }
 
   /**
@@ -1332,6 +1336,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.sparks.dispose();
     this.fxd.clear();
     this.fx.dispose();
+    this.fxLights.dispose();
     this.souls.dispose();
     this.blobs.dispose();
     this.telegraphs.dispose();

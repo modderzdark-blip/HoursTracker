@@ -52,7 +52,7 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     shadows: true,
     shadowMapSize: 1024,
     shadowFrustumHalfSize: 10,
-    bloom: false,
+    bloom: true,
     grade: true,
     vignette: true,
     particleCount: 160,

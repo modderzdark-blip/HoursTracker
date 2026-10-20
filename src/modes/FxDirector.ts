@@ -5,6 +5,7 @@ import type { GameEvents, HitEvent } from '../core/events';
 import type { ActionDef, FxCue } from '../data/combatTypes';
 import type { RenderContext } from '../render/RenderContext';
 import type { Fx } from '../vfx/Fx';
+import type { FxLights } from '../vfx/FxLights';
 import type { Sparks } from '../vfx/Sparks';
 
 interface Pending {
@@ -18,6 +19,8 @@ interface Pending {
 }
 
 const MAX_PENDING = 160;
+/** Shapes big enough to light up their surroundings. */
+const LIT_SHAPES: ReadonlySet<string> = new Set(['nova', 'pillar', 'cracks']);
 
 /**
  * Turns combat into visuals: plays the cues an action carries (or an automatic slash arc for
@@ -38,6 +41,7 @@ export class FxDirector {
     private readonly ctx: RenderContext,
     private readonly bus: EventBus<GameEvents> | null = null,
     private readonly rand: () => number = Math.random,
+    private readonly lights: FxLights | null = null,
   ) {}
 
   /** An action began: schedule its cues (`speed` = action speed multiplier). */
@@ -81,6 +85,7 @@ export class FxDirector {
       life: heavy ? 0.22 : 0.14,
     });
     if (heavy && e.targetTeam !== 'player') {
+      this.lights?.flash(e.x, e.y, e.z, 0xffb070, 0.45, 0.18);
       this.fx.spawn('ring', { x: e.x, y: 0, z: e.z, scale: 1.6, color: 0xffb070, life: 0.35 });
       if (e.crit) this.screen(0.12, 0xffd27a, 0.004);
     }
@@ -93,6 +98,8 @@ export class FxDirector {
     this.fx.spawn('flash', { x, y: 1, z, scale: s * 1.2, color, life: 0.3 });
     this.fx.spawn('ring', { x, y: 0, z, scale: s * 1.6, color, life: 0.6 });
     this.fx.smokeBurst(x, 0.6, z, big ? 18 : 7, big ? 2.4 : 1, 0.12);
+    if (big) this.fx.spawn('scorch', { x, y: 0, z, yaw: x * 7.1 + z, scale: 3, color, life: 9 });
+    this.lights?.flash(x, 1.2, z, color, big ? 1.6 : 0.6, big ? 0.7 : 0.3);
     this.sparks.burst(x, 1, z, big ? 70 : 24, color, big ? 9 : 5, 0, 0, 0.6, 1.4, 0.3);
     if (big) this.screen(0.35, color, 0.012);
   }
@@ -118,6 +125,7 @@ export class FxDirector {
     }
     this.flash = Math.max(0, this.flash - dtSec * 3.5);
     this.aberr = Math.max(0, this.aberr - dtSec * 0.08);
+    this.lights?.update(dtSec);
     const f = this.flash * this.flash;
     this.ctx.setScreenFx(
       this.flashColor.r * f,
@@ -131,6 +139,7 @@ export class FxDirector {
     this.pending.length = 0;
     this.flash = 0;
     this.aberr = 0;
+    this.lights?.clear();
     this.ctx.setScreenFx(0, 0, 0, 0);
   }
 
@@ -165,6 +174,25 @@ export class FxDirector {
         this.screen(c.amount ?? 0.3, p.color, (c.scale ?? 0) * 0.02);
         return;
       default:
+        if (LIT_SHAPES.has(c.shape) && y < 0.6 && (c.scale ?? 1) >= 1.2)
+          this.fx.spawn('scorch', {
+            x,
+            y: 0,
+            z,
+            yaw: this.rand() * Math.PI * 2,
+            scale: Math.min(4, (c.scale ?? 1) * 0.75),
+            color: p.color,
+            life: 7,
+          });
+        if (LIT_SHAPES.has(c.shape))
+          this.lights?.flash(
+            x,
+            y + 0.8,
+            z,
+            p.color,
+            Math.min(1.6, 0.35 * (c.scale ?? 1)),
+            Math.min(0.6, (c.life ?? 0.4) * 0.8),
+          );
         this.fx.spawn(c.shape, {
           x,
           y,

@@ -111,7 +111,7 @@ export interface MoveSpec {
 export type TrailSide = 'right' | 'left' | 'both' | 'none';
 
 /** Shaped battle effects (src/vfx/Fx.ts). */
-export type FxShape = 'ring' | 'slash' | 'pillar' | 'flash' | 'cracks' | 'nova';
+export type FxShape = 'ring' | 'slash' | 'pillar' | 'flash' | 'cracks' | 'nova' | 'scorch';
 
 /**
  * A visual cue an action plays: a shaped effect, a smoke puff or a screen flash, at the action's

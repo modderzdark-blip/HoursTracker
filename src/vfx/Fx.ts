@@ -68,6 +68,14 @@ void main() {
   vec3 p = rotY(iA.w) * vec3(position.x, 0.0, -position.y) * iB.x;
   gl_Position = projectionMatrix * viewMatrix * vec4(iA.xyz + vec3(0.0, 0.03, 0.0) + p, 1.0);
 }`,
+  scorch: /* glsl */ `${COMMON_VERT}
+void main() {
+  vUv = uv; vColor = iC.rgb; vMirror = iC.w;
+  vT = (uTime - iB.y) / iB.z;
+  vLocal = vec3(iA.x, iA.z, iA.w);
+  vec3 p = rotY(iA.w) * vec3(position.x, 0.0, -position.y) * iB.x;
+  gl_Position = projectionMatrix * viewMatrix * vec4(iA.x + p.x, 0.025, iA.z + p.z, 1.0);
+}`,
   nova: /* glsl */ `${COMMON_VERT}
 varying vec3 vView;
 void main() {
@@ -155,6 +163,28 @@ void main() {
   float alpha = max(crack, ring * (1.0 - r)) * heat * heat;
   vec3 c = mix(vColor, vec3(1.0, 0.95, 0.85), heat * heat * 0.6);
   gl_FragColor = vec4(c * alpha * 3.0, alpha);
+}`,
+  // Burnt ground left by explosions: a charred, ragged blotch whose embers cool first.
+  scorch: /* glsl */ `${COMMON_FRAG}
+void main() {
+  if (vT < 0.0 || vT > 1.0) discard;
+  vec2 p = vUv * 2.0 - 1.0;
+  float r = length(p);
+  vec2 q = p * 2.2 + vLocal.xy * 0.37;
+  float n = fxNoise(q) * 0.6 + fxNoise(q * 2.3 + 5.1) * 0.4;
+  float edge = 0.62 + n * 0.32;
+  float soot = 1.0 - smoothstep(edge - 0.25, edge, r);
+  // Splatter streaks radiating out.
+  float a = atan(p.y, p.x);
+  float rays = pow(fxNoise(vec2(a * 4.0 + vLocal.z, 3.0)), 3.0) * (1.0 - smoothstep(0.5, 1.0, r));
+  soot = max(soot, rays * 0.7);
+  float fade = smoothstep(0.0, 0.03, vT) * (1.0 - smoothstep(0.55, 1.0, vT));
+  // Embers: hot specks inside the burn, gone in the first fifth of its life.
+  float heat = 1.0 - smoothstep(0.0, 0.22, vT);
+  float specks = smoothstep(0.74, 0.97, fxNoise(q * 7.5 + uTime * 0.6)) * soot * heat * (1.0 - smoothstep(0.2, 0.7, r));
+  float alpha = clamp(soot * 0.92 * fade + specks, 0.0, 1.0);
+  vec3 c = mix(vec3(0.02, 0.015, 0.012), vColor * 2.5 + vec3(0.4, 0.2, 0.05), specks / max(alpha, 1e-3));
+  gl_FragColor = vec4(c, alpha);
 }`,
   // Sphere of energy that blooms out and dissolves (explosions, novas).
   nova: /* glsl */ `${COMMON_FRAG}
@@ -307,7 +337,7 @@ void main() {
 
 /**
  * Battle effects library: expanding shockwaves, glowing slash arcs, light pillars, flashes,
- * burning ground fissures, energy novas and drifting smoke. Each shape is one instanced draw
+ * burning ground fissures, energy novas, scorch marks and drifting smoke. Each shape is one instanced draw
  * call driven entirely by the GPU from (start time, life): spawning writes one instance, there
  * is no per-frame CPU work per effect.
  */
@@ -334,7 +364,7 @@ export class Fx {
     capacity = 24,
     private readonly smokeCapacity = 220,
   ) {
-    const shapes: FxShape[] = ['ring', 'cracks', 'slash', 'pillar', 'flash', 'nova'];
+    const shapes: FxShape[] = ['scorch', 'ring', 'cracks', 'slash', 'pillar', 'flash', 'nova'];
     for (const shape of shapes) {
       const geo = shapeGeometry(shape);
       const a = new InstancedBufferAttribute(new Float32Array(capacity * 4), 4).setUsage(
@@ -355,14 +385,15 @@ export class Fx {
         uniforms: { uTime: { value: 0 } },
         transparent: true,
         depthWrite: false,
-        blending: AdditiveBlending,
+        // Scorch marks darken the ground; everything else is light.
+        blending: shape === 'scorch' ? NormalBlending : AdditiveBlending,
         side: 2,
       });
       this.materials.push(mat);
       const mesh = new InstancedMesh(geo, mat, capacity);
       for (let i = 0; i < capacity; i++) mesh.setMatrixAt(i, this.identity);
       mesh.frustumCulled = false;
-      mesh.renderOrder = 6;
+      mesh.renderOrder = shape === 'scorch' ? 1 : 6;
       mesh.name = `fx-${shape}`;
       scene.add(mesh);
       this.pools.set(shape, { mesh, a, b, c, next: 0 });

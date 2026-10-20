@@ -38,6 +38,7 @@ import { TextureSynth, type MaterialMaps } from '../render/env/TextureSynth';
 import { createTriplanarMaterial } from '../render/env/triplanar';
 import { Flames } from '../vfx/Flames';
 import { GroundFog } from '../vfx/GroundFog';
+import { LightShafts } from '../vfx/LightShafts';
 
 const DEG = Math.PI / 180;
 
@@ -57,6 +58,7 @@ export class ArenaBuilder {
   private readonly flameSpots: { x: number; y: number; z: number; size: number }[] = [];
   private flames: Flames | null = null;
   private fog: GroundFog | null = null;
+  private shafts: LightShafts | null = null;
   private readonly geometries: BufferGeometry[] = [];
   private readonly materials: Material[] = [];
   private readonly m = new Matrix4();
@@ -136,6 +138,18 @@ export class ArenaBuilder {
       const fogColor = new Color(def.palette.fog).lerp(new Color(def.palette.moonlight), 0.1);
       this.fog = new GroundFog(def.floorRadius, fogColor.getHex(), 0.26);
       this.objects.push(...this.fog.meshes);
+      // Moonlight through the haze (open skies) or through cracks in a cave roof.
+      const open = L.sky.open;
+      this.shafts = new LightShafts(
+        def.floorRadius,
+        def.lighting.moonDirection,
+        new Color(def.palette.moonlight).lerp(new Color(L.sky.moon), 0.35).getHex(),
+        open ? 0.34 : 0.26,
+        open ? 5 : 4,
+        this.rand,
+        this.keepOut,
+      );
+      this.objects.push(this.shafts.mesh);
     }
   }
 
@@ -143,6 +157,7 @@ export class ArenaBuilder {
   update(dtSec: number): void {
     this.flames?.update(dtSec);
     this.fog?.update(dtSec);
+    this.shafts?.update(dtSec);
   }
 
   addTo(scene: Object3D): void {
@@ -152,6 +167,7 @@ export class ArenaBuilder {
   dispose(): void {
     this.flames?.dispose();
     this.fog?.dispose();
+    this.shafts?.dispose();
     for (const o of this.objects) o.removeFromParent();
     for (const g of this.geometries) g.dispose();
     for (const m of this.materials) m.dispose();
