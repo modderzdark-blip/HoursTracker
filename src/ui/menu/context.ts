@@ -44,6 +44,11 @@ export interface MenuContext {
   readonly settings: SettingsPort;
 }
 
+/** Options changed through `SettingsPort.update` (the rest have dedicated setters). */
+export type SettingsPatch = Partial<
+  Omit<Settings, 'quality' | 'detectedQuality' | 'fpsCap' | 'showDebugOverlay'>
+>;
+
 /** Settings the settings screen can change (implemented by the App). */
 export interface SettingsPort {
   readonly settings: Settings;
@@ -51,17 +56,12 @@ export interface SettingsPort {
   setQuality(q: QualitySetting): void;
   setFpsCap(cap: FpsCap): void;
   setDebugOverlay(on: boolean): void;
-  setVolume(kind: 'masterVolume' | 'sfxVolume' | 'musicVolume', value: number): void;
-  setVibration(on: boolean): void;
-  /** Layout / accessibility options (applied immediately and saved). */
-  update(
-    patch: Partial<
-      Pick<
-        Settings,
-        'buttonScale' | 'buttonOpacity' | 'leftHanded' | 'screenShake' | 'showDamageNumbers'
-      >
-    >,
-  ): void;
+  /** Any other option: applied to the running game immediately and saved. */
+  update(patch: SettingsPatch): void;
+  /** Camera options back to their defaults. */
+  resetCamera(): void;
+  /** Every option back to its default (progress is never touched). */
+  resetAll(): void;
   fullscreen(): void;
   copyLog(): Promise<boolean>;
 }

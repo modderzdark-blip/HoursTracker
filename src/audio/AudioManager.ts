@@ -17,6 +17,11 @@ export class AudioManager {
     sfx: AUDIO_CONFIG.defaultSfxVolume,
     music: AUDIO_CONFIG.defaultMusicVolume,
   };
+  /** Menu / button ticks (Settings → Audio → UI sounds). */
+  uiSounds = true;
+  /** Suspend audio while the app is hidden (Settings → Audio → Mute in background). */
+  muteInBackground = true;
+  private hidden = false;
 
   get state(): AudioContextState | 'uninitialised' {
     return this.ctx?.state ?? 'uninitialised';
@@ -52,12 +57,25 @@ export class AudioManager {
     }
   }
 
-  /** Suspend while the app is hidden to save battery; resume on return. */
+  /**
+   * Suspend while the app is hidden to save battery; resume on return. With "Mute in background"
+   * off, audio keeps playing while hidden.
+   */
   setHidden(hidden: boolean): void {
+    this.hidden = hidden;
     if (this.ctx === null) return;
-    if (hidden && this.ctx.state === 'running') {
+    if (hidden && this.muteInBackground && this.ctx.state === 'running') {
       this.ctx.suspend().catch((err: unknown) => console.warn('[audio] suspend failed', err));
     } else if (!hidden && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch((err: unknown) => console.warn('[audio] resume failed', err));
+    }
+  }
+
+  /** Changes "Mute in background"; takes effect immediately if the app is hidden right now. */
+  setMuteInBackground(on: boolean): void {
+    this.muteInBackground = on;
+    if (this.hidden) this.setHidden(true);
+    if (this.hidden && !on && this.ctx?.state === 'suspended') {
       this.ctx.resume().catch((err: unknown) => console.warn('[audio] resume failed', err));
     }
   }
@@ -82,7 +100,7 @@ export class AudioManager {
   /** Short synthesized UI tick (original, procedural — no asset needed). */
   playUiClick(): void {
     const ctx = this.ctx;
-    if (ctx === null || this.sfx === null || ctx.state !== 'running') return;
+    if (!this.uiSounds || ctx === null || this.sfx === null || ctx.state !== 'running') return;
     const c = AUDIO_CONFIG.uiClick;
     const t = ctx.currentTime;
     const osc = ctx.createOscillator();

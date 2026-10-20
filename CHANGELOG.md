@@ -1,5 +1,24 @@
 # Changelog
 
+## [Unreleased] — Settings
+
+### Added
+
+- **Settings screen** with sections (Camera, Graphics, Controls, HUD & accessibility, Audio,
+  Gameplay); every option applies immediately and is saved; old saves get defaults.
+- **Camera**: distance presets + fine slider, angle (low / normal / high), field of view,
+  follow smoothness, look-ahead, screen shake 0–150 %, live side-view preview, reset camera.
+  The pause menu has camera distance and screen shake quick settings.
+- **Graphics**: resolution scale (50–100 %), shadows / bloom overrides, particle density,
+  FPS counter.
+- **Controls**: joystick size, dead zone and fixed / floating mode; auto-aim on/off and range;
+  attack magnetism on/off; vibration strength.
+- **HUD & accessibility**: combo counter on/off, HUD scale (90–130 %), reduce flashes (no
+  pulsing HUD effects, softer bloom), larger menu text, colour-blind-friendly telegraphs.
+- **Audio**: UI sounds on/off, mute in background on/off.
+- **Gameplay**: confirm before salvaging rare+ gear, defeat-screen tips on/off, and a
+  confirmed "Reset all settings" (progress is never touched).
+
 ## [0.5.0] — Look & feel (2026-10-20)
 
 ### Changed

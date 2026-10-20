@@ -30,6 +30,66 @@ const RARITY_RANK: Readonly<Record<Rarity, number>> = {
   mythic: 4,
 };
 
+/** Items whose salvage asks first when "Confirm rare salvage" is on (rare or better). */
+export function needsSalvageConfirm(
+  items: readonly Pick<GearItem, 'rarity'>[],
+  confirmSetting: boolean,
+): boolean {
+  return confirmSetting && items.some((i) => RARITY_RANK[i.rarity] >= RARITY_RANK.rare);
+}
+
+/**
+ * Runs `run` straight away, or after a confirmation modal when the items include rare+ gear and
+ * the player kept "Confirm rare salvage" on (Settings → Gameplay).
+ */
+function confirmSalvage(
+  ctx: MenuContext,
+  items: readonly GearItem[],
+  run: () => void,
+  onCancel: () => void,
+): void {
+  if (!needsSalvageConfirm(items, ctx.settings.settings.confirmRareSalvage)) {
+    run();
+    return;
+  }
+  const best = items.reduce((a, b) => (RARITY_RANK[b.rarity] > RARITY_RANK[a.rarity] ? b : a));
+  const valuable = items.filter((i) => RARITY_RANK[i.rarity] >= RARITY_RANK.rare).length;
+  const m = ctx.shell.openModal('confirm-modal');
+  const row = el('div', 'button-row');
+  row.append(
+    m.button(
+      'Salvage',
+      'btn btn-primary',
+      () => {
+        ctx.uiTap();
+        ctx.shell.closeModal();
+        run();
+      },
+      { testid: 'salvage-confirm' },
+    ),
+    m.button(
+      'Keep',
+      'btn',
+      () => {
+        ctx.uiTap();
+        ctx.shell.closeModal();
+        onCancel();
+      },
+      { testid: 'salvage-cancel' },
+    ),
+  );
+  const what =
+    items.length === 1
+      ? `${itemName(best)} is ${RARITY_DEFS[best.rarity].label.toLowerCase()} gear.`
+      : `${items.length} items, ${valuable} of them rare or better.`;
+  m.root.append(
+    el('h2', 'panel-title', 'Salvage valuable gear?'),
+    el('p', 'panel-body', `${what} Salvaged items are gone for good.`),
+    el('p', 'panel-note', 'You can turn this prompt off in Settings → Gameplay.'),
+    row,
+  );
+}
+
 export function itemTile(
   v: View,
   item: GearItem | undefined,
@@ -126,16 +186,23 @@ export function renderGear(ctx: MenuContext, filter: GearSlot | null): void {
       'btn btn-small',
       () => {
         ctx.uiTap();
-        const uids = p.data.items
-          .filter((i) => RARITY_RANK[i.rarity] <= maxRank && !i.locked && p.wearer(i.uid) === null)
-          .map((i) => i.uid);
-        if (uids.length === 0) {
+        const picked = p.data.items.filter(
+          (i) => RARITY_RANK[i.rarity] <= maxRank && !i.locked && p.wearer(i.uid) === null,
+        );
+        if (picked.length === 0) {
           ctx.toast('Nothing to salvage');
           return;
         }
-        const r = p.salvage(uids);
-        ctx.toast(`Salvaged ${r.count} items: +${r.materials} materials, +${r.gold} gold`);
-        renderGear(ctx, filter);
+        confirmSalvage(
+          ctx,
+          picked,
+          () => {
+            const r = p.salvage(picked.map((i) => i.uid));
+            ctx.toast(`Salvaged ${r.count} items: +${r.materials} materials, +${r.gold} gold`);
+            renderGear(ctx, filter);
+          },
+          () => undefined,
+        );
       },
       { testid },
     );
@@ -236,10 +303,17 @@ function openItem(ctx: MenuContext, item: GearItem, filter: GearSlot | null): vo
       'btn',
       () => {
         ctx.uiTap();
-        const res = p.salvage([item.uid]);
-        ctx.toast(`Salvaged: +${res.materials} materials, +${res.gold} gold`);
-        ctx.shell.closeModal();
-        renderGear(ctx, filter);
+        confirmSalvage(
+          ctx,
+          [item],
+          () => {
+            const res = p.salvage([item.uid]);
+            ctx.toast(`Salvaged: +${res.materials} materials, +${res.gold} gold`);
+            ctx.shell.closeModal();
+            renderGear(ctx, filter);
+          },
+          () => openItem(ctx, item, filter),
+        );
       },
       { disabled: item.locked || wearer !== null, testid: 'item-salvage' },
     ),

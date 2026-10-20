@@ -1,8 +1,12 @@
 import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
 import {
+  applyQualityOverrides,
+  NO_QUALITY_OVERRIDES,
   QUALITY_PRESETS,
+  sameOverrides,
   type QualityLevel,
+  type QualityOverrides,
   type QualityPreset,
   type QualitySetting,
 } from '../data/quality';
@@ -22,6 +26,7 @@ export class QualityManager {
   private targets: QualityTarget[] = [];
   private benchmark: QualityBenchmark | null = null;
   private levelValue: QualityLevel;
+  private overridesValue: QualityOverrides = NO_QUALITY_OVERRIDES;
   onDetected: ((level: QualityLevel) => void) | null = null;
   onBenchmarkStateChange: ((running: boolean) => void) | null = null;
 
@@ -41,8 +46,20 @@ export class QualityManager {
     return this.settingValue;
   }
 
+  /** The active preset with the player's graphics overrides (shadows, bloom, particles) applied. */
   get preset(): QualityPreset {
-    return QUALITY_PRESETS[this.levelValue];
+    return applyQualityOverrides(QUALITY_PRESETS[this.levelValue], this.overridesValue);
+  }
+
+  get overrides(): QualityOverrides {
+    return this.overridesValue;
+  }
+
+  /** Changes the overrides and re-applies the current level to every target (no-op if equal). */
+  setOverrides(o: QualityOverrides): void {
+    if (sameOverrides(o, this.overridesValue)) return;
+    this.overridesValue = o;
+    this.apply(this.levelValue);
   }
 
   get benchmarkRunning(): boolean {
@@ -111,7 +128,7 @@ export class QualityManager {
 
   apply(level: QualityLevel): void {
     this.levelValue = level;
-    const preset = QUALITY_PRESETS[level];
+    const preset = this.preset;
     for (const t of this.targets) t.applyQuality(preset, level);
     this.bus.emit('quality:applied', { level, setting: this.settingValue });
   }

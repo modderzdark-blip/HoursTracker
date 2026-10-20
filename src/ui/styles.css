@@ -580,6 +580,32 @@ body {
   display: none;
 }
 
+.no-combo .bhud-combo {
+  display: none !important;
+}
+
+/* Fixed joystick: always shown at its resting spot, a little brighter than the floating hint. */
+.touch-layer.is-joy-fixed .tc-joy-base.is-idle {
+  opacity: 0.6;
+}
+
+/* Settings → Reduce flashes: no blinking / pulsing HUD effects (steady highlights instead). */
+.reduce-flashes .bar-hp.is-low .bar-fill,
+.reduce-flashes .bhud-counter,
+.reduce-flashes .bhud-boss.is-broken .bar-break .bar-fill,
+.reduce-flashes .tc-ultimate.is-ready,
+.reduce-flashes .bhud-combo.is-bump {
+  animation: none !important;
+}
+
+.reduce-flashes .tc-ultimate.is-ready {
+  box-shadow: 0 0 14px rgba(255, 122, 42, 0.6);
+}
+
+.reduce-flashes .bhud-boss.is-broken .bar-break .bar-fill {
+  background: #f4e3c4;
+}
+
 .tc-btn {
   position: absolute;
   border-radius: 50%;
@@ -1329,13 +1355,15 @@ body {
 }
 
 /* Tablets: menus and HUD are laid out for phones; scale them up so they fill a large screen
-   instead of floating small in the corners. Layout happens at the size divided by the scale. */
+   instead of floating small in the corners. Layout happens at the size divided by the scale.
+   `--ui-base` is the device scale; the HUD scale and "Larger menu text" settings multiply it. */
 @media (min-width: 960px) and (min-height: 600px) {
   .menu,
   .bhud,
   .hud,
   .pause-menu,
   .result-screen {
+    --ui-base: 1.25;
     --ui-scale: 1.25;
     right: auto;
     bottom: auto;
@@ -1352,6 +1380,7 @@ body {
   .hud,
   .pause-menu,
   .result-screen {
+    --ui-base: 1.4;
     --ui-scale: 1.4;
   }
 }
@@ -1362,7 +1391,92 @@ body {
   .hud,
   .pause-menu,
   .result-screen {
+    --ui-base: 1.5;
     --ui-scale: 1.5;
+  }
+}
+
+/* Settings → HUD scale (battle HUD) and Larger menu text (menus, pause, results).
+   Like the touch buttons (--btn-max), the HUD scale is capped on the shortest phones so the
+   player panel, boss bar and banners keep clear of each other and of the action buttons. */
+#ui-root.hud-scaled {
+  --hud-eff: min(var(--hud-scale, 1), var(--hud-max, 2));
+}
+
+@media (max-height: 380px) {
+  #ui-root.hud-scaled {
+    --hud-max: 1.2;
+  }
+}
+
+@media (max-height: 340px) {
+  #ui-root.hud-scaled {
+    --hud-max: 1.1;
+  }
+}
+
+#ui-root.hud-scaled .bhud,
+#ui-root.hud-scaled .hud,
+#ui-root.large-text .menu,
+#ui-root.large-text .pause-menu,
+#ui-root.large-text .result-screen {
+  right: auto;
+  bottom: auto;
+  width: calc(100% / var(--ui-scale));
+  height: calc(100% / var(--ui-scale));
+  transform: scale(var(--ui-scale));
+  transform-origin: 0 0;
+}
+
+#ui-root.hud-scaled .bhud,
+#ui-root.hud-scaled .hud {
+  --ui-scale: calc(var(--ui-base, 1) * var(--hud-eff, 1));
+}
+
+#ui-root.large-text .menu,
+#ui-root.large-text .pause-menu,
+#ui-root.large-text .result-screen {
+  --ui-scale: calc(var(--ui-base, 1) * 1.15);
+}
+
+/* With a scaled HUD the centre banners keep their usual size and band (they are sized for the
+   free space beside the touch buttons, which do not scale with the HUD). The px offsets of the
+   band are divided by the HUD scale and the banner is drawn at 1 / scale around its anchor. */
+#ui-root.hud-scaled .bhud-banner {
+  left: calc(50% + (var(--band-l) - var(--band-r)) / (2 * var(--hud-eff)));
+  max-width: calc(100% * var(--hud-eff) - var(--band-l) - var(--band-r));
+  scale: calc(1 / var(--hud-eff));
+  transform-origin: 0 0;
+}
+
+/* Tablets: the larger player panel and boss bar reach further down; banners move below them. */
+@media (min-height: 561px) {
+  #ui-root.hud-scaled .bhud-banner {
+    top: 40%;
+  }
+}
+
+/* A taller HP bar so its number never touches the bar edge at odd scale factors. */
+#ui-root.hud-scaled .bar-hp {
+  height: 18px;
+}
+
+/* The combo counter stays below the (larger) player panel but keeps its normal size. */
+#ui-root.hud-scaled .bhud-combo {
+  scale: calc(1 / var(--hud-eff));
+  transform-origin: 0 0;
+}
+
+/* Short phones: the boss bar would grow into the action buttons, so it keeps its 100% size
+   (still placed between the scaled player panel and pause button). */
+@media (max-height: 430px) {
+  #ui-root.hud-scaled .bhud-boss {
+    right: auto;
+    width: calc(
+      (100% - 84px - min(26vw, 240px) - 22px - var(--sl) - 80px - var(--sr)) * var(--hud-eff)
+    );
+    scale: calc(1 / var(--hud-eff));
+    transform-origin: 0 0;
   }
 }
 
@@ -2502,26 +2616,446 @@ body {
 }
 
 /* ---------- Settings ---------- */
-.settings {
+.settings-screen {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px 20px;
+  grid-template-columns: clamp(122px, 21%, 190px) minmax(0, 1fr);
+  gap: 12px;
   height: 100%;
-  overflow-y: auto;
-  touch-action: pan-y;
+  min-height: 0;
 }
 
-.settings-col {
+.settings-nav {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
+  min-height: 0;
+  overflow-y: auto;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
 }
 
-.settings .segment {
-  min-width: 48px;
-  min-height: 44px;
-  padding: 0 8px;
+.settings-tab {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 10px 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(201, 162, 74, 0.16);
+  background: rgba(18, 12, 11, 0.7);
+  color: var(--ink-dim);
   font-size: 14px;
+  font-weight: 600;
+  line-height: 1.15;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.settings-tab-icon {
+  flex: 0 0 18px;
+  text-align: center;
+  font-size: 15px;
+  color: rgba(201, 162, 74, 0.75);
+}
+
+.settings-tab-label {
+  min-width: 0;
+}
+
+.settings-tab.is-selected {
+  background: linear-gradient(90deg, rgba(122, 44, 14, 0.85), rgba(42, 20, 14, 0.75));
+  border-color: rgba(255, 177, 94, 0.6);
+  color: #fff3e2;
+  box-shadow: 0 0 18px rgba(255, 122, 42, 0.16);
+}
+
+.settings-tab.is-selected::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--ember-hot);
+}
+
+.settings-tab.is-selected .settings-tab-icon {
+  color: var(--ember-hot);
+}
+
+.settings-tab.is-pressed {
+  filter: brightness(1.3);
+}
+
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+  padding: 0 4px 6px 0;
+}
+
+.settings-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+}
+
+.settings-title {
+  margin: 0;
+  font-family: var(--font-title);
+  font-weight: 400;
+  font-size: 17px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.settings-blurb {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.sgroup {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  padding: 2px 12px 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(201, 162, 74, 0.22);
+  background: linear-gradient(180deg, rgba(26, 17, 14, 0.82), rgba(14, 10, 10, 0.82));
+  box-shadow: inset 0 1px 0 rgba(255, 210, 150, 0.05);
+}
+
+.sgroup-title {
+  padding: 8px 0 2px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(201, 162, 74, 0.9);
+}
+
+.sgroup-note {
+  padding: 4px 0;
+}
+
+.srow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 14px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(201, 162, 74, 0.12);
+}
+
+.sgroup-title + .srow {
+  border-top: 0;
+}
+
+.srow.is-disabled .srow-ctl {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.srow-text {
+  flex: 1 1 150px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.srow-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.srow-hint,
+.srow-note {
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--ink-dim);
+}
+
+.srow-note {
+  margin: 0;
+  color: rgba(255, 177, 94, 0.85);
+}
+
+.srow-ctl {
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.srow-ctl .segmented {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  min-width: auto;
+}
+
+.srow-ctl .segment {
+  flex: 1 0 auto;
+  max-width: 112px;
+  min-width: 48px;
+  min-height: 42px;
+  padding: 0 10px;
+  font-size: 14px;
+}
+
+.settings-actions {
+  padding: 6px 0 2px;
+}
+
+.settings-actions > .btn {
+  min-height: 46px;
+  font-size: 15px;
+}
+
+.btn-danger {
+  border-color: rgba(255, 106, 74, 0.7);
+  color: #ffb8a0;
+  background: linear-gradient(180deg, #3a1610, #1c0a08);
+}
+
+/* Slider */
+.slider {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 200px;
+}
+
+.slider-track {
+  position: relative;
+  flex: 1 1 auto;
+  height: 42px;
+  padding: 0 12px;
+  touch-action: pan-y;
+  cursor: pointer;
+  outline: none;
+  border-radius: 10px;
+}
+
+.slider-track:focus-visible {
+  box-shadow: 0 0 0 2px rgba(255, 177, 94, 0.6);
+}
+
+.slider-rail {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 50%;
+  height: 6px;
+  margin-top: -3px;
+  border-radius: 3px;
+  background: rgba(255, 235, 210, 0.12);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.slider-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #7a2a10, var(--ember) 80%, var(--ember-hot));
+}
+
+.slider-lane {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.slider-thumb {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 24px;
+  height: 24px;
+  /* Centred on the value: the lane spans the track minus its 12 px padding. */
+  margin: -12px 0 0 -12px;
+  border-radius: 50%;
+  border: 2px solid #ffe2b8;
+  background: radial-gradient(circle at 40% 35%, #ffd49a, #c2541f 65%, #5e210c);
+  box-shadow:
+    0 0 10px rgba(255, 122, 42, 0.45),
+    0 2px 4px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.slider-track.is-dragging .slider-lane {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.slider-thumb {
+  box-shadow:
+    0 0 0 6px rgba(255, 122, 42, 0.18),
+    0 0 14px rgba(255, 140, 60, 0.7);
+}
+
+.slider-value {
+  flex: 0 0 auto;
+  min-width: 44px;
+  text-align: right;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+/* Camera preview (side view of the rig) */
+.cam-preview {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(201, 162, 74, 0.22);
+  background:
+    radial-gradient(ellipse at 15% 100%, rgba(255, 106, 26, 0.16), transparent 60%),
+    rgba(12, 9, 10, 0.85);
+}
+
+.cam-preview-svg {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 84px;
+  overflow: hidden;
+}
+
+.cam-ground {
+  stroke: rgba(201, 162, 74, 0.45);
+  stroke-width: 1;
+}
+
+.cam-hero {
+  stroke: #efe6d8;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.cam-hero-head {
+  fill: #efe6d8;
+}
+
+.cam-cone {
+  fill: rgba(255, 140, 60, 0.13);
+  stroke: rgba(255, 160, 80, 0.4);
+  stroke-width: 0.8;
+}
+
+.cam-sight {
+  stroke: rgba(255, 177, 94, 0.75);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.cam-body {
+  fill: #c9a24a;
+}
+
+.cam-lens {
+  fill: #ffb15e;
+}
+
+.cam-stats {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: auto auto;
+  align-content: center;
+  gap: 2px 10px;
+}
+
+.cam-stat {
+  display: contents;
+}
+
+.cam-stat-label {
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.cam-stat-val {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--ink);
+}
+
+/* Telegraph colour sample next to the colour-blind option */
+.tele-swatch {
+  --tele: #ff3a1a;
+  display: inline-block;
+  vertical-align: -1px;
+  width: 30px;
+  height: 14px;
+  margin-right: 8px;
+  border-radius: 50%;
+  border: 2px solid var(--tele);
+  background: radial-gradient(
+    ellipse,
+    color-mix(in srgb, var(--tele) 45%, transparent),
+    transparent
+  );
+}
+
+.confirm-modal {
+  width: min(480px, 100%);
+}
+
+/* FPS counter (Settings → Graphics → Show FPS) */
+.hud-fps {
+  position: absolute;
+  left: 50%;
+  bottom: calc(4px + var(--sb));
+  transform: translateX(-50%);
+  padding: 1px 8px;
+  border-radius: 6px;
+  background: rgba(8, 6, 6, 0.6);
+  color: #b8f0b0;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none !important;
+}
+
+@media (max-height: 340px) {
+  .settings-nav {
+    gap: 2px;
+  }
+  .settings-tab {
+    min-height: 40px;
+  }
+  .srow {
+    padding: 6px 0;
+  }
 }
 
 @media (max-height: 380px) {

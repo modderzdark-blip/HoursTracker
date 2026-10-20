@@ -99,4 +99,53 @@ export const BLOOM_CONFIG = {
   threshold: 0.82,
   /** Bloom buffers render at this fraction of the canvas resolution. */
   resolutionScale: 0.5,
+  /** Strength used with "Reduce flashes" (bright hits and flashes glare less). */
+  reducedStrength: 0.25,
 } as const;
+
+/** Player overrides layered on top of the active preset (Settings → Graphics). */
+export interface QualityOverrides {
+  /** null = keep the preset's value. */
+  readonly shadows: boolean | null;
+  readonly bloom: boolean | null;
+  /** Multiplier on `particleCount` (ember / dust field and hit-spark density). */
+  readonly particleScale: number;
+}
+
+export const NO_QUALITY_OVERRIDES: QualityOverrides = {
+  shadows: null,
+  bloom: null,
+  particleScale: 1,
+};
+
+/** Particle density setting → multiplier on the preset's particle count. */
+export const PARTICLE_DENSITY_SCALE = { low: 0.5, normal: 1, high: 1.5 } as const;
+
+/** The preset with the player's overrides applied (pure; the preset objects are never mutated). */
+export function applyQualityOverrides(preset: QualityPreset, o: QualityOverrides): QualityPreset {
+  if (o.shadows === null && o.bloom === null && o.particleScale === 1) return preset;
+  return {
+    ...preset,
+    shadows: o.shadows ?? preset.shadows,
+    bloom: o.bloom ?? preset.bloom,
+    particleCount: Math.max(0, Math.round(preset.particleCount * o.particleScale)),
+  };
+}
+
+export function sameOverrides(a: QualityOverrides, b: QualityOverrides): boolean {
+  return a.shadows === b.shadows && a.bloom === b.bloom && a.particleScale === b.particleScale;
+}
+
+/**
+ * Device pixel ratio the renderer uses: the device ratio clamped to the preset's maximum, then
+ * scaled by the resolution-scale setting (0.5..1; never below 0.5 overall).
+ */
+export function resolvePixelRatio(
+  devicePixelRatio: number,
+  maxPixelRatio: number,
+  renderScale = 1,
+): number {
+  const dpr = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
+  const scale = Number.isFinite(renderScale) ? Math.min(1, Math.max(0.5, renderScale)) : 1;
+  return Math.max(0.5, Math.min(dpr, maxPixelRatio) * scale);
+}

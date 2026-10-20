@@ -20,6 +20,13 @@ import { ECONOMY } from '../data/economy';
 import type { StatBlock } from '../data/combatTypes';
 import type { HeroDef, SkillDef } from '../data/heroes';
 import { RIGS } from '../data/rigs';
+import {
+  aimAssist,
+  autoAimRangeM,
+  DEFAULT_AIM_ASSIST,
+  maxExtraLungeM,
+  type AimAssistOptions,
+} from '../input/aimAssist';
 import type { InputState } from '../input/InputState';
 import { emptyMods, type HeroMods } from '../progression/skillTree';
 import { GROUP } from '../physics/groups';
@@ -562,14 +569,16 @@ export class Player extends Actor {
     const hasStick = this.moveMag > 0.2;
     const baseYaw = hasStick ? Math.atan2(this.moveX, this.moveZ) : this.yaw;
     const halfCone = (aim.coneDeg * Math.PI) / 360;
+    // Settings → Controls: auto-aim off (range 0) or a shorter / longer search range.
+    const rangeM = autoAimRangeM(aim.rangeM, this.assist());
     let best: Actor | null = null;
     let bestD = Infinity;
-    for (const t of this.deps.targets()) {
+    for (const t of rangeM > 0 ? this.deps.targets() : []) {
       if (!t.alive) continue;
       const dx = t.currFeet.x - this.currFeet.x;
       const dz = t.currFeet.z - this.currFeet.z;
       const d = Math.hypot(dx, dz) - t.radius;
-      if (d > aim.rangeM || d >= bestD) continue;
+      if (d > rangeM || d >= bestD) continue;
       if (Math.abs(wrapAngle(Math.atan2(dx, dz) - baseYaw)) > halfCone) continue;
       best = t;
       bestD = d;
@@ -599,7 +608,12 @@ export class Player extends Actor {
             : shape.forward + shape.length;
     const a = INPUT_CONFIG.aimAssist;
     const want = this.gapTo(target) - reach * a.stopFraction;
-    return Math.min(base + a.maxExtraLungeM, Math.max(0, want));
+    return Math.min(base + maxExtraLungeM(this.assist()), Math.max(0, want));
+  }
+
+  /** Aim assist settings apply to the human hero only (AI duelists keep the defaults). */
+  private assist(): AimAssistOptions {
+    return this.human ? aimAssist() : DEFAULT_AIM_ASSIST;
   }
 
   private shadowStep(def: SkillDef): void {

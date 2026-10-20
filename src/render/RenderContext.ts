@@ -13,7 +13,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { BLOOM_CONFIG } from '../data/quality';
+import { BLOOM_CONFIG, resolvePixelRatio } from '../data/quality';
 
 export interface FrameRenderInfo {
   calls: number;
@@ -38,6 +38,7 @@ export class RenderContext {
   private width = 1;
   private height = 1;
   private pixelRatio = 1;
+  private bloomStrength: number = BLOOM_CONFIG.strength;
   contextLost = false;
 
   constructor(
@@ -85,16 +86,26 @@ export class RenderContext {
     return [Math.round(this.width * this.pixelRatio), Math.round(this.height * this.pixelRatio)];
   }
 
-  setSize(width: number, height: number, maxPixelRatio: number): void {
+  /**
+   * @param maxPixelRatio the quality preset's cap on the device pixel ratio
+   * @param renderScale resolution scale setting (0.5..1) applied on top of that cap
+   */
+  setSize(width: number, height: number, maxPixelRatio: number, renderScale = 1): void {
     this.width = Math.max(1, Math.floor(width));
     this.height = Math.max(1, Math.floor(height));
-    this.pixelRatio = Math.min(window.devicePixelRatio || 1, maxPixelRatio);
+    this.pixelRatio = resolvePixelRatio(window.devicePixelRatio, maxPixelRatio, renderScale);
     this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.setSize(this.width, this.height, false);
     if (this.composer !== null) {
       this.composer.setPixelRatio(this.pixelRatio);
       this.composer.setSize(this.width, this.height);
     }
+  }
+
+  /** Bloom intensity (lowered by "Reduce flashes"); applies now and to a bloom pass made later. */
+  setBloomStrength(strength: number): void {
+    this.bloomStrength = Math.max(0, strength);
+    if (this.bloomPass !== null) this.bloomPass.strength = this.bloomStrength;
   }
 
   setBloom(enabled: boolean, camera: Camera): void {
@@ -119,7 +130,7 @@ export class RenderContext {
     );
     this.bloomPass = new UnrealBloomPass(
       res,
-      BLOOM_CONFIG.strength,
+      this.bloomStrength,
       BLOOM_CONFIG.radius,
       BLOOM_CONFIG.threshold,
     );

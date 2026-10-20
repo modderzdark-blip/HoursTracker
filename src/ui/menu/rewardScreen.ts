@@ -99,6 +99,26 @@ export function renderVictory(
   ctx.shell.refreshCurrencies();
 }
 
+/** Combat tips shown on the defeat screen (Settings → Gameplay → Defeat tips). */
+export const DEFEAT_TIPS: readonly string[] = [
+  'Stronger gear, levels and skills turn the tide. Try again.',
+  'Dodge just as a hit lands for a perfect dodge: time slows and your next attack counters.',
+  'Glowing marks on the ground show where an attack will land — step out before they fill.',
+  'Hits drain a boss’s break bar. Empty it and the boss is stunned and takes extra damage.',
+  'Your ultimate charges as you fight. Save it for a stunned boss or a crowded wave.',
+  'Upgrade gear on the Gear screen: every + level raises its stats.',
+  'Spend skill points in the skill tree — some nodes make your combo or skills hit harder.',
+];
+
+/** Deterministic tip for a seed (e.g. the number of defeats so far). */
+export function defeatTip(seed: number): string {
+  const n = DEFEAT_TIPS.length;
+  const i = ((Math.floor(seed) % n) + n) % n;
+  return DEFEAT_TIPS[i] ?? DEFEAT_TIPS[0] ?? '';
+}
+
+let defeatsShown = 0;
+
 /** Short summary screen: a defeat, or an interlude (dungeon room cleared, dungeon left). */
 export function renderDefeat(
   ctx: MenuContext,
@@ -113,10 +133,11 @@ export function renderDefeat(
     el('h2', `reward-title${isDefeat ? ' result-defeat' : ''}`, title),
     el('div', 'reward-sub', subtitle),
   );
-  if (isDefeat)
-    wrap.append(
-      el('div', 'reward-time', 'Stronger gear, levels and skills turn the tide. Try again.'),
-    );
+  if (isDefeat && ctx.settings.settings.showDefeatTips) {
+    const tip = el('div', 'reward-time reward-tip', defeatTip(defeatsShown++));
+    tip.dataset['testid'] = 'defeat-tip';
+    wrap.append(tip);
+  }
   const row = el('div', 'button-row');
   for (const b of buttons) {
     row.append(
