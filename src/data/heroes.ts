@@ -5,8 +5,14 @@
 import type { PoseName } from '../anim/poses';
 import type { RigId } from './rigs';
 import type { ActionDef, EmitDef, HitSpec, ProjectileDef, StatBlock } from './combatTypes';
+import { GARRICK } from './heroKits/garrick';
+import { MORROW } from './heroKits/morrow';
+import { RYN } from './heroKits/ryn';
+import { SERAPHINE } from './heroKits/seraphine';
+import { VALKA } from './heroKits/valka';
 
-export type HeroId = 'kael' | 'brann' | 'lyra';
+export type HeroId =
+  'kael' | 'brann' | 'lyra' | 'garrick' | 'seraphine' | 'ryn' | 'valka' | 'morrow';
 
 /**
  * Swapping a placeholder for a real model is one line: change `visual` to
@@ -999,6 +1005,11 @@ export const HEROES: Readonly<Record<HeroId, HeroDef>> = {
     knockdownMs: 900,
     getupMs: 520,
   },
+  garrick: GARRICK,
+  seraphine: SERAPHINE,
+  ryn: RYN,
+  valka: VALKA,
+  morrow: MORROW,
 };
 
 export const DEFAULT_HERO: HeroId = 'kael';
