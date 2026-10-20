@@ -14,6 +14,8 @@ export interface CharacterRig {
   readonly mesh: SkinnedMesh;
   readonly material: MeshStandardMaterial;
   readonly def: { readonly scale: number };
+  /** Standing height in metres (camera framing). */
+  readonly height: number;
   bone(name: CoreBone): Bone;
   /** World position of a weapon / claw / jaw socket (weapon trails). */
   socketWorld(name: SocketName, out: Vector3): Vector3;

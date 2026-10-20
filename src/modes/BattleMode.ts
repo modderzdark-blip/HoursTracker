@@ -608,7 +608,8 @@ export class BattleMode implements QualityTarget, WaveWorld {
     const def = boss.bossDef;
     this.hud.showBanner(def.name.toUpperCase(), 'phase', def.introMs);
     this.sfx.play('roar');
-    const scale = boss.rig.def.scale;
+    // Framing in units of a 1.9 m figure (creatures are lower / taller than their scale says).
+    const scale = boss.rig.height / 1.9;
     this.cam.play(
       {
         center: this.tmp.set(bx, 0, bz),

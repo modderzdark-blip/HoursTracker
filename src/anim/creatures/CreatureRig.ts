@@ -86,6 +86,7 @@ export class CreatureRig implements CharacterRig {
   readonly skeleton: Skeleton;
   readonly bones = new Map<string, Bone>();
   readonly plan: CreaturePlan;
+  readonly height: number;
   private readonly flashColor = new Color();
 
   constructor(readonly def: CreatureDef) {
@@ -128,6 +129,8 @@ export class CreatureRig implements CharacterRig {
     this.root.updateMatrixWorld(true);
     this.mesh.bind(this.skeleton);
     this.glow.bind(this.skeleton, this.mesh.bindMatrix);
+    t.geometry.computeBoundingBox();
+    this.height = (t.geometry.boundingBox?.max.y ?? 1) * def.scale;
     this.mesh.computeBoundingSphere();
     this.mesh.boundingSphere.radius *= 1.6;
     this.glow.computeBoundingSphere();

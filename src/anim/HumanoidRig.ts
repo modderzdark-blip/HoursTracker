@@ -86,6 +86,11 @@ export class HumanoidRig {
   private readonly chains: ChainState[] = [];
   private time = Math.random() * 10;
 
+  /** Standing height in metres (proportions are built for ~1.9 m at scale 1). */
+  get height(): number {
+    return 1.9 * this.def.scale;
+  }
+
   constructor(
     readonly def: RigDef,
     /** Translucent shadow-clone look (ultimate VFX). */
