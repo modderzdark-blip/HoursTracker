@@ -1,8 +1,11 @@
-import type { Scene } from 'three';
+import type { AnimationClip, Scene } from 'three';
 import { buildEnemyAttackClips, buildHumanoidClips } from '../anim/clipSets';
+import { CreatureAnimator } from '../anim/creatures/CreatureAnimator';
+import { CreatureRig } from '../anim/creatures/CreatureRig';
 import { runCycleSec } from '../anim/locomotion';
 import { POSE_LIBRARY } from '../anim/poses';
 import { EnemyBrain, type BrainContext } from '../ai/EnemyBrain';
+import { CREATURES, type CreatureMotion } from '../data/creatures';
 import type { EnemyAttackDef, EnemyDef } from '../data/enemies';
 import { RIGS } from '../data/rigs';
 import { GROUP } from '../physics/groups';
@@ -48,12 +51,25 @@ export class Enemy extends Actor {
     deps: EnemyDeps,
     brain?: EnemyBrain,
   ) {
-    const idle = POSE_LIBRARY[def.idlePose];
-    const base = buildHumanoidClips(idle);
-    const clips = [...base.clips];
-    for (const a of def.attacks) clips.push(...buildEnemyAttackClips(a, idle));
+    let body: { rig: CreatureRig; anim: CreatureAnimator } | undefined;
+    const clips: AnimationClip[] = [];
+    let additive: ReturnType<typeof buildHumanoidClips>['additive'] = [];
+    if (def.creature !== undefined) {
+      const rig = new CreatureRig(CREATURES[def.creature]);
+      const motions = new Map<string, CreatureMotion>(
+        def.attacks.map((a) => [a.id, a.motion ?? 'bite']),
+      );
+      body = { rig, anim: new CreatureAnimator(rig.plan, rig.bones, motions) };
+    } else {
+      const idle = POSE_LIBRARY[def.idlePose];
+      const base = buildHumanoidClips(idle);
+      clips.push(...base.clips);
+      additive = base.additive;
+      for (const a of def.attacks) clips.push(...buildEnemyAttackClips(a, idle));
+    }
     super({
       rig: RIGS[def.rig],
+      body,
       stats: def.stats,
       poise: def.poise,
       radius: def.radius,
@@ -61,7 +77,7 @@ export class Enemy extends Actor {
       physics: deps.physics,
       membership: GROUP.enemy,
       clips,
-      additiveClips: base.additive,
+      additiveClips: additive,
       scene: deps.scene,
       knockbackResist: def.knockbackResist,
     });

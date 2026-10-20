@@ -1,4 +1,5 @@
 import type { ActionDef, HitSpec, StatBlock } from './combatTypes';
+import type { CreatureId, CreatureMotion } from './creatures';
 import type { RigId } from './rigs';
 
 /** Enemy attack: `startupMs` is the telegraph (wind-up) time players read and react to. */
@@ -20,8 +21,12 @@ export interface EnemyAttackDef extends ActionDef {
    * 'explode': the attacker destroys itself when the attack lands (suicide enemies).
    * 'fly': rise out of reach during the attack (hits are emitted from the air), then land.
    * 'grab': if the strike connects, the player is held, then takes `grab.spec`.
+   * 'burrow': sink into the ground during the telegraph, tunnel to the target point locked at
+   * the end of tracking, and erupt there when the attack becomes active (untouchable below).
    */
-  readonly special?: 'leap' | 'explode' | 'fly' | 'grab';
+  readonly special?: 'leap' | 'explode' | 'fly' | 'grab' | 'burrow';
+  /** Creature bodies: which procedural motion plays for this attack (default 'bite'). */
+  readonly motion?: CreatureMotion;
   /** Adds summoned when the attack becomes active. */
   readonly summon?: { readonly enemy: EnemyId; readonly count: number };
   readonly grab?: { readonly holdMs: number; readonly spec: HitSpec };
@@ -31,12 +36,16 @@ export interface EnemyAttackDef extends ActionDef {
   readonly trackUntil?: number;
 }
 
-export type EnemyId = 'thrall' | 'imp' | 'brute' | 'bulwark' | 'seer' | 'wretch';
+export type EnemyId =
+  'thrall' | 'imp' | 'brute' | 'bulwark' | 'seer' | 'wretch' | 'broodling' | 'ash_hound';
 
 export interface EnemyDef {
   readonly id: string;
   readonly name: string;
+  /** Humanoid body (ignored when `creature` is set). */
   readonly rig: RigId;
+  /** Non-humanoid body (spider, beast, wyrm) animated procedurally. */
+  readonly creature?: CreatureId;
   readonly stats: StatBlock;
   readonly poise: number;
   readonly radius: number;
@@ -543,6 +552,166 @@ export const ENEMIES: Readonly<Record<EnemyId, EnemyDef>> = {
     getupMs: 400,
     deathMs: 600,
     knockbackResist: 0,
+    idlePose: 'HUNCHED',
+    souls: 0,
+  },
+  broodling: {
+    id: 'broodling',
+    name: 'Broodling',
+    rig: 'imp',
+    creature: 'broodling',
+    stats: {
+      maxHp: 170,
+      atk: 55,
+      def: 12,
+      critChance: 0,
+      critDamage: 1,
+      attackSpeed: 1,
+      moveSpeed: 5.2,
+    },
+    poise: 12,
+    radius: 0.42,
+    halfHeight: 0.3,
+    aggroRange: 24,
+    holdDistance: 3.4,
+    turnRateDeg: 640,
+    attacks: [
+      {
+        id: 'broodling_bite',
+        startupMs: 420,
+        activeMs: 160,
+        recoveryMs: 520,
+        cancelAtMs: 9999,
+        range: 2.6,
+        cooldownMs: 900,
+        weight: 1,
+        indicator: false,
+        trackUntil: 0.75,
+        sweep: true,
+        motion: 'pounce',
+        hits: [
+          {
+            offsetMs: 0,
+            spec: {
+              damage: 0.8,
+              poise: 8,
+              reaction: 'flinch',
+              knockback: 0.3,
+              hitStopMs: 45,
+              shake: 0.1,
+              shape: { kind: 'circle', radius: 0.95, forward: 0.5 },
+              status: { id: 'bleed', chance: 0.3 },
+            },
+          },
+        ],
+        move: { distance: 2.2, startMs: 420, endMs: 580, ease: 'out' },
+        trail: 'none',
+        windPose: 'POUNCE_WIND',
+        hitPose: 'POUNCE_HIT',
+      },
+    ],
+    hurtMs: 240,
+    staggerMs: 900,
+    knockdownMs: 800,
+    getupMs: 420,
+    deathMs: 1200,
+    knockbackResist: 0,
+    idlePose: 'HUNCHED',
+    souls: 0,
+  },
+  ash_hound: {
+    id: 'ash_hound',
+    name: 'Ash Hound',
+    rig: 'imp',
+    creature: 'ash_hound',
+    stats: {
+      maxHp: 300,
+      atk: 75,
+      def: 20,
+      critChance: 0,
+      critDamage: 1,
+      attackSpeed: 1,
+      moveSpeed: 5.8,
+    },
+    poise: 22,
+    radius: 0.45,
+    halfHeight: 0.45,
+    aggroRange: 26,
+    holdDistance: 4,
+    turnRateDeg: 560,
+    attacks: [
+      {
+        id: 'hound_lunge',
+        startupMs: 480,
+        activeMs: 180,
+        recoveryMs: 600,
+        cancelAtMs: 9999,
+        range: 3.6,
+        minRange: 1.4,
+        cooldownMs: 1400,
+        weight: 2,
+        indicator: false,
+        trackUntil: 0.7,
+        sweep: true,
+        motion: 'pounce',
+        hits: [
+          {
+            offsetMs: 0,
+            spec: {
+              damage: 1,
+              poise: 14,
+              reaction: 'flinch',
+              knockback: 0.6,
+              hitStopMs: 55,
+              shake: 0.15,
+              shape: { kind: 'circle', radius: 1.0, forward: 0.6 },
+              status: { id: 'burn', chance: 0.25 },
+            },
+          },
+        ],
+        move: { distance: 3.2, startMs: 480, endMs: 660, ease: 'out' },
+        trail: 'none',
+        windPose: 'POUNCE_WIND',
+        hitPose: 'POUNCE_HIT',
+      },
+      {
+        id: 'hound_bite',
+        startupMs: 420,
+        activeMs: 120,
+        recoveryMs: 520,
+        cancelAtMs: 9999,
+        range: 1.5,
+        cooldownMs: 800,
+        weight: 1,
+        indicator: false,
+        trackUntil: 0.6,
+        motion: 'bite',
+        hits: [
+          {
+            offsetMs: 0,
+            spec: {
+              damage: 0.9,
+              poise: 12,
+              reaction: 'flinch',
+              knockback: 0.4,
+              hitStopMs: 50,
+              shake: 0.12,
+              shape: { kind: 'arc', range: 1.9, angleDeg: 90 },
+            },
+          },
+        ],
+        move: { distance: 0.5, startMs: 380, endMs: 520, ease: 'out' },
+        trail: 'none',
+        windPose: 'POUNCE_WIND',
+        hitPose: 'POUNCE_HIT',
+      },
+    ],
+    hurtMs: 260,
+    staggerMs: 1100,
+    knockdownMs: 900,
+    getupMs: 450,
+    deathMs: 1300,
+    knockbackResist: 0.1,
     idlePose: 'HUNCHED',
     souls: 0,
   },

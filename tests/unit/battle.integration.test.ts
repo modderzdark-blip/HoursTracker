@@ -482,6 +482,79 @@ describe('boss (integration)', () => {
   });
 });
 
+describe('creature bosses (integration)', () => {
+  it.each(['ash_behemoth', 'brood_weaver', 'cinder_wyrm'] as const)(
+    '%s fights the player through all of its phases',
+    (id) => {
+      const w = makeWorld();
+      w.player.god = true;
+      const boss = w.addBoss(0, -7, id);
+      boss.bossBrain.beginFight();
+      const used = new Set<string>();
+      w.bus.on('enemy:telegraph', (e) => {
+        if (e.actorId === boss.id) used.add(e.attackId);
+      });
+      let evaded = 0;
+      w.bus.on('combat:evaded', () => evaded++);
+      for (const frac of [0.55, 0.25]) {
+        w.step(stepsFor(9000));
+        boss.health.damage(boss.health.current - boss.health.max * frac);
+        boss.bossBrain.checkPhase();
+      }
+      w.step(stepsFor(12000));
+      expect(boss.bossBrain.phase).toBe(2);
+      expect(evaded).toBeGreaterThan(0);
+      expect(used.size).toBeGreaterThanOrEqual(4);
+      for (const b of [boss.rig.bone('Head'), boss.rig.bone('Chest')])
+        expect(Number.isFinite(b.quaternion.w)).toBe(true);
+    },
+  );
+
+  it('burrow: the wyrm sinks out of reach, tunnels to the player and erupts there', () => {
+    const w = makeWorld();
+    w.player.god = true;
+    const boss = w.addBoss(0, -12, 'cinder_wyrm');
+    boss.bossBrain.beginFight();
+    const atk = boss.attackById('wyrm_burrow');
+    if (atk === undefined) throw new Error('no burrow');
+    (boss.bossBrain as unknown as { startTelegraph(a: typeof atk): void }).startTelegraph(atk);
+    w.step(stepsFor(atk.startupMs * 0.5));
+    expect(boss.visualLift).toBeLessThan(-0.8);
+    expect(boss.isInvulnerable()).toBe(true);
+    let launched = 0;
+    w.bus.on('combat:evaded', () => launched++);
+    w.step(stepsFor(atk.startupMs * 0.5 + atk.activeMs + 100));
+    const d = Math.hypot(
+      boss.currFeet.x - w.player.currFeet.x,
+      boss.currFeet.z - w.player.currFeet.z,
+    );
+    expect(d).toBeLessThan(boss.radius + w.player.radius + 1);
+    expect(boss.visualLift).toBeGreaterThan(-0.8);
+    expect(boss.isInvulnerable()).toBe(false);
+    expect(launched).toBeGreaterThan(0);
+  });
+
+  it('the Brood Weaver calls broodlings; creature minions attack the player', () => {
+    const w = makeWorld();
+    w.player.god = true;
+    const boss = w.addBoss(0, -8, 'brood_weaver');
+    boss.bossBrain.beginFight();
+    const atk = boss.attackById('weaver_brood');
+    if (atk === undefined) throw new Error('no brood');
+    (boss.bossBrain as unknown as { startTelegraph(a: typeof atk): void }).startTelegraph(atk);
+    w.step(stepsFor(atk.startupMs + 100));
+    expect(w.summoned.map((e) => e.def.id)).toEqual(['broodling', 'broodling', 'broodling']);
+    const w2 = makeWorld();
+    w2.player.god = true;
+    w2.addEnemy(0, -5, 'ash_hound');
+    w2.addEnemy(2, -5, 'broodling');
+    let evaded = 0;
+    w2.bus.on('combat:evaded', () => evaded++);
+    w2.step(stepsFor(6000));
+    expect(evaded).toBeGreaterThan(1);
+  });
+});
+
 describe('Brann and Lyra (integration)', () => {
   const brann = HEROES.brann;
   const lyra = HEROES.lyra;

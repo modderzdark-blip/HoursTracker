@@ -15,6 +15,13 @@ export const BOSS_TUNING = {
   shockwavePush: 4,
   /** Boss stops approaching at this edge distance when no attack is usable. */
   approachStop: 1.6,
+  /** Burrow: how deep the body sinks (visual, metres), and the telegraph fractions at which it is
+   * fully under, and at which it reaches the eruption point. */
+  burrowDepth: 4,
+  burrowUnder: 0.3,
+  burrowArrive: 0.92,
+  /** Burrow: time the eruption takes to bring the body back up (ms). */
+  burrowEmergeMs: 280,
 } as const;
 
 /**
@@ -287,12 +294,17 @@ export class BossBrain extends EnemyBrain {
   }
 
   protected override indicatorOrigin(): { x: number; z: number } {
-    return this.attack?.special === 'leap' ? this.lockTarget : this.enemy.currFeet;
+    const sp = this.attack?.special;
+    return sp === 'leap' || sp === 'burrow' ? this.lockTarget : this.enemy.currFeet;
   }
 
   protected override applyAttackMovement(atk: EnemyAttackDef, frac: number, dtSec: number): void {
     if (atk.special === 'fly') {
       this.flyMovement(atk, dtSec);
+      return;
+    }
+    if (atk.special === 'burrow') {
+      this.burrowMovement();
       return;
     }
     if (atk.special !== 'leap') {
@@ -348,6 +360,41 @@ export class BossBrain extends EnemyBrain {
     } else {
       e.visualLift = 0;
     }
+  }
+
+  /** Sink during the wind-up, tunnel to the locked point, erupt when the attack goes active. */
+  private burrowMovement(): void {
+    const e = this.enemy;
+    const r = this.runner;
+    const T = BOSS_TUNING;
+    if (r.phase === 'startup') {
+      const prog = r.startupProgress;
+      e.visualLift = -T.burrowDepth * Math.min(1, prog / T.burrowUnder) ** 2;
+      if (prog < T.burrowUnder) return;
+      if (!this.airborne) {
+        this.airborne = true;
+        this.jumpStart.x = e.currFeet.x;
+        this.jumpStart.z = e.currFeet.z;
+      }
+      const t = Math.min(1, (prog - T.burrowUnder) / (T.burrowArrive - T.burrowUnder));
+      const k = t * t * (3 - 2 * t);
+      e.actionDisp.x +=
+        this.jumpStart.x + (this.lockTarget.x - this.jumpStart.x) * k - e.currFeet.x;
+      e.actionDisp.z +=
+        this.jumpStart.z + (this.lockTarget.z - this.jumpStart.z) * k - e.currFeet.z;
+    } else if (r.phase === 'active' || r.phase === 'recovery') {
+      this.airborne = false;
+      const t = Math.min(1, (r.elapsedMs - r.startupEndMs) / T.burrowEmergeMs);
+      e.visualLift = -T.burrowDepth * (1 - t) * (1 - t);
+    } else {
+      this.airborne = false;
+      e.visualLift = 0;
+    }
+  }
+
+  /** Below ground during a burrow (cannot be hit). */
+  get submerged(): boolean {
+    return this.attack?.special === 'burrow' && this.enemy.visualLift < -0.8;
   }
 
   override goDead(): void {

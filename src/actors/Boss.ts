@@ -44,6 +44,7 @@ export class Boss extends Enemy {
   override isInvulnerable(): boolean {
     const s = this.brain.state;
     if (this.brain.attack?.special === 'fly' && this.visualLift > 1.2) return true;
+    if (this.bossBrain.submerged) return true;
     return (
       s === 'intro' || s === 'transition' || s === 'dead' || s === 'inactive' || s === 'spawning'
     );
