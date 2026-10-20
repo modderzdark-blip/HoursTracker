@@ -1,6 +1,7 @@
 import { Scene } from 'three';
 import type { AudioManager } from '../audio/AudioManager';
 import { Music } from '../audio/Music';
+import { resolveCameraOptions } from '../camera/cameraOptions';
 import { FollowCamera } from '../camera/FollowCamera';
 import { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
@@ -14,7 +15,12 @@ import type { Currency } from '../data/economy';
 import type { DifficultyId } from '../data/difficulty';
 import { HEROES, type HeroId } from '../data/heroes';
 import { CHAPTERS } from '../data/stages';
-import { QUALITY_PRESETS, type QualityLevel, type QualityPreset } from '../data/quality';
+import {
+  BLOOM_CONFIG,
+  QUALITY_PRESETS,
+  type QualityLevel,
+  type QualityPreset,
+} from '../data/quality';
 import { DebugOverlay } from '../debug/DebugOverlay';
 import { collectDeviceInfo, detectMobile, readHeapMB, type DeviceInfo } from '../debug/deviceInfo';
 import { FrameStats } from '../debug/FrameStats';
@@ -22,6 +28,7 @@ import type { LogRing } from '../debug/LogCapture';
 import { buildDebugReport } from '../debug/report';
 import { copyText } from '../debug/clipboard';
 import { INPUT_ACTIONS } from '../input/actions';
+import { resolveAimAssist, setAimAssist } from '../input/aimAssist';
 import { enterFullscreenLandscape } from '../input/gestureGuards';
 import { GamepadInput } from '../input/GamepadInput';
 import { InputState } from '../input/InputState';
@@ -36,7 +43,14 @@ import { guessInitialQuality } from '../render/qualityLogic';
 import { createCharacterEnvironment, setCharacterEnvironment } from '../render/characterEnv';
 import { RenderContext } from '../render/RenderContext';
 import type { SaveData, SaveStore } from '../save/SaveStore';
-import type { FpsCap } from '../save/settings';
+import {
+  cameraDefaults,
+  qualityOverridesFrom,
+  resetSettings,
+  sanitizeSettings,
+  vibrationMs,
+  type FpsCap,
+} from '../save/settings';
 import { el } from '../ui/dom';
 import { Hud } from '../ui/Hud';
 import type { SettingsPort } from '../ui/menu/context';
@@ -44,6 +58,7 @@ import { PauseMenu } from '../ui/PauseMenu';
 import { Menus } from './Menus';
 import { Runs } from './Runs';
 import { modeScreens } from '../ui/menu/modeScreens';
+import { setColorblindTelegraphs } from '../vfx/TelegraphDecals';
 
 export interface AppOptions {
   readonly canvas: HTMLCanvasElement;
@@ -199,6 +214,8 @@ export class App {
   private pendingOutcome: BattleOutcome | null = null;
   private saveTimer = 0;
   private resizePending = false;
+  private appliedRenderScale = 1;
+  private fpsRefreshMs = 0;
   private running = false;
   private inputEnabled = true;
 
@@ -229,13 +246,14 @@ export class App {
     // Reflections for character metal/leather (rigs created after this pick it up).
     setCharacterEnvironment(createCharacterEnvironment(this.ctx.renderer));
     const aspect = window.innerWidth / Math.max(window.innerHeight, 1);
-    this.camera = new FollowCamera(aspect);
+    this.camera = new FollowCamera(aspect, resolveCameraOptions(settings));
+    this.appliedRenderScale = settings.renderScale;
     this.ctx.setSize(
       window.innerWidth,
       window.innerHeight,
       QUALITY_PRESETS[startLevel].maxPixelRatio,
+      settings.renderScale,
     );
-    opts.audio.setVolumes(settings.masterVolume, settings.sfxVolume, settings.musicVolume);
 
     // --- Profile -----------------------------------------------------------------------
     this.profile = new PlayerProfile(opts.save, () => this.persistSoon(), this.rng);
@@ -243,8 +261,6 @@ export class App {
     // --- Input -------------------------------------------------------------------------
     this.input = new InputState(INPUT_CONFIG.bufferMs, () => this.clock.nowMs, this.bus);
     this.touch = new TouchControls(opts.uiRoot, this.input);
-    this.touch.applyLayout(settings.buttonScale, settings.buttonOpacity, settings.leftHanded);
-    opts.uiRoot.classList.toggle('no-damage-numbers', !settings.showDamageNumbers);
     this.music = new Music(opts.audio);
     this.keyboard = new KeyboardInput(this.input);
     this.gamepad = new GamepadInput(this.input);
@@ -289,12 +305,16 @@ export class App {
         activeQualityLabel: '',
         fpsCap: settings.fpsCap,
         debugOverlay: settings.showDebugOverlay,
+        cameraDistance: settings.cameraDistance,
+        screenShake: settings.screenShake,
       },
       {
         onResume: () => this.setPaused(false),
         onQuality: (q) => this.settingsPort().setQuality(q),
         onFpsCap: (cap: FpsCap) => this.settingsPort().setFpsCap(cap),
         onDebugOverlay: (on) => this.overlay.setVisible(on),
+        onCameraDistance: (value) => this.settingsPort().update({ cameraDistance: value }),
+        onScreenShake: (value) => this.settingsPort().update({ screenShake: value }),
         onFullscreen: () => {
           void enterFullscreenLandscape();
         },
@@ -372,6 +392,7 @@ export class App {
         render: (alpha, dt) => this.renderFrame(alpha, dt),
         frameEnd: (interval, steps) => {
           this.stats.push(interval, steps);
+          this.refreshFpsCounter(interval);
           if (this.battle !== null) this.quality.onFrame(interval);
           this.overlay.refresh();
           if (this.pendingOutcome !== null) this.handleOutcome();
@@ -381,6 +402,7 @@ export class App {
     );
 
     this.quality = new QualityManager(settings.quality, startLevel, this.bus);
+    this.quality.setOverrides(qualityOverridesFrom(settings));
     const rendererTarget: QualityTarget = {
       applyQuality: (preset: QualityPreset) => this.applyRendererQuality(preset),
     };
@@ -396,6 +418,7 @@ export class App {
       this.updateQualityLabel();
     };
     this.updateQualityLabel();
+    this.applySettings();
 
     this.services.register('bus', this.bus);
     this.services.register('time', this.time);
@@ -457,8 +480,9 @@ export class App {
         commitWallet: () => this.profile.commit(),
         setInputEnabled: (on) => this.setGameplayInput(on),
         vibrate: (ms) => {
-          if (this.opts.save.settings.vibration && typeof navigator.vibrate === 'function')
-            navigator.vibrate(ms);
+          const s = this.opts.save.settings;
+          if (s.vibration && typeof navigator.vibrate === 'function')
+            navigator.vibrate(vibrationMs(ms, s.vibrationStrength));
         },
         onFinish: (outcome) => {
           this.pendingOutcome = outcome;
@@ -518,6 +542,15 @@ export class App {
     this.applyInputEnabled(!paused && this.inputEnabled && this.battle !== null);
     if (paused) {
       this.input.releaseAll();
+      const s = this.opts.save.settings;
+      this.pause.sync({
+        quality: s.quality,
+        activeQualityLabel: this.qualityLabel(),
+        fpsCap: s.fpsCap,
+        debugOverlay: this.overlay.isVisible,
+        cameraDistance: s.cameraDistance,
+        screenShake: s.screenShake,
+      });
       this.pause.show();
     } else {
       this.pause.hide();
@@ -569,19 +602,28 @@ export class App {
         this.persistSoon();
       },
       setDebugOverlay: (on) => this.overlay.setVisible(on),
-      setVolume: (kind, value) => {
-        s[kind] = Math.min(1, Math.max(0, value));
-        this.opts.audio.setVolumes(s.masterVolume, s.sfxVolume, s.musicVolume);
-        this.persistSoon();
-      },
-      setVibration: (on) => {
-        s.vibration = on;
-        this.persistSoon();
-      },
       update: (patch) => {
-        Object.assign(s, patch);
-        this.touch.applyLayout(s.buttonScale, s.buttonOpacity, s.leftHanded);
-        this.opts.uiRoot.classList.toggle('no-damage-numbers', !s.showDamageNumbers);
+        // Sanitise through the save format so a bad value can never reach the game or the save.
+        Object.assign(s, sanitizeSettings({ ...s, ...patch }));
+        this.applySettings();
+        this.persistSoon();
+      },
+      resetCamera: () => {
+        Object.assign(s, cameraDefaults());
+        this.applySettings();
+        this.persistSoon();
+      },
+      resetAll: () => {
+        const fresh = resetSettings(s);
+        const qualityChanged = fresh.quality !== s.quality;
+        const fpsChanged = fresh.fpsCap !== s.fpsCap;
+        Object.assign(s, fresh);
+        if (qualityChanged)
+          this.quality.setSetting(s.quality, this.quality.level, s.detectedQuality);
+        if (fpsChanged && !this.quality.benchmarkRunning) this.loop.limiter.setCap(s.fpsCap);
+        this.overlay.setVisible(s.showDebugOverlay);
+        this.updateQualityLabel();
+        this.applySettings();
         this.persistSoon();
       },
       fullscreen: () => {
@@ -594,9 +636,8 @@ export class App {
   private wireEvents(): void {
     const b = this.bus;
     this.disposers.push(
-      b.on('camera:shake', (e) =>
-        this.camera.shake.addTrauma(e.trauma * this.opts.save.settings.screenShake),
-      ),
+      // The visible strength is scaled by the screen-shake setting inside FollowCamera.
+      b.on('camera:shake', (e) => this.camera.shake.addTrauma(e.trauma)),
       b.on('stage:bossIntro', () => this.music.play('boss')),
       b.on('stage:victory', () => this.music.stop()),
       b.on('player:died', () => this.music.stop()),
@@ -661,7 +702,7 @@ export class App {
   private resize(): void {
     const w = window.innerWidth;
     const h = window.innerHeight;
-    this.ctx.setSize(w, h, this.quality.preset.maxPixelRatio);
+    this.ctx.setSize(w, h, this.quality.preset.maxPixelRatio, this.opts.save.settings.renderScale);
     this.camera.setAspect(w / Math.max(h, 1));
     this.hubScene.setAspect(w / Math.max(h, 1));
     this.battle?.applyQuality(this.quality.preset, this.quality.level);
@@ -669,10 +710,61 @@ export class App {
   }
 
   private applyRendererQuality(preset: QualityPreset): void {
-    this.ctx.setSize(window.innerWidth, window.innerHeight, preset.maxPixelRatio);
+    this.ctx.setSize(
+      window.innerWidth,
+      window.innerHeight,
+      preset.maxPixelRatio,
+      this.opts.save.settings.renderScale,
+    );
     this.ctx.setBloom(preset.bloom, this.camera.camera);
     this.vignette.classList.toggle('is-hidden', !preset.vignette);
     this.loop.requestRender();
+  }
+
+  /**
+   * Pushes every setting to the systems that use it. Idempotent and cheap: the quality overrides
+   * and resolution only re-apply when they actually changed.
+   */
+  private applySettings(): void {
+    const s = this.opts.save.settings;
+    const root = this.opts.uiRoot;
+    const audio = this.opts.audio;
+    this.touch.applyLayout(s.buttonScale, s.buttonOpacity, s.leftHanded);
+    this.touch.applyJoystick({
+      scale: s.joystickScale,
+      deadZone: s.joystickDeadZone,
+      mode: s.joystickMode,
+    });
+    root.classList.toggle('no-damage-numbers', !s.showDamageNumbers);
+    root.classList.toggle('no-combo', !s.showComboCounter);
+    root.classList.toggle('reduce-flashes', s.reduceFlashes);
+    root.classList.toggle('large-text', s.largeMenuText);
+    root.classList.toggle('hud-scaled', s.hudScale !== 1);
+    root.style.setProperty('--hud-scale', s.hudScale.toFixed(2));
+    this.hud.setFpsVisible(s.showFps);
+    this.camera.setOptions(resolveCameraOptions(s));
+    setAimAssist(resolveAimAssist(s));
+    setColorblindTelegraphs(s.colorblindTelegraphs);
+    audio.uiSounds = s.uiSounds;
+    audio.setMuteInBackground(s.muteInBackground);
+    audio.setVolumes(s.masterVolume, s.sfxVolume, s.musicVolume);
+    this.ctx.setBloomStrength(
+      s.reduceFlashes ? BLOOM_CONFIG.reducedStrength : BLOOM_CONFIG.strength,
+    );
+    this.quality.setOverrides(qualityOverridesFrom(s));
+    if (s.renderScale !== this.appliedRenderScale) {
+      this.appliedRenderScale = s.renderScale;
+      this.resize();
+    }
+    this.loop.requestRender();
+  }
+
+  private refreshFpsCounter(intervalMs: number): void {
+    if (!this.hud.fpsVisible) return;
+    this.fpsRefreshMs += intervalMs;
+    if (this.fpsRefreshMs < 250) return;
+    this.fpsRefreshMs = 0;
+    this.hud.setFps(this.stats.fps);
   }
 
   private renderFrame(alpha: number, dtSec: number): void {

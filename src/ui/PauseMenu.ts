@@ -1,3 +1,4 @@
+import { CAMERA_DISTANCE_PRESETS } from '../camera/cameraOptions';
 import type { QualitySetting } from '../data/quality';
 import type { FpsCap } from '../save/settings';
 import { el, onTap } from './dom';
@@ -8,6 +9,19 @@ export interface PauseMenuState {
   activeQualityLabel: string;
   fpsCap: FpsCap;
   debugOverlay: boolean;
+  /** Camera distance multiplier (a preset value, or a custom one set in Settings). */
+  cameraDistance: number;
+  screenShake: number;
+}
+
+/** Screen shake steps offered in the pause menu (the full settings screen has a slider). */
+export const PAUSE_SHAKE_STEPS = [0, 0.5, 1, 1.5] as const;
+
+/** Nearest offered step, so a custom slider value still highlights the closest option. */
+export function nearestStep(value: number, steps: readonly number[]): number {
+  let best = steps[0] ?? value;
+  for (const s of steps) if (Math.abs(s - value) < Math.abs(best - value)) best = s;
+  return best;
 }
 
 export interface PauseMenuHandlers {
@@ -15,6 +29,8 @@ export interface PauseMenuHandlers {
   readonly onQuality: (q: QualitySetting) => void;
   readonly onFpsCap: (cap: FpsCap) => void;
   readonly onDebugOverlay: (on: boolean) => void;
+  readonly onCameraDistance: (value: number) => void;
+  readonly onScreenShake: (value: number) => void;
   readonly onFullscreen: () => void;
   readonly onRespawn: () => void;
   readonly onLeave: () => void;
@@ -22,12 +38,18 @@ export interface PauseMenuHandlers {
   readonly onUiTap: () => void;
 }
 
-/** Pause menu with the M1 settings subset and the "Copy debug log" button. */
+/**
+ * Pause menu: resume / restart / leave, quick settings (graphics, FPS, camera distance, screen
+ * shake — the camera change is visible behind the menu right away) and "Copy debug log". The
+ * full set of options lives in the Settings screen of the hub.
+ */
 export class PauseMenu {
   readonly root: HTMLElement;
   private readonly quality: Segmented<QualitySetting>;
   private readonly fps: Segmented<FpsCap>;
   private readonly debug: Segmented<'off' | 'on'>;
+  private readonly camDistance: Segmented<number>;
+  private readonly shake: Segmented<number>;
   private readonly activeQuality: HTMLElement;
   private readonly copyResult: HTMLElement;
   private readonly disposers: (() => void)[] = [];
@@ -89,7 +111,37 @@ export class PauseMenu {
         h.onDebugOverlay(v === 'on');
       },
     );
-    options.append(this.quality.root, this.activeQuality, this.fps.root, this.debug.root);
+    this.camDistance = new Segmented<number>(
+      'Camera',
+      CAMERA_DISTANCE_PRESETS.map((p) => ({ value: p.value, label: p.label })),
+      nearestStep(
+        state.cameraDistance,
+        CAMERA_DISTANCE_PRESETS.map((p) => p.value),
+      ),
+      (v) => {
+        h.onUiTap();
+        h.onCameraDistance(v);
+      },
+    );
+    this.camDistance.root.dataset['testid'] = 'pause-camera';
+    this.shake = new Segmented<number>(
+      'Screen shake',
+      PAUSE_SHAKE_STEPS.map((v) => ({ value: v, label: v === 0 ? 'Off' : `${v * 100}%` })),
+      nearestStep(state.screenShake, PAUSE_SHAKE_STEPS),
+      (v) => {
+        h.onUiTap();
+        h.onScreenShake(v);
+      },
+    );
+    this.shake.root.dataset['testid'] = 'pause-shake';
+    options.append(
+      this.quality.root,
+      this.activeQuality,
+      this.fps.root,
+      this.camDistance.root,
+      this.shake.root,
+      this.debug.root,
+    );
 
     const row = el('div', 'button-row');
     row.append(
@@ -149,6 +201,21 @@ export class PauseMenu {
     this.root.classList.add('is-hidden');
   }
 
+  /** Re-reads values that may have changed elsewhere (the Settings screen) before showing. */
+  sync(state: PauseMenuState): void {
+    this.quality.set(state.quality);
+    this.fps.set(state.fpsCap);
+    this.debug.set(state.debugOverlay ? 'on' : 'off');
+    this.camDistance.set(
+      nearestStep(
+        state.cameraDistance,
+        CAMERA_DISTANCE_PRESETS.map((p) => p.value),
+      ),
+    );
+    this.shake.set(nearestStep(state.screenShake, PAUSE_SHAKE_STEPS));
+    this.setActiveQualityLabel(state.activeQualityLabel);
+  }
+
   setActiveQualityLabel(text: string): void {
     this.activeQuality.textContent = text;
   }
@@ -162,6 +229,8 @@ export class PauseMenu {
     this.quality.dispose();
     this.fps.dispose();
     this.debug.dispose();
+    this.camDistance.dispose();
+    this.shake.dispose();
     this.root.remove();
   }
 
