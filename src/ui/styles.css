@@ -436,7 +436,8 @@ body {
 .hud-stage {
   position: absolute;
   top: calc(14px + var(--st));
-  left: 50%;
+  left: calc(50% + (var(--sl) - var(--sr)) / 2);
+  padding-left: 0.2em;
   transform: translateX(-50%);
   font-family: var(--font-title);
   letter-spacing: 0.2em;
@@ -937,7 +938,8 @@ body {
 .bhud-top {
   position: absolute;
   top: calc(12px + var(--st));
-  left: 50%;
+  /* Centre of the visible area: a camera cutout on one side shifts the safe area. */
+  left: calc(50% + (var(--sl) - var(--sr)) / 2);
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
@@ -948,6 +950,9 @@ body {
 .bhud-wave {
   font-family: var(--font-title);
   letter-spacing: 0.14em;
+  /* letter-spacing also trails the last letter; balance it so the text is optically centred */
+  padding-left: 0.14em;
+  text-align: center;
   font-size: 13px;
   color: rgba(239, 230, 216, 0.85);
   text-shadow: 0 0 6px #000;
