@@ -2,6 +2,7 @@ import type { AnimationClip } from 'three';
 import type { ActionDef } from '../data/combatTypes';
 import type { EnemyAttackDef } from '../data/enemies';
 import { buildPoseClip, transitionClip, type ClipKey } from './clipBuilder';
+import { buildHeroClip } from './heroClips';
 import {
   AIM_UP,
   AIM_UP_RELEASE,
@@ -285,7 +286,7 @@ export function buildCustomActionClip(name: string, def: ActionDef, idle: Pose):
       return buildPoseClip(name, total, keys);
     }
     default:
-      return buildActionClip(def, idle);
+      return buildHeroClip(name, total, s, a, idle) ?? buildActionClip(def, idle);
   }
 }
 
