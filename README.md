@@ -3,9 +3,9 @@
 Mobile dark-fantasy hack-and-slash action RPG — Three.js + TypeScript + Rapier, no engine.
 Playable in Chrome on Android (GitHub Pages) and as a sideloadable Capacitor APK.
 
-> Status: **0.5.0 — look & feel**: hub, 3 heroes, 3 Adventure chapters × 8 stages (Normal /
-> Hard / Nightmare), 6 enemy types, 3 bosses + 3 mini-bosses, Dungeon, Demon Tower, Boss
-> Challenge, Arena (AI duels, rating, seasons, leaderboard), XP/levels, gear with upgrades and
+> Status: **0.6.0 — beasts, hunts & settings**: hub, 3 heroes, 4 Adventure chapters × 8 stages
+> (Normal / Hard / Nightmare), 8 enemy types, 9 bosses (3 of them creatures: a beast, a giant
+> spider and a burrowing wyrm), Dungeon, Demon Tower, Boss Challenge, daily Hunts, Arena (AI duels, rating, seasons, leaderboard), XP/levels, gear with upgrades and
 > salvage, loot with pity, skill trees, daily quests, login calendar, achievements, Ember Hearth
 > (rewards over time), Ember Blessing (help after defeats), settings, procedural music and SFX. Characters are
 > procedural but sculpted (smooth bodies, armor, hoods, capes on spring bones, PBR metal); real
@@ -32,8 +32,11 @@ Playable in Chrome on Android (GitHub Pages) and as a sideloadable Capacitor APK
 | Pause (top right)          | Esc       | Pause menu (graphics, restart, copy debug log)              |
 | Triple-tap top-left corner | `         | Debug overlay + cheats                                      |
 
-Settings (hub → Settings) change graphics, FPS cap, volumes, vibration, button size and opacity,
-left-handed layout, screen shake and damage numbers.
+Settings (hub → Settings) has sections for Camera (distance, angle, field of view, smoothness,
+look-ahead, shake, with a live preview), Graphics (quality, resolution scale, shadows, bloom,
+particles, FPS cap/counter), Controls (joystick size / dead zone / fixed mode, auto-aim,
+attack magnetism, button size and opacity, left-handed, vibration), HUD & accessibility,
+Audio and Gameplay. The pause menu has quick camera distance and shake settings.
 
 ### Heroes
 
@@ -47,12 +50,16 @@ Brann unlocks after 1-4 for 60 souls, Lyra after 1-8 for 120 souls (Heroes scree
 
 ### Modes
 
-- **Adventure** — 3 chapters × 8 stages; mini-boss on stage 4, boss on stage 8; 1–3 stars
+- **Adventure** — 4 chapters × 8 stages (chapter 4, The Hollow Deep, is the creature chapter
+  and expects epic gear); mini-boss on stage 4, boss on stage 8; 1–3 stars
   (clear · no revive and little damage · par time). Clearing a chapter on Normal opens Hard,
   Hard opens Nightmare (tougher enemies, better loot).
 - **Dungeon** (after chapter 1) — 4 random chambers, HP carries over, elite at the end; 5
   entries refilling one every 4 h.
 - **Boss Challenge** (after 1-4) — defeated bosses at tiers 1–10.
+- **Hunts** (after 1-4) — three defeated bosses marked each day, each twisted by omens
+  (Ironhide, Brutal, Swift, Swarming, Glass Fury); hunt rank grows as you win; Hard-quality
+  loot and gems on the first kill of the day.
 - **Arena** (after chapter 1) — duels against AI-controlled heroes built from a hero, gear and
   skills; rating, 7-day seasons with rewards, local leaderboard.
 - **Demon Tower** (after chapter 2) — endless floors, a boss every 10th, milestone rewards.

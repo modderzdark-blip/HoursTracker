@@ -202,3 +202,20 @@ Each entry: the decision, why, and what would change it.
   or small tap targets.
 - **Left-handed layout = CSS mirror** of the button cluster (labels flipped back) and the
   joystick zone moved right; hit-testing uses live element rects, so it needs no code changes.
+
+## Creatures, Hunts and settings (0.6.0)
+
+- **Creature bodies are procedural like the humanoids** (`src/anim/creatures/`): each body plan
+  (spider, beast, wyrm) owns a skeleton, builds one skinned mesh + one glow mesh, and poses its
+  bones procedurally from the mode the AI asks for (`idle`, `run`, `<attack>:tele`,
+  `<attack>:strike`, `stagger`, `death`…). `CreatureRig` / `CreatureAnimator` implement the same
+  interfaces as `HumanoidRig` / `AnimationController`, so actors, AI, trails and VFX did not
+  change. An attack's `motion` field picks the creature animation; humanoids ignore it.
+- **Burrow is a boss special like leap**: sink during the telegraph, tunnel to the locked
+  target, erupt when the attack goes active; untouchable while more than 0.8 m under.
+- **Chapter 4 expects some grinding** (epic gear) — the balance guard says so explicitly
+  instead of pretending first clears with rare gear are enough; deeper chapters also pay more
+  XP so hero levels keep pace.
+- **Hunts reuse the boss roster** with omens (stat / speed / adds modifiers) rather than new
+  content per day; the board is a pure function of the local day, so it survives restarts with
+  no server, and early bosses scale to the player's progress so every boss stays worth hunting.

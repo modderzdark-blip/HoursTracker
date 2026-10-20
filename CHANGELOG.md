@@ -1,9 +1,21 @@
 # Changelog
 
-## [Unreleased] — Settings
+## [0.6.0] — Beasts, Hunts & Settings (2026-10-20)
 
 ### Added
 
+- **Creature bosses** (non-humanoid bodies with their own skeletons and procedural animation):
+  **Gorgrath, the Ash Behemoth** (bite, claw rake, charge, fire breath, rearing stomp, howl for
+  hounds, pounce), **Vexmora, the Brood Weaver** (bite, leg stab, web volley that slows, venom
+  pools, broodling swarm, pounce) and **Ssarveth, the Cinder Wyrm** (strike chains, tail sweep,
+  fireball spit, fire breath, and a burrow: it sinks out of reach, tunnels to you and erupts).
+- **Creature enemies**: Ash Hounds (fast lunges) and Broodlings (small spiders in packs).
+- **Chapter 4 — The Hollow Deep**: 8 stages (levels 25–32) in a new cavern arena with the three
+  creature bosses (4-4, 4-6, 4-8). It is the grind chapter: it expects epic gear.
+- **Hunts** (after 1-4): every day three defeated bosses are marked, each twisted by one or two
+  omens (Ironhide, Brutal, Swift, Swarming, Glass Fury). Hunt rank grows with every hunt won;
+  marks scale up to your progress; Hard-quality loot, gems on the first kill of the day.
+- The Demon Tower and Boss Challenge include the new bosses, enemies and arena.
 - **Settings screen** with sections (Camera, Graphics, Controls, HUD & accessibility, Audio,
   Gameplay); every option applies immediately and is saved; old saves get defaults.
 - **Camera**: distance presets + fine slider, angle (low / normal / high), field of view,
@@ -18,6 +30,16 @@
 - **Audio**: UI sounds on/off, mute in background on/off.
 - **Gameplay**: confirm before salvaging rare+ gear, defeat-screen tips on/off, and a
   confirmed "Reset all settings" (progress is never touched).
+
+### Changed
+
+- The wave line on the battle HUD is centred in the visible area (camera cut-outs, letter
+  spacing).
+- Deeper chapters pay more XP (+15 % per chapter after the first) so heroes keep pace.
+- The boss intro camera frames bosses by their real height.
+- Tests: 290 unit/integration tests (creature geometry and animation, creature boss fights,
+  burrow, summons, hunts, settings); the UI audit covers Chapter 4, Hunts and every settings
+  section.
 
 ## [0.5.0] — Look & feel (2026-10-20)
 
