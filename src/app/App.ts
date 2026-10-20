@@ -266,6 +266,7 @@ export class App {
         startDungeon: (difficulty) => this.runs.startDungeon(difficulty),
         startTower: (floor) => this.runs.startTower(floor),
         startChallenge: (entry, tier) => this.runs.startChallenge(entry, tier),
+        startHunt: (hunt) => this.runs.startHunt(hunt),
         startArena: (opponent) => this.runs.startArena(opponent),
       },
       settings: this.settingsPort(),

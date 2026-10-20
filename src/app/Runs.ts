@@ -1,7 +1,14 @@
 import { BOSSES } from '../data/bosses';
 import { DIFFICULTIES, type DifficultyId } from '../data/difficulty';
 import { HEROES } from '../data/heroes';
-import { ARENA_CONFIG, CHALLENGE_CONFIG, DUNGEON_CONFIG, TOWER_CONFIG } from '../data/modes';
+import {
+  ARENA_CONFIG,
+  CHALLENGE_CONFIG,
+  DUNGEON_CONFIG,
+  HUNT_CONFIG,
+  HUNT_OMENS,
+  TOWER_CONFIG,
+} from '../data/modes';
 import { CHAPTERS, findAdventureStage, type StageDef } from '../data/stages';
 import type { BattleOutcome, BattleSetup } from '../modes/BattleMode';
 import {
@@ -9,6 +16,10 @@ import {
   challengeStage,
   consumeDungeonEntry,
   highestClearedLevel,
+  huntMult,
+  huntRank,
+  huntRewards,
+  huntStage,
   isTowerBossFloor,
   planDungeon,
   ratingChange,
@@ -17,6 +28,7 @@ import {
   towerStage,
   type ArenaOpponent,
   type ChallengeBoss,
+  type HuntDef,
 } from '../modes/meta';
 import {
   grantAdventureVictory,
@@ -50,6 +62,7 @@ export type Run =
     }
   | { readonly kind: 'tower'; readonly floor: number }
   | { readonly kind: 'challenge'; readonly entry: ChallengeBoss; readonly tier: number }
+  | { readonly kind: 'hunt'; readonly hunt: HuntDef }
   | { readonly kind: 'arena'; readonly opponent: ArenaOpponent };
 
 export interface RunHost {
@@ -64,7 +77,7 @@ export interface RunHost {
 /**
  * Turns menu actions into battles and battle outcomes into rewards / next steps for every
  * mode: Adventure, Dungeon (room chain with HP carried over), Demon Tower (floors + milestones),
- * Boss Challenge (tiers) and the Arena (rating, async duels).
+ * Boss Challenge (tiers), Hunts (daily omen-twisted bosses) and the Arena (rating, async duels).
  */
 export class Runs {
   private current: Run | null = null;
@@ -122,6 +135,10 @@ export class Runs {
 
   startChallenge(entry: ChallengeBoss, tier: number): void {
     this.begin({ kind: 'challenge', entry, tier });
+  }
+
+  startHunt(hunt: HuntDef): void {
+    this.begin({ kind: 'hunt', hunt });
   }
 
   startArena(opponent: ArenaOpponent): void {
@@ -190,6 +207,16 @@ export class Runs {
           enemyMult: challengeMult(run.tier),
         };
       }
+      case 'hunt': {
+        const stage = huntStage(run.hunt);
+        const m = huntMult(run.hunt);
+        const omens = run.hunt.omens.map((id) => HUNT_OMENS[id].name).join(' · ');
+        return {
+          ...this.baseSetup(stage, `${stage.name} · ${omens}`),
+          difficulty: 'normal',
+          enemyMult: { hp: m.hp, atk: m.atk, speed: m.speed },
+        };
+      }
       case 'arena': {
         const o = run.opponent;
         const stage: StageDef = {
@@ -249,6 +276,9 @@ export class Runs {
         break;
       case 'challenge':
         this.finishChallenge(run, outcome);
+        break;
+      case 'hunt':
+        this.finishHunt(run, outcome);
         break;
       case 'arena':
         this.finishArena(run, outcome);
@@ -515,6 +545,53 @@ export class Runs {
       });
     else buttons[0] = { ...toMenu, primary: true };
     renderVictory(this.ctx, summary, buttons);
+  }
+
+  private finishHunt(run: Extract<Run, { kind: 'hunt' }>, outcome: BattleOutcome): void {
+    const p = this.host.profile;
+    const h = run.hunt;
+    const name = BOSSES[h.entry.boss].name;
+    const toMenu: ResultButton = {
+      label: 'Hunts',
+      testid: 'result-hunts',
+      run: () => this.host.menus.mode('hunts'),
+    };
+    if (!outcome.victory) {
+      recordDefeat(p, outcome);
+      renderDefeat(this.ctx, `Hunt · ${name}`, [
+        toMenu,
+        { label: 'Retry', primary: true, testid: 'result-retry-run', run: () => this.begin(run) },
+      ]);
+      return;
+    }
+    // A hunt from yesterday's board (fought across midnight) still pays as a first kill.
+    const board = p.huntBoard();
+    const replay = p.data.hunts.won.includes(h.id);
+    const rankBefore = huntRank(p.data.hunts.completed);
+    if (!replay) {
+      if (board.some((b) => b.id === h.id)) p.data.hunts.won.push(h.id);
+      p.data.hunts.completed++;
+    }
+    const rankAfter = huntRank(p.data.hunts.completed);
+    const r = huntRewards(h, replay);
+    const summary = grantVictory({
+      profile: p,
+      heroId: p.selectedHero,
+      difficulty: HUNT_CONFIG.lootQuality,
+      outcome,
+      level: h.level,
+      drops: 'hunt',
+      // grantVictory applies the loot quality's reward multiplier; hunts pay their own numbers.
+      gold: r.gold / DIFFICULTIES[HUNT_CONFIG.lootQuality].rewards,
+      xp: r.xp / DIFFICULTIES[HUNT_CONFIG.lootQuality].rewards,
+      bonusGems: r.gems,
+      rng: this.host.rng,
+      title: replay ? 'Hunt won again' : 'Hunt complete',
+      subtitle:
+        `${name} · ${h.omens.map((id) => HUNT_OMENS[id].name).join(' · ')}` +
+        (rankAfter > rankBefore ? ` · Hunt rank ${rankAfter}!` : ''),
+    });
+    renderVictory(this.ctx, summary, [{ ...toMenu, primary: true }]);
   }
 
   private finishArena(run: Extract<Run, { kind: 'arena' }>, outcome: BattleOutcome): void {

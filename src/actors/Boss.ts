@@ -29,7 +29,7 @@ export class Boss extends Enemy {
   }
 
   applyPhaseMultipliers(speed: number, damage: number, enraged: boolean): void {
-    this.speedMult = speed * (enraged ? this.bossDef.enrageSpeedMult : 1);
+    this.speedMult = this.baseSpeed * speed * (enraged ? this.bossDef.enrageSpeedMult : 1);
     this.damageMult = damage * (enraged ? this.bossDef.enrageDamageMult : 1);
   }
 

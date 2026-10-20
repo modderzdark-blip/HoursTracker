@@ -10,7 +10,10 @@ import { ENEMY_SCALING } from '../data/progression';
 export function enemyScaleFor(
   level: number,
   difficulty: DifficultyId,
-  extra: { readonly hp: number; readonly atk: number } = { hp: 1, atk: 1 },
+  extra: { readonly hp: number; readonly atk: number; readonly speed?: number } = {
+    hp: 1,
+    atk: 1,
+  },
 ): EnemyScale {
   const l = Math.max(1, level) - 1;
   const d = DIFFICULTIES[difficulty];
@@ -19,5 +22,6 @@ export function enemyScaleFor(
     atk: (1 + ENEMY_SCALING.atkPerLevel * l) * extra.atk,
     def: 1 + ENEMY_SCALING.defPerLevel * l,
     poise: (1 + ENEMY_SCALING.poisePerLevel * l) * d.enemyPoise,
+    speed: extra.speed ?? 1,
   };
 }

@@ -1,5 +1,5 @@
 /**
- * Rules of the repeatable modes (Dungeon, Demon Tower, Boss Challenge, Arena) as pure functions:
+ * Rules of the repeatable modes (Dungeon, Demon Tower, Boss Challenge, Hunts, Arena) as pure functions:
  * stage generation, scaling, entry refills, rating changes, seasons and opponents. The App wires
  * them to battles and screens; tests call them directly.
  */
@@ -10,7 +10,15 @@ import type { DifficultyId } from '../data/difficulty';
 import type { EnemyId } from '../data/enemies';
 import { HEROES, type HeroId } from '../data/heroes';
 import { GEAR_SLOTS, type Rarity } from '../data/items';
-import { ARENA_CONFIG, CHALLENGE_CONFIG, DUNGEON_CONFIG, TOWER_CONFIG } from '../data/modes';
+import {
+  ARENA_CONFIG,
+  CHALLENGE_CONFIG,
+  DUNGEON_CONFIG,
+  HUNT_CONFIG,
+  HUNT_OMENS,
+  TOWER_CONFIG,
+  type HuntOmenId,
+} from '../data/modes';
 import { SKILL_TREES } from '../data/skillTrees';
 import { CHAPTERS, findAdventureStage, type StageDef, type WaveDef } from '../data/stages';
 import { rollItem, type GearItem } from '../progression/gear';
@@ -190,6 +198,115 @@ export function challengeStage(entry: ChallengeBoss, tier: number): StageDef {
     boss: entry.boss,
     stars: { maxDamageTakenFrac: 1, parTimeSec: 150 + tier * 10 },
     interWaveMs: 1000,
+  };
+}
+
+// ------------------------------------------------------------------ Hunts
+
+export interface HuntDef {
+  /** `day:slot` — unique per day, stored when the hunt is won. */
+  readonly id: string;
+  /** 1..perDay; later slots carry more omens and more gems. */
+  readonly slot: number;
+  readonly entry: ChallengeBoss;
+  readonly omens: readonly HuntOmenId[];
+  readonly level: number;
+}
+
+export function huntRank(completed: number): number {
+  return Math.min(HUNT_CONFIG.maxRank, 1 + Math.floor(completed / HUNT_CONFIG.huntsPerRank));
+}
+
+/** Hunts completed toward the next rank, and how many that rank needs. */
+export function huntRankProgress(completed: number): { done: number; need: number } {
+  if (huntRank(completed) >= HUNT_CONFIG.maxRank) return { done: 1, need: 1 };
+  return { done: completed % HUNT_CONFIG.huntsPerRank, need: HUNT_CONFIG.huntsPerRank };
+}
+
+/**
+ * The day's board: `perDay` different bosses (from those the player has defeated in Adventure),
+ * each with its own omens. Deterministic for a day, so the board survives app restarts.
+ */
+export function dailyHunts(
+  day: number,
+  unlocked: readonly ChallengeBoss[],
+  rank: number,
+  highestLevel: number,
+): HuntDef[] {
+  if (unlocked.length === 0) return [];
+  const rng = mulberry32(day * 7919 + 17);
+  const pool = [...unlocked];
+  const omenIds = Object.keys(HUNT_OMENS) as HuntOmenId[];
+  const out: HuntDef[] = [];
+  for (let slot = 1; slot <= HUNT_CONFIG.perDay; slot++) {
+    if (pool.length === 0) pool.push(...unlocked);
+    const entry = pool.splice(Math.floor(rng() * pool.length), 1)[0];
+    if (entry === undefined) break;
+    const n =
+      HUNT_CONFIG.minOmens +
+      Math.round(
+        ((slot - 1) / Math.max(1, HUNT_CONFIG.perDay - 1)) *
+          (HUNT_CONFIG.maxOmens - HUNT_CONFIG.minOmens),
+      );
+    const left = [...omenIds];
+    const omens: HuntOmenId[] = [];
+    for (let i = 0; i < n && left.length > 0; i++)
+      omens.push(...left.splice(Math.floor(rng() * left.length), 1));
+    const base = findAdventureStage(entry.stage)?.level ?? 1;
+    out.push({
+      id: `${day}:${slot}`,
+      slot,
+      entry,
+      omens,
+      level: Math.max(base, highestLevel - 2) + (rank - 1) * HUNT_CONFIG.levelPerRank,
+    });
+  }
+  return out;
+}
+
+/** Combined omen multipliers (enemy stats and rewards). */
+export function huntMult(h: HuntDef): { hp: number; atk: number; speed: number; reward: number } {
+  let hp = 1;
+  let atk = 1;
+  let speed = 1;
+  let reward = 1;
+  for (const id of h.omens) {
+    const o = HUNT_OMENS[id];
+    hp *= o.hp;
+    atk *= o.atk;
+    speed *= o.speed;
+    reward *= o.reward;
+  }
+  return { hp, atk, speed, reward };
+}
+
+export function huntStage(h: HuntDef): StageDef {
+  const swarming = h.omens.some((id) => HUNT_OMENS[id].adds);
+  const adds = findAdventureStage(h.entry.stage)?.waves[0];
+  return {
+    id: `hunt_${h.entry.boss}`,
+    name: `Hunt · ${BOSSES[h.entry.boss].name}`,
+    arena: h.entry.arena,
+    level: h.level,
+    trainingDummy: false,
+    introCountdownMs: 1500,
+    waves: swarming && adds !== undefined ? [adds] : [],
+    boss: h.entry.boss,
+    stars: { maxDamageTakenFrac: 1, parTimeSec: 180 },
+    interWaveMs: 1500,
+  };
+}
+
+/** Gold / XP / gems for winning a hunt (a replay of one already won today pays less). */
+export function huntRewards(
+  h: HuntDef,
+  replay: boolean,
+): { gold: number; xp: number; gems: number } {
+  const m = huntMult(h).reward * (replay ? HUNT_CONFIG.replayShare : 1);
+  return {
+    gold: Math.round((HUNT_CONFIG.gold + HUNT_CONFIG.goldPerLevel * h.level) * m),
+    xp: Math.round((HUNT_CONFIG.xp + HUNT_CONFIG.xpPerLevel * h.level) * m),
+    gems: replay ? 0 : HUNT_CONFIG.gemsPerSlot * h.slot,
   };
 }
 

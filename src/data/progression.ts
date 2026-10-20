@@ -48,7 +48,8 @@ export interface DropTable {
   readonly slots: readonly GearSlot[];
 }
 
-export type DropTableId = 'stage' | 'miniboss' | 'boss' | 'dungeon' | 'tower' | 'challenge';
+export type DropTableId =
+  'stage' | 'miniboss' | 'boss' | 'dungeon' | 'tower' | 'challenge' | 'hunt';
 
 export const DROP_TABLES: Readonly<Record<DropTableId, DropTable>> = {
   stage: { items: 1, bonusItemChance: 0.35, materials: [2, 5], ticketChance: 0.05, slots: [] },
@@ -69,6 +70,7 @@ export const DROP_TABLES: Readonly<Record<DropTableId, DropTable>> = {
     ticketChance: 0.5,
     slots: ['weapon', 'ring', 'amulet'],
   },
+  hunt: { items: 2, bonusItemChance: 0.6, materials: [14, 24], ticketChance: 0.4, slots: [] },
 };
 
 export const LOOT_CONFIG = {

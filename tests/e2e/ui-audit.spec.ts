@@ -356,7 +356,7 @@ async function run(page: Page, findings: Finding[]): Promise<void> {
         __ashbound: { clearStages: (n: number) => void; grant: (c: string, n: number) => void };
       }
     ).__ashbound;
-    h.clearStages(24);
+    h.clearStages(32);
     h.grant('gold', 2_480_000);
     h.grant('gems', 12_345);
     h.grant('souls', 98_765);
@@ -420,14 +420,14 @@ async function run(page: Page, findings: Finding[]): Promise<void> {
 
   await tapTestId(page, 'mode-adventure');
   await waitScreen(page, 'map');
-  for (const ch of [1, 2, 3]) {
+  for (const ch of [1, 2, 3, 4]) {
     await tapTestId(page, `chapter-${ch}`);
     await expect(page.locator('.menu-title')).toContainText(`Chapter ${ch}`);
     await screen(page, findings, `map-ch${ch}-cleared`, MENU);
   }
   await tapTestId(page, 'menu-back');
 
-  for (const mode of ['tower', 'challenge', 'arena', 'dungeon'] as const) {
+  for (const mode of ['tower', 'challenge', 'hunts', 'arena', 'dungeon'] as const) {
     await tapTestId(page, `mode-${mode}`);
     await waitScreen(page, mode);
     await screen(page, findings, mode, MENU);

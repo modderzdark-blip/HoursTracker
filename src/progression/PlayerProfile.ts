@@ -2,7 +2,7 @@ import type { StatBlock } from '../data/combatTypes';
 import { DIFFICULTIES, type DifficultyId } from '../data/difficulty';
 import { HEROES, type HeroId } from '../data/heroes';
 import { GEAR_CONFIG, GEAR_SLOTS, type GearSlot } from '../data/items';
-import { MODES, type ModeId } from '../data/modes';
+import { CHALLENGE_CONFIG, MODES, type ModeId } from '../data/modes';
 import {
   ACHIEVEMENTS,
   BLESSING_CONFIG,
@@ -13,6 +13,7 @@ import {
 import { CACHE_CONFIG, STAR_GEMS, XP_CONFIG } from '../data/progression';
 import { SKILL_TREES } from '../data/skillTrees';
 import { CHAPTERS, type AdventureStageDef } from '../data/stages';
+import { dailyHunts, highestClearedLevel, huntRank, type HuntDef } from '../modes/meta';
 import type { SaveData, StageRecord } from '../save/SaveStore';
 import type { RewardBundle } from '../data/goals';
 import { rollItem, salvageValue, tryUpgrade, type GearItem, type UpgradeOutcome } from './gear';
@@ -333,6 +334,19 @@ export class PlayerProfile {
     return this.save.records[PlayerProfile.recordKey(stageId, difficulty)];
   }
 
+  /** Today's hunt board; the list of hunts won resets at local midnight. */
+  huntBoard(nowMs = Date.now()): HuntDef[] {
+    const day = localDay(nowMs);
+    const h = this.data.hunts;
+    if (h.day !== day) {
+      h.day = day;
+      h.won = [];
+    }
+    const cleared = (id: string): boolean => this.stageClearedAnyDifficulty(id);
+    const unlocked = CHALLENGE_CONFIG.bosses.filter((c) => cleared(c.stage));
+    return dailyHunts(day, unlocked, huntRank(h.completed), highestClearedLevel(cleared));
+  }
+
   stageClearedAnyDifficulty(stageId: string): boolean {
     return DIFFICULTY_ORDER.some((d) => (this.record(stageId, d)?.clears ?? 0) > 0);
   }
@@ -441,7 +455,7 @@ export class PlayerProfile {
    * Blessing (a defeat on an Adventure stage adds a stack, the clear removes them).
    */
   trackBattle(
-    kind: 'adventure' | 'dungeon' | 'tower' | 'challenge' | 'arena',
+    kind: 'adventure' | 'dungeon' | 'tower' | 'challenge' | 'hunt' | 'arena',
     outcome: {
       readonly victory: boolean;
       readonly abandoned: boolean;

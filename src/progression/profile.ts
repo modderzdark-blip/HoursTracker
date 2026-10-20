@@ -33,6 +33,15 @@ export interface TowerState {
   claimed: number[];
 }
 
+export interface HuntState {
+  /** Local day of the board the `won` list belongs to. */
+  day: number;
+  /** Hunt ids (`day:slot`) won today. */
+  won: string[];
+  /** Hunts won in total (sets the hunt rank). */
+  completed: number;
+}
+
 export interface ArenaState {
   rating: number;
   bestRating: number;
@@ -73,6 +82,7 @@ export interface ProfileData {
   tower: TowerState;
   /** Highest boss-challenge tier cleared per boss id. */
   challenge: Record<string, number>;
+  hunts: HuntState;
   arena: ArenaState;
   lifetime: LifetimeStats;
   daily: DailyState;
@@ -105,6 +115,7 @@ export function createDefaultProfile(nowMs = Date.now()): ProfileData {
     dungeon: { entries: DUNGEON_MAX_ENTRIES, refillAtMs: nowMs, runs: 0, bestRooms: 0 },
     tower: { bestFloor: 0, claimed: [] },
     challenge: {},
+    hunts: { day: 0, won: [], completed: 0 },
     arena: {
       rating: ARENA_START_RATING,
       bestRating: ARENA_START_RATING,
@@ -276,6 +287,21 @@ export function sanitizeProfile(raw: unknown, nowMs = Date.now()): ProfileData {
     for (const [id, tier] of Object.entries(raw['challenge'])) {
       const t = int(tier, 0, 100, 0);
       if (t > 0) p.challenge[id] = t;
+    }
+  }
+  if (isRecord(raw['hunts'])) {
+    const h = raw['hunts'];
+    p.hunts.day = int(h['day'], 0, 1e7, 0);
+    p.hunts.completed = int(h['completed'], 0, 1e9, 0);
+    if (Array.isArray(h['won'])) {
+      const prefix = `${p.hunts.day}:`;
+      p.hunts.won = [
+        ...new Set(
+          h['won'].filter(
+            (x): x is string => typeof x === 'string' && x.startsWith(prefix) && x.length < 20,
+          ),
+        ),
+      ];
     }
   }
   if (isRecord(raw['arena'])) {

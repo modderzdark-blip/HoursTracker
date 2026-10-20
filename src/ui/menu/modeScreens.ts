@@ -5,6 +5,8 @@ import {
   ARENA_CONFIG,
   CHALLENGE_CONFIG,
   DUNGEON_CONFIG,
+  HUNT_CONFIG,
+  HUNT_OMENS,
   TOWER_CONFIG,
   type ModeId,
 } from '../../data/modes';
@@ -13,6 +15,10 @@ import {
   challengeStage,
   generateOpponents,
   highestClearedLevel,
+  huntMult,
+  huntRank,
+  huntRankProgress,
+  huntRewards,
   isTowerBossFloor,
   leaderboard,
   nextRefillInMs,
@@ -256,6 +262,90 @@ export function renderChallenge(ctx: MenuContext): void {
   v.root.append(list);
 }
 
+// ------------------------------------------------------------------ Hunts
+
+function untilMidnight(nowMs: number): string {
+  const d = new Date(nowMs);
+  return fmtDuration(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime() - nowMs);
+}
+
+export function renderHunts(ctx: MenuContext): void {
+  const p = ctx.profile;
+  const now = Date.now();
+  const board = p.huntBoard(now);
+  const h = p.data.hunts;
+  const v = ctx.shell.begin('Hunts', () => ctx.nav.hub(), 'hunts');
+  const list = el('div', 'challenge-list');
+  list.dataset['allowScroll'] = '';
+  const rank = huntRank(h.completed);
+  const prog = huntRankProgress(h.completed);
+  const head = el('div', 'hunt-head');
+  const bar = el('div', 'goal-bar');
+  const fill = el('div', 'goal-fill');
+  fill.style.width = `${Math.round((prog.done / prog.need) * 100)}%`;
+  bar.append(fill);
+  const rankBox = el('div', 'hunt-rank');
+  rankBox.append(
+    el('div', 'challenge-name', `Hunt rank ${rank}${rank >= HUNT_CONFIG.maxRank ? ' (max)' : ''}`),
+    bar,
+  );
+  head.append(
+    rankBox,
+    el(
+      'div',
+      'pb-dim',
+      `Each rank makes the marks stronger and richer. New marks in ${untilMidnight(now)}.`,
+    ),
+  );
+  list.append(head);
+  if (board.length === 0)
+    list.append(el('div', 'pb-text', 'Defeat a boss in Adventure to put it on the hunt board.'));
+  const power = p.power(p.selectedHero);
+  for (const hunt of board) {
+    const def = BOSSES[hunt.entry.boss];
+    const won = h.won.includes(hunt.id);
+    const m = huntMult(hunt);
+    const r = huntRewards(hunt, won);
+    const rec = Math.round(
+      recommendedPower(hunt.level, 'normal') * Math.sqrt(m.hp * m.atk * m.speed),
+    );
+    const card = el('div', `challenge-card hunt-card${won ? ' is-won' : ''}`);
+    const info = el('div', 'challenge-info');
+    const omens = el('div', 'omen-row');
+    for (const id of hunt.omens) {
+      const o = HUNT_OMENS[id];
+      const chip = el('span', `omen-chip omen-${id}`, o.name);
+      chip.title = o.text;
+      omens.append(chip, el('span', 'omen-text', o.text));
+    }
+    info.append(
+      el('div', 'challenge-name', `${won ? '✓ ' : ''}${def.name}`),
+      el('div', 'pb-dim', `${def.title} · Lv ${hunt.level}`),
+      omens,
+      el(
+        'div',
+        'pb-dim',
+        `${fmtInt(r.gold)} gold · ${fmtInt(r.xp)} XP${r.gems > 0 ? ` · ${r.gems} gems` : ''} · Hard-quality loot`,
+      ),
+    );
+    card.append(
+      info,
+      el('div', `challenge-rec${power >= rec ? ' is-good' : ' is-low'}`, `rec. ${fmtInt(rec)}`),
+      v.button(
+        won ? 'Hunt again' : 'Hunt',
+        `btn btn-small${won ? '' : ' btn-primary'}`,
+        () => {
+          ctx.uiTap();
+          ctx.actions.startHunt(hunt);
+        },
+        { testid: `hunt-${hunt.slot}` },
+      ),
+    );
+    list.append(card);
+  }
+  v.root.append(list);
+}
+
 // ------------------------------------------------------------------ Arena
 
 export function renderArena(ctx: MenuContext): void {
@@ -347,5 +437,6 @@ export const modeScreens: Readonly<
   dungeon: renderDungeon,
   tower: renderTower,
   challenge: renderChallenge,
+  hunts: renderHunts,
   arena: renderArena,
 };

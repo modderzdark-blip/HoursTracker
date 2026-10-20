@@ -19,6 +19,8 @@ export interface EnemyScale {
   readonly atk: number;
   readonly def: number;
   readonly poise: number;
+  /** Movement / attack speed (hunt omens). */
+  readonly speed?: number;
 }
 
 export const UNIT_SCALE: EnemyScale = { hp: 1, atk: 1, def: 1, poise: 1 };
@@ -43,6 +45,8 @@ export class Enemy extends Actor {
   /** Multipliers from boss phases / enrage. */
   damageMult = 1;
   speedMult = 1;
+  /** Speed from the spawn scale; boss phases multiply on top of it. */
+  baseSpeed = 1;
   private deadMs = 0;
   private wasMoving = false;
 
@@ -104,7 +108,8 @@ export class Enemy extends Actor {
     this.health.reset(1, this.stats.maxHp);
     this.poise.refill(this.def.poise * scale.poise);
     this.damageMult = 1;
-    this.speedMult = 1;
+    this.baseSpeed = scale.speed ?? 1;
+    this.speedMult = this.baseSpeed;
     this.deadMs = 0;
     this.wasMoving = false;
     this.spawnAt(x, z, yaw);

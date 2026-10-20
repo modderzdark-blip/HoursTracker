@@ -534,6 +534,16 @@ describe('creature bosses (integration)', () => {
     expect(launched).toBeGreaterThan(0);
   });
 
+  it('a Swift hunt omen speeds the boss up through its phases and enrage', () => {
+    const w = makeWorld();
+    const boss = w.addBoss(0, -8, 'ash_behemoth');
+    boss.activate(0, -8, 0, { ...UNIT_SCALE, speed: 1.15 });
+    boss.bossBrain.beginFight();
+    expect(boss.speedMult).toBeCloseTo(1.15);
+    boss.applyPhaseMultipliers(1.1, 1, true);
+    expect(boss.speedMult).toBeCloseTo(1.15 * 1.1 * BOSSES.ash_behemoth.enrageSpeedMult);
+  });
+
   it('the Brood Weaver calls broodlings; creature minions attack the player', () => {
     const w = makeWorld();
     w.player.god = true;

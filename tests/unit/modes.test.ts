@@ -1,11 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../../src/core/random';
-import { ARENA_CONFIG, CHALLENGE_CONFIG, DUNGEON_CONFIG, TOWER_CONFIG } from '../../src/data/modes';
+import {
+  ARENA_CONFIG,
+  CHALLENGE_CONFIG,
+  DUNGEON_CONFIG,
+  HUNT_CONFIG,
+  HUNT_OMENS,
+  TOWER_CONFIG,
+} from '../../src/data/modes';
 import {
   challengeMult,
   challengeStage,
   consumeDungeonEntry,
+  dailyHunts,
   generateOpponents,
+  huntMult,
+  huntRank,
+  huntRewards,
+  huntStage,
   isTowerBossFloor,
   leaderboard,
   nextRefillInMs,
@@ -16,7 +28,9 @@ import {
   towerMilestone,
   towerStage,
 } from '../../src/modes/meta';
-import { createDefaultProfile } from '../../src/progression/profile';
+import { PlayerProfile } from '../../src/progression/PlayerProfile';
+import { createDefaultProfile, sanitizeProfile } from '../../src/progression/profile';
+import { createDefaultSave } from '../../src/save/SaveStore';
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -153,5 +167,84 @@ describe('arena', () => {
     for (let i = 1; i < lb.length; i++)
       expect(lb[i - 1]!.rating).toBeGreaterThanOrEqual(lb[i]!.rating);
     expect(leaderboard(3, 1234)).toEqual(lb);
+  });
+});
+
+describe('hunts', () => {
+  const all = CHALLENGE_CONFIG.bosses;
+
+  it('a day offers 3 different bosses, the same all day, with more omens later on the board', () => {
+    const a = dailyHunts(500, all, 1, 1);
+    expect(a).toHaveLength(HUNT_CONFIG.perDay);
+    expect(new Set(a.map((h) => h.entry.boss)).size).toBe(HUNT_CONFIG.perDay);
+    expect(dailyHunts(500, all, 1, 1)).toEqual(a);
+    expect(a[0]?.omens).toHaveLength(HUNT_CONFIG.minOmens);
+    expect(a[a.length - 1]?.omens).toHaveLength(HUNT_CONFIG.maxOmens);
+    for (const h of a) expect(new Set(h.omens).size).toBe(h.omens.length);
+    const days = new Set<string>();
+    for (let d = 500; d < 520; d++)
+      days.add(
+        dailyHunts(d, all, 1, 1)
+          .map((h) => h.entry.boss)
+          .join(),
+      );
+    expect(days.size).toBeGreaterThan(5);
+  });
+
+  it('only defeated bosses are hunted; one unlocked boss still fills the board', () => {
+    expect(dailyHunts(3, [], 1, 1)).toEqual([]);
+    const first = all[0];
+    if (first === undefined) throw new Error('no bosses');
+    const b = dailyHunts(3, [first], 1, 1);
+    expect(b).toHaveLength(HUNT_CONFIG.perDay);
+    for (const h of b) expect(h.entry.boss).toBe(first.boss);
+  });
+
+  it('rank raises the level; early bosses keep up with the hero’s progress', () => {
+    const [low] = dailyHunts(9, all, 1, 1);
+    const [high] = dailyHunts(9, all, 6, 1);
+    const [late] = dailyHunts(9, all, 1, 30);
+    if (low === undefined || high === undefined || late === undefined) throw new Error('empty');
+    expect(high.level - low.level).toBe(5 * HUNT_CONFIG.levelPerRank);
+    expect(late.level).toBeGreaterThanOrEqual(28);
+    expect(huntRank(0)).toBe(1);
+    expect(huntRank(HUNT_CONFIG.huntsPerRank)).toBe(2);
+    expect(huntRank(1e6)).toBe(HUNT_CONFIG.maxRank);
+  });
+
+  it('omens shape the fight and the pay; replays pay less and no gems', () => {
+    const [h] = dailyHunts(77, all, 1, 1);
+    if (h === undefined) throw new Error('empty');
+    const ironBrutal = { ...h, omens: ['ironhide', 'brutal'] as const };
+    const m = huntMult(ironBrutal);
+    expect(m.hp).toBeCloseTo(HUNT_OMENS.ironhide.hp);
+    expect(m.atk).toBeCloseTo(HUNT_OMENS.brutal.atk);
+    expect(m.reward).toBeCloseTo(HUNT_OMENS.ironhide.reward * HUNT_OMENS.brutal.reward);
+    expect(huntStage(ironBrutal).waves).toHaveLength(0);
+    expect(huntStage({ ...h, omens: ['swarming'] }).waves.length).toBe(1);
+    expect(huntStage(h).boss).toBe(h.entry.boss);
+    const first = huntRewards(ironBrutal, false);
+    const again = huntRewards(ironBrutal, true);
+    expect(first.gems).toBe(HUNT_CONFIG.gemsPerSlot * h.slot);
+    expect(again.gems).toBe(0);
+    expect(again.gold).toBeLessThan(first.gold * 0.5);
+  });
+
+  it('the profile board resets the won list at midnight and survives sanitising', () => {
+    const p = new PlayerProfile(createDefaultSave(), () => undefined, mulberry32(4));
+    expect(p.huntBoard(Date.UTC(2026, 0, 10, 12))).toEqual([]);
+    p.submitStageResult('c1s4', 'normal', 1, 100);
+    const board = p.huntBoard(Date.UTC(2026, 0, 10, 12));
+    expect(board.length).toBe(HUNT_CONFIG.perDay);
+    p.data.hunts.won.push(board[0]?.id ?? '');
+    p.huntBoard(Date.UTC(2026, 0, 10, 13));
+    expect(p.data.hunts.won).toHaveLength(1);
+    p.huntBoard(Date.UTC(2026, 0, 12, 12));
+    expect(p.data.hunts.won).toHaveLength(0);
+    const s = sanitizeProfile(
+      { hunts: { day: 40, won: ['40:1', '39:2', 7, '40:1'], completed: 12 } },
+      0,
+    );
+    expect(s.hunts).toEqual({ day: 40, won: ['40:1'], completed: 12 });
   });
 });

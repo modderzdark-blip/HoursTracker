@@ -1,12 +1,13 @@
 import type { ArenaId } from './arenas';
 import type { BossId } from './bosses';
+import type { DifficultyId } from './difficulty';
 import type { EnemyId } from './enemies';
 
 /**
  * Game-mode unlock rules and labels. Each mode's own tunables live with the mode (dungeon,
  * tower, challenge, arena sections below are filled in as the modes are added).
  */
-export type ModeId = 'adventure' | 'dungeon' | 'tower' | 'challenge' | 'arena';
+export type ModeId = 'adventure' | 'dungeon' | 'tower' | 'challenge' | 'hunts' | 'arena';
 
 export interface ModeInfo {
   readonly id: ModeId;
@@ -39,6 +40,13 @@ export const MODES: Readonly<Record<ModeId, ModeInfo>> = {
     requiresStage: 'c1s4',
     requiresLabel: 'Defeat The Gaoler (1-4)',
   },
+  hunts: {
+    id: 'hunts',
+    name: 'Hunts',
+    blurb: 'Three marked beasts each day, twisted by omens. Richer spoils.',
+    requiresStage: 'c1s4',
+    requiresLabel: 'Defeat The Gaoler (1-4)',
+  },
   arena: {
     id: 'arena',
     name: 'Arena',
@@ -59,6 +67,7 @@ export const MODE_ORDER: readonly ModeId[] = [
   'adventure',
   'dungeon',
   'challenge',
+  'hunts',
   'arena',
   'tower',
 ];
@@ -233,6 +242,100 @@ export const CHALLENGE_CONFIG = {
     { boss: 'brood_weaver', stage: 'c4s6', arena: 'hollow_deep' },
     { boss: 'cinder_wyrm', stage: 'c4s8', arena: 'hollow_deep' },
   ] satisfies readonly { boss: BossId; stage: string; arena: ArenaId }[],
+} as const;
+
+// ------------------------------------------------------------------ Hunts
+
+/** Omens that twist a hunted boss (and its adds). Each raises the hunt's rewards. */
+export type HuntOmenId = 'ironhide' | 'brutal' | 'swift' | 'swarming' | 'glass';
+
+export interface HuntOmenDef {
+  readonly id: HuntOmenId;
+  readonly name: string;
+  readonly text: string;
+  readonly hp: number;
+  readonly atk: number;
+  readonly speed: number;
+  /** A wave of the boss's chapter enemies comes first. */
+  readonly adds: boolean;
+  /** Reward multiplier (gold, XP). */
+  readonly reward: number;
+}
+
+export const HUNT_OMENS: Readonly<Record<HuntOmenId, HuntOmenDef>> = {
+  ironhide: {
+    id: 'ironhide',
+    name: 'Ironhide',
+    text: '+35% health',
+    hp: 1.35,
+    atk: 1,
+    speed: 1,
+    adds: false,
+    reward: 1.2,
+  },
+  brutal: {
+    id: 'brutal',
+    name: 'Brutal',
+    text: '+25% damage',
+    hp: 1,
+    atk: 1.25,
+    speed: 1,
+    adds: false,
+    reward: 1.2,
+  },
+  swift: {
+    id: 'swift',
+    name: 'Swift',
+    text: 'Moves and strikes 15% faster',
+    hp: 1,
+    atk: 1,
+    speed: 1.15,
+    adds: false,
+    reward: 1.2,
+  },
+  swarming: {
+    id: 'swarming',
+    name: 'Swarming',
+    text: 'Its brood comes first',
+    hp: 1,
+    atk: 1,
+    speed: 1,
+    adds: true,
+    reward: 1.15,
+  },
+  glass: {
+    id: 'glass',
+    name: 'Glass Fury',
+    text: '−30% health, +45% damage',
+    hp: 0.7,
+    atk: 1.45,
+    speed: 1,
+    adds: false,
+    reward: 1.15,
+  },
+};
+
+export const HUNT_CONFIG = {
+  /** Hunts on the board each day (rerolled at local midnight). */
+  perDay: 3,
+  /** Omens per hunt: the first hunt has `minOmens`, the last `maxOmens`. */
+  minOmens: 1,
+  maxOmens: 2,
+  /** Hunt rank = 1 + completed hunts / huntsPerRank (capped). */
+  huntsPerRank: 3,
+  maxRank: 25,
+  /** Enemy level = max(boss's Adventure level, highest cleared level − 2) + (rank − 1) × this. */
+  levelPerRank: 1,
+  gold: 350,
+  goldPerLevel: 28,
+  xp: 260,
+  xpPerLevel: 38,
+  /** Gems for the first kill of each hunt on its day (× the hunt's slot, 1..perDay). */
+  gemsPerSlot: 4,
+  /** Hunted bosses drop loot at this difficulty's quality (rarity odds, item level bonus). */
+  lootQuality: 'hard' satisfies DifficultyId,
+  /** Replaying a hunt already won today pays this share of gold / XP and no gems. */
+  replayShare: 0.3,
 } as const;
 
 // ------------------------------------------------------------------ Arena

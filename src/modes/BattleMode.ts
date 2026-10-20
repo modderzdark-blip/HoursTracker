@@ -87,8 +87,8 @@ export interface BattleSetup {
   readonly label: string;
   /** HP fraction to start with (dungeon rooms carry damage over). */
   readonly startHpFrac: number;
-  /** Extra enemy multipliers on top of level + difficulty (tower floors, challenge tiers). */
-  readonly enemyMult: { readonly hp: number; readonly atk: number };
+  /** Extra enemy multipliers on top of level + difficulty (tower floors, challenge tiers, hunts). */
+  readonly enemyMult: { readonly hp: number; readonly atk: number; readonly speed?: number };
   readonly allowRevive: boolean;
   /** Arena: an AI-controlled hero to defeat (the stage should be a `duel` stage). */
   readonly duel?: DuelSetup;

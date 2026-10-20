@@ -3,7 +3,7 @@ import type { HeroId } from '../../data/heroes';
 import type { GearSlot } from '../../data/items';
 import type { ModeId } from '../../data/modes';
 import type { QualitySetting } from '../../data/quality';
-import type { ArenaOpponent, ChallengeBoss } from '../../modes/meta';
+import type { ArenaOpponent, ChallengeBoss, HuntDef } from '../../modes/meta';
 import type { PlayerProfile } from '../../progression/PlayerProfile';
 import type { FpsCap, Settings } from '../../save/settings';
 import type { MenuShell } from './MenuShell';
@@ -27,6 +27,7 @@ export interface MenuActions {
   startDungeon(difficulty: DifficultyId): boolean;
   startTower(floor: number): void;
   startChallenge(entry: ChallengeBoss, tier: number): void;
+  startHunt(hunt: HuntDef): void;
   startArena(opponent: ArenaOpponent): void;
 }
 
