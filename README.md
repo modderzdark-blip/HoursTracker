@@ -3,12 +3,13 @@
 Mobile dark-fantasy hack-and-slash action RPG — Three.js + TypeScript + Rapier, no engine.
 Playable in Chrome on Android (GitHub Pages) and as a sideloadable Capacitor APK.
 
-> Status: **0.4.0 — progress & polish**: hub, 3 heroes, 3 Adventure chapters × 8 stages (Normal /
+> Status: **0.5.0 — look & feel**: hub, 3 heroes, 3 Adventure chapters × 8 stages (Normal /
 > Hard / Nightmare), 6 enemy types, 3 bosses + 3 mini-bosses, Dungeon, Demon Tower, Boss
 > Challenge, Arena (AI duels, rating, seasons, leaderboard), XP/levels, gear with upgrades and
 > salvage, loot with pity, skill trees, daily quests, login calendar, achievements, Ember Hearth
-> (rewards over time), Ember Blessing (help after defeats), settings, procedural music and SFX. Characters are still
-> procedural placeholder rigs (real models: see [docs/ASSET_LIST.md](docs/ASSET_LIST.md)).
+> (rewards over time), Ember Blessing (help after defeats), settings, procedural music and SFX. Characters are
+> procedural but sculpted (smooth bodies, armor, hoods, capes on spring bones, PBR metal); real
+> models can still replace them (see [docs/ASSET_LIST.md](docs/ASSET_LIST.md)).
 > See [CHANGELOG.md](CHANGELOG.md) and [docs/TEST_REPORT_FULL.md](docs/TEST_REPORT_FULL.md).
 
 ## Play it
@@ -200,7 +201,9 @@ so it works under any path and inside Capacitor.
 
 ## Swapping assets
 
-Characters are procedural skinned meshes (`src/anim/HumanoidRig.ts`) built on a skeleton with
+Characters are procedural skinned meshes built from data (`src/anim/rigBuilder.ts`: body,
+outfit pieces, cloth chains, weapons from each rig's `outfit` in `src/data/rigs.ts`; preview
+them with `npm run dev` → `/dev/rig-viewer.html?rigs=kael,brann`) on a skeleton with
 Mixamo bone names (`mixamorig:Hips`, ...), driven by an `AnimationMixer` with named clips, so
 real models can replace them without touching gameplay. The swap is designed as one field —
 `visual` in `src/data/heroes.ts` from `{ kind: 'rig', rig: 'kael' }` to

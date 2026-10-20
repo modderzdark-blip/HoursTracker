@@ -1,22 +1,22 @@
-# Test Report — 0.4.0 progress & polish
+# Test Report — 0.5.0 look & feel
 
-Build: v0.4.0 · Date: 2026-10-19 · Environment: cloud container (Node 22, headless Chromium 141
+Build: v0.5.0 · Date: 2026-10-20 · Environment: cloud container (Node 22, headless Chromium 141
 via Playwright 1.56.1, SwiftShader software WebGL 2 at ~3–7 FPS). No physical phone was available
 to the developer; everything marked **UNTESTED** needs your phone.
 
 ## Summary
 
-| #   | Check                                               | Result                                                    |
-| --- | --------------------------------------------------- | --------------------------------------------------------- |
-| 1   | `tsc --noEmit` (app + config/e2e projects)          | **PASS** — 0 errors                                       |
-| 2   | ESLint (`--max-warnings=0`) + Prettier              | **PASS**                                                  |
-| 3   | Vitest unit + integration                           | **PASS** — 216/216 in 17 files                            |
-| 4   | `vite build`                                        | **PASS** — sizes below                                    |
-| 5   | Playwright smoke (Pixel 7 landscape 915×412, touch) | **PASS** — 13/13, incl. daily gift + Journal, boss, soak  |
-| 6   | Scripted runs of every mode in headless Chrome      | **PASS** — see "Mode runs" (scratch scripts, not in CI)   |
-| 7   | APK build + Android emulator boot (CI)              | **PASS** — build #17 (see note below)                     |
-| 8   | GitHub Pages deploy                                 | **BLOCKED** until Pages is enabled in repository settings |
-| 9   | Real phone (feel, FPS, heat, audio, music)          | **UNTESTED**                                              |
+| #   | Check                                          | Result                                                         |
+| --- | ---------------------------------------------- | -------------------------------------------------------------- |
+| 1   | `tsc --noEmit` (app + config/e2e projects)     | **PASS** — 0 errors                                            |
+| 2   | ESLint (`--max-warnings=0`) + Prettier         | **PASS**                                                       |
+| 3   | Vitest unit + integration                      | **PASS** — 238/238 in 18 files                                 |
+| 4   | `vite build`                                   | **PASS** — sizes below                                         |
+| 5   | Playwright smoke + UI layout audit (touch)     | **PASS** — 14/14; audit 0 issues at 640×320, 800×360, 1280×800 |
+| 6   | Scripted runs of every mode in headless Chrome | **PASS** — see "Mode runs" (scratch scripts, not in CI)        |
+| 7   | APK build + Android emulator boot (CI)         | Run on push — result in the `ashbound-preview` release         |
+| 8   | GitHub Pages deploy                            | **BLOCKED** until Pages is enabled in repository settings      |
+| 9   | Real phone (feel, FPS, heat, audio, music)     | **UNTESTED**                                                   |
 
 **Emulator note:** build #16 (same game code as #17) failed once: the app process ended about
 26 s after reaching the hub, with no JS error in the WebView console. The script now saves
@@ -24,7 +24,28 @@ Android's crash buffer and process-death lines (`crash.txt` in the release). The
 passed, and a 60 s hub idle in headless Chrome stays flat (heap ~10 MB, no errors). Not
 reproduced; if the app ever closes on its own on your phone, please report it.
 
-## Unit and integration tests (Vitest, 216)
+## 0.5.0 checks
+
+- **Characters**: every rig builds; skin weights sum to 1, bone indices valid, roughness and
+  metalness in range; triangles: crowd enemies < 9k, heroes and bosses < 12k (largest: Bound
+  King ~11.2k); capes stream back when running, settle at rest, survive a 3 s hitch. Viewed
+  close up in `/dev/rig-viewer.html` under the real arena lighting, and in game (hub, waves,
+  boss): 17–28 draw calls, ~25–48k triangles on screen.
+- **Running**: the stance foot moves backward at 0.6–1.5× the running speed at 3 and 6.2 m/s
+  (the old fixed rhythm failed this at 3 m/s).
+- **Magnetism**: one attack hits a dummy 3.6 m away (fails with magnetism off) and does not
+  move the hero toward a dummy that is already close.
+- **UI audit**: 35 states (title, gift, hub, Journal, battle countdown/boss/pause/mirrored XL
+  controls, victory, map, pre-battle, revive, defeat, heroes, gear + compare/upgrade, skills,
+  settings, every mode, dungeon interlude) checked for overlaps, clipping, off-screen content,
+  safe areas, text < 12px, tap targets < 40px: **0 issues**.
+- **Floating text**: checked in mid-combat screenshots: numbers and STAGGER/MISS stack into
+  rows and stay below the top HUD.
+- **Soak**: 60 s live combat, zero errors, heap 13.95 → 14.80 MB (trend 14 KB/s).
+- **UNTESTED on a phone**: how the new characters look at 60 FPS on a real screen, frame rate
+  and heat with the heavier characters, feel of the closer camera and the magnetism.
+
+## Unit and integration tests (Vitest, 238)
 
 | File                         | Covers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

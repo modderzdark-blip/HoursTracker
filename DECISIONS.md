@@ -178,5 +178,27 @@ Each entry: the decision, why, and what would change it.
   directional hit recoil are springs applied after the mixer, so they work for every rig and
   will also apply to real models later. Attack clips get easing keys (anticipation, snap,
   follow-through overshoot) generated from the same wind/hit poses — no new data per move.
+- **Characters stay procedural, but sculpted** (0.5.0): the brief requires original assets and
+  the asset sites are unreachable from the build environment, so instead of downloading models
+  the rig builder lofts smooth bodies, blends skin weights across joints, and builds outfits,
+  armor and weapons from per-rig data. One skinned mesh + one glow mesh per character (2 draw
+  calls), ≤ 9k triangles for crowd enemies and ≤ 12k for heroes and bosses (unit-tested).
+- **Per-vertex roughness/metalness** in one material instead of several materials per
+  character: plate, leather, cloth and skin read differently without extra draw calls.
+- **Cloth on spring bones, not a cloth simulation**: capes, scarves, tabards, tails and wings
+  are short bone chains driven by damped springs from the character's velocity, turn rate and
+  pose (they hang with gravity and clear the legs). Cheap, stable, works with real models too.
+- **Camera fill in the character shader, not a scene light**: a scene-wide fill light also lit
+  the whole floor (measurable cost in software rendering); the shader term lights only
+  characters, from above-left of the view.
+- **Run cadence from speed and step length** (`runCycleSec`): the feet stay planted at any
+  speed; a unit test measures stance-foot speed against running speed.
+- **Attack magnetism** (`INPUT_CONFIG.aimAssist`): melee combo lunges stretch toward the
+  auto-aimed enemy or shrink when it is close. Ranged shots and skills keep data distances.
+- **Floating combat text stacks into rows** chosen on its first frame instead of random jitter,
+  so numbers and STAGGER/BLOCK/MISS never draw over each other or the top HUD.
+- **UI layout is tested, not eyeballed**: `tests/e2e/ui-audit.spec.ts` visits 35 screen states
+  at several phone/tablet sizes and fails on overlaps, clipping, off-screen content, tiny text
+  or small tap targets.
 - **Left-handed layout = CSS mirror** of the button cluster (labels flipped back) and the
   joystick zone moved right; hit-testing uses live element rects, so it needs no code changes.

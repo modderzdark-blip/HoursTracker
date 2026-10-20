@@ -1,8 +1,8 @@
 # Asset list (real characters and animations)
 
-Every character in the game is currently a procedural placeholder rig (one skinned mesh per
-character, Mixamo bone names). This page lists what real assets would replace them. **Nothing
-here is needed to play** — the game is complete with placeholders.
+Every character in the game is a procedural rig built in code (sculpted body, outfit, armor,
+cloth on spring bones; one skinned mesh per character, Mixamo bone names). This page lists what
+real, artist-made assets would replace them. **Nothing here is needed to play.**
 
 **Status: the loader for real models is not implemented yet** (selecting a `gltf` visual in
 `src/data/heroes.ts` currently throws a clear error). It will be built when the first files are

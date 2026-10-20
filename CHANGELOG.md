@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.5.0] — Look & feel (2026-10-20)
+
+### Changed
+
+- **Characters rebuilt**: smooth bodies that bend at the joints (no more stiff capsule parts),
+  draped hoods, helms with glowing visors, crowns, horns, plate armor, leather straps, robes,
+  rags and fur; bevelled blades, a recurve bow, heater shield, flanged mace, gnarled staff.
+  Capes, scarves, tabards, loincloths, tails and bat wings swing on spring bones. Metal shines
+  (per-vertex roughness/metalness + a reflection environment), fronts are lit by a camera fill,
+  and every character has its own outfit and a readable palette.
+- **Running**: feet no longer slide; the step rate follows the actual speed and the run cycle
+  has real contact / pass / flight phases.
+- **Combat**: combo hits lunge to reach the enemy you aim at (and never run through a close
+  one); the camera is closer (7.6 m instead of 9.3 m); the hub frames the hero closer.
+- **UI**: every menu, modal and the battle HUD were fixed for overlaps, clipped text and
+  off-screen content on small phones and tablets; text is at least 12px; floating combat
+  numbers stack instead of drawing over each other; no mid-fight graphics toast.
+
+### Added
+
+- Dev-only character viewer (`/dev/rig-viewer.html` with `npm run dev`).
+- Tests: rig geometry/weights/triangle budgets/cloth stability, run-cycle foot planting, attack
+  magnetism, and a UI layout audit (35 screen states × 3 sizes in CI, 6 with `UI_AUDIT_ALL=1`).
+
 ## [0.4.0] — Progress & polish (2026-10-19)
 
 ### Changed
