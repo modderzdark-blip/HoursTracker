@@ -26,6 +26,22 @@ const BUTTONS: readonly ButtonSpec[] = [
   { action: 'ultimate', cls: 'tc-btn tc-ultimate', label: 'ULT' },
 ];
 
+/** Player joystick settings (Settings → Controls). */
+export interface JoystickOptions {
+  /** Multiplier on INPUT_CONFIG.joystick.radiusPx (thumb travel and drawn size). */
+  readonly scale: number;
+  /** Normalised dead zone (0..1). */
+  readonly deadZone: number;
+  /** 'floating' spawns under the thumb and follows it; 'fixed' stays at its resting spot. */
+  readonly mode: 'floating' | 'fixed';
+}
+
+export const DEFAULT_JOYSTICK: JoystickOptions = {
+  scale: 1,
+  deadZone: INPUT_CONFIG.joystick.deadZone,
+  mode: 'floating',
+};
+
 /** A finger may drift this far (px) outside a button before it counts as sliding off. */
 const BUTTON_SLOP_PX = 14;
 
@@ -55,6 +71,10 @@ export class TouchControls {
   private readonly origin = new Float64Array(2);
   private readonly stick: StickVector = { x: 0, y: 0, magnitude: 0 };
   private enabled = true;
+  private joy: JoystickOptions = DEFAULT_JOYSTICK;
+  /** Resting centre of the stick (where a fixed joystick lives). */
+  private restX = 0;
+  private restY = 0;
 
   constructor(
     container: HTMLElement,
@@ -66,8 +86,7 @@ export class TouchControls {
     this.zone.style.width = `${INPUT_CONFIG.joystick.zoneWidthFraction * 100}%`;
     this.base = el('div', 'tc-joy-base is-idle');
     this.knob = el('div', 'tc-joy-knob');
-    const radius = INPUT_CONFIG.joystick.radiusPx;
-    this.base.style.setProperty('--joy-radius', `${radius}px`);
+    this.base.style.setProperty('--joy-radius', `${this.radius}px`);
     this.base.append(this.knob);
     this.root.append(this.zone, this.base);
 
@@ -122,6 +141,24 @@ export class TouchControls {
     this.root.classList.toggle('is-left', leftHanded);
     this.releaseAll();
     this.resetJoystickVisual();
+  }
+
+  /** Joystick size, dead zone and fixed / floating placement from settings. */
+  applyJoystick(o: JoystickOptions): void {
+    this.joy = o;
+    this.base.style.setProperty('--joy-radius', `${this.radius.toFixed(1)}px`);
+    this.root.classList.toggle('is-joy-fixed', o.mode === 'fixed');
+    this.releaseAll();
+    this.resetJoystickVisual();
+  }
+
+  get joystickOptions(): JoystickOptions {
+    return this.joy;
+  }
+
+  /** Current thumb-travel radius in CSS px. */
+  private get radius(): number {
+    return INPUT_CONFIG.joystick.radiusPx * this.joy.scale;
   }
 
   /** Disabling (pause menu open) releases every touch and ignores new ones. */
@@ -186,9 +223,17 @@ export class TouchControls {
     if (!this.enabled || this.joyPointer !== -1) return;
     e.preventDefault();
     this.joyPointer = e.pointerId;
+    this.base.classList.remove('is-idle');
+    if (this.joy.mode === 'fixed') {
+      // Fixed stick: the base stays put and the touch point already counts as a deflection.
+      this.originX = this.restX;
+      this.originY = this.restY;
+      this.placeBase(this.originX, this.originY);
+      this.updateJoystick(e.clientX, e.clientY);
+      return;
+    }
     this.originX = e.clientX;
     this.originY = e.clientY;
-    this.base.classList.remove('is-idle');
     this.placeBase(this.originX, this.originY);
     this.placeKnob(0, 0);
   };
@@ -244,8 +289,9 @@ export class TouchControls {
 
   private updateJoystick(x: number, y: number): void {
     const cfg = INPUT_CONFIG.joystick;
-    if (cfg.baseFollows) {
-      followOrigin(this.originX, this.originY, x, y, cfg.radiusPx, this.origin);
+    const radius = this.radius;
+    if (cfg.baseFollows && this.joy.mode === 'floating') {
+      followOrigin(this.originX, this.originY, x, y, radius, this.origin);
       if (this.origin[0] !== this.originX || this.origin[1] !== this.originY) {
         this.originX = this.origin[0] ?? this.originX;
         this.originY = this.origin[1] ?? this.originY;
@@ -254,11 +300,11 @@ export class TouchControls {
     }
     const dx = x - this.originX;
     const dy = y - this.originY;
-    shapeStick(dx, dy, cfg.radiusPx, cfg.deadZone, cfg.responseExponent, this.stick);
+    shapeStick(dx, dy, radius, this.joy.deadZone, cfg.responseExponent, this.stick);
     // Screen Y grows downward; game "forward" is up the screen.
     this.input.setMove(INPUT_SOURCE.touch, this.stick.x, -this.stick.y);
     const len = Math.hypot(dx, dy);
-    const k = len > cfg.radiusPx ? cfg.radiusPx / len : 1;
+    const k = len > radius ? radius / len : 1;
     this.placeKnob(dx * k, dy * k);
   }
 
@@ -278,11 +324,14 @@ export class TouchControls {
   }
 
   private resetJoystickVisual(): void {
-    const r = INPUT_CONFIG.joystick.radiusPx;
-    // Resting spot hints where the stick lives; it jumps to wherever the thumb lands.
+    const r = this.radius;
+    // Resting spot hints where the stick lives; a floating stick jumps to wherever the thumb
+    // lands, a fixed one is always used from here.
     const inset = Math.max(r * 1.6, window.innerWidth * 0.14);
     const left = this.root.classList.contains('is-left') ? window.innerWidth - inset : inset;
     const top = window.innerHeight - r * 1.9;
+    this.restX = left;
+    this.restY = top;
     this.base.classList.add('is-idle');
     this.placeBase(left, top);
     this.placeKnob(0, 0);
