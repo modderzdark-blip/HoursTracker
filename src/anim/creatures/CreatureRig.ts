@@ -1,4 +1,5 @@
 import {
+  AdditiveBlending,
   Bone,
   Color,
   Group,
@@ -16,9 +17,11 @@ import { applyCharacterShading } from '../../render/rimLight';
 import type { CharacterRig, CoreBone } from '../characterTypes';
 import { SkinBuilder } from '../meshKit';
 import type { SocketName } from '../rigBuilder';
+import { batPlan } from './bat';
 import { beastPlan } from './beast';
 import { spiderPlan } from './spider';
 import type { CreaturePlan } from './types';
+import { wispPlan } from './wisp';
 import { wyrmPlan } from './wyrm';
 
 export function planFor(def: CreatureDef): CreaturePlan {
@@ -29,6 +32,10 @@ export function planFor(def: CreatureDef): CreaturePlan {
       return beastPlan;
     case 'wyrm':
       return wyrmPlan;
+    case 'wisp':
+      return wispPlan;
+    case 'bat':
+      return batPlan;
   }
 }
 
@@ -118,6 +125,11 @@ export class CreatureRig implements CharacterRig {
       CHARACTER_CONFIG.cameraFill,
     );
     this.glowMaterial = new MeshBasicMaterial({ vertexColors: true });
+    if (this.plan.additiveGlow === true) {
+      this.glowMaterial.blending = AdditiveBlending;
+      this.glowMaterial.transparent = true;
+      this.glowMaterial.depthWrite = false;
+    }
     this.glowMaterial.color.setScalar(2.2);
     this.mesh = new SkinnedMesh(t.geometry, this.material);
     this.mesh.add(rootBone);

@@ -69,3 +69,11 @@ export function scaleAbout(g: BufferGeometry, c: Vector3, s: number): BufferGeom
   g.translate(c.x, c.y, c.z);
   return g;
 }
+
+/** Linear mix of two hex colours (t = 0 → a, 1 → b). */
+export function mixHex(a: number, b: number, t: number): number {
+  const k = Math.min(1, Math.max(0, t));
+  const ch = (sh: number): number =>
+    Math.round(((a >> sh) & 255) * (1 - k) + ((b >> sh) & 255) * k) << sh;
+  return ch(16) | ch(8) | ch(0);
+}

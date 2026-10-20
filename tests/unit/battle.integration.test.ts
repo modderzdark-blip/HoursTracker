@@ -565,6 +565,47 @@ describe('creature bosses (integration)', () => {
   });
 });
 
+describe('new enemy roster (integration)', () => {
+  it('a Hex Wisp fires rings of orbs (pattern projectiles) without needing an attack token', () => {
+    const w = makeWorld();
+    w.player.god = true;
+    const wisp = w.addEnemy(0, -8, 'hex_wisp');
+    const atk = wisp.attackById('hex_rings');
+    if (atk === undefined) throw new Error('no rings');
+    // Hold every token elsewhere: free attackers still cast.
+    w.tokens.request(9001);
+    w.tokens.request(9002);
+    let peak = 0;
+    w.step(stepsFor(9000), () => {
+      peak = Math.max(peak, w.effects.activeProjectiles);
+    });
+    expect(peak).toBeGreaterThanOrEqual(12);
+  });
+
+  it('a mixed pack of new enemies attacks the hero, and every new type can be killed', () => {
+    const w = makeWorld();
+    w.player.god = true;
+    const ids = ['ember_wisp', 'gloom_bat', 'hexcaller', 'revenant', 'magma_golem'] as const;
+    const pack = ids.map((id, i) => w.addEnemy(-6 + i * 3, -7, id));
+    let evaded = 0;
+    w.bus.on('combat:evaded', () => evaded++);
+    w.step(stepsFor(10000));
+    expect(evaded).toBeGreaterThan(2);
+    const spec = {
+      damage: 999,
+      poise: 999,
+      reaction: 'knockdown' as const,
+      knockback: 0,
+      hitStopMs: 0,
+      shake: 0,
+      shape: { kind: 'circle' as const, radius: 40, forward: 0 },
+    };
+    for (const e of pack) w.combat.applyHit(w.player, e, spec, 0, -1, { difficultyMod: 1 });
+    w.step(stepsFor(2500));
+    for (const e of pack) expect(e.alive, e.def.id).toBe(false);
+  });
+});
+
 describe('Brann and Lyra (integration)', () => {
   const brann = HEROES.brann;
   const lyra = HEROES.lyra;

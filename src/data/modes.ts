@@ -98,12 +98,12 @@ export const DUNGEON_CONFIG = {
       name: 'Ossuary',
       waves: [
         [
-          ['thrall', 4],
-          ['imp', 3],
+          ['revenant', 3],
+          ['gloom_bat', 4],
         ],
         [
-          ['brute', 1],
-          ['thrall', 3],
+          ['ember_wisp', 3],
+          ['revenant', 2],
         ],
       ],
     },
@@ -112,12 +112,12 @@ export const DUNGEON_CONFIG = {
       name: 'Ember Vault',
       waves: [
         [
-          ['seer', 2],
-          ['bulwark', 1],
+          ['hexcaller', 2],
+          ['revenant', 2],
         ],
         [
-          ['wretch', 3],
-          ['imp', 2],
+          ['hex_wisp', 1],
+          ['gloom_bat', 5],
         ],
       ],
     },
@@ -125,10 +125,10 @@ export const DUNGEON_CONFIG = {
       arena: 'ashen_wastes',
       name: 'Burning Pit',
       waves: [
-        [['wretch', 4]],
+        [['ember_wisp', 5]],
         [
-          ['brute', 2],
-          ['seer', 1],
+          ['magma_golem', 1],
+          ['ember_wisp', 2],
         ],
       ],
     },
@@ -138,22 +138,22 @@ export const DUNGEON_CONFIG = {
       waves: [
         [
           ['bulwark', 2],
-          ['seer', 2],
+          ['hexcaller', 2],
         ],
         [
-          ['thrall', 5],
+          ['revenant', 4],
           ['brute', 1],
         ],
       ],
     },
     {
       arena: 'ash_gate',
-      name: 'Imp Warren',
+      name: 'Bat Roost',
       waves: [
-        [['imp', 6]],
+        [['gloom_bat', 8]],
         [
-          ['imp', 4],
-          ['wretch', 2],
+          ['gloom_bat', 5],
+          ['hex_wisp', 1],
         ],
       ],
     },
@@ -164,7 +164,7 @@ export const DUNGEON_CONFIG = {
         [['bulwark', 3]],
         [
           ['bulwark', 2],
-          ['seer', 2],
+          ['hexcaller', 2],
         ],
       ],
     },
@@ -202,11 +202,13 @@ export const TOWER_CONFIG = {
   /** Enemy types allowed from these floors on. */
   enemyUnlocks: [
     { enemy: 'thrall', floor: 1 },
-    { enemy: 'imp', floor: 1 },
-    { enemy: 'brute', floor: 3 },
-    { enemy: 'seer', floor: 5 },
-    { enemy: 'bulwark', floor: 7 },
-    { enemy: 'wretch', floor: 9 },
+    { enemy: 'gloom_bat', floor: 1 },
+    { enemy: 'revenant', floor: 2 },
+    { enemy: 'ember_wisp', floor: 3 },
+    { enemy: 'hexcaller', floor: 5 },
+    { enemy: 'hex_wisp', floor: 7 },
+    { enemy: 'bulwark', floor: 8 },
+    { enemy: 'magma_golem', floor: 10 },
     { enemy: 'ash_hound', floor: 12 },
     { enemy: 'broodling', floor: 14 },
   ] satisfies readonly { enemy: EnemyId; floor: number }[],

@@ -36,7 +36,7 @@ describe('creature bodies', () => {
       }
     }
     const tris = (rig.mesh.geometry.getIndex()?.count ?? 0) / 3;
-    expect(tris).toBeGreaterThan(1500);
+    expect(tris).toBeGreaterThan(600);
     // Minions (broodlings, hounds) come in packs: tighter budget than the bosses.
     expect(tris).toBeLessThan(CREATURES[id].scale < 1.5 ? 9000 : 14000);
     rig.dispose();

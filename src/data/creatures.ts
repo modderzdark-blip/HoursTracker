@@ -4,7 +4,7 @@
  * (src/anim/creatures/); this file only holds look data.
  */
 
-export type BodyPlan = 'spider' | 'beast' | 'wyrm';
+export type BodyPlan = 'spider' | 'beast' | 'wyrm' | 'wisp' | 'bat';
 
 /** Animation an attack plays on a creature (attacks pick one with `motion`). */
 export type CreatureMotion =
@@ -43,7 +43,14 @@ export interface CreatureDef {
 }
 
 export type CreatureId =
-  'brood_weaver' | 'broodling' | 'ash_behemoth' | 'ash_hound' | 'cinder_wyrm';
+  | 'brood_weaver'
+  | 'broodling'
+  | 'ash_behemoth'
+  | 'ash_hound'
+  | 'cinder_wyrm'
+  | 'ember_wisp'
+  | 'hex_wisp'
+  | 'gloom_bat';
 
 export const CREATURES: Readonly<Record<CreatureId, CreatureDef>> = {
   brood_weaver: {
@@ -96,6 +103,45 @@ export const CREATURES: Readonly<Record<CreatureId, CreatureDef>> = {
       eyes: 0xff8a2a,
       glow: 0xff5a1a,
       rim: 0xff7a3a,
+    },
+  },
+  ember_wisp: {
+    id: 'ember_wisp',
+    plan: 'wisp',
+    scale: 1,
+    colors: {
+      body: 0x2a1a16,
+      plates: 0x8a6a58,
+      belly: 0x3a2420,
+      eyes: 0xfff0a0,
+      glow: 0xff7a1a,
+      rim: 0xff9a4a,
+    },
+  },
+  hex_wisp: {
+    id: 'hex_wisp',
+    plan: 'wisp',
+    scale: 1.15,
+    colors: {
+      body: 0x1c1626,
+      plates: 0x6a5a80,
+      belly: 0x2a2036,
+      eyes: 0xf0d0ff,
+      glow: 0xb050ff,
+      rim: 0xc080ff,
+    },
+  },
+  gloom_bat: {
+    id: 'gloom_bat',
+    plan: 'bat',
+    scale: 1.25,
+    colors: {
+      body: 0x4a3a44,
+      plates: 0x7a6a72,
+      belly: 0x6a4450,
+      eyes: 0xff4a5a,
+      glow: 0xff3a5a,
+      rim: 0xff6a7a,
     },
   },
   cinder_wyrm: {

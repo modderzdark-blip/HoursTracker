@@ -263,12 +263,13 @@ export class EnemyBrain {
     }
     if (pref === undefined || gap >= pref * 0.55) this.kiteMs = 0;
     const atk = this.pickAttack(gap);
-    if (atk !== null && this.ctx.tokens.request(e.id)) {
+    const free = e.def.freeAttacks === true;
+    if (atk !== null && (free || this.ctx.tokens.request(e.id))) {
       this.kiteMs = 0;
       this.startTelegraph(atk);
       return;
     }
-    const hasToken = this.ctx.tokens.holds(e.id);
+    const hasToken = free || this.ctx.tokens.holds(e.id);
     if (!hasToken && gap <= e.def.holdDistance) {
       this.enter('position');
       this.strafeDir = this.ctx.rng() < 0.5 ? -1 : 1;

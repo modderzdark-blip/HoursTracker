@@ -33,7 +33,10 @@ export interface HitSpec {
 
 /** A projectile fired by an action (arrows, bolts, fireballs). */
 export interface ProjectileDef {
-  readonly visual: 'arrow' | 'bolt' | 'fireball' | 'shadow';
+  /** 'orb': slow glowing bullet for enemy patterns (reads clearly, easy to weave through). */
+  readonly visual: 'arrow' | 'bolt' | 'fireball' | 'shadow' | 'orb';
+  /** Tint (defaults per visual). */
+  readonly color?: number;
   /** m/s */
   readonly speed: number;
   /** Hit radius (m). */
@@ -73,6 +76,10 @@ export type EmitDef =
       readonly spreadDeg: number;
       /** 'target' aims at the nearest opponent in front (falls back to facing). */
       readonly aim: 'facing' | 'target';
+      /** 'ring': `count` projectiles evenly around 360° (spreadDeg ignored). Default 'fan'. */
+      readonly pattern?: 'fan' | 'ring';
+      /** Rotates the whole pattern (spirals: increase it over successive hits). */
+      readonly angleOffsetDeg?: number;
     }
   | {
       readonly kind: 'zone';

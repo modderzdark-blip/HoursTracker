@@ -125,8 +125,8 @@ export const CHAPTERS: readonly ChapterDef[] = [
       waves: [
         [['thrall', 3]],
         [
+          ['gloom_bat', 4],
           ['thrall', 2],
-          ['imp', 3],
         ],
       ],
     },
@@ -134,12 +134,15 @@ export const CHAPTERS: readonly ChapterDef[] = [
       name: 'Ember Steps',
       arena: 'cinder_court',
       waves: [
-        [['imp', 4]],
+        [['gloom_bat', 5]],
         [
-          ['thrall', 3],
-          ['imp', 2],
+          ['revenant', 2],
+          ['ember_wisp', 2],
         ],
-        [['thrall', 4]],
+        [
+          ['thrall', 4],
+          ['gloom_bat', 3],
+        ],
       ],
     },
     {
@@ -147,14 +150,17 @@ export const CHAPTERS: readonly ChapterDef[] = [
       arena: 'ash_gate',
       waves: [
         [
+          ['ember_wisp', 3],
           ['thrall', 3],
-          ['imp', 3],
         ],
         [
-          ['brute', 1],
-          ['thrall', 2],
+          ['revenant', 3],
+          ['gloom_bat', 4],
         ],
-        [['imp', 6]],
+        [
+          ['ember_wisp', 4],
+          ['revenant', 2],
+        ],
       ],
     },
     {
@@ -163,10 +169,13 @@ export const CHAPTERS: readonly ChapterDef[] = [
       kind: 'miniboss',
       boss: 'gaoler',
       waves: [
-        [['thrall', 4]],
         [
-          ['imp', 4],
-          ['thrall', 2],
+          ['revenant', 2],
+          ['gloom_bat', 4],
+        ],
+        [
+          ['ember_wisp', 3],
+          ['thrall', 3],
         ],
       ],
       parTimeSec: 240,
@@ -176,44 +185,49 @@ export const CHAPTERS: readonly ChapterDef[] = [
       arena: 'cinder_court',
       waves: [
         [
-          ['imp', 5],
-          ['thrall', 2],
+          ['gloom_bat', 6],
+          ['ember_wisp', 2],
         ],
         [
-          ['brute', 1],
-          ['imp', 3],
+          ['revenant', 3],
+          ['imp', 4],
         ],
-        [['brute', 2]],
+        [
+          ['ember_wisp', 3],
+          ['revenant', 2],
+          ['gloom_bat', 3],
+        ],
       ],
     },
     {
       name: 'The Charred Nave',
       arena: 'ash_gate',
       waves: [
-        [['thrall', 5]],
+        [['revenant', 4]],
+        [
+          ['ember_wisp', 4],
+          ['gloom_bat', 4],
+        ],
         [
           ['brute', 1],
-          ['thrall', 3],
-          ['imp', 2],
+          ['revenant', 2],
+          ['ember_wisp', 2],
         ],
-        [['imp', 8]],
       ],
     },
     {
       name: 'Kiln Approach',
       arena: 'cinder_court',
       waves: [
+        [['gloom_bat', 8]],
         [
-          ['brute', 2],
-          ['imp', 2],
+          ['revenant', 3],
+          ['ember_wisp', 3],
         ],
         [
-          ['thrall', 4],
-          ['imp', 4],
-        ],
-        [
-          ['brute', 2],
-          ['thrall', 3],
+          ['brute', 1],
+          ['gloom_bat', 5],
+          ['revenant', 2],
         ],
       ],
     },
@@ -223,12 +237,12 @@ export const CHAPTERS: readonly ChapterDef[] = [
       boss: 'hollow_warden',
       waves: [
         [
-          ['thrall', 3],
-          ['imp', 3],
+          ['revenant', 3],
+          ['ember_wisp', 2],
         ],
         [
-          ['brute', 1],
-          ['thrall', 2],
+          ['gloom_bat', 6],
+          ['thrall', 3],
         ],
       ],
       parTimeSec: 330,
@@ -240,16 +254,16 @@ export const CHAPTERS: readonly ChapterDef[] = [
       arena: 'ashen_wastes',
       waves: [
         [
-          ['thrall', 4],
-          ['seer', 1],
+          ['hexcaller', 1],
+          ['revenant', 3],
         ],
         [
-          ['imp', 5],
-          ['seer', 1],
+          ['ember_wisp', 4],
+          ['gloom_bat', 4],
         ],
         [
-          ['bulwark', 1],
-          ['thrall', 3],
+          ['hex_wisp', 1],
+          ['revenant', 3],
         ],
       ],
     },
@@ -257,14 +271,17 @@ export const CHAPTERS: readonly ChapterDef[] = [
       name: 'The Seers’ Ridge',
       arena: 'ashen_wastes',
       waves: [
-        [['seer', 3]],
         [
-          ['bulwark', 2],
-          ['imp', 3],
+          ['wretch', 3],
+          ['gloom_bat', 5],
         ],
         [
-          ['seer', 2],
-          ['thrall', 4],
+          ['hexcaller', 2],
+          ['revenant', 2],
+        ],
+        [
+          ['hex_wisp', 1],
+          ['ember_wisp', 4],
         ],
       ],
     },
@@ -273,16 +290,17 @@ export const CHAPTERS: readonly ChapterDef[] = [
       arena: 'ash_gate',
       waves: [
         [
-          ['wretch', 3],
-          ['thrall', 2],
+          ['revenant', 4],
+          ['ember_wisp', 3],
         ],
         [
-          ['wretch', 2],
-          ['seer', 2],
+          ['hex_wisp', 2],
+          ['gloom_bat', 4],
         ],
         [
           ['brute', 1],
-          ['wretch', 3],
+          ['hexcaller', 2],
+          ['revenant', 2],
         ],
       ],
     },
@@ -293,12 +311,12 @@ export const CHAPTERS: readonly ChapterDef[] = [
       boss: 'seer_exalted',
       waves: [
         [
-          ['seer', 2],
-          ['imp', 3],
+          ['ember_wisp', 4],
+          ['revenant', 2],
         ],
         [
-          ['bulwark', 2],
-          ['seer', 1],
+          ['hex_wisp', 1],
+          ['gloom_bat', 5],
         ],
       ],
       parTimeSec: 260,
@@ -308,13 +326,16 @@ export const CHAPTERS: readonly ChapterDef[] = [
       arena: 'ashen_wastes',
       waves: [
         [
-          ['bulwark', 2],
-          ['seer', 2],
+          ['gloom_bat', 8],
+          ['ember_wisp', 2],
         ],
-        [['wretch', 4]],
         [
-          ['brute', 2],
-          ['seer', 2],
+          ['hexcaller', 2],
+          ['wretch', 3],
+        ],
+        [
+          ['revenant', 3],
+          ['hex_wisp', 2],
         ],
       ],
     },
@@ -323,13 +344,17 @@ export const CHAPTERS: readonly ChapterDef[] = [
       arena: 'cinder_court',
       waves: [
         [
-          ['thrall', 5],
-          ['wretch', 2],
+          ['magma_golem', 1],
+          ['ember_wisp', 3],
         ],
-        [['bulwark', 3]],
         [
-          ['seer', 3],
-          ['imp', 4],
+          ['revenant', 4],
+          ['gloom_bat', 4],
+        ],
+        [
+          ['hexcaller', 2],
+          ['hex_wisp', 1],
+          ['revenant', 2],
         ],
       ],
     },
@@ -338,18 +363,16 @@ export const CHAPTERS: readonly ChapterDef[] = [
       arena: 'ashen_wastes',
       waves: [
         [
-          ['brute', 2],
-          ['wretch', 2],
+          ['hex_wisp', 2],
+          ['ember_wisp', 4],
         ],
         [
-          ['bulwark', 2],
-          ['seer', 3],
+          ['magma_golem', 1],
+          ['revenant', 3],
         ],
         [
-          ['brute', 1],
-          ['bulwark', 1],
-          ['wretch', 3],
-          ['seer', 1],
+          ['gloom_bat', 8],
+          ['hexcaller', 2],
         ],
       ],
     },
@@ -359,12 +382,12 @@ export const CHAPTERS: readonly ChapterDef[] = [
       boss: 'mother_of_ash',
       waves: [
         [
-          ['imp', 4],
-          ['seer', 2],
+          ['revenant', 3],
+          ['ember_wisp', 3],
         ],
         [
-          ['wretch', 3],
-          ['bulwark', 1],
+          ['hex_wisp', 2],
+          ['gloom_bat', 4],
         ],
       ],
       parTimeSec: 380,
@@ -377,15 +400,15 @@ export const CHAPTERS: readonly ChapterDef[] = [
       waves: [
         [
           ['bulwark', 2],
-          ['thrall', 3],
+          ['revenant', 3],
         ],
         [
-          ['seer', 2],
-          ['imp', 4],
+          ['hexcaller', 2],
+          ['ember_wisp', 4],
         ],
         [
-          ['brute', 1],
-          ['wretch', 2],
+          ['magma_golem', 1],
+          ['gloom_bat', 5],
         ],
       ],
     },
@@ -393,14 +416,18 @@ export const CHAPTERS: readonly ChapterDef[] = [
       name: 'Hall of Chains',
       arena: 'ash_gate',
       waves: [
-        [['bulwark', 3]],
         [
-          ['seer', 3],
-          ['wretch', 2],
+          ['hex_wisp', 2],
+          ['revenant', 3],
         ],
         [
-          ['brute', 2],
-          ['bulwark', 1],
+          ['bulwark', 2],
+          ['ember_wisp', 4],
+        ],
+        [
+          ['magma_golem', 1],
+          ['hexcaller', 2],
+          ['gloom_bat', 3],
         ],
       ],
     },
@@ -408,17 +435,14 @@ export const CHAPTERS: readonly ChapterDef[] = [
       name: 'The Weeping Stair',
       arena: 'bound_spire',
       waves: [
+        [['gloom_bat', 10]],
         [
-          ['wretch', 4],
-          ['seer', 1],
+          ['revenant', 4],
+          ['hex_wisp', 2],
         ],
         [
-          ['imp', 6],
-          ['bulwark', 1],
-        ],
-        [
-          ['brute', 2],
-          ['seer', 2],
+          ['magma_golem', 2],
+          ['ember_wisp', 3],
         ],
       ],
     },
@@ -430,11 +454,11 @@ export const CHAPTERS: readonly ChapterDef[] = [
       waves: [
         [
           ['bulwark', 2],
-          ['seer', 2],
+          ['hexcaller', 2],
         ],
         [
-          ['brute', 1],
-          ['wretch', 3],
+          ['revenant', 3],
+          ['gloom_bat', 5],
         ],
       ],
       parTimeSec: 280,
@@ -443,15 +467,19 @@ export const CHAPTERS: readonly ChapterDef[] = [
       name: 'Gallery of Ash',
       arena: 'cinder_court',
       waves: [
-        [['seer', 4]],
         [
-          ['bulwark', 3],
-          ['wretch', 2],
+          ['ember_wisp', 6],
+          ['revenant', 2],
         ],
         [
-          ['brute', 2],
-          ['imp', 4],
-          ['seer', 1],
+          ['magma_golem', 1],
+          ['bulwark', 2],
+          ['hex_wisp', 1],
+        ],
+        [
+          ['gloom_bat', 6],
+          ['hexcaller', 2],
+          ['revenant', 2],
         ],
       ],
     },
@@ -460,13 +488,16 @@ export const CHAPTERS: readonly ChapterDef[] = [
       arena: 'bound_spire',
       waves: [
         [
-          ['brute', 2],
-          ['bulwark', 2],
+          ['magma_golem', 2],
+          ['gloom_bat', 4],
         ],
-        [['wretch', 5]],
         [
-          ['seer', 3],
+          ['hex_wisp', 3],
+          ['revenant', 3],
+        ],
+        [
           ['bulwark', 2],
+          ['ember_wisp', 5],
         ],
       ],
     },
@@ -475,16 +506,17 @@ export const CHAPTERS: readonly ChapterDef[] = [
       arena: 'bound_spire',
       waves: [
         [
-          ['bulwark', 2],
-          ['seer', 2],
-          ['wretch', 2],
+          ['revenant', 5],
+          ['hexcaller', 2],
         ],
-        [['brute', 3]],
         [
-          ['brute', 1],
-          ['bulwark', 2],
-          ['seer', 2],
-          ['wretch', 2],
+          ['magma_golem', 2],
+          ['hex_wisp', 2],
+        ],
+        [
+          ['gloom_bat', 8],
+          ['revenant', 3],
+          ['ember_wisp', 3],
         ],
       ],
     },
@@ -495,11 +527,12 @@ export const CHAPTERS: readonly ChapterDef[] = [
       waves: [
         [
           ['bulwark', 2],
-          ['seer', 2],
+          ['hex_wisp', 2],
         ],
         [
-          ['brute', 1],
-          ['wretch', 3],
+          ['magma_golem', 1],
+          ['revenant', 3],
+          ['gloom_bat', 4],
         ],
       ],
       parTimeSec: 420,
@@ -512,14 +545,14 @@ export const CHAPTERS: readonly ChapterDef[] = [
       waves: [
         [
           ['ash_hound', 3],
-          ['thrall', 2],
+          ['gloom_bat', 4],
         ],
         [
           ['broodling', 5],
-          ['seer', 1],
+          ['ember_wisp', 3],
         ],
         [
-          ['brute', 1],
+          ['magma_golem', 1],
           ['ash_hound', 3],
         ],
       ],
@@ -528,13 +561,16 @@ export const CHAPTERS: readonly ChapterDef[] = [
       name: 'Webbed Galleries',
       arena: 'hollow_deep',
       waves: [
-        [['broodling', 6]],
         [
-          ['bulwark', 2],
+          ['broodling', 6],
+          ['hex_wisp', 1],
+        ],
+        [
+          ['revenant', 3],
           ['broodling', 4],
         ],
         [
-          ['seer', 2],
+          ['hexcaller', 2],
           ['ash_hound', 3],
         ],
       ],
@@ -543,14 +579,17 @@ export const CHAPTERS: readonly ChapterDef[] = [
       name: 'The Kennels of Ash',
       arena: 'ashen_wastes',
       waves: [
-        [['ash_hound', 5]],
         [
-          ['brute', 2],
-          ['ash_hound', 2],
+          ['ash_hound', 5],
+          ['ember_wisp', 3],
         ],
         [
-          ['wretch', 3],
-          ['ash_hound', 4],
+          ['magma_golem', 1],
+          ['ash_hound', 3],
+        ],
+        [
+          ['hex_wisp', 2],
+          ['gloom_bat', 6],
         ],
       ],
     },
@@ -562,11 +601,11 @@ export const CHAPTERS: readonly ChapterDef[] = [
       waves: [
         [
           ['ash_hound', 3],
-          ['bulwark', 1],
+          ['revenant', 2],
         ],
         [
-          ['ash_hound', 2],
-          ['seer', 2],
+          ['ember_wisp', 4],
+          ['gloom_bat', 4],
         ],
       ],
       parTimeSec: 300,
@@ -576,16 +615,16 @@ export const CHAPTERS: readonly ChapterDef[] = [
       arena: 'hollow_deep',
       waves: [
         [
-          ['broodling', 5],
-          ['wretch', 2],
+          ['broodling', 6],
+          ['hexcaller', 2],
         ],
         [
-          ['bulwark', 2],
-          ['seer', 2],
+          ['magma_golem', 1],
+          ['hex_wisp', 2],
         ],
         [
           ['broodling', 6],
-          ['brute', 1],
+          ['revenant', 3],
         ],
       ],
     },
@@ -595,10 +634,13 @@ export const CHAPTERS: readonly ChapterDef[] = [
       kind: 'miniboss',
       boss: 'brood_weaver',
       waves: [
-        [['broodling', 6]],
         [
-          ['broodling', 3],
-          ['seer', 2],
+          ['broodling', 6],
+          ['gloom_bat', 4],
+        ],
+        [
+          ['broodling', 4],
+          ['hex_wisp', 2],
         ],
       ],
       parTimeSec: 300,
@@ -608,17 +650,17 @@ export const CHAPTERS: readonly ChapterDef[] = [
       arena: 'hollow_deep',
       waves: [
         [
-          ['ash_hound', 3],
-          ['broodling', 3],
+          ['ash_hound', 4],
+          ['broodling', 4],
         ],
         [
-          ['brute', 2],
-          ['seer', 2],
+          ['magma_golem', 2],
+          ['hexcaller', 2],
         ],
         [
-          ['bulwark', 2],
+          ['revenant', 4],
+          ['hex_wisp', 2],
           ['ash_hound', 3],
-          ['wretch', 2],
         ],
       ],
     },
@@ -629,12 +671,13 @@ export const CHAPTERS: readonly ChapterDef[] = [
       waves: [
         [
           ['ash_hound', 3],
-          ['broodling', 3],
+          ['broodling', 4],
+          ['ember_wisp', 3],
         ],
         [
-          ['brute', 1],
-          ['bulwark', 1],
-          ['seer', 2],
+          ['magma_golem', 1],
+          ['hex_wisp', 2],
+          ['revenant', 2],
         ],
       ],
       parTimeSec: 440,

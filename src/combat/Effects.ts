@@ -1,9 +1,14 @@
 import {
+  AdditiveBlending,
   BoxGeometry,
+  Color,
+  InstancedBufferAttribute,
   InstancedMesh,
   Matrix4,
   MeshBasicMaterial,
+  PlaneGeometry,
   Quaternion,
+  ShaderMaterial,
   SphereGeometry,
   Vector3,
   type BufferGeometry,
@@ -42,10 +47,18 @@ export interface EffectVisuals {
   ): void;
 }
 
-const MAX_PROJECTILES = 48;
+const MAX_PROJECTILES = 160;
 const MAX_ZONES = 24;
 const MAX_HITS = 12;
-const PROJECTILE_VISUALS = ['arrow', 'bolt', 'fireball', 'shadow'] as const;
+const PROJECTILE_VISUALS = ['arrow', 'bolt', 'fireball', 'shadow', 'orb'] as const;
+/** Glow halo size per visual (m). */
+const HALO: Record<ProjectileDef['visual'], number> = {
+  arrow: 0.45,
+  bolt: 1,
+  fireball: 1.7,
+  shadow: 0.6,
+  orb: 1.05,
+};
 
 interface Projectile {
   active: boolean;
@@ -120,6 +133,9 @@ export class Effects {
   private readonly meshes = new Map<ProjectileDef['visual'], InstancedMesh>();
   private readonly geometries: BufferGeometry[] = [];
   private readonly materials: MeshBasicMaterial[] = [];
+  private readonly halos: InstancedMesh;
+  private readonly haloMat: ShaderMaterial;
+  private readonly col = new Color();
   private readonly m = new Matrix4();
   private readonly q = new Quaternion();
   private readonly pos = new Vector3();
@@ -179,24 +195,40 @@ export class Effects {
         extraStatus: null,
       });
     }
-    const looks: Record<ProjectileDef['visual'], { geo: BufferGeometry; color: number }> = {
-      arrow: { geo: new BoxGeometry(0.06, 0.06, 0.8), color: 0xf0dcc0 },
-      bolt: { geo: new SphereGeometry(0.22, 10, 8), color: 0xb070ff },
-      fireball: { geo: new SphereGeometry(0.42, 12, 10), color: 0xff7a2a },
-      shadow: { geo: new BoxGeometry(0.08, 0.08, 0.9), color: 0xa080ff },
-    };
     for (const v of PROJECTILE_VISUALS) {
-      const look = looks[v];
-      const mat = new MeshBasicMaterial({ color: look.color, toneMapped: false });
-      const mesh = new InstancedMesh(look.geo, mat, MAX_PROJECTILES);
+      const look = LOOKS[v];
+      // White base: each instance carries its own colour.
+      const mat = new MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
+      const mesh = new InstancedMesh(look.geo(), mat, MAX_PROJECTILES);
+      mesh.instanceColor = new InstancedBufferAttribute(
+        new Float32Array(MAX_PROJECTILES * 3).fill(1),
+        3,
+      );
       mesh.count = 0;
       mesh.visible = false;
       mesh.frustumCulled = false;
       scene.add(mesh);
       this.meshes.set(v, mesh);
-      this.geometries.push(look.geo);
+      this.geometries.push(mesh.geometry);
       this.materials.push(mat);
     }
+    // One billboard glow per projectile, all visuals in one draw call.
+    this.haloMat = new ShaderMaterial({
+      vertexShader: HALO_VERT,
+      fragmentShader: HALO_FRAG,
+      transparent: true,
+      depthWrite: false,
+      blending: AdditiveBlending,
+    });
+    this.halos = new InstancedMesh(new PlaneGeometry(1, 1), this.haloMat, MAX_PROJECTILES);
+    this.halos.instanceColor = new InstancedBufferAttribute(
+      new Float32Array(MAX_PROJECTILES * 3).fill(1),
+      3,
+    );
+    this.halos.count = 0;
+    this.halos.frustumCulled = false;
+    this.halos.renderOrder = 7;
+    scene.add(this.halos);
   }
 
   // ------------------------------------------------------------------ emitting
@@ -222,9 +254,15 @@ export class Effects {
           yaw = Math.atan2(lockTarget.x - owner.currFeet.x, lockTarget.z - owner.currFeet.z);
       }
       const n = Math.max(1, emit.count);
+      yaw += ((emit.angleOffsetDeg ?? 0) * Math.PI) / 180;
       const spread = (emit.spreadDeg * Math.PI) / 180;
       for (let i = 0; i < n; i++) {
-        const a = n === 1 ? yaw : yaw - spread / 2 + (spread * i) / (n - 1);
+        const a =
+          emit.pattern === 'ring'
+            ? yaw + (i / n) * Math.PI * 2
+            : n === 1
+              ? yaw
+              : yaw - spread / 2 + (spread * i) / (n - 1);
         this.spawnProjectile(owner, spec, emit.projectile, a, opts);
       }
       return;
@@ -536,6 +574,7 @@ export class Effects {
   // ------------------------------------------------------------------ render / lifecycle
 
   render(): void {
+    let h = 0;
     for (const v of PROJECTILE_VISUALS) {
       const mesh = this.meshes.get(v);
       if (mesh === undefined) continue;
@@ -546,11 +585,27 @@ export class Effects {
         this.fwd.set(p.dirX, 0, p.dirZ);
         this.q.setFromUnitVectors(FORWARD, this.fwd);
         this.m.compose(this.pos, this.q, this.scl);
+        this.col.setHex(p.def.color ?? LOOKS[v].color);
+        mesh.setColorAt(n, this.col);
         mesh.setMatrixAt(n++, this.m);
+        // Halo: position + size in the matrix, colour per instance.
+        const s = HALO[v] * (p.def.explodeRadius !== undefined ? 1.2 : 1);
+        this.m.makeScale(s, s, s).setPosition(this.pos);
+        this.halos.setMatrixAt(h, this.m);
+        this.halos.setColorAt(h++, this.col);
       }
       mesh.count = n;
       mesh.visible = n > 0;
-      if (n > 0) mesh.instanceMatrix.needsUpdate = true;
+      if (n > 0) {
+        mesh.instanceMatrix.needsUpdate = true;
+        if (mesh.instanceColor !== null) mesh.instanceColor.needsUpdate = true;
+      }
+    }
+    this.halos.count = h;
+    this.halos.visible = h > 0;
+    if (h > 0) {
+      this.halos.instanceMatrix.needsUpdate = true;
+      if (this.halos.instanceColor !== null) this.halos.instanceColor.needsUpdate = true;
     }
   }
 
@@ -576,6 +631,8 @@ export class Effects {
       mesh.count = 0;
       mesh.visible = false;
     }
+    this.halos.count = 0;
+    this.halos.visible = false;
   }
 
   /** Make every projectile mesh visible once (shader warm-up). */
@@ -591,7 +648,48 @@ export class Effects {
     }
     for (const g of this.geometries) g.dispose();
     for (const m of this.materials) m.dispose();
+    this.halos.removeFromParent();
+    this.halos.geometry.dispose();
+    this.haloMat.dispose();
   }
 }
 
 const FORWARD = new Vector3(0, 0, 1);
+
+/** Core shape and default colour per projectile visual. */
+const LOOKS: Record<ProjectileDef['visual'], { geo: () => BufferGeometry; color: number }> = {
+  arrow: { geo: () => new BoxGeometry(0.06, 0.06, 0.8), color: 0xf0dcc0 },
+  bolt: { geo: () => new SphereGeometry(0.2, 10, 8), color: 0xb070ff },
+  fireball: { geo: () => new SphereGeometry(0.36, 12, 10), color: 0xff7a2a },
+  shadow: { geo: () => new BoxGeometry(0.08, 0.08, 0.9), color: 0xa080ff },
+  orb: { geo: () => new SphereGeometry(0.17, 10, 8), color: 0xff5a8a },
+};
+
+const HALO_VERT = /* glsl */ `
+varying vec2 vUv;
+varying vec3 vColor;
+void main() {
+  vUv = uv;
+  #ifdef USE_INSTANCING_COLOR
+  vColor = instanceColor;
+  #else
+  vColor = vec3(1.0);
+  #endif
+  vec3 c = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+  float s = length(instanceMatrix[0].xyz);
+  vec3 right = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
+  vec3 up = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
+  vec3 p = c + (right * position.x + up * position.y) * s;
+  gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+}`;
+
+const HALO_FRAG = /* glsl */ `
+varying vec2 vUv;
+varying vec3 vColor;
+void main() {
+  float r = length(vUv * 2.0 - 1.0);
+  float core = 1.0 - smoothstep(0.0, 0.3, r);
+  float glow = pow(max(0.0, 1.0 - r), 2.4);
+  float a = core * 0.9 + glow * 0.75;
+  gl_FragColor = vec4(mix(vColor, vec3(1.0), core * 0.7) * a * 1.6, a);
+}`;

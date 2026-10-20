@@ -50,6 +50,8 @@ export interface CreaturePlan {
   readonly core: Readonly<Record<CoreBone, string>>;
   /** Bone whose position is lifted / lowered by the pose (body bob, crouch, death sink). */
   readonly bodyBone: string;
+  /** Glow parts blend additively (translucent fire / spirit bodies) instead of opaque. */
+  readonly additiveGlow?: boolean;
   readonly sockets: Readonly<Record<SocketName, { bone: string; offset: Vector3 }>>;
   build(
     def: CreatureDef,

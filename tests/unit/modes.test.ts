@@ -88,8 +88,9 @@ describe('demon tower', () => {
 
   it('only allows enemy types from their unlock floor', () => {
     const early = towerStage(2);
-    for (const w of early.waves)
-      for (const sp of w.spawns) expect(['thrall', 'imp']).toContain(sp.enemy);
+    const allowed = TOWER_CONFIG.enemyUnlocks.filter((u) => u.floor <= 2).map((u) => u.enemy);
+    for (const w of early.waves) for (const sp of w.spawns) expect(allowed).toContain(sp.enemy);
+    expect(allowed).not.toContain('magma_golem');
   });
 
   it('milestones every 5 floors with growing rewards', () => {
