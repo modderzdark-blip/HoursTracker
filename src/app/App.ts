@@ -138,6 +138,10 @@ export interface TestHookState {
   joystickActive: boolean;
   move: { x: number; y: number };
   debugOverlay: boolean;
+  /** Live values the settings drive (e2e checks that options really apply). */
+  camera: { distance: number; height: number; fov: number; shake: number };
+  pixelRatio: number;
+  preset: { shadows: boolean; bloom: boolean; particleCount: number };
 }
 
 export interface TestHookCommands {
@@ -965,6 +969,18 @@ export class App {
           joystickActive: this.touch.joystickActive,
           move: this.input.readMove({ x: 0, y: 0 }),
           debugOverlay: this.overlay.isVisible,
+          camera: {
+            distance: this.camera.options.distance,
+            height: this.camera.options.height,
+            fov: this.camera.camera.fov,
+            shake: this.camera.options.shake,
+          },
+          pixelRatio: this.ctx.currentPixelRatio,
+          preset: {
+            shadows: this.quality.preset.shadows,
+            bloom: this.quality.preset.bloom,
+            particleCount: this.quality.preset.particleCount,
+          },
         };
       },
     };

@@ -63,6 +63,7 @@ interface Finding {
 }
 
 const SEED_URL = '__ui_audit_seed';
+const SETTINGS_SECTIONS = ['camera', 'graphics', 'controls', 'display', 'audio', 'gameplay'];
 
 async function screen(page: Page, findings: Finding[], name: string, where: Where): Promise<void> {
   for (const vp of VIEWPORTS) {
@@ -302,6 +303,18 @@ async function run(page: Page, findings: Finding[]): Promise<void> {
     t?.classList.remove('is-left');
     t?.style.setProperty('--btn-scale', '1');
   });
+  // Settings → HUD scale at its largest (130%).
+  await page.evaluate(() => {
+    const r = document.getElementById('ui-root');
+    r?.classList.add('hud-scaled');
+    r?.style.setProperty('--hud-scale', '1.3');
+  });
+  await screen(page, findings, 'battle-boss-hud-130', BATTLE);
+  await page.evaluate(() => {
+    const r = document.getElementById('ui-root');
+    r?.classList.remove('hud-scaled');
+    r?.style.setProperty('--hud-scale', '1');
+  });
   await page.evaluate(() => {
     document.querySelector('.pause-menu')?.classList.remove('is-hidden');
     const banner = document.querySelector<HTMLElement>('.bhud-banner');
@@ -396,6 +409,11 @@ async function run(page: Page, findings: Finding[]): Promise<void> {
   await page.locator('.modal-panel .btn', { hasText: 'Close' }).tap();
   await tapTestId(page, 'filter-amulet');
   await screen(page, findings, 'gear-filtered', MENU);
+  // Bulk salvage including rare gear asks first (Settings → Gameplay → Confirm rare salvage).
+  await tapTestId(page, 'salvage-rare');
+  await expect(page.getByTestId('salvage-confirm')).toBeVisible();
+  await screen(page, findings, 'salvage-confirm', MODAL);
+  await tapTestId(page, 'salvage-cancel');
   await tapTestId(page, 'menu-back');
 
   await tapTestId(page, 'dock-skills');
@@ -415,7 +433,23 @@ async function run(page: Page, findings: Finding[]): Promise<void> {
 
   await tapTestId(page, 'dock-settings');
   await waitScreen(page, 'settings');
-  await screen(page, findings, 'settings', MENU);
+  for (const sec of SETTINGS_SECTIONS) {
+    await tapTestId(page, `settings-tab-${sec}`);
+    await expect(page.getByTestId('settings-content')).toHaveAttribute('data-section', sec);
+    await screen(page, findings, `settings-${sec}`, MENU);
+  }
+  await tapTestId(page, 'set-reset-all');
+  await expect(page.getByTestId('settings-reset-confirm')).toBeVisible();
+  await screen(page, findings, 'settings-reset-all', MODAL);
+  await tapTestId(page, 'settings-reset-cancel');
+  // "Larger menu text" scales every menu up; the settings screen itself must still fit.
+  await tapTestId(page, 'settings-tab-display');
+  await tapTestId(page, 'set-large-text-on');
+  await screen(page, findings, 'settings-display-large-text', MENU);
+  await tapTestId(page, 'settings-tab-camera');
+  await screen(page, findings, 'settings-camera-large-text', MENU);
+  await tapTestId(page, 'settings-tab-display');
+  await tapTestId(page, 'set-large-text-off');
   await tapTestId(page, 'menu-back');
 
   await tapTestId(page, 'mode-adventure');

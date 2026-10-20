@@ -56,6 +56,9 @@ export interface HookState {
   joystickActive: boolean;
   move: { x: number; y: number };
   debugOverlay: boolean;
+  camera: { distance: number; height: number; fov: number; shake: number };
+  pixelRatio: number;
+  preset: { shadows: boolean; bloom: boolean; particleCount: number };
 }
 
 type HookCommand =

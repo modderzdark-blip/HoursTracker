@@ -314,8 +314,10 @@ test.describe('Ashbound smoke (Pixel 7 landscape, touch)', () => {
     const errors = collectErrors(page);
     await enterHub(page);
     await page.getByTestId('dock-settings').tap();
+    await page.getByTestId('settings-tab-controls').tap();
     await page.getByTestId('set-hand-left').tap();
     await page.getByTestId('set-btn-scale-1.3').tap();
+    await page.getByTestId('settings-tab-display').tap();
     await page.getByTestId('set-numbers-off').tap();
     await page.getByTestId('menu-back').tap();
     await hook(page, 'startStage', 'c1s1');
