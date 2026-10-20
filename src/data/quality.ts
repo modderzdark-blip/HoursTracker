@@ -12,6 +12,8 @@ export interface QualityPreset {
   /** Half-size of the orthographic shadow frustum around the player (metres). */
   readonly shadowFrustumHalfSize: number;
   readonly bloom: boolean;
+  /** Colour grading pass (split toning, contrast, vignette, grain); replaces the CSS vignette. */
+  readonly grade: boolean;
   readonly vignette: boolean;
   /** Ember + dust particles alive at once. */
   readonly particleCount: number;
@@ -34,6 +36,7 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     shadowMapSize: 512,
     shadowFrustumHalfSize: 9,
     bloom: false,
+    grade: false,
     vignette: true,
     particleCount: 60,
     pointLights: false,
@@ -50,6 +53,7 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     shadowMapSize: 1024,
     shadowFrustumHalfSize: 10,
     bloom: false,
+    grade: true,
     vignette: true,
     particleCount: 160,
     pointLights: true,
@@ -66,6 +70,7 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     shadowMapSize: 2048,
     shadowFrustumHalfSize: 11,
     bloom: true,
+    grade: true,
     vignette: true,
     particleCount: 320,
     pointLights: true,

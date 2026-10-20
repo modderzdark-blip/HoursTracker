@@ -202,7 +202,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.arena = ARENAS[setup.stage.arena];
     this.difficulty = DIFFICULTIES[setup.difficulty];
     this.enemyScale = enemyScaleFor(setup.stage.level, setup.difficulty, setup.enemyMult);
-    this.builder = new ArenaBuilder(this.arena, d.physics, d.preset);
+    this.builder = new ArenaBuilder(this.arena, d.physics, d.preset, d.ctx.renderer);
     this.builder.addTo(this.scene);
     this.atmosphere = new Atmosphere(d.ctx, this.arena);
     this.embers = new EmberField(MAX_PARTICLES, this.arena.palette.ember);
@@ -1090,6 +1090,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
       }
     }
     this.atmosphere.update(feet, realDtSec);
+    this.builder.update(realDtSec);
     this.embers.update(realDtSec, feet);
     this.telegraphs.tick(realDtSec * 1000);
     this.effects.render();

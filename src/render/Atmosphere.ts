@@ -12,7 +12,9 @@ import {
   type WebGLRenderer,
 } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import type { ArenaDef } from '../data/arenas';
+import { ARENA_LOOKS } from '../data/arenaLooks';
+import type { ArenaDef, ArenaId } from '../data/arenas';
+import { Sky } from './env/Sky';
 import type { QualityPreset } from '../data/quality';
 import type { RenderContext } from './RenderContext';
 
@@ -26,6 +28,7 @@ export class Atmosphere {
   readonly moon: DirectionalLight;
   readonly hemi: HemisphereLight;
   readonly braziers: PointLight[] = [];
+  readonly sky: Sky;
   private readonly envMap: Texture;
   private readonly scene: Scene;
   private readonly lightDir = new Vector3();
@@ -47,6 +50,19 @@ export class Atmosphere {
     const l = arena.lighting;
     scene.background = new Color(p.background);
     scene.fog = new FogExp2(p.fog, p.fogDensity);
+    const look = ARENA_LOOKS[arena.id as ArenaId];
+    const s = look.sky;
+    this.sky = new Sky({
+      zenith: s.zenith,
+      horizon: s.horizon,
+      moon: s.open ? s.moon : 0x000000,
+      moonDir: l.moonDirection,
+      stars: s.stars,
+      clouds: s.clouds,
+      cloudColor: s.cloudColor,
+    });
+    scene.add(this.sky.mesh);
+    ctx.setGrade(look.grade);
 
     this.envMap = createEnvironment(ctx.renderer);
     scene.environment = this.envMap;
@@ -113,6 +129,7 @@ export class Atmosphere {
     this.moon.position.copy(this.snapped).addScaledVector(this.lightDir, 30);
 
     this.time += dtSec;
+    this.sky.update(dtSec, focus);
     const base = this.arena.lighting.brazierIntensity;
     for (let i = 0; i < this.braziers.length; i++) {
       const light = this.braziers[i];
@@ -123,6 +140,7 @@ export class Atmosphere {
   }
 
   dispose(): void {
+    this.sky.dispose();
     this.envMap.dispose();
     this.moon.shadow.map?.dispose();
     this.moon.dispose();

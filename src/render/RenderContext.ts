@@ -14,6 +14,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { BLOOM_CONFIG, resolvePixelRatio } from '../data/quality';
+import { DEFAULT_GRADE, GradePass, type ColorGrade } from './GradePass';
 
 export interface FrameRenderInfo {
   calls: number;
@@ -35,6 +36,8 @@ export class RenderContext {
   private composer: EffectComposer | null = null;
   private renderPass: RenderPass | null = null;
   private bloomPass: UnrealBloomPass | null = null;
+  private gradePass: GradePass | null = null;
+  private grade: ColorGrade = DEFAULT_GRADE;
   private width = 1;
   private height = 1;
   private pixelRatio = 1;
@@ -43,8 +46,10 @@ export class RenderContext {
 
   constructor(
     readonly canvas: HTMLCanvasElement,
-    antialias: boolean,
+    /** MSAA on the canvas, and on the post-processing target when post effects are on. */
+    private readonly msaa: boolean,
   ) {
+    const antialias = msaa;
     this.renderer = new WebGLRenderer({
       canvas,
       antialias,
@@ -75,7 +80,7 @@ export class RenderContext {
   }
 
   get bloomEnabled(): boolean {
-    return this.composer !== null;
+    return this.bloomPass !== null;
   }
 
   get currentPixelRatio(): number {
@@ -108,35 +113,58 @@ export class RenderContext {
     if (this.bloomPass !== null) this.bloomPass.strength = this.bloomStrength;
   }
 
+  /** Shorthand kept for tools: bloom on/off with grading following it. */
   setBloom(enabled: boolean, camera: Camera): void {
-    if (enabled === this.bloomEnabled) return;
-    if (!enabled) {
-      this.disposeComposer();
+    this.setPost({ bloom: enabled, grade: enabled }, camera);
+  }
+
+  /** Colour grade for the current scene (each arena has its own). */
+  setGrade(grade: ColorGrade): void {
+    this.grade = grade;
+    this.gradePass?.setGrade(grade);
+  }
+
+  /**
+   * Post-processing chain: RenderPass → [bloom] → OutputPass (tone mapping + sRGB) → [grade].
+   * With neither effect the scene renders straight to the canvas.
+   */
+  setPost(post: { readonly bloom: boolean; readonly grade: boolean }, camera: Camera): void {
+    if (
+      post.bloom === (this.bloomPass !== null) &&
+      post.grade === (this.gradePass !== null) &&
+      (this.composer !== null) === (post.bloom || post.grade)
+    )
       return;
-    }
-    const isWebGL2 = this.renderer.capabilities.isWebGL2;
+    this.disposeComposer();
+    if (!post.bloom && !post.grade) return;
     const target = new WebGLRenderTarget(
       this.width * this.pixelRatio,
       this.height * this.pixelRatio,
-      { type: HalfFloatType, samples: isWebGL2 ? 4 : 0 },
+      { type: HalfFloatType, samples: this.msaa ? 4 : 0 },
     );
     const composer = new EffectComposer(this.renderer, target);
     composer.setPixelRatio(this.pixelRatio);
     composer.setSize(this.width, this.height);
     this.renderPass = new RenderPass(this.scene, camera);
-    const res = new Vector2(
-      this.width * BLOOM_CONFIG.resolutionScale,
-      this.height * BLOOM_CONFIG.resolutionScale,
-    );
-    this.bloomPass = new UnrealBloomPass(
-      res,
-      this.bloomStrength,
-      BLOOM_CONFIG.radius,
-      BLOOM_CONFIG.threshold,
-    );
     composer.addPass(this.renderPass);
-    composer.addPass(this.bloomPass);
+    if (post.bloom) {
+      const res = new Vector2(
+        this.width * BLOOM_CONFIG.resolutionScale,
+        this.height * BLOOM_CONFIG.resolutionScale,
+      );
+      this.bloomPass = new UnrealBloomPass(
+        res,
+        this.bloomStrength,
+        BLOOM_CONFIG.radius,
+        BLOOM_CONFIG.threshold,
+      );
+      composer.addPass(this.bloomPass);
+    }
     composer.addPass(new OutputPass());
+    if (post.grade) {
+      this.gradePass = new GradePass(this.grade);
+      composer.addPass(this.gradePass);
+    }
     this.composer = composer;
   }
 
@@ -166,12 +194,14 @@ export class RenderContext {
   private disposeComposer(): void {
     if (this.composer === null) return;
     this.bloomPass?.dispose();
+    this.gradePass?.dispose();
     this.composer.dispose();
     this.composer.renderTarget1.dispose();
     this.composer.renderTarget2.dispose();
     this.composer = null;
     this.renderPass = null;
     this.bloomPass = null;
+    this.gradePass = null;
   }
 
   private readonly onContextLost = (e: Event): void => {

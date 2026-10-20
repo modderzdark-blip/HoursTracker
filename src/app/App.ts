@@ -20,6 +20,7 @@ import {
   QUALITY_PRESETS,
   type QualityLevel,
   type QualityPreset,
+  type QualitySetting,
 } from '../data/quality';
 import { DebugOverlay } from '../debug/DebugOverlay';
 import { collectDeviceInfo, detectMobile, readHeapMB, type DeviceInfo } from '../debug/deviceInfo';
@@ -156,6 +157,7 @@ export interface TestHookCommands {
   fillUltimate: () => void;
   restart: () => void;
   startStage: (stageId: string, difficulty?: DifficultyId) => void;
+  setQuality: (q: QualitySetting) => void;
   grant: (currency: Currency, amount: number) => void;
   goHub: () => void;
   /** Test/debug: unlock and select a hero. */
@@ -721,8 +723,8 @@ export class App {
       preset.maxPixelRatio,
       this.opts.save.settings.renderScale,
     );
-    this.ctx.setBloom(preset.bloom, this.camera.camera);
-    this.vignette.classList.toggle('is-hidden', !preset.vignette);
+    this.ctx.setPost({ bloom: preset.bloom, grade: preset.grade }, this.camera.camera);
+    this.vignette.classList.toggle('is-hidden', !preset.vignette || preset.grade);
     this.loop.requestRender();
   }
 
@@ -877,6 +879,7 @@ export class App {
       fillUltimate: () => this.fillUltimate(),
       restart: () => this.battle?.startRun(),
       startStage: (stageId, difficulty = 'normal') => this.runs.startAdventure(stageId, difficulty),
+      setQuality: (q) => this.settingsPort().setQuality(q),
       grant: (c, n) => this.grant(c, n),
       goHub: () => {
         this.endBattle();
