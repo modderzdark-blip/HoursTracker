@@ -275,7 +275,7 @@ export const VALKA: HeroDef = {
     hits: [
       ...[0, 300, 600, 900, 1200, 1500].map((offsetMs) => ({
         offsetMs,
-        spec: strike(1.0, circle(0.1, 0), {
+        spec: strike(0.5, circle(0.1, 0), {
           poise: 40,
           reaction: 'knockback' as const,
           knockback: 1.0,

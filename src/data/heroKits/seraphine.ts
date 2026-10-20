@@ -273,7 +273,7 @@ export const SERAPHINE: HeroDef = {
     hits: [
       ...[0, 300, 600, 900, 1200, 1500, 1800].map((offsetMs) => ({
         offsetMs,
-        spec: strike(1.0, circle(0.1, 0), {
+        spec: strike(0.5, circle(0.1, 0), {
           poise: 40,
           reaction: 'knockback' as const,
           knockback: 1.2,
@@ -291,7 +291,7 @@ export const SERAPHINE: HeroDef = {
       })),
       {
         offsetMs: 2000,
-        spec: strike(0.5, circle(0.1, 0), {
+        spec: strike(0.35, circle(0.1, 0), {
           poise: 5,
           knockback: 0,
           hitStopMs: 0,
