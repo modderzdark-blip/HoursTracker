@@ -43,13 +43,13 @@ export interface DodgeDef {
   readonly counterDamageMult: number;
 }
 
-export type SkillSpecial = 'none' | 'shadowStep' | 'steerable' | 'charge';
+export type SkillSpecial = 'none' | 'shadowStep' | 'steerable' | 'charge' | 'leap';
 
 export interface SkillDef extends ActionDef {
   readonly name: string;
   readonly cooldownMs: number;
   readonly special: SkillSpecial;
-  /** For 'shadowStep': search radius for a target to appear behind. */
+  /** For 'shadowStep': search radius for a target to appear behind; 'leap': longest jump. */
   readonly targetRange?: number;
   /** For 'steerable': movement speed multiplier while active. */
   readonly steerSpeedMult?: number;

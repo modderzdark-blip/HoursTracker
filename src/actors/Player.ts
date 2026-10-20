@@ -220,6 +220,15 @@ export class Player extends Actor {
     return false;
   }
 
+  /** Guard stances (`damageTakenMult` on the action) reduce incoming damage while they run. */
+  override damageTakenMult(): number {
+    const mult = this.actionDef?.damageTakenMult;
+    if (mult === undefined) return 1;
+    return this.state === 'attack' || this.state === 'skill' || this.state === 'ultimate'
+      ? mult
+      : 1;
+  }
+
   hasSuperArmor(): boolean {
     if (
       this.state === 'skill' &&
@@ -606,6 +615,9 @@ export class Player extends Actor {
   private lungeFor(def: ActionDef, state: 'attack' | 'skill' | 'ultimate'): number {
     const base = def.move?.distance ?? 0;
     const target = this.aimTarget;
+    // Leaping skills land on the aimed enemy (up to `targetRange`), or travel their data distance.
+    if (state === 'skill' && this.skillDef?.special === 'leap' && target !== null)
+      return Math.min(this.skillDef.targetRange ?? base, Math.max(0.5, this.gapTo(target)));
     if (state !== 'attack' || target === null || base <= 0) return base;
     if (this.def.rangedCombo?.includes(def) === true) return base;
     const shape = def.hits[0]?.spec.shape;

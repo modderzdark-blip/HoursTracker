@@ -170,6 +170,10 @@ export class CombatSystem {
       target.onEvaded();
       return false;
     }
+    if (spec.pull === true) {
+      dirX = -dirX;
+      dirZ = -dirZ;
+    }
     const block = target.blockFactor(attacker);
     const blocked = block < 1;
     computeDamage(
@@ -188,6 +192,7 @@ export class CombatSystem {
     );
     const applied = target.health.damage(this.dmg.amount);
     const killed = target.health.dead;
+    if (spec.drain !== undefined && applied > 0) attacker.health.heal(applied * spec.drain);
     const poiseBroken =
       !killed && target.poise.apply(spec.poise * (blocked ? target.blockedPoiseMult() : 1));
     let status: StatusId | null = null;
