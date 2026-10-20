@@ -405,7 +405,8 @@ class Builder {
         eyeGlow(hr * 0.84, hr * 0.95, 0.12, 0.32);
         break;
       case 'hood':
-      case 'cowl': {
+      case 'cowl':
+      case 'deathhood': {
         // Deep hood (outer cloth + darker lining) around a recessed, shadowed face; only the
         // eyes catch the light.
         this.body.add(
@@ -465,6 +466,8 @@ class Builder {
             head,
           );
           eyeGlow(hr * 0.96, hr * 1.0, 0.14, 0.3);
+        } else if (kind === 'deathhood') {
+          this.skullMask(c, hr, head);
         } else {
           if (this.O.mask === true) {
             this.body.add(
@@ -571,6 +574,21 @@ class Builder {
         );
         break;
       }
+      case 'brim':
+        skull();
+        eyeGlow(hr * 0.84, hr * 0.95, 0.12, 0.32);
+        this.brimHat(c, hr, head);
+        break;
+      case 'topknot':
+        skull();
+        eyeGlow(hr * 0.84, hr * 0.95, 0.12, 0.32);
+        this.topknot(c, hr, head);
+        break;
+      case 'winged':
+        skull();
+        eyeGlow(hr * 0.84, hr * 0.95, 0.12, 0.32);
+        this.wingedHelm(c, hr, head);
+        break;
       case 'crown': {
         skull();
         eyeGlow(hr * 0.84, hr * 0.95, 0.13, 0.32);
@@ -630,6 +648,247 @@ class Builder {
     }
   }
 
+  /** Hair falling from the back of the head over the shoulders (turns with the head, then the chest). */
+  private hairW(c: Vector3, hr: number): WeightFn {
+    const iHead = this.bi('Head');
+    const iNeck = this.bi('Neck');
+    const iChest = this.bi('Chest');
+    return (v, out) => {
+      const k = smooth01(c.y + hr * 0.2, c.y - hr * 0.9, v.y);
+      out.push([iHead, 1 - k], [iNeck, k * 0.35], [iChest, k * 0.65]);
+    };
+  }
+
+  /** Wide-brimmed pointed hat, its tip bent back, an ember band, long hair beneath. */
+  private brimHat(c: Vector3, hr: number, head: WeightFn): void {
+    const hair = SURF.fur(darken(this.L.body, 0.55));
+    this.body.add(
+      ellipsoid([c.x, c.y + hr * 1.0, c.z - hr * 0.1], [hr * 0.93, hr * 1.02, hr * 0.96], [12, 8], {
+        thetaLength: Math.PI * 0.62,
+      }),
+      hair,
+      head,
+    );
+    this.body.add(
+      loft(
+        [
+          { y: c.y + hr * 0.9, rx: hr * 0.9, rz: hr * 0.62, oz: -hr * 0.45 },
+          { y: c.y + hr * 0.1, rx: hr * 1.02, rz: hr * 0.6, oz: -hr * 0.62 },
+          { y: c.y - hr * 0.9, rx: hr * 1.18, rz: hr * 0.5, oz: -hr * 0.82 },
+          { y: c.y - hr * 1.8, rx: hr * 0.95, rz: hr * 0.34, oz: -hr * 1.05 },
+        ],
+        12,
+        false,
+        true,
+      ),
+      hair,
+      this.hairW(c, hr),
+    );
+    const by = c.y + hr * 1.45;
+    const felt = SURF.cloth(darken(this.L.body, 0.7));
+    this.body.add(
+      place(
+        loft(
+          [
+            { y: 0.012, rx: hr * 2.55, rz: hr * 2.6 },
+            { y: -0.006, rx: hr * 2.62, rz: hr * 2.68 },
+          ],
+          22,
+          true,
+          true,
+        ),
+        [c.x, by, c.z + hr * 0.05],
+        [0.12, 0, 0],
+      ),
+      felt,
+      head,
+    );
+    const tip = [
+      new Vector3(c.x, by, c.z),
+      new Vector3(c.x, by + hr * 1.3, c.z - hr * 0.15),
+      new Vector3(c.x, by + hr * 2.3, c.z - hr * 0.75),
+      new Vector3(c.x, by + hr * 2.65, c.z - hr * 1.55),
+    ];
+    this.body.add(
+      sweep(tip, (k) => hr * 0.98 * Math.pow(1 - k, 1.15) + 0.004, 14, 12),
+      felt,
+      head,
+    );
+    this.glow.add(
+      place(
+        new TorusGeometry(hr * 0.93, hr * 0.06, 5, 22),
+        [c.x, by + hr * 0.14, c.z],
+        [Math.PI / 2, 0, 0],
+      ),
+      SURF.glow(this.accent),
+      head,
+    );
+  }
+
+  /** Hair tied up in a knot, a cloth headband with a glowing stone. */
+  private topknot(c: Vector3, hr: number, head: WeightFn): void {
+    const hair = SURF.fur(0x1c1416);
+    this.body.add(
+      ellipsoid([c.x, c.y + hr * 1.02, c.z - hr * 0.1], [hr * 0.92, hr * 1.0, hr * 0.97], [12, 8], {
+        thetaLength: Math.PI * 0.56,
+      }),
+      hair,
+      head,
+    );
+    this.body.add(
+      ellipsoid([c.x, c.y + hr * 1.98, c.z - hr * 0.42], [hr * 0.34, hr * 0.32, hr * 0.34], [8, 6]),
+      hair,
+      head,
+    );
+    const band = SURF.cloth(this.O.scarf ?? this.L.trim);
+    this.body.add(
+      place(
+        new TorusGeometry(hr * 0.36, hr * 0.06, 5, 12),
+        [c.x, c.y + hr * 1.78, c.z - hr * 0.36],
+        [Math.PI / 2 + 0.5, 0, 0],
+      ),
+      band,
+      head,
+    );
+    this.body.add(
+      place(
+        new TorusGeometry(hr * 0.9, hr * 0.075, 5, 22),
+        [c.x, c.y + hr * 1.52, c.z - hr * 0.06],
+        [Math.PI / 2 + 0.18, 0, 0],
+        [1, 1.06, 1],
+      ),
+      band,
+      head,
+    );
+    this.glow.add(
+      ellipsoid([c.x, c.y + hr * 1.62, c.z + hr * 0.86], [hr * 0.09, hr * 0.11, hr * 0.05], [6, 5]),
+      SURF.glow(this.accent),
+      head,
+    );
+  }
+
+  /** Open-faced helm with a nasal guard, a glowing brow and three swept feathers per side. */
+  private wingedHelm(c: Vector3, hr: number, head: WeightFn): void {
+    const metal = SURF.plate(this.L.metal);
+    this.body.add(
+      ellipsoid(
+        [c.x, c.y + hr * 1.08, c.z - hr * 0.04],
+        [hr * 1.06, hr * 1.08, hr * 1.12],
+        [14, 8],
+        {
+          thetaLength: Math.PI * 0.55,
+        },
+      ),
+      metal,
+      head,
+    );
+    // Cheek guards and the back of the helm (the face stays open).
+    this.body.add(
+      ellipsoid(
+        [c.x, c.y + hr * 0.75, c.z - hr * 0.04],
+        [hr * 1.04, hr * 0.85, hr * 1.08],
+        [14, 8],
+        {
+          phiStart: Math.PI * 0.72,
+          phiLength: Math.PI * 1.56,
+          thetaStart: Math.PI * 0.35,
+          thetaLength: Math.PI * 0.4,
+        },
+      ),
+      metal,
+      head,
+    );
+    this.body.add(
+      place(new RoundedBoxGeometry(hr * 0.16, hr * 0.62, hr * 0.12, 1, hr * 0.04), [
+        c.x,
+        c.y + hr * 0.92,
+        c.z + hr * 1.06,
+      ]),
+      metal,
+      head,
+    );
+    this.glow.add(
+      place(
+        new RoundedBoxGeometry(hr * 1.3, hr * 0.07, hr * 0.06, 1, hr * 0.03),
+        [c.x, c.y + hr * 1.28, c.z + hr * 0.98],
+        [-0.15, 0, 0],
+      ),
+      SURF.glow(this.accent),
+      head,
+    );
+    const feather = SURF.steel(this.L.trim);
+    for (const s of [1, -1]) {
+      for (let k = 0; k < 3; k++) {
+        const o = new Vector3(c.x + s * hr * 0.98, c.y + hr * (1.05 + k * 0.18), c.z - hr * 0.1);
+        const len = hr * (2.3 - k * 0.45);
+        const pts = [
+          o,
+          o.clone().add(new Vector3(s * hr * 0.32, len * 0.32, -len * 0.38)),
+          o.clone().add(new Vector3(s * hr * 0.45, len * 0.62 + k * hr * 0.1, -len * 0.95)),
+        ];
+        this.body.add(
+          sweep(pts, (u) => hr * (0.13 - 0.1 * u), 8, 6),
+          feather,
+          head,
+        );
+      }
+    }
+  }
+
+  /** Bone skull mask in the hood: hollow sockets, a nose cavity, glowing eyes deep inside. */
+  private skullMask(c: Vector3, hr: number, head: WeightFn): void {
+    const bone = SURF.bone(0xcfc4ac);
+    this.body.add(
+      ellipsoid(
+        [c.x, c.y + hr * 0.92, c.z + hr * 0.16],
+        [hr * 0.7, hr * 0.84, hr * 0.68],
+        [14, 10],
+        {
+          phiStart: 0,
+          phiLength: Math.PI,
+        },
+      ),
+      bone,
+      head,
+    );
+    this.body.add(
+      ellipsoid(
+        [c.x, c.y + hr * 0.34, c.z + hr * 0.42],
+        [hr * 0.46, hr * 0.26, hr * 0.42],
+        [10, 6],
+      ),
+      bone,
+      head,
+    );
+    for (const s of [1, -1]) {
+      this.body.add(
+        ellipsoid(
+          [c.x + s * hr * 0.27, c.y + hr * 1.0, c.z + hr * 0.76],
+          [hr * 0.2, hr * 0.17, hr * 0.1],
+          [8, 6],
+        ),
+        SURF.void,
+        head,
+      );
+    }
+    this.body.add(
+      ellipsoid([c.x, c.y + hr * 0.7, c.z + hr * 0.82], [hr * 0.08, hr * 0.12, hr * 0.06], [6, 5]),
+      SURF.void,
+      head,
+    );
+    for (const s of [1, -1]) {
+      this.glow.add(
+        ellipsoid(
+          [c.x + s * hr * 0.27, c.y + hr * 1.0, c.z + hr * 0.8],
+          [hr * 0.09, hr * 0.06, hr * 0.04],
+          [8, 6],
+        ),
+        SURF.glow(this.L.eyes),
+        head,
+      );
+    }
+  }
+
   private hoodCloth(): Surf {
     return SURF.cloth(this.O.cape?.color ?? this.L.body);
   }
@@ -643,7 +902,9 @@ class Builder {
     const glove =
       a === 'hide' || a === 'rags' || a === 'straw'
         ? SURF.skin(this.L.skin)
-        : SURF.leather(darken(this.L.trim, 0.5));
+        : a === 'gi'
+          ? SURF.cloth(this.L.trim)
+          : SURF.leather(darken(this.L.trim, 0.5));
     for (const side of ['Left', 'Right'] as const) {
       const s = side === 'Left' ? 1 : -1;
       const sh = J[`${side}Arm`];
@@ -701,7 +962,9 @@ class Builder {
     const boot =
       a === 'hide' || a === 'rags' || a === 'straw'
         ? SURF.skin(darken(this.L.skin, 0.8))
-        : SURF.leather(darken(this.L.trim, 0.45));
+        : a === 'gi'
+          ? SURF.cloth(darken(this.L.trim, 0.8))
+          : SURF.leather(darken(this.L.trim, 0.45));
     for (const side of ['Left', 'Right'] as const) {
       const hip = J[`${side}UpLeg`];
       const knee = J[`${side}Leg`];
@@ -774,7 +1037,11 @@ class Builder {
           false,
           false,
         ),
-        a === 'robe' ? SURF.cloth(this.L.trim) : SURF.leather(darken(this.L.trim, 0.55)),
+        a === 'robe'
+          ? SURF.cloth(this.L.trim)
+          : a === 'gi'
+            ? SURF.cloth(this.O.tabard ?? this.L.trim)
+            : SURF.leather(darken(this.L.trim, 0.55)),
         this.torsoW,
       );
       this.body.add(
@@ -927,6 +1194,7 @@ class Builder {
         );
       }
     }
+    if (a === 'gi') this.gi();
     if (a === 'rags') {
       // Torn wraps around torso and arms.
       const wrap = SURF.cloth(this.L.body);
@@ -1172,6 +1440,58 @@ class Builder {
       }
     }
     if (this.O.cracks !== undefined) this.cracks(this.O.cracks);
+  }
+
+  /** Fighter's jacket: crossed lapels, a short flared skirt, wrapped forearms. */
+  private gi(): void {
+    const J = this.J;
+    const p = this.p;
+    const t = p.torsoRadius;
+    const r = p.limbRadius;
+    const lapel = SURF.cloth(this.L.trim);
+    for (const s of [1, -1]) {
+      this.body.add(
+        place(
+          new RoundedBoxGeometry(0.05, p.chestLen * 1.25, 0.014, 1, 0.006),
+          [s * t * 0.3, J.Chest.y + p.chestLen * 0.36, t * 0.86],
+          [-0.12, 0, -s * 0.42],
+        ),
+        lapel,
+        this.torsoW,
+      );
+    }
+    const top = J.Hips.y + 0.03;
+    const bot = J.Hips.y - 0.24;
+    const rings: Ring[] = [];
+    for (let i = 0; i < 4; i++) {
+      const k = i / 3;
+      rings.push({
+        y: top + (bot - top) * k,
+        rx: t * (1.06 + 0.32 * k) + 0.008,
+        rz: t * (0.82 + 0.3 * k) + 0.008,
+        oz: 0.01,
+      });
+    }
+    this.body.add(
+      loft(rings, 18, false, false),
+      SURF.cloth(this.L.body),
+      this.skirtW(J.Hips.y + 0.02, bot, 0.85),
+    );
+    for (const side of ['Left', 'Right'] as const) {
+      const el = J[`${side}ForeArm`];
+      for (let k = 0; k < 4; k++) {
+        const y = el.y - p.foreArm * (0.4 + k * 0.17);
+        this.body.add(
+          place(
+            new TorusGeometry(r * (1.0 - k * 0.07), r * 0.2, 4, 12),
+            [el.x, y, el.z],
+            [Math.PI / 2 + (k % 2 === 0 ? 0.18 : -0.18), 0, 0],
+          ),
+          SURF.cloth(this.L.trim),
+          this.rigid(`${side}ForeArm`),
+        );
+      }
+    }
   }
 
   /** Glowing cracks over the torso and limbs (demons). */
@@ -1849,6 +2169,337 @@ class Builder {
         }
         socket('rightBase', 'RightHand', [0, -r, 0.15]);
         socket('rightTip', 'RightHand', [0, -r, 0.8]);
+        mirrorSockets();
+        break;
+      }
+      case 'towerShield': {
+        tilt = 0.55;
+        const lh = this.J.LeftHand;
+        const o: [number, number, number] = [lh.x, lh.y - r - 0.08, lh.z + 0.1];
+        const w = 0.29;
+        const top = 0.46;
+        const bot = -0.62;
+        const sh = new Shape();
+        sh.moveTo(-w, top - 0.07);
+        sh.quadraticCurveTo(-w, top, -w + 0.07, top);
+        sh.lineTo(w - 0.07, top);
+        sh.quadraticCurveTo(w, top, w, top - 0.07);
+        sh.lineTo(w, bot + 0.2);
+        sh.quadraticCurveTo(w * 0.92, bot + 0.03, 0, bot);
+        sh.quadraticCurveTo(-w * 0.92, bot + 0.03, -w, bot + 0.2);
+        sh.lineTo(-w, top - 0.07);
+        const face = new ExtrudeGeometry(sh, {
+          depth: 0.035,
+          bevelEnabled: true,
+          bevelThickness: 0.014,
+          bevelSize: 0.014,
+          bevelSegments: 2,
+          curveSegments: 6,
+        });
+        face.translate(o[0], o[1], o[2]);
+        const left = this.rigid('LeftHand');
+        this.body.add(face, SURF.plate(this.L.metal), left);
+        // Gilded rim around the face.
+        const rimPts = sh.getPoints(4).map((v) => new Vector3(v.x, v.y, 0));
+        const rim = new TubeGeometry(new CatmullRomCurve3(rimPts, true), 64, 0.02, 5, true);
+        rim.translate(o[0], o[1], o[2] + 0.05);
+        this.body.add(rim, trim, left);
+        const front = o[2] + 0.062;
+        // Raised cross bands, a boss and a glowing sigil.
+        this.body.add(
+          place(new RoundedBoxGeometry(0.07, 0.98, 0.03, 1, 0.012), [o[0], o[1] - 0.06, front]),
+          trim,
+          left,
+        );
+        this.body.add(
+          place(new RoundedBoxGeometry(0.5, 0.06, 0.028, 1, 0.012), [o[0], o[1] + 0.2, front]),
+          trim,
+          left,
+        );
+        this.body.add(
+          ellipsoid(
+            [o[0], o[1] + 0.2, front + 0.01],
+            [0.085, 0.085, 0.05],
+            [10, 6],
+            { thetaLength: Math.PI * 0.5 },
+            [Math.PI / 2, 0, 0],
+          ),
+          SURF.steel(this.L.metal),
+          left,
+        );
+        const sigil = SURF.glow(this.accent);
+        this.glow.add(
+          place(new RoundedBoxGeometry(0.022, 0.34, 0.012, 1, 0.005), [
+            o[0],
+            o[1] - 0.24,
+            front + 0.02,
+          ]),
+          sigil,
+          left,
+        );
+        for (const s of [1, -1]) {
+          this.glow.add(
+            place(
+              new RoundedBoxGeometry(0.018, 0.16, 0.012, 1, 0.005),
+              [o[0] + s * 0.07, o[1] - 0.2, front + 0.02],
+              [0, 0, s * 0.6],
+            ),
+            sigil,
+            left,
+          );
+        }
+        // Flanged warhammer in the right hand.
+        inHand(
+          'RightHand',
+          place(new CylinderGeometry(0.021, 0.025, 0.8, 8), [0, 0, 0.3], [Math.PI / 2, 0, 0]),
+          grip,
+        );
+        inHand('RightHand', ellipsoid([0, 0, -0.12], [0.035, 0.035, 0.04], [8, 6]), trim);
+        inHand(
+          'RightHand',
+          place(new RoundedBoxGeometry(0.12, 0.3, 0.14, 2, 0.025), [0, 0, 0.74]),
+          metal,
+        );
+        for (const s of [1, -1]) {
+          inHand(
+            'RightHand',
+            place(new CylinderGeometry(0.075, 0.062, 0.035, 8), [0, s * 0.165, 0.74]),
+            metal,
+          );
+        }
+        inHand(
+          'RightHand',
+          place(new ConeGeometry(0.03, 0.14, 6), [0, 0, 0.87], [Math.PI / 2, 0, 0]),
+          metal,
+        );
+        for (const z of [0.6, 0.64]) {
+          inHand('RightHand', place(new TorusGeometry(0.03, 0.008, 4, 10), [0, 0, z]), trim);
+        }
+        inHand(
+          'RightHand',
+          place(new RoundedBoxGeometry(0.125, 0.04, 0.09, 1, 0.012), [0, 0, 0.74]),
+          SURF.glow(this.accent),
+          true,
+        );
+        socket('rightBase', 'RightHand', [0, -r, 0.25]);
+        socket('rightTip', 'RightHand', [0, -r, 0.86]);
+        // Left trail: the shield's leading edge (bashes).
+        this.sockets.leftBase = { bone: 'LeftHand', offset: new Vector3(0, -r - 0.5, 0.14) };
+        this.sockets.leftTip = { bone: 'LeftHand', offset: new Vector3(0, -r + 0.35, 0.14) };
+        break;
+      }
+      case 'emberStaff': {
+        tilt = 0.2;
+        inHand(
+          'RightHand',
+          place(new CylinderGeometry(0.017, 0.021, 1.56, 8), [0, 0, 0.36], [Math.PI / 2, 0, 0]),
+          SURF.leather(this.def.weaponColor),
+        );
+        for (const z of [-0.4, 0.02, 0.92, 1.12]) {
+          inHand('RightHand', place(new TorusGeometry(0.023, 0.007, 4, 10), [0, 0, z]), trim);
+        }
+        // Crescent cradle opening upward around the ember.
+        inHand(
+          'RightHand',
+          place(
+            new TorusGeometry(0.12, 0.014, 6, 20, Math.PI * 1.45),
+            [0, 0, 1.27],
+            [0, Math.PI / 2, Math.PI * 0.775],
+          ),
+          trim,
+        );
+        for (const s of [1, -1]) {
+          inHand('RightHand', place(new ConeGeometry(0.014, 0.1, 5), [0, s * 0.105, 1.36]), trim);
+        }
+        inHand(
+          'RightHand',
+          ellipsoid([0, 0, 1.27], [0.062, 0.062, 0.062], [10, 8]),
+          SURF.glow(this.L.rim),
+          true,
+        );
+        for (let k = 0; k < 3; k++) {
+          const a = (k / 3) * Math.PI * 2 + 0.4;
+          inHand(
+            'RightHand',
+            place(
+              new ConeGeometry(0.012, 0.05, 4),
+              [Math.sin(a) * 0.1, Math.cos(a) * 0.1, 1.27],
+              [Math.cos(a) * 0.8, 0, -Math.sin(a) * 0.8],
+            ),
+            SURF.glow(this.accent),
+            true,
+          );
+        }
+        socket('rightBase', 'RightHand', [0, -r, 1.0]);
+        socket('rightTip', 'RightHand', [0, -r, 1.36]);
+        mirrorSockets();
+        break;
+      }
+      case 'gauntlets': {
+        const plate = SURF.steel(this.def.weaponColor);
+        for (const side of ['Left', 'Right'] as const) {
+          const wr = this.J[`${side}Hand`];
+          const hand = this.rigid(`${side}Hand`);
+          this.body.add(
+            place(new RoundedBoxGeometry(r * 2.0, r * 0.62, r * 2.1, 1, r * 0.22), [
+              wr.x,
+              wr.y - r * 2.3,
+              wr.z + r * 0.2,
+            ]),
+            plate,
+            hand,
+          );
+          for (let k = 0; k < 4; k++) {
+            this.body.add(
+              place(
+                new ConeGeometry(r * 0.16, r * 0.42, 5),
+                [wr.x + (k - 1.5) * r * 0.45, wr.y - r * 2.7, wr.z + r * 0.62],
+                [Math.PI, 0, 0],
+              ),
+              plate,
+              hand,
+            );
+          }
+          this.body.add(
+            loft(
+              [
+                { y: wr.y + 0.045, rx: r * 1.18, rz: r * 1.12, ox: wr.x, oz: wr.z },
+                { y: wr.y - 0.02, rx: r * 1.28, rz: r * 1.2, ox: wr.x, oz: wr.z },
+              ],
+              12,
+              false,
+              false,
+            ),
+            plate,
+            hand,
+          );
+          this.glow.add(
+            place(new RoundedBoxGeometry(r * 1.7, r * 0.12, r * 0.12, 1, r * 0.05), [
+              wr.x,
+              wr.y - r * 2.32,
+              wr.z + r * 1.26,
+            ]),
+            SURF.glow(this.accent),
+            hand,
+          );
+          this.glow.add(
+            place(
+              new TorusGeometry(r * 1.24, r * 0.07, 4, 14),
+              [wr.x, wr.y + 0.012, wr.z],
+              [Math.PI / 2, 0, 0],
+            ),
+            SURF.glow(this.accent),
+            hand,
+          );
+        }
+        this.sockets.rightBase = { bone: 'RightHand', offset: new Vector3(0, 0.16, 0) };
+        this.sockets.rightTip = { bone: 'RightHand', offset: new Vector3(0, -r * 2.5, 0.03) };
+        this.sockets.leftBase = { bone: 'LeftHand', offset: new Vector3(0, 0.16, 0) };
+        this.sockets.leftTip = { bone: 'LeftHand', offset: new Vector3(0, -r * 2.5, 0.03) };
+        break;
+      }
+      case 'spear': {
+        tilt = 0.3;
+        inHand(
+          'RightHand',
+          place(new CylinderGeometry(0.016, 0.019, 2.1, 8), [0, 0, 0.3], [Math.PI / 2, 0, 0]),
+          SURF.leather(0x3a2a22),
+        );
+        inHand('RightHand', blade(0.44, 0.1, 0.014, 0.42, 1.38), metal);
+        inHand(
+          'RightHand',
+          place(new CylinderGeometry(0.022, 0.03, 0.12, 8), [0, 0, 1.33], [Math.PI / 2, 0, 0]),
+          trim,
+        );
+        for (const s of [1, -1]) {
+          inHand(
+            'RightHand',
+            place(new ConeGeometry(0.018, 0.12, 5), [0, s * 0.07, 1.31], [s * 1.2, 0, 0]),
+            trim,
+          );
+        }
+        inHand(
+          'RightHand',
+          place(new ConeGeometry(0.022, 0.12, 6), [0, 0, -0.8], [-Math.PI / 2, 0, 0]),
+          metal,
+        );
+        for (const z of [-0.1, 0.12, 0.62]) {
+          inHand('RightHand', place(new TorusGeometry(0.021, 0.007, 4, 10), [0, 0, z]), trim);
+        }
+        inHand(
+          'RightHand',
+          place(new RoundedBoxGeometry(0.024, 0.014, 0.3, 1, 0.006), [0, 0, 1.58]),
+          SURF.glow(this.accent),
+          true,
+        );
+        socket('rightBase', 'RightHand', [0, -r, 1.05]);
+        socket('rightTip', 'RightHand', [0, -r, 1.8]);
+        mirrorSockets();
+        break;
+      }
+      case 'scythe': {
+        tilt = 0.35;
+        const pts: Vector3[] = [];
+        for (let i = 0; i <= 8; i++) {
+          const z = -0.52 + (i / 8) * 1.7;
+          pts.push(new Vector3(0, Math.sin((i / 8) * Math.PI) * 0.03, z));
+        }
+        inHand(
+          'RightHand',
+          new TubeGeometry(new CatmullRomCurve3(pts), 20, 0.019, 6, false),
+          SURF.leather(this.def.weaponColor),
+        );
+        for (const z of [0.0, 0.72]) {
+          inHand(
+            'RightHand',
+            place(new CylinderGeometry(0.024, 0.024, 0.14, 8), [0, 0.02, z], [Math.PI / 2, 0, 0]),
+            grip,
+          );
+        }
+        // Crescent blade: shape length → −Y (away from the haft), width → +Z.
+        const cs = new Shape();
+        cs.moveTo(0, 0.07);
+        cs.quadraticCurveTo(0.38, 0.13, 0.74, -0.12);
+        cs.quadraticCurveTo(0.4, -0.01, 0, -0.06);
+        cs.lineTo(0, 0.07);
+        const bladeGeo = new ExtrudeGeometry(cs, {
+          depth: 0.012,
+          bevelEnabled: true,
+          bevelThickness: 0.006,
+          bevelSize: 0.008,
+          bevelSegments: 1,
+          curveSegments: 10,
+        });
+        bladeGeo.translate(0, 0, -0.006);
+        bladeGeo.applyMatrix4(new Matrix4().set(0, 0, -1, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1));
+        bladeGeo.translate(0, 0, 1.12);
+        inHand('RightHand', bladeGeo, SURF.steel(0xa8acb6));
+        inHand(
+          'RightHand',
+          place(new RoundedBoxGeometry(0.05, 0.08, 0.16, 1, 0.015), [0, -0.02, 1.12]),
+          trim,
+        );
+        inHand(
+          'RightHand',
+          ellipsoid([0, 0.01, 1.22], [0.045, 0.05, 0.05], [8, 6]),
+          SURF.bone(0xcfc4ac),
+        );
+        for (let k = 0; k < 3; k++) {
+          inHand(
+            'RightHand',
+            ellipsoid([0, -0.16 - k * 0.15, 1.17 - k * k * 0.018], [0.016, 0.016, 0.016], [6, 4]),
+            SURF.glow(this.accent),
+            true,
+          );
+        }
+        inHand(
+          'RightHand',
+          ellipsoid([0, -0.02, 1.12], [0.03, 0.03, 0.03], [6, 5]),
+          SURF.glow(this.accent),
+          true,
+        );
+        socket('rightBase', 'RightHand', [0, -r - 0.1, 1.15]);
+        socket('rightTip', 'RightHand', [0, -r - 0.72, 1.02]);
         mirrorSockets();
         break;
       }

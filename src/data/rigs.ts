@@ -5,7 +5,24 @@
  */
 
 export type WeaponKind =
-  'dualBlades' | 'greatsword' | 'bowDagger' | 'shieldMace' | 'staff' | 'claws' | 'club' | 'none';
+  | 'dualBlades'
+  | 'greatsword'
+  | 'bowDagger'
+  | 'shieldMace'
+  | 'staff'
+  | 'claws'
+  | 'club'
+  /** Tall tower shield (left) + flanged warhammer (right). */
+  | 'towerShield'
+  /** Straight staff with a crescent head cradling an ember. */
+  | 'emberStaff'
+  /** Plated knuckles and wrapped fists (unarmed fighters). */
+  | 'gauntlets'
+  /** Long spear with a leaf blade. */
+  | 'spear'
+  /** Two-handed war scythe. */
+  | 'scythe'
+  | 'none';
 
 export interface RigProportions {
   readonly hipsY: number;
@@ -25,8 +42,24 @@ export interface RigProportions {
   readonly chestWidth: number;
 }
 
-export type HeadKind = 'bare' | 'hood' | 'helm' | 'greathelm' | 'crown' | 'skull' | 'cowl';
-export type ArmorKind = 'leather' | 'plate' | 'robe' | 'rags' | 'hide' | 'straw';
+export type HeadKind =
+  | 'bare'
+  | 'hood'
+  | 'helm'
+  | 'greathelm'
+  | 'crown'
+  | 'skull'
+  | 'cowl'
+  /** Wide-brimmed pointed hat over a face and long hair. */
+  | 'brim'
+  /** Face with tied-up hair and a headband. */
+  | 'topknot'
+  /** Open-faced helm with swept wings. */
+  | 'winged'
+  /** Deep hood over a bone skull mask. */
+  | 'deathhood';
+/** 'gi': cloth jacket with crossed lapels, bare wrapped forearms, a sash and loose trousers. */
+export type ArmorKind = 'leather' | 'plate' | 'robe' | 'rags' | 'hide' | 'straw' | 'gi';
 
 /** Cloth that swings with movement (driven by spring bones, see HumanoidRig). */
 export interface ClothDef {
@@ -201,6 +234,161 @@ export const RIGS = {
     },
     weapon: 'bowDagger',
     weaponColor: 0x5a4030,
+  },
+  garrick: {
+    id: 'garrick',
+    scale: 1.12,
+    proportions: {
+      ...HUMAN,
+      torsoRadius: 0.18,
+      limbRadius: 0.068,
+      chestWidth: 1.45,
+      headRadius: 0.135,
+    },
+    look: {
+      body: 0x3a3e48,
+      trim: 0xc89a48,
+      skin: 0x8a6a58,
+      metal: 0xb0b6c2,
+      eyes: 0xffd04a,
+      hood: false,
+      horns: false,
+      pauldrons: true,
+      rim: 0xffd060,
+      outfit: {
+        head: 'greathelm',
+        armor: 'plate',
+        tabard: 0x1c3260,
+        tassets: true,
+        bulk: 0.35,
+        cape: { color: 0x16244a, length: 1.1, width: 0.7 },
+        accent: 0xffd04a,
+      },
+    },
+    weapon: 'towerShield',
+    weaponColor: 0x9aa0ac,
+  },
+  seraphine: {
+    id: 'seraphine',
+    scale: 0.96,
+    proportions: {
+      ...HUMAN,
+      torsoRadius: 0.125,
+      limbRadius: 0.047,
+      chestWidth: 1.05,
+      headRadius: 0.125,
+    },
+    look: {
+      body: 0x5c1418,
+      trim: 0xd8a040,
+      skin: 0xc09078,
+      metal: 0x3a2a26,
+      eyes: 0xff7040,
+      hood: false,
+      horns: false,
+      pauldrons: false,
+      rim: 0xff5a30,
+      outfit: {
+        head: 'brim',
+        armor: 'robe',
+        cape: { color: 0x2a0c10, length: 1.05, width: 0.55, tattered: true },
+        accent: 0xff5a2a,
+      },
+    },
+    weapon: 'emberStaff',
+    weaponColor: 0x2a1c18,
+  },
+  ryn: {
+    id: 'ryn',
+    scale: 0.98,
+    proportions: {
+      ...HUMAN,
+      torsoRadius: 0.14,
+      limbRadius: 0.056,
+      chestWidth: 1.3,
+      headRadius: 0.125,
+    },
+    look: {
+      body: 0x2c2832,
+      trim: 0xa8987e,
+      skin: 0xa87860,
+      metal: 0x8a8e98,
+      eyes: 0xff7ab0,
+      hood: false,
+      horns: false,
+      pauldrons: false,
+      rim: 0xff6aa8,
+      outfit: {
+        head: 'topknot',
+        armor: 'gi',
+        scarf: 0x9a1e4a,
+        tabard: 0x9a1e4a,
+        accent: 0xff5c9a,
+      },
+    },
+    weapon: 'gauntlets',
+    weaponColor: 0x9aa0ac,
+  },
+  valka: {
+    id: 'valka',
+    scale: 1,
+    proportions: {
+      ...HUMAN,
+      torsoRadius: 0.14,
+      limbRadius: 0.054,
+      chestWidth: 1.2,
+      headRadius: 0.125,
+    },
+    look: {
+      body: 0x26344c,
+      trim: 0xc0c8d8,
+      skin: 0xb08870,
+      metal: 0xc4ccd8,
+      eyes: 0x8ad0ff,
+      hood: false,
+      horns: false,
+      pauldrons: true,
+      rim: 0x6ab0ff,
+      outfit: {
+        head: 'winged',
+        armor: 'leather',
+        cape: { color: 0x1a2a46, length: 1.0, width: 0.52 },
+        accent: 0x6ab4ff,
+      },
+    },
+    weapon: 'spear',
+    weaponColor: 0xc8d0dc,
+  },
+  morrow: {
+    id: 'morrow',
+    scale: 1.04,
+    proportions: {
+      ...HUMAN,
+      torsoRadius: 0.13,
+      limbRadius: 0.048,
+      chestWidth: 1.15,
+      headRadius: 0.13,
+    },
+    look: {
+      body: 0x1e1c22,
+      trim: 0x7a8456,
+      skin: 0x6a6070,
+      metal: 0x4a4a50,
+      eyes: 0x9cff4a,
+      hood: true,
+      horns: false,
+      pauldrons: true,
+      rim: 0x9cff4a,
+      outfit: {
+        head: 'deathhood',
+        armor: 'robe',
+        spikes: true,
+        cape: { color: 0x141216, length: 1.25, width: 0.7, tattered: true },
+        accent: 0x9cff4a,
+      },
+    },
+    weapon: 'scythe',
+    weaponColor: 0x3a3438,
   },
   thrall: {
     id: 'thrall',
