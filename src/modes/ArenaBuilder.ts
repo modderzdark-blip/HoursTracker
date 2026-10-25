@@ -70,6 +70,8 @@ export class ArenaBuilder {
   /** Keep-out circles for set dressing (x, z, r): spawns, the boss, the dummy. */
   private readonly keepOut: [number, number, number][] = [];
   colliderCount = 0;
+  /** Seconds, shared by every animated arena material. */
+  private readonly time = { value: 0 };
 
   constructor(
     private readonly def: ArenaDef,
@@ -88,6 +90,7 @@ export class ArenaBuilder {
       return v;
     };
 
+    const g = L.floorGlow;
     const floorMat = this.mat(
       createTriplanarMaterial(get('floor'), {
         scale: L.floor.scale,
@@ -95,6 +98,8 @@ export class ArenaBuilder {
         macro: 0.35,
         normalScale: 1,
         patch: { maps: get('floorPatch'), scale: L.floorPatch.scale, amount: 0.45 },
+        radius: def.floorRadius,
+        glow: { ...g, time: this.time },
       }),
     );
     const wallMat = this.mat(
@@ -155,6 +160,7 @@ export class ArenaBuilder {
 
   /** Animated parts (fire, mist). */
   update(dtSec: number): void {
+    this.time.value = (this.time.value + dtSec) % 3600;
     this.flames?.update(dtSec);
     this.fog?.update(dtSec);
     this.shafts?.update(dtSec);

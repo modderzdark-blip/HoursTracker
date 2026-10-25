@@ -22,9 +22,14 @@ export interface SynthSpec {
   readonly colors: readonly [number, number, number];
   readonly seed: number;
   readonly normalStrength: number;
+  /** Gain on the material's emissive mask (lava, veins, inlays, fungus); 0 or absent = none. */
+  readonly glow?: number;
 }
 
-/** A synthesized PBR set: sRGB albedo, tangent-space normal, ORM (R occlusion, G roughness). */
+/**
+ * A synthesized PBR set: sRGB albedo, tangent-space normal, ORM (R occlusion, G roughness,
+ * B emissive mask).
+ */
 export interface MaterialMaps {
   readonly albedo: Texture;
   readonly normal: Texture;
@@ -55,6 +60,7 @@ export class TextureSynth {
         uSeed: { value: 0 },
         uSize: { value: 512 },
         uNormalStrength: { value: 1 },
+        uGlow: { value: 0 },
         uColorA: { value: new Color() },
         uColorB: { value: new Color() },
         uColorC: { value: new Color() },
@@ -139,6 +145,7 @@ export class TextureSynth {
     set('uSeed', spec.seed);
     set('uSize', size);
     set('uNormalStrength', spec.normalStrength);
+    set('uGlow', spec.glow ?? 0);
     set('uEncode', encode);
     // Colours are authored as display hex; the shader works in linear light.
     (u['uColorA']?.value as Color).setHex(spec.colors[0]);
