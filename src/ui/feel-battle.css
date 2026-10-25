@@ -69,7 +69,8 @@
 #ui-root:has(.bfx.is-cinematic) .bhud-combo,
 #ui-root:has(.bfx.is-cinematic) .bhud-banner,
 #ui-root:has(.bfx.is-cinematic) .hud-pause,
-#ui-root:has(.bfx.is-cinematic) .dmg-layer {
+#ui-root:has(.bfx.is-cinematic) .dmg-layer,
+.bfx.is-cinematic .bfx-kill {
   opacity: 0;
   transition: opacity 0.3s ease;
 }

@@ -41,6 +41,7 @@ export class BattleCallouts {
   private readonly titleMain: HTMLElement;
   private readonly titleSub: HTMLElement;
   private lowOn = false;
+  private beatMs = 0;
   private chapterTimer = 0;
   private killTimer = 0;
   private titleTimer = 0;
@@ -194,7 +195,10 @@ export class BattleCallouts {
       this.lowOn = on;
       this.lowHp.classList.toggle('is-on', on);
     }
-    if (on) this.lowHp.style.setProperty('--beat', `${beatMs}ms`);
+    if (on && beatMs !== this.beatMs) {
+      this.beatMs = beatMs;
+      this.lowHp.style.setProperty('--beat', `${beatMs}ms`);
+    }
   }
 
   private restart(node: HTMLElement, cls: string): void {

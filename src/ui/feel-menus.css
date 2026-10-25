@@ -485,3 +485,21 @@
 .result-screen[data-result='defeat'] .result-title {
   animation: defeat-in 0.9s ease-out both;
 }
+
+/* Short phones: the defeat screen keeps the advice and the retry button in view. */
+@media (max-height: 420px) {
+  .reward-defeat:has(.advice) .reward-tip {
+    display: none;
+  }
+  .reward-defeat .reward-title {
+    font-size: 26px;
+  }
+  .advice-item {
+    min-height: 44px;
+    padding: 4px 12px;
+  }
+  .xpr-gains,
+  .reward-quote {
+    font-size: 12px;
+  }
+}
