@@ -33,6 +33,7 @@ import {
 import {
   grantAdventureVictory,
   grantVictory,
+  heroStatLine,
   recordDefeat,
   type RewardSummary,
 } from '../modes/rewards';
@@ -629,6 +630,8 @@ export class Runs {
     p.data.lifetime.battles++;
     p.data.lifetime.victories++;
     p.commit();
+    const hero = p.hero(p.selectedHero);
+    const line = heroStatLine(p, p.selectedHero);
     renderVictory(
       this.ctx,
       {
@@ -647,9 +650,16 @@ export class Runs {
         autoSalvaged: { count: 0, materials: 0, gold: 0 },
         heroId: p.selectedHero,
         levelsGained: 0,
-        heroLevel: p.hero(p.selectedHero).level,
+        heroLevel: hero.level,
         firstClear: false,
         unlocks: [],
+        unlockEvents: [],
+        levelBefore: hero.level,
+        xpBefore: hero.xp,
+        xpAfter: hero.xp,
+        statsBefore: line,
+        statsAfter: line,
+        chapterComplete: null,
       },
       [toMenu],
     );

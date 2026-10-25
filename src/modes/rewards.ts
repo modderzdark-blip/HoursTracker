@@ -3,6 +3,7 @@ import { HEROES, type HeroId } from '../data/heroes';
 import { MODE_ORDER, MODES } from '../data/modes';
 import { DROP_TABLES, type DropTableId } from '../data/progression';
 import { CHAPTERS, type AdventureStageDef } from '../data/stages';
+import type { UnlockEvent } from '../progression/feel';
 import type { GearItem } from '../progression/gear';
 import { rollDrops } from '../progression/loot';
 import {
@@ -33,15 +34,39 @@ export interface RewardSummary {
   readonly firstClear: boolean;
   /** Human-readable unlock notices ("Hard difficulty unlocked", "Dungeon unlocked"). */
   readonly unlocks: readonly string[];
+  /** The same unlocks, structured (celebration screens). */
+  readonly unlockEvents: readonly UnlockEvent[];
+  /** Hero level / XP into the level before and after (the XP bar animates between them). */
+  readonly levelBefore: number;
+  readonly xpBefore: number;
+  readonly xpAfter: number;
+  /** Hero stats and power before and after the rewards (level-up burst). */
+  readonly statsBefore: HeroStatLine;
+  readonly statsAfter: HeroStatLine;
+  /** Adventure chapter completed for the first time by this victory, if any. */
+  readonly chapterComplete: number | null;
 }
 
-interface UnlockSnapshot {
+/** The headline stats shown when a hero levels up. */
+export interface HeroStatLine {
+  readonly maxHp: number;
+  readonly atk: number;
+  readonly def: number;
+  readonly power: number;
+}
+
+export function heroStatLine(profile: PlayerProfile, heroId: HeroId): HeroStatLine {
+  const s = profile.stats(heroId);
+  return { maxHp: s.maxHp, atk: s.atk, def: s.def, power: profile.power(heroId) };
+}
+
+export interface UnlockSnapshot {
   modes: Set<string>;
   difficulties: Set<string>;
   heroes: Set<string>;
 }
 
-function snapshotUnlocks(profile: PlayerProfile): UnlockSnapshot {
+export function snapshotUnlocks(profile: PlayerProfile): UnlockSnapshot {
   const modes = new Set<string>();
   for (const m of MODE_ORDER) if (profile.modeUnlocked(m)) modes.add(m);
   const difficulties = new Set<string>();
@@ -56,19 +81,25 @@ function snapshotUnlocks(profile: PlayerProfile): UnlockSnapshot {
   return { modes, difficulties, heroes };
 }
 
-function diffUnlocks(before: UnlockSnapshot, after: UnlockSnapshot): string[] {
-  const out: string[] = [];
+export function diffUnlocks(before: UnlockSnapshot, after: UnlockSnapshot): UnlockEvent[] {
+  const out: UnlockEvent[] = [];
   for (const m of MODE_ORDER)
-    if (after.modes.has(m) && !before.modes.has(m)) out.push(`${MODES[m].name} unlocked`);
+    if (after.modes.has(m) && !before.modes.has(m))
+      out.push({ kind: 'mode', id: m, label: `${MODES[m].name} unlocked` });
   for (const key of after.difficulties) {
     if (before.difficulties.has(key)) continue;
     const [ch, d] = key.split(':');
     const label = DIFFICULTIES[d as DifficultyId].label;
-    out.push(`Chapter ${ch} — ${label} difficulty unlocked`);
+    out.push({
+      kind: 'difficulty',
+      chapter: Number(ch),
+      id: d ?? '',
+      label: `Chapter ${ch} — ${label} difficulty unlocked`,
+    });
   }
   for (const id of Object.keys(HEROES) as HeroId[]) {
     if (after.heroes.has(id) && !before.heroes.has(id))
-      out.push(`${HEROES[id].name} can now be summoned (Heroes)`);
+      out.push({ kind: 'hero', id, label: `${HEROES[id].name} can now be summoned (Heroes)` });
   }
   return out;
 }
@@ -90,6 +121,8 @@ export interface GrantInput {
   readonly subtitle: string;
   /** Called after the general rewards, before unlocks are compared (records, mode state). */
   readonly record?: () => { firstClear: boolean; previousStars: number; starGems: number };
+  /** Adventure: the chapter whose first full clear this victory completes (set by the caller). */
+  readonly chapterComplete?: () => number | null;
 }
 
 /**
@@ -99,6 +132,10 @@ export interface GrantInput {
 export function grantVictory(i: GrantInput): RewardSummary {
   const p = i.profile;
   const before = snapshotUnlocks(p);
+  const hero = p.hero(i.heroId);
+  const levelBefore = hero.level;
+  const xpBefore = hero.xp;
+  const statsBefore = heroStatLine(p, i.heroId);
   const diff = DIFFICULTIES[i.difficulty];
   const gold = Math.round(i.gold * diff.rewards);
   const xp = Math.round(i.xp * diff.rewards);
@@ -125,6 +162,8 @@ export function grantVictory(i: GrantInput): RewardSummary {
   if (i.outcome.bossKilled) lt.bossKills++;
   const levelsGained = p.grantXp(i.heroId, xp);
   const after = snapshotUnlocks(p);
+  const unlockEvents = diffUnlocks(before, after);
+  const chapterComplete = i.chapterComplete?.() ?? null;
   p.commit();
   return {
     title: i.title,
@@ -144,7 +183,14 @@ export function grantVictory(i: GrantInput): RewardSummary {
     levelsGained,
     heroLevel: p.hero(i.heroId).level,
     firstClear: rec.firstClear,
-    unlocks: diffUnlocks(before, after),
+    unlocks: unlockEvents.map((u) => u.label),
+    unlockEvents,
+    levelBefore,
+    xpBefore,
+    xpAfter: hero.xp,
+    statsBefore,
+    statsAfter: heroStatLine(p, i.heroId),
+    chapterComplete,
   };
 }
 
@@ -164,6 +210,7 @@ export function grantAdventureVictory(
   outcome: BattleOutcome,
   rng: () => number,
 ): RewardSummary {
+  const wasCleared = profile.chapterCleared(stage.chapter, difficulty);
   return grantVictory({
     profile,
     heroId,
@@ -177,5 +224,12 @@ export function grantAdventureVictory(
     title: 'Victory',
     subtitle: `${stage.chapter}-${stage.index + 1} · ${stage.name} · ${DIFFICULTIES[difficulty].label}`,
     record: () => profile.submitStageResult(stage.id, difficulty, outcome.stars, outcome.timeSec),
+    chapterComplete: () => {
+      if (wasCleared || !profile.chapterCleared(stage.chapter, difficulty)) return null;
+      const seen = profile.data.story.chapterOutros;
+      if (seen.includes(stage.chapter)) return null;
+      seen.push(stage.chapter);
+      return stage.chapter;
+    },
   });
 }

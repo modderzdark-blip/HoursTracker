@@ -16,7 +16,16 @@ import { CHAPTERS, type AdventureStageDef } from '../data/stages';
 import { dailyHunts, highestClearedLevel, huntRank, type HuntDef } from '../modes/meta';
 import type { SaveData, StageRecord } from '../save/SaveStore';
 import type { RewardBundle } from '../data/goals';
-import { rollItem, salvageValue, tryUpgrade, type GearItem, type UpgradeOutcome } from './gear';
+import { nextAdventureStage, type GoalSnapshot } from './feel';
+import {
+  itemPower,
+  rollItem,
+  salvageValue,
+  tryUpgrade,
+  upgradeCost,
+  type GearItem,
+  type UpgradeOutcome,
+} from './gear';
 import {
   achievementById,
   blessingFor,
@@ -37,7 +46,7 @@ import {
 import { rollItemLevel, rollRarity } from './loot';
 import { computeHeroStats, powerRating } from './heroStats';
 import type { HeroProgress, ProfileData } from './profile';
-import { computeMods, rankUp, type HeroMods } from './skillTree';
+import { computeMods, rankBlock, rankUp, type HeroMods } from './skillTree';
 import { Wallet } from './wallet';
 import { addXp } from './xp';
 
@@ -47,6 +56,22 @@ export interface SalvageSummary {
   count: number;
   materials: number;
   gold: number;
+}
+
+/** Things the player can act on right now (red "new" dots on the hub). */
+export interface Attention {
+  /** Heroes that can be summoned now. */
+  readonly heroes: number;
+  /** New items in the bag. */
+  readonly newItems: number;
+  /** An equipped item can be upgraded, or a better item waits in the bag. */
+  readonly gearUpgrade: boolean;
+  /** Skill-tree ranks the selected hero can buy now. */
+  readonly skills: number;
+  /** Quests, gifts and achievements waiting to be claimed. */
+  readonly journal: number;
+  /** Modes unlocked but never opened. */
+  readonly newModes: readonly ModeId[];
 }
 
 export interface StageSubmit {
@@ -584,6 +609,78 @@ export class PlayerProfile {
     if (gems > 0) this.wallet.add('gems', gems);
     this.commit();
     return gems;
+  }
+
+  // ------------------------------------------------------------------ attention & goals
+
+  /** Daily quests finished and achievement tiers reached (for "goal reached" toasts). */
+  goalSnapshot(nowMs = Date.now()): GoalSnapshot {
+    this.refreshDaily(nowMs);
+    const achievements: Record<string, number> = {};
+    for (const a of ACHIEVEMENTS) {
+      const reached = (this.data.achievements[a.id] ?? 0) + this.achievementClaimable(a.id);
+      if (reached > 0) achievements[a.id] = reached;
+    }
+    return {
+      quests: this.data.daily.quests.filter((q) => questDone(q)).map((q) => q.id),
+      achievements,
+    };
+  }
+
+  /** What deserves a red dot on the hub. */
+  attention(nowMs = Date.now()): Attention {
+    const id = this.selectedHero;
+    let heroes = 0;
+    for (const h of Object.keys(HEROES) as HeroId[]) if (this.heroUnlockBlock(h) === null) heroes++;
+    let gearUpgrade = false;
+    for (const slot of GEAR_SLOTS) {
+      const worn = this.equippedIn(id, slot);
+      if (worn !== undefined) {
+        const cost = upgradeCost(worn);
+        if (
+          cost !== null &&
+          this.wallet.canAfford('gold', cost.gold) &&
+          this.wallet.canAfford('materials', cost.materials)
+        )
+          gearUpgrade = true;
+      }
+      const wornPower = worn === undefined ? 0 : itemPower(worn);
+      if (
+        this.data.items.some(
+          (i) => i.slot === slot && this.wearer(i.uid) === null && itemPower(i) > wornPower,
+        )
+      )
+        gearUpgrade = true;
+      if (gearUpgrade) break;
+    }
+    const h = this.hero(id);
+    const skills = SKILL_TREES[id].filter(
+      (n) => rankBlock(n, h.skills, h.level, this.wallet) === null,
+    ).length;
+    const seen = this.data.story.modesSeen;
+    const newModes = (Object.keys(MODES) as ModeId[]).filter(
+      (m) => this.modeUnlocked(m) && !seen.includes(m),
+    );
+    return {
+      heroes,
+      newItems: this.data.items.filter((i) => i.isNew).length,
+      gearUpgrade,
+      skills,
+      journal: this.pendingClaims(nowMs),
+      newModes,
+    };
+  }
+
+  /** A mode screen was opened: it is no longer new. */
+  markModeSeen(mode: ModeId): void {
+    if (this.data.story.modesSeen.includes(mode)) return;
+    this.data.story.modesSeen.push(mode);
+    this.commit();
+  }
+
+  /** The next Adventure stage to clear (hub "Next:" line), or null when all are cleared. */
+  nextStage(): AdventureStageDef | null {
+    return nextAdventureStage((sid) => this.stageClearedAnyDifficulty(sid));
   }
 
   /** Count of things waiting to be claimed (hub badge). */
