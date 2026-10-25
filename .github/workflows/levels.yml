@@ -61,10 +61,12 @@ defaults:
   run:
     shell: bash
 
+# Runners are pinned to Ubuntu 24.04: ubuntu-latest moved to 26.04, which the Playwright version in use cannot
+# install Chromium on (the audio and browser jobs failed there).
 jobs:
   plan:
     name: plan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       shards: ${{ steps.plan.outputs.shards }}
@@ -92,7 +94,7 @@ jobs:
   calibrate:
     name: calibrate ${{ matrix.shard.from }}-${{ matrix.shard.to }}
     needs: plan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
       fail-fast: true
@@ -114,7 +116,7 @@ jobs:
   merge:
     name: merge and validate
     needs: calibrate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v5
