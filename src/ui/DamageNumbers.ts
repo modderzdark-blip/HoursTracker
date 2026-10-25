@@ -17,6 +17,10 @@ interface Num {
   x: number;
   y: number;
   w: number;
+  /** Starting scale of the pop-in (crits burst in bigger). */
+  pop: number;
+  /** Crits shudder for a moment as they land. */
+  shake: number;
 }
 
 /** Row height (px) used when stacking labels that would overlap. */
@@ -24,6 +28,16 @@ const ROW_PX = 26;
 const MAX_ROWS = 4;
 /** Labels never rise into the top strip of the screen (HUD bars, wave text). */
 const TOP_SAFE_FRAC = 0.17;
+
+/** Pop-in scale per kind: crits and counters slam in, damage taken jolts, ticks barely move. */
+const POP: Readonly<Record<NumberKind, number>> = {
+  normal: 1.35,
+  crit: 2.15,
+  player: 1.5,
+  dot: 1.1,
+  info: 1.25,
+  counter: 1.9,
+};
 
 const LIFE: Readonly<Record<NumberKind, number>> = {
   normal: 0.75,
@@ -62,6 +76,8 @@ export class DamageNumbers {
         x: 0,
         y: 0,
         w: 0,
+        pop: 1,
+        shake: 0,
       });
     }
     container.append(this.root);
@@ -78,7 +94,9 @@ export class DamageNumbers {
     n.jitter = (Math.random() - 0.5) * 36;
     n.lift = 0;
     n.placed = false;
-    n.w = 14 + text.length * (kind === 'info' ? 13 : 15);
+    n.w = 14 + text.length * (kind === 'info' ? 13 : kind === 'crit' ? 20 : 15);
+    n.pop = POP[kind];
+    n.shake = kind === 'crit' ? 5 : kind === 'player' ? 3 : 0;
     n.el.textContent = text;
     n.el.className = `dmg dmg-${kind}`;
   }
@@ -112,11 +130,14 @@ export class DamageNumbers {
           n.lift = row * ROW_PX;
         }
       }
-      const sx = bx + n.jitter * t;
+      const quake = t < 0.2 ? Math.sin(n.age * 95) * n.shake * (1 - t / 0.2) : 0;
+      const sx = bx + n.jitter * t + quake;
       const sy = Math.max(height * TOP_SAFE_FRAC, by - n.lift - 46 * t);
       n.x = sx;
       n.y = sy;
-      const pop = t < 0.12 ? 1.35 - t * 2.9 : 1;
+      // Fast overshoot: big → slightly under 1 → 1.
+      const k = t / 0.14;
+      const pop = k < 1 ? n.pop - (n.pop - 0.92) * k : t < 0.22 ? 0.92 + (t - 0.14) : 1;
       n.el.style.transform = `translate3d(${sx.toFixed(1)}px, ${sy.toFixed(1)}px, 0) translate(-50%, -50%) scale(${pop.toFixed(2)})`;
       n.el.style.opacity = (t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3).toFixed(2);
     }

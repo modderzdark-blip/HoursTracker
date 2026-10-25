@@ -1,4 +1,5 @@
 import { STATUS_EFFECTS, STATUS_IDS, type StatusId } from '../data/statusEffects';
+import { COMBO_RANKS, comboRankIndex } from '../progression/feel';
 import { el, onTap } from './dom';
 
 export interface PlayerHudState {
@@ -44,6 +45,9 @@ export class BattleHud {
   private readonly bossMarks: HTMLElement;
   private readonly banner: HTMLElement;
   private readonly combo: HTMLElement;
+  private readonly comboNum: HTMLElement;
+  private readonly comboWord: HTMLElement;
+  private comboRank = -1;
   private readonly disposeStart: () => void;
   private hpGhostFrac = 1;
   private bossGhostFrac = 1;
@@ -112,7 +116,10 @@ export class BattleHud {
     this.boss.append(this.bossName, bossBar, breakBar, this.bossTimer);
 
     this.banner = el('div', 'bhud-banner is-hidden', '');
-    this.combo = el('div', 'bhud-combo is-hidden', '');
+    this.combo = el('div', 'bhud-combo is-hidden');
+    this.comboNum = el('div', 'bhud-combo-num', '');
+    this.comboWord = el('div', 'bhud-combo-word', '');
+    this.combo.append(this.comboNum, this.comboWord);
     this.root.append(panel, top, this.boss, this.banner, this.combo);
     container.append(this.root);
   }
@@ -231,9 +238,19 @@ export class BattleHud {
     this.bannerTimer = ms / 1000;
   }
 
-  registerHit(): void {
+  /** Counts a landed hit. Returns the combo rank just reached (index into COMBO_RANKS), or -1. */
+  registerHit(): number {
     this.comboCount++;
     this.comboTimer = 2;
+    const rank = comboRankIndex(this.comboCount);
+    if (rank <= this.comboRank) return -1;
+    this.comboRank = rank;
+    this.comboWord.textContent = COMBO_RANKS[rank]?.word.toUpperCase() ?? '';
+    this.combo.dataset['rank'] = String(rank);
+    this.combo.classList.remove('is-rankup');
+    void this.combo.offsetWidth;
+    this.combo.classList.add('is-rankup');
+    return rank;
   }
 
   tick(dtSec: number): void {
@@ -243,14 +260,19 @@ export class BattleHud {
     }
     if (this.comboTimer > 0) {
       this.comboTimer -= dtSec;
-      if (this.comboTimer <= 0) this.comboCount = 0;
+      if (this.comboTimer <= 0) {
+        this.comboCount = 0;
+        this.comboRank = -1;
+        this.comboWord.textContent = '';
+        delete this.combo.dataset['rank'];
+      }
     }
     const c = this.comboCount >= 3 ? this.comboCount : 0;
     if (c !== this.cache.combo) {
       this.cache.combo = c;
       this.combo.classList.toggle('is-hidden', c === 0);
       if (c > 0) {
-        this.combo.textContent = `${c} HITS`;
+        this.comboNum.textContent = `${c} HITS`;
         this.combo.classList.remove('is-bump');
         void this.combo.offsetWidth;
         this.combo.classList.add('is-bump');
@@ -265,6 +287,9 @@ export class BattleHud {
   reset(): void {
     this.comboCount = 0;
     this.comboTimer = 0;
+    this.comboRank = -1;
+    this.comboWord.textContent = '';
+    delete this.combo.dataset['rank'];
     this.hpGhostFrac = 1;
     this.hideBoss();
     this.banner.classList.add('is-hidden');
