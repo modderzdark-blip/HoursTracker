@@ -2,9 +2,11 @@ import {
   AdditiveBlending,
   Bone,
   Color,
+  Euler,
   Group,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  Quaternion,
   Skeleton,
   SkinnedMesh,
   Vector3,
@@ -30,6 +32,9 @@ import { spiderPlan } from './spider';
 import type { CreaturePlan } from './types';
 import { wispPlan } from './wisp';
 import { wyrmPlan } from './wyrm';
+
+const tmpQ = new Quaternion();
+const tmpE = new Euler();
 
 export function planFor(def: CreatureDef): CreaturePlan {
   switch (def.plan) {
@@ -102,6 +107,12 @@ export class CreatureRig implements CharacterRig {
   readonly plan: CreaturePlan;
   readonly height: number;
   private readonly flashColor = new Color();
+  private readonly tailBones: Bone[];
+  private bank = 0;
+  private bankV = 0;
+  private swing = 0;
+  private swingV = 0;
+  private lift = 0;
   private readonly dissolve: DissolveUniforms;
   private readonly depthMaterial: MeshDepthMaterial;
 
@@ -120,6 +131,9 @@ export class CreatureRig implements CharacterRig {
     const rootBone = list[0];
     if (rootBone === undefined) throw new Error('creature has no bones');
     this.skeleton = new Skeleton(list);
+    this.tailBones = (this.plan.tail ?? [])
+      .map((n) => this.bones.get(n))
+      .filter((b): b is Bone => b !== undefined);
     this.material = new MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 1 });
     const env = getCharacterEnvironment();
     if (env !== null) {
@@ -197,12 +211,50 @@ export class CreatureRig implements CharacterRig {
     if (edgeColor !== undefined) setDissolveEdge(this.dissolve, edgeColor);
   }
 
-  updateSecondary(): void {
-    // Tails, wings and legs are animated procedurally by CreatureAnimator.
+  /**
+   * Weight on top of the procedural pose: the body banks into turns, the tail (or abdomen,
+   * tendrils) swings out against the turn and streams back with speed, on springs.
+   * Call after the animator update (it rewrites the bones every frame, so nothing accumulates).
+   */
+  updateSecondary(dtSec: number, forward: number, _right: number, turnRate: number): void {
+    if (dtSec <= 0) return;
+    const dt = Math.min(dtSec, 0.1);
+    const bankTarget = Math.max(
+      -0.22,
+      Math.min(0.22, -turnRate * Math.min(6, Math.abs(forward) + 1) * 0.012),
+    );
+    const swingTarget = Math.max(-0.5, Math.min(0.5, turnRate * 0.09));
+    const liftTarget = Math.max(-0.2, Math.min(0.25, forward * 0.03));
+    let t = dt;
+    while (t > 1e-6) {
+      const h = Math.min(1 / 120, t);
+      this.bankV += (60 * (bankTarget - this.bank) - 10 * this.bankV) * h;
+      this.bank += this.bankV * h;
+      this.swingV += (32 * (swingTarget - this.swing) - 5 * this.swingV) * h;
+      this.swing += this.swingV * h;
+      this.lift += (liftTarget - this.lift) * Math.min(1, h * 4);
+      t -= h;
+    }
+    if (Math.abs(this.bank) > 1e-4) {
+      const spine = this.bones.get(this.plan.core.Spine);
+      if (spine !== undefined) {
+        tmpQ.setFromEuler(tmpE.set(0, 0, this.bank));
+        spine.quaternion.premultiply(tmpQ);
+      }
+    }
+    const tail = this.tailBones;
+    for (let i = 0; i < tail.length; i++) {
+      const b = tail[i];
+      if (b === undefined) continue;
+      // Later segments lag more: the swing travels down the chain.
+      const k = (i + 1) / tail.length;
+      tmpQ.setFromEuler(tmpE.set(-this.lift * (0.5 + 0.5 * k), this.swing * (0.6 + 0.8 * k), 0));
+      b.quaternion.multiply(tmpQ);
+    }
   }
 
   resetSecondary(): void {
-    // Nothing to reset: CreatureAnimator rewrites every bone each frame.
+    this.bank = this.bankV = this.swing = this.swingV = this.lift = 0;
   }
 
   dispose(): void {

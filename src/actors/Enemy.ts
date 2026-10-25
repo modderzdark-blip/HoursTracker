@@ -231,13 +231,13 @@ export class Enemy extends Actor {
     switch (h.spec.reaction) {
       case 'flinch':
         this.brain.goHurt(this.def.hurtMs);
-        this.playReaction(FLINCH_CLIPS[side], this.def.hurtMs);
+        this.playReaction(FLINCH_CLIPS[side], this.def.hurtMs, HURT_CLIPS[side]);
         this.knockback(h.dirX, h.dirZ, h.spec.knockback);
         break;
       case 'knockback':
         this.brain.goHurt(this.def.hurtMs + 180);
         // Heavy stumble while the knockback slides the body.
-        this.playReaction(HEAVY_CLIPS[side], this.def.hurtMs + 180);
+        this.playReaction(HEAVY_CLIPS[side], this.def.hurtMs + 180, HURT_CLIPS[side]);
         this.knockback(h.dirX, h.dirZ, h.spec.knockback);
         break;
       case 'launch':
@@ -252,11 +252,11 @@ export class Enemy extends Actor {
   }
 
   /** Hit reaction clip (creatures recoil procedurally instead). */
-  private playReaction(clip: string, ms: number): void {
+  private playReaction(clip: string, ms: number, jolt: string): void {
     if (this.anim.has(clip)) {
       this.anim.play(clip, { durationSec: Math.max(0.2, ms / 1000), fade: 0.04, restart: true });
     } else {
-      this.anim.react('hurt', 1.2);
+      this.anim.react(jolt, 1.2);
     }
   }
 

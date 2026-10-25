@@ -142,6 +142,7 @@ export const spiderPlan: CreaturePlan = {
   bones: buildBones(),
   core: { Spine: 'Body', Chest: 'Body', Head: 'Head' },
   bodyBone: 'Body',
+  tail: ['Abdomen'],
   sockets: {
     rightBase: { bone: 'FangR', offset: new Vector3(0, 0, 0) },
     rightTip: { bone: 'FangR', offset: new Vector3(0, -0.14, 0.05) },

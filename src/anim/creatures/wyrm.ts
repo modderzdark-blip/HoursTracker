@@ -204,6 +204,7 @@ export const wyrmPlan: CreaturePlan = {
   bones: BONES,
   core: { Spine: 'Core', Chest: 'N1', Head: 'Head' },
   bodyBone: 'Core',
+  tail: ['T0', 'T1', 'T2', 'T3', 'T4', 'T5'],
   sockets: {
     rightBase: { bone: 'T5', offset: new Vector3(0, 0, 0) },
     rightTip: { bone: 'T5', offset: new Vector3(0, 0, -0.3) },

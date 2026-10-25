@@ -1,4 +1,4 @@
-import { MeshBasicMaterial, MeshStandardMaterial, Scene } from 'three';
+import { Euler, MeshBasicMaterial, MeshStandardMaterial, Scene } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { enemyAnimSet, heroActions, heroAnimSet } from '../../src/anim/animSets';
 import { AnimationController } from '../../src/anim/AnimationController';
@@ -6,6 +6,9 @@ import { clipIsValid, easeValue, expandKeys, type Ease } from '../../src/anim/cl
 import { telegraphPose } from '../../src/anim/clipSets';
 import { idleVariantNames } from '../../src/anim/heroMoves';
 import { HumanoidRig } from '../../src/anim/HumanoidRig';
+import { CreatureAnimator } from '../../src/anim/creatures/CreatureAnimator';
+import { CreatureRig } from '../../src/anim/creatures/CreatureRig';
+import { CREATURES, type CreatureMotion } from '../../src/data/creatures';
 import { rigStyle } from '../../src/anim/motionStyles';
 import { HIT_SIDES, hitSide } from '../../src/anim/reactions';
 import { HUNCHED, NEUTRAL, SLAM_WIND, pose } from '../../src/anim/poses';
@@ -357,6 +360,51 @@ describe('actors', () => {
     const anim = new AnimationController(rig.root, set.clips, set.additive);
     for (const s of HIT_SIDES) expect(anim.has(`flinch_${s}`)).toBe(true);
     anim.dispose();
+    rig.dispose();
+  });
+});
+
+describe('creature secondary motion', () => {
+  it('tails swing out against a turn on springs, stay finite and settle when straight', () => {
+    for (const id of ['ash_behemoth', 'cinder_wyrm', 'ember_wisp'] as const) {
+      const rig = new CreatureRig(CREATURES[id]);
+      const anim = new CreatureAnimator(rig.plan, rig.bones, new Map<string, CreatureMotion>());
+      anim.play('run', { loop: true, durationSec: 0.6, fade: 0 });
+      const tailName = rig.plan.tail?.[rig.plan.tail.length - 1] ?? '';
+      const tail = rig.bones.get(tailName);
+      expect(tail, id).toBeDefined();
+      const yawOf = (): number => new Euler().setFromQuaternion(tail?.quaternion ?? undefined!).y;
+      // Straight run as the reference.
+      for (let i = 0; i < 120; i++) {
+        anim.update(1 / 60);
+        rig.updateSecondary(1 / 60, 4, 0, 0);
+      }
+      const straight = yawOf();
+      for (let i = 0; i < 30; i++) {
+        anim.update(1 / 60);
+        rig.updateSecondary(1 / 60, 4, 0, 3);
+      }
+      const turning = yawOf();
+      expect(Number.isFinite(turning)).toBe(true);
+      expect(Math.abs(turning - straight), id).toBeGreaterThan(0.05);
+      rig.resetSecondary();
+      rig.dispose();
+    }
+  });
+
+  it('creature hit jolts follow the side of the blow', () => {
+    const rig = new CreatureRig(CREATURES.ash_hound);
+    const anim = new CreatureAnimator(rig.plan, rig.bones, new Map<string, CreatureMotion>());
+    anim.play('idle', { loop: true, fade: 0 });
+    const chest = rig.bones.get(rig.plan.core.Chest);
+    const rollAfter = (name: string): number => {
+      anim.react(name, 1);
+      anim.update(1 / 60);
+      return new Euler().setFromQuaternion(chest?.quaternion ?? undefined!).z;
+    };
+    const left = rollAfter('hurt_left');
+    const right = rollAfter('hurt_right');
+    expect(left).toBeGreaterThan(right);
     rig.dispose();
   });
 });

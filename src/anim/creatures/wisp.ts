@@ -84,6 +84,7 @@ export const wispPlan: CreaturePlan = {
   bones: BONES,
   core: { Spine: 'Core', Chest: 'Core', Head: 'Head' },
   bodyBone: 'Core',
+  tail: ['T0', 'T1', 'T2', 'T3'],
   additiveGlow: true,
   sockets: {
     rightBase: { bone: 'Jaw', offset: new Vector3(0, -0.02, 0.04) },

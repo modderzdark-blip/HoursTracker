@@ -34,6 +34,10 @@ export class CreatureAnimator implements CharacterAnimator {
   private lookYaw = 0;
   private lookTarget = 0;
   private hurt = 0;
+  /** Side of the last hit: +1 = pushed to the right (hit from the left), −1 = to the left. */
+  private hurtSide = 0;
+  /** Hit from behind: the body pitches forward instead of back. */
+  private hurtBack = false;
   private lastNorm = 0;
   private readonly events: ClipEvent[] = [];
   private readonly out: PoseOut = new Map();
@@ -127,8 +131,11 @@ export class CreatureAnimator implements CharacterAnimator {
     this.duration = opts.durationSec !== undefined && opts.durationSec > 0 ? opts.durationSec : 1;
   }
 
-  react(_name: string, strength = 1): void {
+  /** Hit jolt; `hurt_left` / `hurt_right` / `hurt_back` / `hurt_front` pick the direction. */
+  react(name: string, strength = 1): void {
     this.hurt = Math.min(1.5, Math.max(this.hurt, strength));
+    this.hurtSide = name.endsWith('_left') ? 1 : name.endsWith('_right') ? -1 : 0;
+    this.hurtBack = name.endsWith('_back');
   }
 
   setPaused(paused: boolean): void {
@@ -191,12 +198,40 @@ export class CreatureAnimator implements CharacterAnimator {
       if (snap !== undefined && blend < 1) bone.quaternion.slerpQuaternions(snap, this.q, blend);
       else bone.quaternion.copy(this.q);
     }
-    // Hurt recoil: the body jolts back briefly.
+    // Hurt recoil: the body jolts away from the blow (back, forward or sideways) briefly.
     if (this.hurt > 0) {
       const body = this.bones.get(this.plan.core.Chest);
       if (body !== undefined) {
-        this.q.setFromEuler(this.e.set(-0.18 * this.hurt, 0, 0));
+        const h = this.hurt * this.hurt;
+        this.q.setFromEuler(
+          this.e.set(
+            (this.hurtBack ? 0.14 : -0.18) * h * (this.hurtSide === 0 ? 1 : 0.4),
+            0.12 * this.hurtSide * h,
+            0.2 * this.hurtSide * h,
+          ),
+        );
         body.quaternion.multiply(this.q);
+      }
+    }
+    // Long wind-ups shiver with effort just before the attack is released.
+    if (this.mode === 'tele' && this.duration > 0.5) {
+      const k = Math.max(0, (Math.min(1, this.elapsed / this.duration) - 0.6) / 0.4);
+      const chest = this.bones.get(this.plan.core.Chest);
+      if (k > 0 && chest !== undefined) {
+        this.q.setFromEuler(
+          this.e.set(0.025 * k * Math.sin(this.time * 47), 0, 0.035 * k * Math.sin(this.time * 39)),
+        );
+        chest.quaternion.multiply(this.q);
+      }
+    }
+    // Dying bodies twitch a few times after they come to rest.
+    if (this.mode === 'death') {
+      const t = this.elapsed / this.duration;
+      const twitch = t > 0.75 && t < 1.05 ? Math.max(0, Math.sin(this.time * 31)) ** 8 : 0;
+      const head = this.bones.get(this.plan.core.Head);
+      if (twitch > 0 && head !== undefined) {
+        this.q.setFromEuler(this.e.set(0.12 * twitch, 0.08 * twitch, 0));
+        head.quaternion.multiply(this.q);
       }
     }
     // Head turns toward the target on top of the pose.
