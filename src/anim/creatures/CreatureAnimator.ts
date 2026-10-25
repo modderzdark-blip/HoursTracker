@@ -70,6 +70,15 @@ export class CreatureAnimator implements CharacterAnimator {
     return this.parse(name) !== null;
   }
 
+  /** Procedural modes have no natural length; callers pass `durationSec`. */
+  clipDuration(_name: string): number {
+    return 0;
+  }
+
+  get finished(): boolean {
+    return !this.loop && this.elapsed >= this.duration;
+  }
+
   private parse(name: string): { mode: CreatureMode; motion: CreatureMotion | null } | null {
     const i = name.lastIndexOf(':');
     if (i > 0) {

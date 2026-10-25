@@ -31,9 +31,15 @@ export interface EnemyDeps {
   readonly ctx: BrainContext;
 }
 
-/** Visual sink into the ground at the end of the death animation (metres). */
-const DEATH_SINK = 1.4;
-const SINK_MS = 700;
+/** The corpse burns away into embers over the end of the death time (ms). */
+const DISSOLVE_MS = 1100;
+const BIG_DISSOLVE_MS = 1900;
+/** Slight settle into the ash while it burns (metres). */
+const DEATH_SINK = 0.18;
+/** Embers are released this often while a body burns (ms). */
+const EMBER_EVERY_MS = 130;
+/** Spawning enemies form out of ash over this long (s). */
+const MATERIALIZE_SEC = 0.75;
 
 /**
  * Pooled enemy: rig + kinematic body + AI brain. `activate()` takes it from the pool into the
@@ -49,6 +55,11 @@ export class Enemy extends Actor {
   baseSpeed = 1;
   private deadMs = 0;
   private wasMoving = false;
+  private dissolving = false;
+  private emberMs = 0;
+  /** Colour of the burning edge and embers (the body's glow colour). */
+  readonly burnColor: number;
+  private readonly bus: EnemyDeps['ctx']['bus'];
 
   constructor(
     readonly def: EnemyDef,
@@ -87,6 +98,15 @@ export class Enemy extends Actor {
     });
     this.brain = brain ?? new EnemyBrain(deps.ctx);
     this.brain.bind(this);
+    this.bus = deps.ctx.bus;
+    this.burnColor =
+      def.creature !== undefined ? CREATURES[def.creature].colors.glow : RIGS[def.rig].look.eyes;
+    this.rig.setDissolve(0, this.burnColor);
+  }
+
+  /** Bosses and other large bodies burn longer and throw more embers. */
+  protected get bigDeath(): boolean {
+    return false;
   }
 
   get actionSpeed(): number {
@@ -112,7 +132,9 @@ export class Enemy extends Actor {
     this.speedMult = this.baseSpeed;
     this.deadMs = 0;
     this.wasMoving = false;
+    this.dissolving = false;
     this.spawnAt(x, z, yaw);
+    this.dissolve.materialize(MATERIALIZE_SEC);
     this.brain.reset();
     this.brain.goSpawning();
   }
@@ -220,9 +242,7 @@ export class Enemy extends Actor {
     const dtMs = dtSec * 1000;
     if (this.brain.state === 'dead') {
       this.deadMs += dtMs;
-      const sinkStart = this.def.deathMs - SINK_MS;
-      if (this.deadMs > sinkStart)
-        this.visualLift = -DEATH_SINK * Math.min(1, (this.deadMs - sinkStart) / SINK_MS);
+      this.tickDissolve(dtMs);
       this.vel.x = this.vel.z = 0;
       return;
     }
@@ -232,6 +252,33 @@ export class Enemy extends Actor {
     const look =
       s === 'chase' || s === 'position' || s === 'alert' ? this.brain.angleToPlayer() : 0;
     this.anim.setLookYaw(look);
+  }
+
+  /** Burns the corpse away over the end of its death time, releasing embers. */
+  private tickDissolve(dtMs: number): void {
+    const span = Math.min(this.bigDeath ? BIG_DISSOLVE_MS : DISSOLVE_MS, this.def.deathMs * 0.7);
+    const start = this.def.deathMs - span;
+    if (!this.dissolving) {
+      if (this.deadMs < start) return;
+      this.dissolving = true;
+      this.emberMs = 0;
+      this.dissolve.start(span / 1000);
+    }
+    const progress = Math.min(1, (this.deadMs - start) / span);
+    this.visualLift = -DEATH_SINK * progress * this.rig.def.scale;
+    this.emberMs -= dtMs;
+    if (this.emberMs <= 0 && progress < 0.92 && this.rig.root.visible) {
+      this.emberMs = EMBER_EVERY_MS;
+      this.bus.emit('enemy:dissolve', {
+        x: this.currFeet.x,
+        y: this.currFeet.y,
+        z: this.currFeet.z,
+        height: this.rig.height,
+        progress,
+        color: this.burnColor,
+        big: this.bigDeath,
+      });
+    }
   }
 
   /** Locomotion animation from the current planar speed (called by the brain). */

@@ -9,10 +9,17 @@ import {
   SkinnedMesh,
   Vector3,
   type BufferGeometry,
+  type MeshDepthMaterial,
 } from 'three';
 import { CHARACTER_CONFIG } from '../../data/config';
 import type { CreatureDef } from '../../data/creatures';
 import { getCharacterEnvironment } from '../../render/characterEnv';
+import {
+  applyDissolve,
+  createDissolveUniforms,
+  setDissolveEdge,
+  type DissolveUniforms,
+} from '../../render/dissolve';
 import { applyCharacterShading } from '../../render/rimLight';
 import type { CharacterRig, CoreBone } from '../characterTypes';
 import { SkinBuilder } from '../meshKit';
@@ -95,6 +102,8 @@ export class CreatureRig implements CharacterRig {
   readonly plan: CreaturePlan;
   readonly height: number;
   private readonly flashColor = new Color();
+  private readonly dissolve: DissolveUniforms;
+  private readonly depthMaterial: MeshDepthMaterial;
 
   constructor(readonly def: CreatureDef) {
     this.plan = planFor(def);
@@ -131,7 +140,11 @@ export class CreatureRig implements CharacterRig {
       this.glowMaterial.depthWrite = false;
     }
     this.glowMaterial.color.setScalar(2.2);
+    t.geometry.computeBoundingBox();
+    this.dissolve = createDissolveUniforms(t.geometry.boundingBox?.max.y ?? 1);
+    this.depthMaterial = applyDissolve(this.material, this.glowMaterial, this.dissolve);
     this.mesh = new SkinnedMesh(t.geometry, this.material);
+    this.mesh.customDepthMaterial = this.depthMaterial;
     this.mesh.add(rootBone);
     this.mesh.castShadow = true;
     this.mesh.name = `creature:${def.id}`;
@@ -141,7 +154,6 @@ export class CreatureRig implements CharacterRig {
     this.root.updateMatrixWorld(true);
     this.mesh.bind(this.skeleton);
     this.glow.bind(this.skeleton, this.mesh.bindMatrix);
-    t.geometry.computeBoundingBox();
     this.height = (t.geometry.boundingBox?.max.y ?? 1) * def.scale;
     this.mesh.computeBoundingSphere();
     this.mesh.boundingSphere.radius *= 1.6;
@@ -180,6 +192,11 @@ export class CreatureRig implements CharacterRig {
     this.root.visible = v;
   }
 
+  setDissolve(amount: number, edgeColor?: number): void {
+    this.dissolve.uDissolve.value = Math.min(1, Math.max(0, amount));
+    if (edgeColor !== undefined) setDissolveEdge(this.dissolve, edgeColor);
+  }
+
   updateSecondary(): void {
     // Tails, wings and legs are animated procedurally by CreatureAnimator.
   }
@@ -191,6 +208,7 @@ export class CreatureRig implements CharacterRig {
   dispose(): void {
     this.material.dispose();
     this.glowMaterial.dispose();
+    this.depthMaterial.dispose();
     this.skeleton.dispose();
     this.root.removeFromParent();
   }

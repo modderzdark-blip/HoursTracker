@@ -20,6 +20,10 @@ export class Boss extends Enemy {
     );
   }
 
+  protected override get bigDeath(): boolean {
+    return true;
+  }
+
   get bossBrain(): BossBrain {
     return this.brain as BossBrain;
   }

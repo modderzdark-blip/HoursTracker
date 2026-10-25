@@ -10,6 +10,7 @@ import { StatusEffects } from '../combat/StatusEffects';
 import type { TeamName } from '../core/events';
 import type { HitSpec, StatBlock } from '../data/combatTypes';
 import { PHYSICS_CONFIG } from '../data/config';
+import { DissolveTimeline } from '../render/dissolve';
 import type { RigDef } from '../data/rigs';
 import { CharacterBody } from '../physics/CharacterBody';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
@@ -94,6 +95,9 @@ export abstract class Actor {
   private flashDecay = 6;
   /** Procedural torso lean and hit recoil on top of the clips. */
   readonly dynamics = new BodyDynamics();
+  /** Burn-away / form-from-ash state of the body (deaths, spawns). */
+  readonly dissolve = new DissolveTimeline();
+  private shownDissolve = 0;
   private lastRenderYaw = 0;
 
   protected constructor(opts: ActorOptions) {
@@ -183,6 +187,9 @@ export abstract class Actor {
     this.lastRenderYaw = yaw;
     this.dynamics.reset();
     this.rig.resetSecondary();
+    this.dissolve.reset();
+    this.shownDissolve = 0;
+    this.rig.setDissolve(0);
   }
 
   removeFromWorld(): void {
@@ -284,6 +291,11 @@ export abstract class Actor {
       this.rig.updateSecondary(animDtSec, forward, right, turnRate);
     }
     this.lastRenderYaw = root.rotation.y;
+    this.dissolve.update(animDtSec);
+    if (this.dissolve.amount !== this.shownDissolve) {
+      this.shownDissolve = this.dissolve.amount;
+      this.rig.setDissolve(this.shownDissolve);
+    }
     if (this.flash > 0) {
       this.flash = Math.max(0, this.flash - realDtSec * this.flashDecay);
       this.rig.setFlash(this.flash * 0.9, this.flashColor);
