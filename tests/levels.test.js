@@ -182,14 +182,14 @@ test('the calibrated curve: every shipped level within its tolerance of its targ
     assert.ok(Math.abs(Number(row.win_rate) - target) <= LEVELS.calibrationTolerance(target) + 0.0005 + 1e-9, `level ${level.id}: ${row.win_rate} vs target ${target.toFixed(3)}`);
     assert.deepStrictEqual([Number(row.star1), Number(row.star2), Number(row.star3)], level.stars, `level ${level.id} stars match the report`);
   });
-  // The Candy Crush-matched shape (smart bot): normal levels ease down to about 15%, hard ones take many tries.
+  // The Candy Crush-shaped curve (smart bot): normal levels ease down to about 28%, hard ones take several tries.
   let previous = 1;
   for (let level_number = 26; level_number <= 2000; level_number += 1) {
     const base = LEVELS.baseWinRate(level_number);
-    assert.ok(base <= previous + 1e-12 && base >= 0.15 && base <= 0.45, `base(${level_number}) = ${base}`);
+    assert.ok(base <= previous + 1e-12 && base >= 0.28 && base <= 0.66, `base(${level_number}) = ${base}`);
     previous = base;
     const hard = LEVELS.targetWinRate(level_number, 'hard');
-    assert.ok(hard >= 0.05 && hard <= 0.16 && LEVELS.targetWinRate(level_number, 'superhard') < hard, `hard targets at ${level_number}`);
+    assert.ok(hard >= 0.14 && hard <= 0.33 && LEVELS.targetWinRate(level_number, 'superhard') < hard, `hard targets at ${level_number}`);
   }
 });
 

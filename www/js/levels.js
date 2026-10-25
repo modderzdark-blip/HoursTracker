@@ -114,13 +114,14 @@
 
   // ---------------------------------------------------------------- difficulty roles and targets
   //
-  // Matched to Candy Crush Saga player data (attempt logs for one 15-level episode, as published in the DataCamp
-  // "Level difficulty in Candy Crush Saga" sample): the first level of an episode was passed on about 62% of attempts,
-  // ordinary levels on 20-45%, hard ones on 4-14%, and the episode's last level, its gate, on about 4%. The same shape
-  // is used here, measured with the smart bot (one attempt = one game; it plays out its best few moves in full, so it is
-  // much closer to a person than a greedy one): episodes open easier, have one to three hard levels in the middle, an
-  // easier level after each hard one, and end on a hard gate (super hard every 5th episode). The first episode is the
-  // on-ramp; the second already has a hard level (23) and a hard gate (30).
+  // Shaped like Candy Crush Saga's episodes (attempt logs for one 15-level episode, as published in the DataCamp "Level
+  // difficulty in Candy Crush Saga" sample): episodes open easier, have one to three hard levels in the middle, an easier
+  // level after each hard one, and end on a hard gate (super hard every 5th episode). The first episode is the on-ramp;
+  // the second already has a hard level (23) and a hard gate (30).
+  // The win rates are the smart bot's (one attempt = one game). The bot sees every move on the board and never misses
+  // the goal's colour, so people win less often than it does: owner feedback on 1.12 (bot at 65% on level 14) was that
+  // the levels felt impossible, and on 1.7 (a weaker bot, about 80%) that nothing was ever lost. The targets sit between:
+  // an ordinary level takes one to three tries early on and a few more later, a hard one several.
 
   const ROLES = Object.freeze(['normal', 'breather', 'hard', 'superhard', 'tutorial']);
 
@@ -152,24 +153,25 @@
   }
 
   /**
-   * Long-run curve for a normal level (smart bot): about 45% per attempt after the opening, 33% at level 60, 25% at
-   * 100, settling near 15% (a typical later level takes several tries, as in the original). A person who plans for
-   * specials and combos wins somewhat more often than the bot; the hard levels still take many tries.
+   * Long-run curve for a normal level (smart bot): 66% per attempt after the opening episodes, about 55% at level 50,
+   * 42% at 100, 33% at 200, settling near 28% (a later level usually takes a few tries, as in the original).
    */
   function baseWinRate(level_number) {
-    return 0.15 + 0.3 * Math.exp(-Math.max(0, level_number - 25) / 70);
+    return 0.28 + 0.38 * Math.exp(-Math.max(0, level_number - 25) / 80);
   }
 
   /** Target smart-bot win rate for a level. */
   function targetWinRate(level_number, role) {
-    if (level_number <= 3) return 0.95;
+    if (level_number <= 3) return 0.96;
     const level_role = role || scheduledRole(level_number);
-    if (level_number <= 10) return 0.88 - (0.1 * (level_number - 4)) / 6;
-    const base = level_number <= 25 ? 0.7 - (0.25 * (level_number - 11)) / 14 : baseWinRate(level_number);
-    if (level_role === 'breather') return Math.min(0.85, base + 0.2);
-    if (level_role === 'hard') return base * 0.35;
-    // Super hard bottoms out at 3% per try, about the original's hardest gates (never a level nobody can beat).
-    if (level_role === 'superhard') return Math.max(0.03, base * 0.15);
+    if (level_number <= 10) return 0.93 - (0.06 * (level_number - 4)) / 6;
+    const base = level_number <= 25 ? 0.83 - (0.17 * (level_number - 11)) / 14 : baseWinRate(level_number);
+    // A level that teaches something new should be beaten while it is still being learned.
+    if (level_role === 'tutorial') return Math.min(0.9, base + 0.04);
+    if (level_role === 'breather') return Math.min(0.9, base + 0.12);
+    if (level_role === 'hard') return base * 0.5;
+    // Super hard bottoms out at 6% per try for the bot: the hardest gates take many tries, never forever.
+    if (level_role === 'superhard') return Math.max(0.06, base * 0.3);
     return base;
   }
 
