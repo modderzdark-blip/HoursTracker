@@ -179,7 +179,7 @@ export class DissolveTimeline {
     // eases out so the body settles into shape.
     const e = this.to > this.from ? k : 1 - (1 - k) * (1 - k);
     this.amount = this.from + (this.to - this.from) * e;
-    if (this.elapsed >= this.duration) {
+    if (this.elapsed >= this.duration - 1e-6) {
       this.amount = this.to;
       this.duration = 0;
     }

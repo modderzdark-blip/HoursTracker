@@ -283,9 +283,9 @@ const MOVES: Readonly<Record<string, HeroMoveSet>> = {
           Chest: [0, -8, 0],
         });
         const tap = pose(idle, {
-          RightArm: [-58, 0, 8],
-          RightForeArm: [-50, 0, 0],
-          Chest: [0, 14, 0],
+          RightArm: [-62, 0, -14],
+          RightForeArm: [-70, 0, 0],
+          Chest: [0, 8, 0],
           Head: [0, 10, 0],
         });
         return {
