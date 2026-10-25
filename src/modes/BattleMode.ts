@@ -765,6 +765,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
       this.d.bus.emit('time:slowMotion', { scale: 0.3, ms: 900 });
     }
     this.d.setInputEnabled(false);
+    this.player.playVictory();
     this.playVictoryShot();
     this.feel.victory(bossFight ? VICTORY_TITLE_MS.boss : VICTORY_TITLE_MS.waves);
     this.d.bus.emit('stage:victory', {});
