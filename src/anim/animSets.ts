@@ -5,10 +5,11 @@ import type { HeroDef } from '../data/heroes';
 import {
   buildActionClip,
   buildCustomActionClip,
-  buildDodgeClips,
   buildEnemyAttackClips,
   buildHumanoidClips,
 } from './clipSets';
+import { buildHeroMoveClips } from './heroMoves';
+import { heroStyle, rigStyle } from './motionStyles';
 import { POSE_LIBRARY } from './poses';
 
 /** Clips one character type plays: base-layer clips and additive reactions. */
@@ -33,8 +34,8 @@ export function heroAnimSet(hero: HeroDef): AnimSet {
   const hit = heroSets.get(hero.id);
   if (hit !== undefined) return hit;
   const idle = POSE_LIBRARY[hero.idlePose];
-  const base = buildHumanoidClips(idle);
-  const clips = [...base.clips, ...buildDodgeClips(idle)];
+  const base = buildHumanoidClips(idle, heroStyle(hero.id));
+  const clips = [...base.clips, ...buildHeroMoveClips(hero.id, idle)];
   for (const a of heroActions(hero)) {
     clips.push(
       a.clip !== undefined ? buildCustomActionClip(a.clip, a, idle) : buildActionClip(a, idle),
@@ -50,9 +51,10 @@ export function enemyAnimSet(def: EnemyDef): AnimSet {
   const hit = enemySets.get(def.id);
   if (hit !== undefined) return hit;
   const idle = POSE_LIBRARY[def.idlePose];
-  const base = buildHumanoidClips(idle);
+  const style = rigStyle(def.rig);
+  const base = buildHumanoidClips(idle, style);
   const clips = [...base.clips];
-  for (const a of def.attacks) clips.push(...buildEnemyAttackClips(a, idle));
+  for (const a of def.attacks) clips.push(...buildEnemyAttackClips(a, idle, style));
   const set: AnimSet = { clips, additive: base.additive };
   enemySets.set(def.id, set);
   return set;

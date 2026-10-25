@@ -129,3 +129,50 @@ export class BodyDynamics {
 function clamp(v: number, max: number): number {
   return Math.min(max, Math.max(-max, v));
 }
+
+/**
+ * Weapon shudder when a blow lands: a stiff spring kicked on impact, shaking the forearms and
+ * hands for a few frames (applied after the mixer, like BodyDynamics).
+ */
+export class ImpactWobble {
+  private readonly spring = new Spring(420, 16);
+  private readonly e = new Euler();
+  private readonly q = new Quaternion();
+
+  get value(): number {
+    return this.spring.x;
+  }
+
+  /** Strength ~0.5 (light) .. 1.6 (heavy). */
+  kick(strength: number): void {
+    this.spring.v -= 4 * Math.max(0, strength);
+  }
+
+  update(dtSec: number): void {
+    if (dtSec <= 0) return;
+    let t = Math.min(dtSec, 0.1);
+    while (t > 1e-6) {
+      const h = Math.min(SUBSTEP, t);
+      this.spring.step(0, h);
+      t -= h;
+    }
+  }
+
+  /** Bones in pairs (forearm, hand): forearms take half, hands the full kick. */
+  apply(bones: readonly Bone[]): void {
+    const x = this.spring.x;
+    if (Math.abs(x) < 1e-4) return;
+    for (let i = 0; i < bones.length; i++) {
+      const b = bones[i];
+      if (b === undefined) continue;
+      const k = i % 2 === 0 ? 0.5 : 1;
+      this.e.set(x * k, 0, x * 0.4 * k * (i < 2 ? 1 : -1));
+      this.q.setFromEuler(this.e);
+      b.quaternion.multiply(this.q);
+    }
+  }
+
+  reset(): void {
+    this.spring.reset();
+  }
+}

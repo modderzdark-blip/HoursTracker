@@ -1,8 +1,11 @@
 import type { AnimationClip } from 'three';
 import type { ActionDef } from '../data/combatTypes';
 import type { EnemyAttackDef } from '../data/enemies';
-import { buildPoseClip, transitionClip, type ClipKey } from './clipBuilder';
+import { buildPoseClip, type ClipKey } from './clipBuilder';
 import { buildHeroClip } from './heroClips';
+import { buildIdleClip, buildRunClip, buildRunStopClip } from './locomotionClips';
+import { heroStyle, type MotionStyle } from './motionStyles';
+import { buildReactionClips } from './reactions';
 import {
   AIM_UP,
   AIM_UP_RELEASE,
@@ -12,122 +15,156 @@ import {
   CROSS_WIND,
   CROUCH,
   GS_SIDE_HIT,
-  LYING,
   OVERHEAD_HIT,
   OVERHEAD_WIND,
   POSE_LIBRARY,
   ROAR,
-  STAGGERED,
-  STRIDE_A,
-  STRIDE_PASS,
   blendPose,
-  mirror,
+  addPose,
   pose,
   type Pose,
+  type Rot,
 } from './poses';
 
-const ZERO: Pose = { r: {}, root: [0, 0, 0] };
+const DEFAULT_STYLE: MotionStyle = heroStyle('');
 
-/** Shared clips for every humanoid: idle, run, hurt (additive), knockdown, getup, death, stagger, spawn, roar. */
-export function buildHumanoidClips(idle: Pose): {
+/** Bones that lead a strike (hips and torso turn first; the arms whip through after). */
+const LEAD_BONES = new Set(['Hips', 'Spine', 'LeftUpLeg', 'LeftLeg', 'RightUpLeg', 'RightLeg']);
+const LAG = new Map<string, number>([
+  ['Chest', 0.95],
+  ['Head', 0.9],
+  ['LeftArm', 0.82],
+  ['RightArm', 0.82],
+  ['LeftForeArm', 0.68],
+  ['RightForeArm', 0.68],
+  ['LeftHand', 0.6],
+  ['RightHand', 0.6],
+]);
+
+/**
+ * Wind → hit blend with overlapping action: the hips and legs are already through (×1.15 of
+ * `k`, capped at 1), the chest follows, the arms and the weapon hand trail behind. Reads as the
+ * body driving the weapon instead of every joint moving in lockstep.
+ */
+export function overlapPose(wind: Pose, hit: Pose, k: number): Pose {
+  const out: Record<string, Rot> = {};
+  const names = new Set([...Object.keys(wind.r), ...Object.keys(hit.r)]);
+  for (const name of names) {
+    const a = (wind.r as Record<string, Rot | undefined>)[name] ?? [0, 0, 0];
+    const b = (hit.r as Record<string, Rot | undefined>)[name] ?? [0, 0, 0];
+    const kk = LEAD_BONES.has(name) ? Math.min(1, k * 1.15) : k * (LAG.get(name) ?? 1);
+    out[name] = [a[0] + (b[0] - a[0]) * kk, a[1] + (b[1] - a[1]) * kk, a[2] + (b[2] - a[2]) * kk];
+  }
+  const pa = wind.root ?? [0, 0, 0];
+  const pb = hit.root ?? [0, 0, 0];
+  const kr = Math.min(1, k * 1.15);
+  return {
+    r: out,
+    root: [
+      pa[0] + (pb[0] - pa[0]) * kr,
+      pa[1] + (pb[1] - pa[1]) * kr,
+      pa[2] + (pb[2] - pa[2]) * kr,
+    ],
+  };
+}
+
+/** Big boss / brute roar: gather in, explode outward, shake with it, settle. */
+function roarKeys(idle: Pose, from: number, to: number): ClipKey[] {
+  const at = (u: number): number => from + (to - from) * u;
+  const gather = addPose(idle, {
+    r: {
+      Spine: [22, 0, 0],
+      Chest: [10, 0, 0],
+      Head: [20, 0, 0],
+      LeftArm: [-30, 0, -18],
+      RightArm: [-30, 0, 18],
+      LeftForeArm: [-50, 0, 0],
+      RightForeArm: [-50, 0, 0],
+    },
+    root: [0, -0.12, 0],
+  });
+  const big = pose(
+    ROAR,
+    {
+      Spine: [-26, 0, 0],
+      Chest: [-12, 0, 0],
+      Head: [-34, 0, 0],
+      LeftArm: [-62, 0, 84],
+      RightArm: [-62, 0, -84],
+      LeftForeArm: [-30, 0, 0],
+      RightForeArm: [-30, 0, 0],
+      LeftUpLeg: [-14, 0, 12],
+      RightUpLeg: [-4, 0, -12],
+      LeftLeg: [18, 0, 0],
+      RightLeg: [10, 0, 0],
+    },
+    [0, -0.05, 0],
+  );
+  const keys: ClipKey[] = [
+    { t: at(0), pose: idle },
+    { t: at(0.2), pose: gather, ease: 'inOut' },
+    { t: at(0.32), pose: big, ease: 'snap' },
+  ];
+  for (let i = 0; i < 6; i++) {
+    const s = i % 2 === 0 ? 1 : -1;
+    keys.push({
+      t: at(0.38 + i * 0.07),
+      pose: addPose(big, { r: { Chest: [s * 2, s * 3, s * 2], Head: [s * 3, -s * 4, 0] } }),
+    });
+  }
+  keys.push(
+    { t: at(0.86), pose: blendPose(big, idle, 0.5), ease: 'inOut' },
+    { t: at(1), pose: idle, ease: 'inOut' },
+  );
+  return keys;
+}
+
+/** Points the weapon at the enemy, then beckons with the free hand. */
+function tauntKeys(idle: Pose, from: number, to: number): ClipKey[] {
+  const at = (u: number): number => from + (to - from) * u;
+  const point = pose(idle, {
+    Spine: [2, -10, 0],
+    Chest: [-4, -14, 0],
+    Head: [-8, 10, 0],
+    RightArm: [-96, 0, -6],
+    RightForeArm: [-6, 0, 0],
+  });
+  const open = pose(point, { LeftArm: [-74, 0, 22], LeftForeArm: [-16, 0, 0] });
+  const curl = pose(point, { LeftArm: [-74, 0, 22], LeftForeArm: [-104, 0, 0] });
+  return [
+    { t: at(0), pose: idle },
+    { t: at(0.22), pose: point, ease: 'inOut' },
+    { t: at(0.42), pose: open, ease: 'inOut' },
+    { t: at(0.54), pose: curl, ease: 'inOut' },
+    { t: at(0.64), pose: open, ease: 'inOut' },
+    { t: at(0.74), pose: curl, ease: 'inOut' },
+    { t: at(1), pose: idle, ease: 'inOut' },
+  ];
+}
+
+/**
+ * Shared clips for every humanoid, shaped by its motion style: idle, run, run_stop, hit
+ * reactions (flinch_/hit_<side>, additive hurt_<side> + hurt), knockdown, getup, deaths, stagger,
+ * stagger_heavy, spawn, roar, taunt and intro (taunt → roar, for bosses).
+ */
+export function buildHumanoidClips(
+  idle: Pose,
+  style: MotionStyle = DEFAULT_STYLE,
+): {
   clips: AnimationClip[];
   additive: AnimationClip[];
 } {
-  const idleRoot = idle.root ?? [0, 0, 0];
-  const hips = idle.r.Hips ?? [0, 0, 0];
-  const breathe = pose(idle, { Chest: [(idle.r.Chest?.[0] ?? 0) + 3, 0, 0] }, [
-    idleRoot[0],
-    idleRoot[1] - 0.012,
-    idleRoot[2],
-  ]);
-  // Weight shifts from one foot to the other between breaths.
-  const shiftL = pose(breathe, { Hips: [hips[0], hips[1], hips[2] + 2.5] }, [
-    idleRoot[0] + 0.012,
-    idleRoot[1] - 0.012,
-    idleRoot[2],
-  ]);
-  const shiftR = pose(breathe, { Hips: [hips[0], hips[1], hips[2] - 2.5] }, [
-    idleRoot[0] - 0.012,
-    idleRoot[1] - 0.012,
-    idleRoot[2],
-  ]);
-  // Run: contact → pass (stance leg under the body, swing leg tucked) → flight → mirrored.
-  // Hips twist with the legs while the chest counter-twists.
-  const runA = pose(
-    STRIDE_A,
-    { Spine: [(idle.r.Spine?.[0] ?? 0) + 8, 0, 0], Hips: [0, 8, 0], Chest: [0, -12, 0] },
-    [0, -0.03, 0],
-  );
-  const runB = mirror(runA);
-  const passL = pose(STRIDE_PASS, { Spine: [(idle.r.Spine?.[0] ?? 0) + 9, 0, 0] });
-  const passR = mirror(passL);
-  // Flight: both feet off the ground between pass and the next contact.
-  const flyL = pose(blendPose(passL, runB, 0.55), {}, [0, 0.045, 0]);
-  const flyR = mirror(flyL);
-  const lean = pose(
-    idle,
-    { Spine: [-25, 0, 0], Chest: [-10, 0, 0], Head: [-15, 0, 0] },
-    [0, -0.05, 0],
-  );
+  const reactions = buildReactionClips(idle, style);
   const clips = [
-    buildPoseClip('idle', 4.8, [
-      { t: 0, pose: idle },
-      { t: 0.25, pose: shiftL },
-      { t: 0.5, pose: idle },
-      { t: 0.75, pose: shiftR },
-      { t: 1, pose: idle },
-    ]),
-    buildPoseClip('run', 0.6, [
-      { t: 0, pose: runA },
-      { t: 0.2, pose: passL },
-      { t: 0.36, pose: flyL },
-      { t: 0.5, pose: runB },
-      { t: 0.7, pose: passR },
-      { t: 0.86, pose: flyR },
-      { t: 1, pose: runA },
-    ]),
-    buildPoseClip('knockdown', 1, [
-      { t: 0, pose: idle },
-      { t: 0.15, pose: lean },
-      { t: 0.42, pose: LYING },
-      { t: 1, pose: LYING },
-    ]),
-    buildPoseClip('getup', 1, [
-      { t: 0, pose: LYING },
-      { t: 0.55, pose: CROUCH },
-      { t: 1, pose: idle },
-    ]),
-    buildPoseClip('death', 1, [
-      { t: 0, pose: idle },
-      { t: 0.2, pose: STAGGERED },
-      { t: 0.55, pose: LYING },
-      { t: 1, pose: LYING },
-    ]),
-    buildPoseClip('stagger', 1.2, [
-      { t: 0, pose: STAGGERED },
-      { t: 0.5, pose: pose(STAGGERED, { Chest: [10, 12, 0] }) },
-      { t: 1, pose: STAGGERED },
-    ]),
-    buildPoseClip('spawn', 1, [
-      { t: 0, pose: pose(CROUCH, {}, [0, -2.1, 0]) },
-      { t: 0.7, pose: CROUCH },
-      { t: 1, pose: idle },
-    ]),
-    buildPoseClip('roar', 1, [
-      { t: 0, pose: idle },
-      { t: 0.25, pose: ROAR },
-      { t: 0.8, pose: ROAR },
-      { t: 1, pose: idle },
-    ]),
+    buildIdleClip(idle, style),
+    buildRunClip(idle, style),
+    buildRunStopClip(idle, style),
+    ...reactions.clips,
+    buildPoseClip('roar', 1, roarKeys(idle, 0, 1)),
+    buildPoseClip('taunt', 2, tauntKeys(idle, 0, 1)),
+    buildPoseClip('intro', 1, [...tauntKeys(idle, 0, 0.42), ...roarKeys(idle, 0.46, 1)]),
   ];
-  const additive = [
-    buildPoseClip('hurt', 0.32, [
-      { t: 0, pose: ZERO },
-      { t: 0.3, pose: { r: { Spine: [-18, 0, 0], Chest: [-10, 0, 0], Head: [-16, 0, 0] } } },
-      { t: 1, pose: ZERO },
-    ]),
-  ];
-  return { clips, additive };
+  return { clips, additive: reactions.additive };
 }
 
 /** Follow-through: the strike swings this far past its hit pose before settling. */
@@ -135,9 +172,9 @@ const OVERSHOOT = 1.12;
 
 /**
  * Keys for wind → strike → recover with animation principles instead of linear blends: the
- * wind-up eases in (most of the motion early, then a short settle = anticipation), the strike
- * snaps (most of the arc in the first part of the active window), overshoots the hit pose
- * (follow-through), holds, then eases back to idle.
+ * wind-up eases in and settles (anticipation), the strike snaps with the hips leading and the
+ * weapon arm whipping through last (overlapping action), overshoots the hit pose with the weight
+ * dropping onto the front foot (follow-through), holds, then eases back to idle.
  */
 export function strikeKeys(
   idle: Pose,
@@ -151,15 +188,26 @@ export function strikeKeys(
   const keys: ClipKey[] = [];
   if (includeWindUp) {
     keys.push({ t: 0, pose: idle });
-    if (startFrac > 0.02) keys.push({ t: startFrac * 0.55, pose: blendPose(idle, wind, 0.82) });
+    if (startFrac > 0.02)
+      keys.push({ t: startFrac * 0.6, pose: blendPose(idle, wind, 0.86), ease: 'inOut' });
   }
+  const over = blendPose(wind, hit, OVERSHOOT);
+  const overRoot = over.root ?? [0, 0, 0];
   keys.push(
-    { t: startFrac, pose: wind },
-    { t: startFrac + (activeEndFrac - startFrac) * 0.4, pose: blendPose(wind, hit, 0.88) },
-    { t: activeEndFrac, pose: blendPose(wind, hit, OVERSHOOT) },
-    { t: holdFrac, pose: hit },
-    { t: holdFrac + (1 - holdFrac) * 0.45, pose: blendPose(hit, idle, 0.3) },
-    { t: 1, pose: idle },
+    { t: startFrac, pose: wind, ease: includeWindUp ? 'out' : 'linear' },
+    {
+      t: startFrac + (activeEndFrac - startFrac) * 0.4,
+      pose: overlapPose(wind, hit, 0.9),
+      ease: 'snap',
+    },
+    {
+      t: activeEndFrac,
+      pose: pose(over, {}, [overRoot[0], overRoot[1] - 0.025, overRoot[2]]),
+      ease: 'out',
+    },
+    { t: holdFrac, pose: hit, ease: 'inOut' },
+    { t: holdFrac + (1 - holdFrac) * 0.45, pose: blendPose(hit, idle, 0.35), ease: 'inOut' },
+    { t: 1, pose: idle, ease: 'inOut' },
   );
   return keys;
 }
@@ -290,77 +338,93 @@ export function buildCustomActionClip(name: string, def: ActionDef, idle: Pose):
   }
 }
 
-export function buildDodgeClips(idle: Pose): AnimationClip[] {
-  const tuck = (hipsX: number, rootY: number): Pose =>
-    pose(
-      CROUCH,
-      {
-        Hips: [hipsX, 0, 0],
-        LeftUpLeg: [-95, 0, 6],
-        RightUpLeg: [-95, 0, -6],
-        LeftLeg: [115, 0, 0],
-        RightLeg: [115, 0, 0],
-        LeftArm: [-40, 0, 20],
-        RightArm: [-40, 0, -20],
-      },
-      [0, rootY, 0],
-    );
-  return [
-    buildPoseClip('dodge_roll', 1, [
-      { t: 0, pose: idle },
-      { t: 0.12, pose: tuck(40, -0.3) },
-      { t: 0.35, pose: tuck(150, -0.45) },
-      { t: 0.6, pose: tuck(270, -0.45) },
-      { t: 0.82, pose: tuck(350, -0.25) },
-      { t: 1, pose: idle },
-    ]),
-    buildPoseClip('dodge_back', 1, [
-      { t: 0, pose: idle },
-      { t: 0.25, pose: pose(CROUCH, { Spine: [-10, 0, 0] }, [0, -0.15, 0]) },
-      {
-        t: 0.55,
-        pose: pose(
-          idle,
-          { Spine: [-22, 0, 0], LeftArm: [-60, 0, 30], RightArm: [-60, 0, -30] },
-          [0, 0.18, 0],
-        ),
-      },
-      { t: 1, pose: idle },
-    ]),
-  ];
+/**
+ * The telegraph's held pose: the wind-up pushed further (deeper coil, lower stance) so big hits
+ * read from across the arena. `windup` 0..1 comes from the motion style.
+ */
+export function telegraphPose(idle: Pose, wind: Pose, windup: number): Pose {
+  const big = blendPose(idle, wind, 1 + 0.16 * windup);
+  const r = big.root ?? [0, 0, 0];
+  return pose(big, {}, [r[0], r[1] - 0.035 * windup, r[2]]);
 }
 
-/** Enemy attack = telegraph clip (idle → wind, held) + strike clip (wind → hit → idle). */
-export function buildEnemyAttackClips(atk: EnemyAttackDef, idle: Pose): AnimationClip[] {
+/**
+ * Telegraph keys: a small counter-move away from the wind-up (the anticipation of the
+ * anticipation), a slow heavy coil into the exaggerated wind pose, then, for long wind-ups,
+ * a tremble while it is held, so the player sees the blow is about to land.
+ */
+export function telegraphKeys(
+  idle: Pose,
+  wind: Pose,
+  startupMs: number,
+  windup: number,
+): ClipKey[] {
+  const big = telegraphPose(idle, wind, windup);
+  const counter = blendPose(idle, wind, -0.12 * windup);
+  const keys: ClipKey[] = [
+    { t: 0, pose: idle },
+    { t: 0.14, pose: counter, ease: 'out' },
+    { t: 0.62, pose: big, ease: 'inOut' },
+  ];
+  if (startupMs >= 550 && windup >= 0.5) {
+    for (let i = 0; i < 4; i++) {
+      const s = i % 2 === 0 ? 1 : -1;
+      keys.push({
+        t: 0.7 + i * 0.075,
+        pose: addPose(big, {
+          r: {
+            Chest: [s * 1.5, 0, s * 2.5],
+            LeftArm: [s * 3, 0, 0],
+            RightArm: [-s * 3, 0, 0],
+            Head: [0, s * 2, 0],
+          },
+        }),
+      });
+    }
+  }
+  keys.push({ t: 1, pose: big, ease: 'inOut' });
+  return keys;
+}
+
+/** Enemy attack = telegraph clip (idle -> exaggerated wind, held) + strike (wind -> hit -> idle). */
+export function buildEnemyAttackClips(
+  atk: EnemyAttackDef,
+  idle: Pose,
+  style: MotionStyle = DEFAULT_STYLE,
+): AnimationClip[] {
   const wind = POSE_LIBRARY[atk.windPose];
   const hit = POSE_LIBRARY[atk.hitPose];
   const strikeTotal = (atk.activeMs + atk.recoveryMs) / 1000;
   const activeFrac = atk.activeMs / (atk.activeMs + atk.recoveryMs);
+  const windup = style.windup;
+  const big = telegraphPose(idle, wind, windup);
   const clips: AnimationClip[] = [];
   if (atk.special === 'leap') {
+    // Crouch and spring (the brain lifts the body off at half the telegraph), coil in the air.
+    const crouch = pose(CROUCH, { LeftArm: [45, 0, 25], RightArm: [45, 0, -25] }, [0, -0.32, 0]);
     clips.push(
       buildPoseClip(`${atk.id}:tele`, atk.startupMs / 1000, [
         { t: 0, pose: idle },
-        {
-          t: 0.4,
-          pose: pose(CROUCH, { LeftArm: [45, 0, 25], RightArm: [45, 0, -25] }, [0, -0.3, 0]),
-        },
-        {
-          t: 0.5,
-          pose: pose(CROUCH, { LeftArm: [45, 0, 25], RightArm: [45, 0, -25] }, [0, -0.3, 0]),
-        },
-        { t: 0.62, pose: wind },
-        { t: 1, pose: wind },
+        { t: 0.4, pose: crouch, ease: 'inOut' },
+        { t: 0.5, pose: pose(crouch, {}, [0, -0.36, 0]), ease: 'out' },
+        { t: 0.62, pose: big, ease: 'out' },
+        { t: 1, pose: big, ease: 'inOut' },
       ]),
     );
   } else {
-    clips.push(transitionClip(`${atk.id}:tele`, atk.startupMs / 1000, idle, wind, 0.15));
+    clips.push(
+      buildPoseClip(
+        `${atk.id}:tele`,
+        atk.startupMs / 1000,
+        telegraphKeys(idle, wind, atk.startupMs, windup),
+      ),
+    );
   }
   clips.push(
     buildPoseClip(
       `${atk.id}:strike`,
       strikeTotal,
-      strikeKeys(idle, wind, hit, 0, activeFrac, false),
+      strikeKeys(idle, big, hit, 0, activeFrac, false),
     ),
   );
   return clips;

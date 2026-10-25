@@ -69,7 +69,8 @@ export class BossBrain extends EnemyBrain {
 
   beginIntro(): void {
     this.enter('intro');
-    this.enemy.anim.play('roar', {
+    // Humanoid bosses taunt, then roar; creatures roar.
+    this.enemy.anim.play(this.enemy.anim.has('intro') ? 'intro' : 'roar', {
       durationSec: this.bossDef.introMs / 1000,
       fade: 0.1,
       restart: true,
@@ -137,7 +138,14 @@ export class BossBrain extends EnemyBrain {
     this.airborne = false;
     this.enemy.visualLift = 0;
     this.enter('broken');
-    this.enemy.anim.play('stagger', { loop: true, fade: 0.12 });
+    // Humanoids drop to a knee, heaving, for the whole break; creatures reel in a loop.
+    if (this.enemy.anim.has('stagger_heavy'))
+      this.enemy.anim.play('stagger_heavy', {
+        durationSec: this.bossDef.breakStunMs / 1000,
+        fade: 0.08,
+        restart: true,
+      });
+    else this.enemy.anim.play('stagger', { loop: true, fade: 0.12 });
     this.ctx.bus.emit('boss:break', { broken: true });
   }
 
@@ -207,6 +215,7 @@ export class BossBrain extends EnemyBrain {
     const p = this.ctx.player;
     if (!p.alive) {
       this.steerStop(dtSec);
+      if (p.inWorld) e.celebrate();
       return;
     }
     const gap = e.gapTo(p);

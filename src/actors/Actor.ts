@@ -289,6 +289,7 @@ export abstract class Actor {
       this.dynamics.apply(this.rig.bone('Spine'), this.rig.bone('Chest'));
       const right = -v.x * Math.cos(yaw) + v.z * Math.sin(yaw);
       this.rig.updateSecondary(animDtSec, forward, right, turnRate);
+      this.postAnimate(animDtSec);
     }
     this.lastRenderYaw = root.rotation.y;
     this.dissolve.update(animDtSec);
@@ -300,6 +301,11 @@ export abstract class Actor {
       this.flash = Math.max(0, this.flash - realDtSec * this.flashDecay);
       this.rig.setFlash(this.flash * 0.9, this.flashColor);
     }
+  }
+
+  /** Procedural touches applied after the clips and body dynamics (weapon shudder…). */
+  protected postAnimate(_dtSec: number): void {
+    // Default: nothing.
   }
 
   protected syncFeet(): void {

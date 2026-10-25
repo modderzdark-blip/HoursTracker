@@ -6,6 +6,25 @@ import { CROUCH, LYING, NEUTRAL, STAGGERED, addPose, mirror, pose, type Pose } f
 /** Where a hit came from, relative to the body: 'front' = the attacker stands in front. */
 export type HitSide = 'front' | 'back' | 'left' | 'right';
 export const HIT_SIDES: readonly HitSide[] = ['front', 'back', 'left', 'right'];
+/** Clip names per side (no string building on hits). */
+export const FLINCH_CLIPS: Readonly<Record<HitSide, string>> = {
+  front: 'flinch_front',
+  back: 'flinch_back',
+  left: 'flinch_left',
+  right: 'flinch_right',
+};
+export const HEAVY_CLIPS: Readonly<Record<HitSide, string>> = {
+  front: 'hit_front',
+  back: 'hit_back',
+  left: 'hit_left',
+  right: 'hit_right',
+};
+export const HURT_CLIPS: Readonly<Record<HitSide, string>> = {
+  front: 'hurt_front',
+  back: 'hurt_back',
+  left: 'hurt_left',
+  right: 'hurt_right',
+};
 
 /**
  * Side a hit came from. (dirX, dirZ) is the world direction the hit pushes the target, `yaw`

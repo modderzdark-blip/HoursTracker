@@ -1,9 +1,11 @@
 import type { AnimationClip, Scene } from 'three';
-import { buildEnemyAttackClips, buildHumanoidClips } from '../anim/clipSets';
+import { enemyAnimSet } from '../anim/animSets';
+import { rigStyle, type DeathKind, type MotionStyle } from '../anim/motionStyles';
+import { FLINCH_CLIPS, HEAVY_CLIPS, HURT_CLIPS, hitSide } from '../anim/reactions';
+import type { AiState } from '../ai/EnemyBrain';
 import { CreatureAnimator } from '../anim/creatures/CreatureAnimator';
 import { CreatureRig } from '../anim/creatures/CreatureRig';
 import { runCycleSec } from '../anim/locomotion';
-import { POSE_LIBRARY } from '../anim/poses';
 import { EnemyBrain, type BrainContext } from '../ai/EnemyBrain';
 import { CREATURES, type CreatureMotion } from '../data/creatures';
 import type { EnemyAttackDef, EnemyDef } from '../data/enemies';
@@ -38,6 +40,24 @@ const BIG_DISSOLVE_MS = 1900;
 const DEATH_SINK = 0.18;
 /** Embers are released this often while a body burns (ms). */
 const EMBER_EVERY_MS = 130;
+/** States in which the enemy's feet drive its animation (idle / run). */
+const LOCOMOTION_STATES: ReadonlySet<AiState> = new Set<AiState>([
+  'inactive',
+  'idle',
+  'patrol',
+  'alert',
+  'chase',
+  'position',
+]);
+
+const DEATH_CLIPS: Readonly<Record<DeathKind, string>> = {
+  back: 'death_back',
+  crumple: 'death_crumple',
+  spin: 'death_spin',
+  forward: 'death_forward',
+  kneel: 'death_kneel',
+};
+
 /** Spawning enemies form out of ash over this long (s). */
 const MATERIALIZE_SEC = 0.75;
 
@@ -60,6 +80,11 @@ export class Enemy extends Actor {
   /** Colour of the burning edge and embers (the body's glow colour). */
   readonly burnColor: number;
   private readonly bus: EnemyDeps['ctx']['bus'];
+  /** Movement personality (humanoids); picks deaths. */
+  protected readonly style: MotionStyle;
+  /** A one-shot flourish (taunt / roar) playing while standing still. */
+  private flourish = false;
+  private celebrated = false;
 
   constructor(
     readonly def: EnemyDef,
@@ -67,8 +92,8 @@ export class Enemy extends Actor {
     brain?: EnemyBrain,
   ) {
     let body: { rig: CreatureRig; anim: CreatureAnimator } | undefined;
-    const clips: AnimationClip[] = [];
-    let additive: ReturnType<typeof buildHumanoidClips>['additive'] = [];
+    let clips: readonly AnimationClip[] = [];
+    let additive: readonly AnimationClip[] = [];
     if (def.creature !== undefined) {
       const rig = new CreatureRig(CREATURES[def.creature]);
       const motions = new Map<string, CreatureMotion>(
@@ -76,11 +101,9 @@ export class Enemy extends Actor {
       );
       body = { rig, anim: new CreatureAnimator(rig.plan, rig.bones, motions) };
     } else {
-      const idle = POSE_LIBRARY[def.idlePose];
-      const base = buildHumanoidClips(idle);
-      clips.push(...base.clips);
-      additive = base.additive;
-      for (const a of def.attacks) clips.push(...buildEnemyAttackClips(a, idle));
+      const set = enemyAnimSet(def);
+      clips = set.clips;
+      additive = set.additive;
     }
     super({
       rig: RIGS[def.rig],
@@ -99,6 +122,7 @@ export class Enemy extends Actor {
     this.brain = brain ?? new EnemyBrain(deps.ctx);
     this.brain.bind(this);
     this.bus = deps.ctx.bus;
+    this.style = rigStyle(def.rig);
     this.burnColor =
       def.creature !== undefined ? CREATURES[def.creature].colors.glow : RIGS[def.rig].look.eyes;
     this.rig.setDissolve(0, this.burnColor);
@@ -133,6 +157,8 @@ export class Enemy extends Actor {
     this.deadMs = 0;
     this.wasMoving = false;
     this.dissolving = false;
+    this.flourish = false;
+    this.celebrated = false;
     this.spawnAt(x, z, yaw);
     this.dissolve.materialize(MATERIALIZE_SEC);
     this.brain.reset();
@@ -181,9 +207,10 @@ export class Enemy extends Actor {
   onHit(h: HitReceived): void {
     this.flashHit(0xffffff, 7);
     if (h.killed) {
-      this.die();
+      this.die(h);
       return;
     }
+    const side = hitSide(h.dirX, h.dirZ, this.yaw);
     if (h.poiseBroken) {
       this.brain.goStagger(this.def.staggerMs);
       this.poise.refill();
@@ -191,20 +218,26 @@ export class Enemy extends Actor {
       return;
     }
     if (h.blocked === true) {
-      // The shield takes it: a small shove, no flinch.
+      // The shield takes it: a small shove, a jolt behind the guard, no flinch.
       this.knockback(h.dirX, h.dirZ, h.spec.knockback * 0.25);
+      this.anim.react(HURT_CLIPS[side], 0.45);
       return;
     }
-    if (this.hasSuperArmor()) return;
+    if (this.hasSuperArmor()) {
+      this.anim.react(HURT_CLIPS[side], 0.6);
+      return;
+    }
+    this.flourish = false;
     switch (h.spec.reaction) {
       case 'flinch':
         this.brain.goHurt(this.def.hurtMs);
-        this.anim.react('hurt', 1);
+        this.playReaction(FLINCH_CLIPS[side], this.def.hurtMs);
         this.knockback(h.dirX, h.dirZ, h.spec.knockback);
         break;
       case 'knockback':
         this.brain.goHurt(this.def.hurtMs + 180);
-        this.anim.react('hurt', 1.3);
+        // Heavy stumble while the knockback slides the body.
+        this.playReaction(HEAVY_CLIPS[side], this.def.hurtMs + 180);
         this.knockback(h.dirX, h.dirZ, h.spec.knockback);
         break;
       case 'launch':
@@ -218,6 +251,15 @@ export class Enemy extends Actor {
     }
   }
 
+  /** Hit reaction clip (creatures recoil procedurally instead). */
+  private playReaction(clip: string, ms: number): void {
+    if (this.anim.has(clip)) {
+      this.anim.play(clip, { durationSec: Math.max(0.2, ms / 1000), fade: 0.04, restart: true });
+    } else {
+      this.anim.react('hurt', 1.2);
+    }
+  }
+
   /** Suicide attackers: dies on the spot (no killer). */
   selfDestruct(): void {
     if (this.health.dead) return;
@@ -226,15 +268,48 @@ export class Enemy extends Actor {
     this.rig.setVisible(false);
   }
 
-  protected die(): void {
+  protected die(h?: HitReceived): void {
     this.brain.goDead();
     this.deadMs = 0;
     this.vel.x = this.vel.z = 0;
-    this.anim.play('death', {
+    this.flourish = false;
+    this.anim.play(this.deathClip(h), {
       durationSec: Math.min(1.1, this.def.deathMs / 1000),
       fade: 0.06,
       restart: true,
     });
+  }
+
+  /**
+   * Death that fits the killing blow: thrown back by heavy hits from the front, pitched forward
+   * from behind, spun round by sideways blows, otherwise one of the body's own deaths.
+   */
+  private deathClip(h?: HitReceived): string {
+    const kinds = this.style.deaths;
+    if (this.def.creature !== undefined || kinds.length === 0) return 'death';
+    const has = (k: DeathKind): boolean => kinds.includes(k) && this.anim.has(DEATH_CLIPS[k]);
+    if (h !== undefined) {
+      const side = hitSide(h.dirX, h.dirZ, this.yaw);
+      const heavy = h.spec.reaction !== 'flinch' || h.crit;
+      if (side === 'back' && has('forward')) return DEATH_CLIPS.forward;
+      if ((side === 'left' || side === 'right') && heavy && has('spin')) return DEATH_CLIPS.spin;
+      if (heavy && side === 'front' && has('back')) return DEATH_CLIPS.back;
+    }
+    const pick =
+      kinds[(this.id * 7 + Math.floor(this.deadMs + this.currFeet.x * 13)) % kinds.length];
+    return pick !== undefined && this.anim.has(DEATH_CLIPS[pick]) ? DEATH_CLIPS[pick] : 'death';
+  }
+
+  /**
+   * The player is down: plays a taunt (or a roar on creatures) once, while standing still.
+   * Called by the brain; visual only.
+   */
+  celebrate(): void {
+    if (this.celebrated || this.brain.state === 'dead') return;
+    this.celebrated = true;
+    const name = this.anim.has('taunt') && this.def.creature === undefined ? 'taunt' : 'roar';
+    this.anim.play(name, { durationSec: 1.8, fade: 0.2, restart: true });
+    this.flourish = true;
   }
 
   think(dtSec: number): void {
@@ -283,14 +358,17 @@ export class Enemy extends Actor {
 
   /** Locomotion animation from the current planar speed (called by the brain). */
   playLocomotion(speed: number): void {
+    // Reactions, attacks and other states own the animation; only feet-driven states loop here.
+    if (!LOCOMOTION_STATES.has(this.brain.state)) return;
     const moving = speed > (this.wasMoving ? 0.3 : 0.5);
     if (moving) {
+      this.flourish = false;
       const cadence = runCycleSec(speed, this.rig.def.scale);
       this.anim.play('run', { loop: true, durationSec: cadence, fade: 0.15 });
-    } else if (
-      this.wasMoving ||
-      (this.anim.playing !== 'idle' && this.brain.state !== 'spawning')
-    ) {
+    } else if (this.flourish && !this.anim.finished) {
+      // Let the taunt finish.
+    } else if (this.wasMoving || this.anim.playing !== 'idle') {
+      this.flourish = false;
       this.anim.play('idle', { loop: true, fade: 0.2 });
     }
     this.wasMoving = moving;
