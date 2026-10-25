@@ -113,14 +113,14 @@ export function createTriplanarMaterial(
               ]
             : ['float tpT = 0.62 - tpPAmount * 0.3;']),
           'tpMask = smoothstep(tpT, tpT + 0.1, tpMask);',
-          'vec2 tpUvP = vTpPos.xz * tpPScale;',
+          'vec2 tpUvP = TP_ROT * vTpPos.xz * tpPScale;',
           'tpA = mix(tpA, texture2D(tpPAlbedo, tpUvP), tpMask);',
           'tpO = mix(tpO, texture2D(tpPOrm, tpUvP).rgb, tpMask);',
         ]
       : ['float tpMask = 0.0;'];
     const sample = flat
       ? [
-          'vec2 tpUvY = vTpPos.xz * tpScale;',
+          'vec2 tpUvY = TP_ROT * vTpPos.xz * tpScale;',
           'vec4 tpA = texture2D(tpAlbedo, tpUvY);',
           'vec3 tpO = texture2D(tpOrm, tpUvY).rgb;',
           ...patchSample,
@@ -141,8 +141,11 @@ export function createTriplanarMaterial(
             ? ['tnY = mix(tnY, texture2D(tpPNormal, tpUvP).xyz * 2.0 - 1.0, tpMask);']
             : []),
           'tnY.xy *= tpNormalScale;',
-          // Top-down projection: tangent x → world x, tangent y → world -z.
-          'vec3 tpWorldN = normalize(vec3(tnY.x, tnY.z, -tnY.y));',
+          // Top-down projection (rotated): tangent (x, -y) is a uv-space direction; rotate it
+          // back into world x / z.
+          'vec2 tpTn = vec2(tnY.x, -tnY.y);',
+          'tpTn = vec2(TP_C * tpTn.x + TP_S * tpTn.y, -TP_S * tpTn.x + TP_C * tpTn.y);',
+          'vec3 tpWorldN = normalize(vec3(tpTn.x, tnY.z, tpTn.y));',
         ]
       : [
           'vec3 tpNw = normalize(vTpNormal);',
@@ -181,6 +184,10 @@ export function createTriplanarMaterial(
           'uniform float tpGlowInner;',
           'uniform float tpGlowOuter;',
           'uniform float tpTime;',
+          // Flat floors are projected at an angle so stone joints never line up with the screen.
+          '#define TP_C 0.8776',
+          '#define TP_S 0.4794',
+          'const mat2 TP_ROT = mat2(TP_C, TP_S, -TP_S, TP_C);',
           'float tpHash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }',
           'float tpVNoise(vec2 p) { vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);',
           '  return mix(mix(tpHash(i), tpHash(i + vec2(1.0, 0.0)), f.x), mix(tpHash(i + vec2(0.0, 1.0)), tpHash(i + vec2(1.0, 1.0)), f.x), f.y); }',

@@ -242,9 +242,9 @@ export function createPuddleMaterial(time: TimeUniform, reflect: number): MeshSt
         '#include <emissivemap_fragment>',
         [
           '#include <emissivemap_fragment>',
-          'float pdF = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 4.0);',
+          'float pdF = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 5.0);',
           'float pdG = clNoise(vPdW.xz * 0.6 + normal.xz * 3.0);',
-          'totalEmissiveRadiance += pdReflect * (0.04 + pdF * 0.5) * (0.5 + pdG);',
+          'totalEmissiveRadiance += pdReflect * pdF * 0.16 * (0.3 + pdG);',
         ].join('\n'),
       );
   };

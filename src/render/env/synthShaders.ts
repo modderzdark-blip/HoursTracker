@@ -77,7 +77,7 @@ float ridgedFbm(vec2 uv, float freq, int octaves) {
 
 // Periodic Voronoi: x = distance to the nearest feature point, y = distance to the nearest cell
 // border, z = random id of the nearest cell. 'rep' cells per tile.
-vec3 voronoi(vec2 p, float rep, float jitter) {
+vec3 voronoiR(vec2 p, vec2 rep, float jitter) {
   vec2 n = floor(p);
   vec2 f = fract(p);
   vec2 mg;
@@ -110,6 +110,9 @@ vec3 voronoi(vec2 p, float rep, float jitter) {
   }
   return vec3(sqrt(md), border, id);
 }
+vec3 voronoi(vec2 p, float rep, float jitter) {
+  return voronoiR(p, vec2(rep), jitter);
+}
 `;
 
 /**
@@ -120,46 +123,43 @@ vec3 voronoi(vec2 p, float rep, float jitter) {
  * blue channel; uGlow scales it and is 0 for surfaces that never glow.
  */
 const MATERIALS = /* glsl */ `
-// Boundary i of an irregular course layout ('rows' per tile, periodic over the tile).
-float courseEdge(float i, float rows, float salt) {
-  return (i + (hash12(vec2(mod(i, rows), salt)) - 0.5) * 0.45) / rows;
-}
-// Joint i inside course 'row' ('k' stones per tile width, periodic).
-float stoneEdge(float i, float k, float row) {
-  return i + (hash12(vec2(row * 17.0 + mod(i, k), 11.0)) - 0.5) * 0.7;
-}
-
-// 0: flagstones — courses of cut pavers of varying height and length (0.3–1 m at the arena
-// scale), uneven joints, per-stone tilt and tone, chipped edges, cracks, worn tops, dirt in the
-// joints, sunken and missing stones (packed earth).
-// Returns x = distance to the joint (course-height units), y = stone id, z/w = position in stone.
+// 0: flagstones — irregular cut slabs (0.4–0.9 m at the arena scale), uneven joints, per-stone
+// tilt and tone, chipped edges, cracks, worn tops, grit in the joints, sunken and missing stones
+// (packed earth).
+// Returns x = distance to the joint (stone-size units), y = stone id, z/w = position in stone.
 vec4 paver(vec2 uv) {
-  vec2 w = uv + vec2(fbm(uv, 6.0, 3), fbm(uv + 0.31, 6.0, 3)) * 0.004;
-  float rows = 14.0;
-  float r = floor(w.y * rows);
-  float e0 = courseEdge(r, rows, 5.0);
-  float e1 = courseEdge(r + 1.0, rows, 5.0);
-  if (w.y < e0) { r -= 1.0; e1 = e0; e0 = courseEdge(r, rows, 5.0); }
-  else if (w.y >= e1) { r += 1.0; e0 = e1; e1 = courseEdge(r + 1.0, rows, 5.0); }
-  float row = mod(r, rows);
-  float k = 7.0 + floor(hash12(vec2(row, 7.0)) * 5.0);
-  float xr = fract(w.x + hash12(vec2(row, 1.0))) * k;
-  float i = floor(xr);
-  float b0 = stoneEdge(i, k, row);
-  float b1 = stoneEdge(i + 1.0, k, row);
-  if (xr < b0) { i -= 1.0; b1 = b0; b0 = stoneEdge(i, k, row); }
-  else if (xr >= b1) { i += 1.0; b0 = b1; b1 = stoneEdge(i + 1.0, k, row); }
-  float id = hash12(vec2(row * 13.0 + mod(i, k), 31.0));
-  // Each stone is cut a little short of its course, top and bottom, so courses don't read as
-  // continuous lines and joints vary from a hairline to a grit-filled gap.
-  float rh = e1 - e0;
-  float t0 = e0 + hash12(vec2(id * 57.0, 1.0)) * rh * 0.16;
-  float t1 = e1 - hash12(vec2(id * 57.0, 2.0)) * rh * 0.16;
-  float dx = min(xr - b0, b1 - xr) / k * rows;
-  float dy = min(w.y - t0, t1 - w.y) * rows;
+  // Irregular slabs: a jittered cell grid, wider than deep (about 0.7 × 0.5 m at arena scale),
+  // so stones are cut polygons of varied size with no continuous joint lines.
+  vec2 w = uv + vec2(fbm(uv, 6.0, 3), fbm(uv + 0.31, 6.0, 3)) * 0.006;
+  vec2 rep = vec2(11.0, 16.0);
+  vec2 q = w * rep;
+  vec2 n = floor(q);
+  vec2 f = fract(q);
+  vec2 mr = vec2(0.0);
+  vec2 mg = vec2(0.0);
+  float md = 8.0;
+  float id = 0.0;
+  for (int j = -1; j <= 1; j++)
+  for (int i = -1; i <= 1; i++) {
+    vec2 g = vec2(float(i), float(j));
+    vec2 cell = mod(n + g, rep);
+    vec2 o = 0.5 + (hash22(cell) - 0.5) * 0.8;
+    vec2 r = (g + o - f) * vec2(1.0, 0.7);
+    float d = dot(r, r);
+    if (d < md) { md = d; mr = r; mg = g; id = hash12(cell * 1.37 + 0.71); }
+  }
+  float border = 8.0;
+  for (int j = -2; j <= 2; j++)
+  for (int i = -2; i <= 2; i++) {
+    vec2 g = mg + vec2(float(i), float(j));
+    vec2 cell = mod(n + g, rep);
+    vec2 o = 0.5 + (hash22(cell) - 0.5) * 0.8;
+    vec2 r = (g + o - f) * vec2(1.0, 0.7);
+    if (dot(mr - r, mr - r) > 0.00001) border = min(border, dot(0.5 * (mr + r), normalize(r - mr)));
+  }
   // Joint width varies from stone to stone.
-  float edge = min(dx, dy) - hash12(vec2(id * 91.0, 3.0)) * 0.03;
-  return vec4(edge, id, (xr - b0) / (b1 - b0), (w.y - e0) / (e1 - e0));
+  float edge = border * 0.55 - hash12(vec2(id * 91.0, 3.0)) * 0.02;
+  return vec4(edge, id, 0.5 - mr.x * 0.9, 0.5 - mr.y * 1.2);
 }
 float flagCrack(vec2 uv, vec4 p) {
   return smoothstep(0.95, 0.99, ridgedFbm(uv + p.y * 3.1, 6.0, 4)) * step(0.4, p.y);
@@ -167,7 +167,7 @@ float flagCrack(vec2 uv, vec4 p) {
 float hFlag(vec2 uv) {
   vec4 p = paver(uv);
   float chip = fbm(uv + p.y, 32.0, 3) * 0.06;
-  float bevel = smoothstep(0.0, 0.045 + chip, p.x);
+  float bevel = smoothstep(0.0, 0.03 + chip, p.x);
   // Each stone sits tilted its own way, its centre worn by footsteps.
   float tilt = (p.z - 0.5) * (fract(p.y * 3.7) - 0.5) * 0.3 +
                (p.w - 0.5) * (fract(p.y * 7.3) - 0.5) * 0.24;
@@ -189,7 +189,7 @@ void sFlag(vec2 uv, float h, out vec3 albedo, out float rough, out float glow) {
   // Worn tops are lighter and smoother; dirt collects along the edges and in the joints.
   float worn = smoothstep(0.76, 0.86, h);
   stone *= 1.0 + worn * 0.16;
-  float joint = 1.0 - smoothstep(0.0, 0.03, p.x);
+  float joint = 1.0 - smoothstep(0.0, 0.018, p.x);
   float edgeDirt = (1.0 - smoothstep(0.01, 0.14, p.x)) * 0.45;
   float grime = smoothstep(0.2, 0.85, fbm(uv, 4.0, 5)) * 0.35;
   float stain = smoothstep(0.55, 0.85, fbm(uv + p.y * 2.0, 10.0, 3)) * 0.4 * step(0.6, fract(p.y * 9.1));
@@ -271,7 +271,7 @@ vec3 earthCells(vec2 uv) {
   return voronoi(uv * 9.0 + vec2(fbm(uv, 6.0, 3), fbm(uv + 0.5, 6.0, 3)) * 0.35, 9.0, 0.9);
 }
 float earthVein(vec2 uv) {
-  return smoothstep(0.9, 0.975, ridgedFbm(uv + fbm(uv + 4.1, 4.0, 3) * 0.05, 3.0, 5));
+  return smoothstep(0.83, 0.95, ridgedFbm(uv + fbm(uv + 4.1, 4.0, 3) * 0.05, 3.0, 5));
 }
 float hEarth(vec2 uv) {
   vec3 v = earthCells(uv);
@@ -345,8 +345,8 @@ vec2 cobbleH(vec2 uv) {
   float top = 0.55 + dome * 0.3 + v.z * 0.06 + fbm(uv + v.z, 40.0, 3) * 0.03;
   float base = 0.3 + fbm(uv, 60.0, 2) * 0.03;
   float stone = v.z < 0.04 ? base : mix(base, top, smoothstep(0.02, 0.08, v.y));
-  float drift = smoothstep(0.1, 0.6, fbm(uv + 5.3, 3.0, 5) + 0.15 * fbm(uv, 12.0, 3));
-  return vec2(stone, drift * 0.8 + fbm(uv, 24.0, 3) * 0.02 * drift);
+  float drift = smoothstep(-0.05, 0.45, fbm(uv + 5.3, 3.0, 5) + 0.15 * fbm(uv, 12.0, 3));
+  return vec2(stone, drift * 0.95 + fbm(uv, 24.0, 3) * 0.02 * drift);
 }
 float hCobble(vec2 uv) {
   vec2 c = cobbleH(uv);
@@ -390,7 +390,8 @@ vec4 marbleSlab(vec2 uv) {
   vec2 cid = mod(c, 6.0);
   vec2 e = min(f, 1.0 - f);
   float dark = mod(cid.x + cid.y, 2.0);
-  return vec4(min(e.x, e.y), hash12(cid + 4.0), dark, marbleRune(f) * dark);
+  float rune = dark * step(0.5, mod(cid.x, 4.0)) * step(mod(cid.y, 2.0), 0.5);
+  return vec4(min(e.x, e.y), hash12(cid + 4.0), dark, marbleRune(f) * rune);
 }
 float hMarble(vec2 uv) {
   vec4 s = marbleSlab(uv);
@@ -404,7 +405,7 @@ void sMarble(vec2 uv, float h, out vec3 albedo, out float rough, out float glow)
   vec2 w = uv + vec2(fbm(uv + s.y, 3.0, 4), fbm(uv + 1.7, 3.0, 4)) * 0.08;
   float veins = smoothstep(0.82, 0.97, ridgedFbm(w, 4.0, 5));
   float cloud = fbm(uv + s.y * 3.0, 8.0, 4) * 0.5 + 0.5;
-  vec3 base = uColorA * mix(1.0, 0.32, s.z) * (0.85 + cloud * 0.3 + (s.y - 0.5) * 0.1);
+  vec3 base = uColorA * mix(1.0, 0.55, s.z) * (0.85 + cloud * 0.3 + (s.y - 0.5) * 0.1);
   albedo = mix(base, uColorB, veins * 0.75);
   float joint = 1.0 - smoothstep(0.004, 0.012, s.x);
   float crack = smoothstep(0.955, 0.99, ridgedFbm(uv + s.y * 2.3, 4.0, 4)) * step(0.75, s.y);
