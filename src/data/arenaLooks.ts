@@ -334,7 +334,7 @@ export const ARENA_LOOKS: Readonly<Record<ArenaId, ArenaLook>> = {
       tufts: 250,
       flakes: 900,
       tuftColor: 0x3a3228,
-      flakeColor: 0x8a8682,
+      flakeColor: 0x4e4a48,
     },
     fx: {
       motes: [
@@ -373,7 +373,7 @@ export const ARENA_LOOKS: Readonly<Record<ArenaId, ArenaLook>> = {
       glow: 1,
     },
     floorPatch: FLAG([0x6a5a52, 0x2a1a14, 0x140c0a], 23),
-    floorGlow: { color: 0xff3c08, intensity: 3.2, center: 0.35, inner: 5, outer: 14 },
+    floorGlow: { color: 0xff3c08, intensity: 3.2, center: 0.2, inner: 6, outer: 14 },
     wall: {
       material: 'masonry',
       colors: [0x8a6e5c, 0x3a2418, 0x1e1410],

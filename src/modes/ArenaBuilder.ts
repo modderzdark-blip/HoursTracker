@@ -862,7 +862,7 @@ export class ArenaBuilder {
           this.mat(
             new MeshStandardMaterial({ color: c.flakeColor, roughness: 1, vertexColors: true }),
           ),
-        scale: [0.05, 0.14],
+        scale: [0.03, 0.08],
         tilt: 0.1,
         lift: 0,
         shadow: false,

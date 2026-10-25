@@ -143,7 +143,7 @@ export function createCrystalMaterial(time: TimeUniform, color: number): MeshSta
   const m = new MeshStandardMaterial({
     color: new Color(color).lerp(new Color(0xffffff), 0.25),
     emissive: new Color(color),
-    emissiveIntensity: 1.6,
+    emissiveIntensity: 0.95,
     roughness: 0.15,
     metalness: 0.1,
     flatShading: true,
