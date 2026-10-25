@@ -103,6 +103,7 @@ async function main(): Promise<void> {
   // Whole-arena totals (independent of what this camera sees): drawn objects and triangles.
   let arenaDraws = 0;
   let arenaTriangles = 0;
+  const breakdown: Record<string, number> = {};
   for (const root of builder.objects) {
     root.traverse((o) => {
       if (!o.visible) return;
@@ -120,7 +121,9 @@ async function main(): Promise<void> {
             ? (g as InstancedBufferGeometry).instanceCount
             : 1;
       arenaDraws++;
-      arenaTriangles += (verts / 3) * (Number.isFinite(instances) ? instances : 1);
+      const tris = (verts / 3) * (Number.isFinite(instances) ? instances : 1);
+      arenaTriangles += tris;
+      breakdown[o.name] = Math.round((breakdown[o.name] ?? 0) + tris);
     });
   }
   const w = window as unknown as { __viewerReady: boolean; __viewerInfo: unknown };
@@ -130,6 +133,7 @@ async function main(): Promise<void> {
     triangles: ctx.info.triangles,
     arenaDraws,
     arenaTriangles: Math.round(arenaTriangles),
+    breakdown,
   };
   w.__viewerReady = true;
 }

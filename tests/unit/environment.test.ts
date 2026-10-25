@@ -2,12 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { BufferGeometry } from 'three';
 import { ARENA_LOOKS } from '../../src/data/arenaLooks';
 import { ARENAS, type ArenaId } from '../../src/data/arenas';
+import { femurGeometry, skullGeometry } from '../../src/render/env/props';
 import {
-  boneGeometry,
   cliffRingGeometry,
   columnGeometry,
   rockGeometry,
-  skullGeometry,
   spireGeometry,
   stoneBlockGeometry,
 } from '../../src/render/env/shapes';
@@ -40,8 +39,8 @@ describe('environment shapes', () => {
     check(columnGeometry(3, false, 7, 0.8), 4000);
     check(columnGeometry(9, true, 2.6, 0.9), 4000);
     check(spireGeometry(4), 1200);
-    check(boneGeometry(), 400);
-    check(skullGeometry(), 1000);
+    check(femurGeometry(), 900);
+    check(skullGeometry(2), 1200);
     check(cliffRingGeometry(30, 16, 7, 128, 16), 9000);
   });
 

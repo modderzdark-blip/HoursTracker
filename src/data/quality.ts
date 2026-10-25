@@ -19,6 +19,10 @@ export interface QualityPreset {
   readonly particleCount: number;
   /** Decorative point lights (braziers). */
   readonly pointLights: boolean;
+  /** Arena ground clutter (pebbles, shards, flakes, weeds) density; 0 = none. */
+  readonly clutterDensity: number;
+  /** Arena ambience: motes, smoke columns and fog banks, cave drips. */
+  readonly ambientFx: boolean;
   readonly maxActiveEnemies: number;
   /** Max edge length for generated/loaded textures. */
   readonly textureMaxSize: number;
@@ -40,6 +44,8 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     vignette: true,
     particleCount: 60,
     pointLights: false,
+    clutterDensity: 0,
+    ambientFx: false,
     maxActiveEnemies: 8,
     textureMaxSize: 512,
     textureBudgetMB: 48,
@@ -57,6 +63,8 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     vignette: true,
     particleCount: 160,
     pointLights: true,
+    clutterDensity: 1,
+    ambientFx: true,
     maxActiveEnemies: 12,
     textureMaxSize: 1024,
     textureBudgetMB: 96,
@@ -74,6 +82,8 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     vignette: true,
     particleCount: 320,
     pointLights: true,
+    clutterDensity: 1.6,
+    ambientFx: true,
     maxActiveEnemies: 16,
     textureMaxSize: 2048,
     textureBudgetMB: 192,

@@ -125,7 +125,7 @@ export function groundAo(g: BufferGeometry, y0: number, y1: number, lo: number):
 }
 
 /** A cylinder between two points (radii at a and b). */
-function strut(
+export function strut(
   a: Vector3,
   b: Vector3,
   ra: number,
@@ -258,7 +258,7 @@ export function skullGeometry(detail = 3): BufferGeometry {
     const a = (k / 7 - 0.5) * 2.0;
     parts.push(
       place(
-        rbox(0.011, 0.016, 0.01, 0.003, 0.9),
+        prep(new BoxGeometry(0.011, 0.016, 0.01), 0.9),
         Math.sin(a) * 0.032,
         -0.078,
         0.062 + Math.cos(a) * 0.026,
@@ -286,7 +286,7 @@ export function skullGeometry(detail = 3): BufferGeometry {
     const a = (k / 5 - 0.5) * 1.8;
     parts.push(
       place(
-        rbox(0.01, 0.013, 0.009, 0.003, 0.85),
+        prep(new BoxGeometry(0.01, 0.013, 0.009), 0.85),
         Math.sin(a) * 0.03,
         -0.092,
         0.06 + Math.cos(a) * 0.022,
@@ -311,7 +311,7 @@ export function ribcageGeometry(): BufferGeometry {
   for (let k = 0; k < 11; k++) {
     const y = 0.03 + k * 0.042;
     const z = -0.09 - Math.sin((k / 10) * Math.PI) * 0.02;
-    parts.push(place(prep(new CylinderGeometry(0.02, 0.022, 0.03, 7), 0.8), 0, y, z));
+    parts.push(place(prep(new CylinderGeometry(0.02, 0.022, 0.03, 5), 0.8), 0, y, z));
     parts.push(place(rbox(0.01, 0.022, 0.04, 0.004, 0.75), 0, y - 0.006, z - 0.035, -0.5, 0, 0));
   }
   for (let k = 0; k < 7; k++) {
@@ -326,7 +326,7 @@ export function ribcageGeometry(): BufferGeometry {
         new Vector3(sx * w * 0.9, y - 0.065, 0.04 * reach),
         new Vector3(sx * w * (k < 5 ? 0.35 : 0.7), y - 0.085 * reach, 0.1 * reach),
       ]);
-      parts.push(prep(new TubeGeometry(path, 10, 0.0075, 4, false), 0.9));
+      parts.push(prep(new TubeGeometry(path, 7, 0.0075, 3, false), 0.9));
     }
   }
   parts.push(place(rbox(0.035, 0.2, 0.014, 0.006, 0.85), 0, 0.31, 0.105, 0.12, 0, 0));
@@ -870,7 +870,7 @@ export function chainGeometry(points: readonly Vector3[], link = 0.11): BufferGe
       nrm.copy(bin);
       bin.copy(tmp).negate();
     }
-    const g = prep(new TorusGeometry(link * 0.32, link * 0.085, 4, 8), 0.85);
+    const g = prep(new TorusGeometry(link * 0.32, link * 0.085, 3, 6), 0.85);
     g.scale(1.45, 1, 1);
     basis.makeBasis(t, nrm, bin).setPosition(p);
     g.applyMatrix4(basis);

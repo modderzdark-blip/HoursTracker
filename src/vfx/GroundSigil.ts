@@ -85,7 +85,7 @@ void main() {
   float r = length(p);
   if (r > 1.0) discard;
   float a = atan(p.y, p.x);
-  float w = 0.006;
+  float w = 0.0035;
   float lines = 0.0;
   lines = max(lines, ink(abs(r - 0.965), w * 1.8));
   lines = max(lines, ink(abs(r - 0.925), w));
@@ -114,11 +114,11 @@ void main() {
     }
   }
   // Weathering: worn gaps and grime break the lines up.
-  float wear = smoothstep(0.2, 0.5, vnoise(p * 9.0 + 3.1)) * (0.6 + 0.4 * vnoise(p * 30.0));
-  lines *= 0.25 + 0.75 * wear;
+  float wear = smoothstep(0.3, 0.6, vnoise(p * 9.0 + 3.1)) * (0.5 + 0.5 * vnoise(p * 30.0));
+  lines *= wear;
   // A slow wave of light runs around the circle; the whole sigil breathes.
   float wave = pow(0.5 + 0.5 * cos(a * 2.0 - uTime * 0.7), 6.0);
-  float glow = (0.3 + 0.7 * wave) * (0.8 + 0.2 * sin(uTime * 0.9));
+  float glow = (0.12 + 0.5 * wave) * (0.8 + 0.2 * sin(uTime * 0.9));
   float f = fogFade();
   float disc = (1.0 - smoothstep(0.92, 1.0, r)) * 0.08;
   gl_FragColor = vec4(uColor * lines * glow * f, (lines * uDark + disc) * f);
@@ -147,7 +147,7 @@ export class GroundSigil {
         uTime: time,
         uRadius: { value: radius },
         uColor: { value: new Color(color) },
-        uDark: { value: 0.55 },
+        uDark: { value: 0.45 },
         uStarA: { value: new Vector2(style.starA[0], style.starA[1]) },
         uStarB: { value: new Vector2(style.starB[0], style.starB[1]) },
         uSpokes: { value: style.spokes },

@@ -194,3 +194,60 @@ export function createIronMaterial(time: TimeUniform): MeshStandardMaterial {
   m.customProgramCacheKey = () => 'arena-iron';
   return m;
 }
+
+/**
+ * Standing water for cave puddles: a dark, near-mirror surface (sharp highlights from the moon
+ * and fires) whose normal is rippled by drifting noise, with the cavern's glow colour mirrored
+ * at grazing angles instead of the white environment.
+ */
+export function createPuddleMaterial(time: TimeUniform, reflect: number): MeshStandardMaterial {
+  const m = new MeshStandardMaterial({
+    color: 0x050807,
+    roughness: 0.06,
+    metalness: 0.1,
+    envMapIntensity: 0.15,
+  });
+  const uniforms = { pdTime: time, pdReflect: { value: new Color(reflect) } };
+  m.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vPdW;')
+      .replace(
+        '#include <project_vertex>',
+        '#include <project_vertex>\nvPdW = (modelMatrix * vec4(transformed, 1.0)).xyz;',
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        [
+          '#include <common>',
+          'uniform float pdTime;',
+          'uniform vec3 pdReflect;',
+          'varying vec3 vPdW;',
+          HASH,
+        ].join('\n'),
+      )
+      .replace(
+        '#include <normal_fragment_maps>',
+        [
+          '#include <normal_fragment_maps>',
+          'vec2 pdP = vPdW.xz * 3.0;',
+          'float pdA = clNoise(pdP + vec2(pdTime * 0.6, pdTime * 0.4));',
+          'float pdB = clNoise(pdP * 1.7 - vec2(pdTime * 0.5, -pdTime * 0.7));',
+          'vec3 pdN = normalize(vec3((pdA - 0.5) * 0.12, 1.0, (pdB - 0.5) * 0.12));',
+          'normal = normalize((viewMatrix * vec4(pdN, 0.0)).xyz);',
+        ].join('\n'),
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        [
+          '#include <emissivemap_fragment>',
+          'float pdF = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 4.0);',
+          'float pdG = clNoise(vPdW.xz * 0.6 + normal.xz * 3.0);',
+          'totalEmissiveRadiance += pdReflect * (0.04 + pdF * 0.5) * (0.5 + pdG);',
+        ].join('\n'),
+      );
+  };
+  m.customProgramCacheKey = () => 'arena-puddle';
+  return m;
+}
