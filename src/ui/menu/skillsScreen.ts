@@ -128,9 +128,12 @@ function openNode(ctx: MenuContext, n: SkillNodeDef): void {
       'btn btn-primary',
       () => {
         ctx.uiTap();
+        const before = p.power(heroId);
         if (p.rankUpSkill(heroId, n.id)) {
           renderSkills(ctx);
           openNode(ctx, n);
+          ctx.shell.showPower(before, p.power(heroId));
+          ctx.stingers.play('power', 2);
         }
       },
       { disabled: block !== null, testid: 'skill-learn' },

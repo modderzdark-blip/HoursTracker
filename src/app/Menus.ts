@@ -78,8 +78,11 @@ export class Menus implements MenuNav {
   }
 
   mode(id: ModeId): void {
+    this.o.profile.markModeSeen(id);
     if (id === 'adventure') {
-      this.stageMap();
+      // Open on the chapter of the next stage to beat.
+      const next = this.o.profile.nextStage();
+      this.stageMap(next?.chapter);
       return;
     }
     this.o.modeScreens[id](this.ctx);

@@ -2,6 +2,7 @@ import './ui/styles.css';
 import './ui/feel.css';
 import './ui/feel-battle.css';
 import './ui/feel-menus.css';
+import './ui/feel-hub.css';
 import { AudioManager } from './audio/AudioManager';
 import { DEBUG_CONFIG } from './data/config';
 import { loreTip } from './data/story';

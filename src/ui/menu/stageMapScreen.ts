@@ -26,6 +26,10 @@ export function stageEnemies(stage: StageDef): string[] {
   return names;
 }
 
+/** Stages seen open on the map this session: newly opened ones play an unlock animation. */
+const seenOpen = new Set<string>();
+let mapSeeded = false;
+
 function starsText(n: number): string {
   return '★'.repeat(n) + '☆'.repeat(3 - n);
 }
@@ -86,15 +90,25 @@ export function renderStageMap(ctx: MenuContext, chapterNumber: number): void {
   const path = el('div', 'map-path');
   const n = chapter.stages.length;
   const points: string[] = [];
+  const donePoints: string[] = [];
+  let unlocked = 0;
+  let cleared = 0;
   chapter.stages.forEach((s, i) => {
     const x = 7 + (i * 86) / Math.max(1, n - 1);
     const y = i % 2 === 0 ? 34 : 68;
     points.push(`${x},${y}`);
     const open = p.stageUnlocked(s, difficulty);
     const rec = p.record(s.id, difficulty);
+    if (open) donePoints.push(`${x},${y}`);
+    if (rec !== undefined) cleared++;
+    const isNext = open && rec === undefined;
+    const key = `${s.id}:${difficulty}`;
+    const fresh = open && mapSeeded && !seenOpen.has(key);
+    if (open) seenOpen.add(key);
+    if (fresh) unlocked++;
     const node = v.button(
       '',
-      `stage-node kind-${s.kind}${open ? '' : ' is-locked'}${rec !== undefined ? ' is-cleared' : ''}`,
+      `stage-node kind-${s.kind}${open ? '' : ' is-locked'}${rec !== undefined ? ' is-cleared' : ''}${isNext ? ' is-next' : ''}${fresh ? ' is-unlocking' : ''}`,
       () => {
         ctx.uiTap();
         if (!open) {
@@ -122,10 +136,25 @@ export function renderStageMap(ctx: MenuContext, chapterNumber: number): void {
   const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
   line.setAttribute('points', points.join(' '));
   svg.append(line);
+  // The road travelled so far, in gold.
+  if (donePoints.length > 1) {
+    const done = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    done.setAttribute('points', donePoints.join(' '));
+    done.setAttribute('class', 'map-line-done');
+    svg.append(done);
+  }
   path.prepend(svg);
+  const progress = el('div', 'map-progress');
+  const bar = el('div', 'map-progress-bar');
+  const fill = el('div', 'map-progress-fill');
+  fill.style.transform = `scaleX(${n > 0 ? cleared / n : 0})`;
+  bar.append(fill);
+  progress.append(el('span', '', `${chapter.subtitle} · ${cleared}/${n} cleared`), bar);
   const page = el('div', 'map');
-  page.append(top, el('div', 'map-sub', chapter.subtitle), path);
+  page.append(top, progress, path);
   v.root.append(page);
+  mapSeeded = true;
+  if (unlocked > 0) ctx.stingers.play('unlock', 0, 0.7);
 }
 
 function openPreBattle(ctx: MenuContext, stage: AdventureStageDef, difficulty: DifficultyId): void {

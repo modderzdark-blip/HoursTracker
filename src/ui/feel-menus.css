@@ -362,11 +362,12 @@
   margin: -90vmax 0 0 -90vmax;
   background: repeating-conic-gradient(
     from 0deg,
-    color-mix(in srgb, var(--accent) 22%, transparent) 0deg 6deg,
-    transparent 6deg 18deg
+    color-mix(in srgb, var(--accent) 14%, transparent) 0deg 5deg,
+    transparent 5deg 20deg
   );
-  -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 55%);
-  mask-image: radial-gradient(circle, #000 0%, transparent 55%);
+  -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 38%);
+  mask-image: radial-gradient(circle, #000 0%, transparent 38%);
+  opacity: 0.8;
   animation: rays-spin 24s linear infinite;
 }
 
