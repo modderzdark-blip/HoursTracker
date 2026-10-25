@@ -35,6 +35,7 @@ import { PlayerProfile } from '../../src/progression/PlayerProfile';
 import { createDefaultProfile, sanitizeProfile } from '../../src/progression/profile';
 import { xpToNext } from '../../src/progression/xp';
 import { createDefaultSave, normalizeSave } from '../../src/save/SaveStore';
+import { growthAdvice } from '../../src/ui/menu/rewardScreen';
 
 function makeProfile(): PlayerProfile {
   return new PlayerProfile(createDefaultSave(), () => undefined, mulberry32(5));
@@ -51,6 +52,7 @@ function win(stars = 3): BattleOutcome {
     revives: 0,
     kills: 10,
     bossKilled: false,
+    bossReached: false,
     souls: 0,
     hpFrac: 1,
   };
@@ -349,5 +351,28 @@ describe('story content', () => {
     }
     expect(loreTip(-1)).toBe(LORE_TIPS[LORE_TIPS.length - 1]);
     expect(loreTip(LORE_TIPS.length)).toBe(LORE_TIPS[0]);
+  });
+});
+
+describe('defeat advice', () => {
+  const none = {
+    heroes: 0,
+    newItems: 0,
+    gearUpgrade: false,
+    skills: 0,
+    journal: 0,
+    newModes: [],
+  };
+
+  it('points at gear, skills and heroes in that order', () => {
+    const a = growthAdvice({ ...none, gearUpgrade: true, skills: 2, heroes: 1 }, 500, 900);
+    expect(a.map((x) => x.id)).toEqual(['gear', 'skills', 'heroes']);
+    expect(a[1]?.text).toContain('2 skills');
+  });
+
+  it('suggests levelling when nothing is pending and power is short; nothing otherwise', () => {
+    expect(growthAdvice(none, 500, 900).map((x) => x.id)).toEqual(['level']);
+    expect(growthAdvice(none, 1000, 900)).toEqual([]);
+    expect(growthAdvice(none, 500, null)).toEqual([]);
   });
 });

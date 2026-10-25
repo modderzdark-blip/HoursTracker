@@ -1,0 +1,486 @@
+/* ===== Ashbound — reward sequences, celebrations, defeat, hub progression and menu polish ===== */
+
+/* ---------------------------------------------------------------- victory reveal */
+.reward-title.reward-shine {
+  position: relative;
+  overflow: hidden;
+  padding: 0 0.2em;
+  color: transparent;
+  background: linear-gradient(180deg, #fff6dc 0%, #ffd27a 50%, #c9822e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 12px rgba(255, 140, 40, 0.55));
+  animation: card-rise 0.5s ease-out both;
+}
+
+.reward-title.reward-shine::after {
+  content: '';
+  position: absolute;
+  inset: 0 -50%;
+  background: linear-gradient(
+    100deg,
+    transparent 35%,
+    rgba(255, 250, 230, 0.9) 50%,
+    transparent 65%
+  );
+  mix-blend-mode: overlay;
+  transform: translateX(-90%);
+  animation: shine-sweep 1.6s ease-in-out 0.3s 1 forwards;
+}
+
+.reward-victory .star.is-on {
+  animation: none;
+}
+
+.reward-victory .star.is-stamp {
+  animation: star-stamp 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.4) both;
+}
+
+.reward-victory .star.is-new {
+  color: #ffe680;
+  text-shadow:
+    0 0 16px rgba(255, 200, 60, 1),
+    0 0 4px #fff;
+}
+
+@keyframes star-stamp {
+  0% {
+    opacity: 0;
+    transform: scale(3) rotate(-25deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.85) rotate(4deg);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+.reward-quote {
+  max-width: 600px;
+  font-family: var(--font-title);
+  font-style: italic;
+  font-size: 14px;
+  line-height: 1.35;
+  color: rgba(239, 230, 216, 0.75);
+  animation: card-rise 0.6s ease-out 0.25s both;
+}
+
+.reward-quote.is-foe {
+  color: #f0a090;
+}
+
+.reward-row .loot {
+  font-variant-numeric: tabular-nums;
+}
+
+/* XP bar with LEVEL UP burst */
+.reward-xp {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.xpr-level {
+  min-width: 48px;
+  font-weight: 800;
+  color: #e0c8ff;
+  font-variant-numeric: tabular-nums;
+}
+
+.xpr-bar {
+  position: relative;
+  width: min(300px, 38vw);
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(10, 6, 14, 0.8);
+  border: 1px solid rgba(180, 140, 255, 0.45);
+  overflow: visible;
+}
+
+.xpr-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #7a4ad8, #c8a0ff 70%, #ffe0a0);
+  transform-origin: left center;
+  will-change: transform;
+}
+
+.xpr-burst {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  font-family: var(--font-title);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+  color: #fff3c0;
+  text-shadow:
+    0 0 14px rgba(200, 140, 255, 1),
+    0 0 4px #fff,
+    0 1px 2px #000;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.reward-xp.is-bursting .xpr-burst {
+  animation: levelup-burst 1.2s ease-out forwards;
+}
+
+@keyframes levelup-burst {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(2.2);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  75% {
+    opacity: 1;
+    transform: translate(-50%, -90%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -120%) scale(0.95);
+  }
+}
+
+.xpr-gain {
+  font-size: 13px;
+  color: #c8b0ff;
+}
+
+.xpr-gains {
+  font-size: 13px;
+  line-height: 1.35;
+  color: #e0d0ff;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.xpr-gains.is-shown {
+  opacity: 1;
+}
+
+.xpr-power {
+  color: #8cff9a;
+  font-weight: 800;
+}
+
+/* loot cards: flip in one by one; epic and better get a light beam */
+.reward-victory .loot-card {
+  position: relative;
+  overflow: visible;
+  animation: none;
+  box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+}
+
+.reward-victory .loot-card.is-pending {
+  opacity: 0;
+}
+
+.reward-victory .loot-card.is-revealed {
+  animation: card-flip 0.5s ease-out both;
+}
+
+.loot-beam {
+  position: absolute;
+  left: 50%;
+  bottom: 40%;
+  width: 70%;
+  height: 160%;
+  margin-left: -35%;
+  background: linear-gradient(0deg, var(--rarity, #fff) 0%, transparent 100%);
+  opacity: 0;
+  transform-origin: bottom center;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.loot-card.rarity-epic.is-revealed .loot-beam,
+.loot-card.rarity-legendary.is-revealed .loot-beam,
+.loot-card.rarity-mythic.is-revealed .loot-beam {
+  animation: loot-beam 1.3s ease-out forwards;
+}
+
+.loot-card.rarity-legendary.is-revealed,
+.loot-card.rarity-mythic.is-revealed {
+  animation:
+    card-flip 0.5s ease-out both,
+    rare-pulse 1.4s ease-out 0.4s 1;
+}
+
+@keyframes loot-beam {
+  0% {
+    opacity: 0;
+    transform: scaleY(0.1);
+  }
+  25% {
+    opacity: 0.75;
+    transform: scaleY(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleY(1.1);
+  }
+}
+
+@keyframes rare-pulse {
+  0% {
+    transform: scale(1);
+  }
+  20% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.reward-badge {
+  padding: 3px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 210, 122, 0.6);
+  background: rgba(60, 30, 8, 0.6);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #ffd27a;
+}
+
+.reward-badge.is-pending {
+  opacity: 0;
+}
+
+.reward-badge.is-revealed {
+  animation: star-stamp 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.4) both;
+}
+
+.reduce-flashes .loot-beam,
+.reduce-flashes .reward-title.reward-shine::after {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- defeat */
+.reward-defeat .reward-title {
+  font-size: 32px;
+  letter-spacing: 0.22em;
+  color: #e05040;
+  text-shadow: 0 0 18px rgba(200, 30, 20, 0.6);
+  animation: defeat-in 0.9s ease-out both;
+}
+
+@keyframes defeat-in {
+  from {
+    opacity: 0;
+    transform: scale(1.15);
+    letter-spacing: 0.5em;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.advice {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: min(460px, 100%);
+}
+
+.advice-head {
+  font-family: var(--font-title);
+  font-size: 13px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.advice-item {
+  min-height: 44px;
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid rgba(140, 255, 154, 0.35);
+  background: rgba(16, 30, 18, 0.55);
+  color: #c8f0cc;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.advice-item.is-pressed {
+  transform: scale(0.97);
+  filter: brightness(1.3);
+}
+
+.reward-defeat .button-row .btn-primary {
+  flex-grow: 1.6;
+  min-height: 58px;
+  font-size: 18px;
+}
+
+/* ---------------------------------------------------------------- celebrations */
+.celebrate {
+  --accent: #ffd27a;
+  position: absolute;
+  inset: 0;
+  z-index: 65;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: rgba(5, 3, 6, 0.9);
+  animation: scene-in 0.4s ease-out both;
+  transition: opacity 0.4s ease;
+}
+
+.celebrate.is-leaving {
+  opacity: 0;
+  pointer-events: none !important;
+}
+
+.celebrate-rays {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 180vmax;
+  height: 180vmax;
+  margin: -90vmax 0 0 -90vmax;
+  background: repeating-conic-gradient(
+    from 0deg,
+    color-mix(in srgb, var(--accent) 22%, transparent) 0deg 6deg,
+    transparent 6deg 18deg
+  );
+  -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 55%);
+  mask-image: radial-gradient(circle, #000 0%, transparent 55%);
+  animation: rays-spin 24s linear infinite;
+}
+
+.celebrate-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 50%,
+    color-mix(in srgb, var(--accent) 35%, transparent) 0%,
+    transparent 45%
+  );
+  animation: glow-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes rays-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes glow-breathe {
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.reduce-flashes .celebrate-rays,
+.reduce-flashes .celebrate-glow {
+  animation: none;
+}
+
+.celebrate .scene {
+  position: absolute;
+  inset: 0;
+}
+
+.celebrate-card {
+  position: relative;
+  max-width: min(640px, calc(100% - 48px - var(--sl) - var(--sr)));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.celebrate-kicker {
+  font-family: var(--font-title);
+  font-size: 14px;
+  letter-spacing: 0.4em;
+  padding-left: 0.4em;
+  text-transform: uppercase;
+  color: var(--accent);
+  animation: card-rise 0.5s ease-out 0.1s both;
+}
+
+.celebrate-title {
+  font-family: var(--font-title);
+  font-size: clamp(34px, 7vw, 68px);
+  line-height: 1.05;
+  letter-spacing: 0.1em;
+  padding-left: 0.1em;
+  color: transparent;
+  background: linear-gradient(180deg, #fffbe8 0%, #ffe0a0 50%, #d0882e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 2px #000) drop-shadow(0 0 22px rgba(255, 140, 40, 0.6));
+  animation: title-slam 0.6s cubic-bezier(0.2, 0.9, 0.25, 1.2) 0.2s both;
+}
+
+.celebrate-rule {
+  width: 70%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  transform: scaleX(0);
+  animation: rule-grow 0.8s ease-out 0.5s forwards;
+}
+
+.celebrate-sub {
+  font-family: var(--font-title);
+  font-style: italic;
+  font-size: 16px;
+  color: var(--gold);
+  animation: card-rise 0.6s ease-out 0.6s both;
+}
+
+.celebrate-body {
+  max-width: 560px;
+  font-family: var(--font-title);
+  font-size: clamp(14px, 2vw, 18px);
+  line-height: 1.45;
+  color: rgba(244, 227, 196, 0.92);
+  text-shadow: 0 1px 3px #000;
+  animation: card-rise 0.7s ease-out 0.85s both;
+}
+
+.celebrate-hint {
+  position: absolute;
+  bottom: calc(16px + var(--sb));
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  color: rgba(239, 230, 216, 0.6);
+  animation: hint-breathe 1.8s ease-in-out 1.2s infinite both;
+}
+
+/* In-battle defeat panel */
+.result-hero-line {
+  font-family: var(--font-title);
+  font-style: italic;
+  text-align: center;
+  color: rgba(244, 227, 196, 0.85);
+}
+
+.result-screen[data-result='defeat'] .result-title {
+  animation: defeat-in 0.9s ease-out both;
+}

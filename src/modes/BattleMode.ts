@@ -31,7 +31,7 @@ import type { QualityLevel, QualityPreset } from '../data/quality';
 import { RIGS } from '../data/rigs';
 import type { StageDef } from '../data/stages';
 import type { StatusId } from '../data/statusEffects';
-import { BOSS_LINES } from '../data/story';
+import { BOSS_LINES, HERO_LINES } from '../data/story';
 import type { InputState } from '../input/InputState';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { enemyScaleFor } from '../progression/enemyScale';
@@ -128,6 +128,8 @@ export interface BattleOutcome {
   readonly revives: number;
   readonly kills: number;
   readonly bossKilled: boolean;
+  /** The boss fight began (its intro played). */
+  readonly bossReached: boolean;
   readonly souls: number;
   readonly hpFrac: number;
 }
@@ -207,6 +209,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
   private ultCloneTimer = 0;
   private chargeSparkSec = 0;
   private duelHudShown = false;
+  private introPending = false;
   private dotTarget: Actor | null = null;
   private readonly tmp = new Vector3();
   private readonly bossFrame = new Vector3();
@@ -610,9 +613,9 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.runStartMs = this.d.clock.nowMs;
     this.d.camera.snap(this.player.currFeet);
     this.d.setInputEnabled(true);
-    const intro = this.setup.chapterIntro;
-    if (intro !== undefined) this.feel.chapterIntro(intro);
-    else this.hud.showBanner(this.setup.label.toUpperCase(), 'wave', 1800);
+    // The chapter card starts with the first rendered frame (building the arena can take a while).
+    this.introPending = this.setup.chapterIntro !== undefined;
+    if (!this.introPending) this.hud.showBanner(this.setup.label.toUpperCase(), 'wave', 1800);
   }
 
   // WaveWorld ---------------------------------------------------------
@@ -1087,6 +1090,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
       revives: p.revivesUsed,
       kills: this.enemiesKilled,
       bossKilled: this.bossDown,
+      bossReached: this.bossActive,
       souls: this.soulsThisRun,
       hpFrac: p.alive ? p.health.frac : 0,
     };
@@ -1124,6 +1128,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
           gems: this.d.wallet.get('gems'),
           revivesLeft,
           allowRevive: this.setup.allowRevive,
+          heroLine: HERO_LINES[this.setup.hero.id].defeat,
         },
         () => this.revive(),
         () => this.startRun(),
@@ -1215,6 +1220,11 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.numbers.update(realDtSec, this.d.camera.camera, size.clientWidth, size.clientHeight);
     this.updateHud(realDtSec);
     this.feel.update(realDtSec, this.player.health.frac, this.player.alive);
+    const intro = this.setup.chapterIntro;
+    if (this.introPending && intro !== undefined && realDtSec > 0) {
+      this.introPending = false;
+      this.feel.chapterIntro(intro);
+    }
   }
 
   private updateHud(dtSec: number): void {
