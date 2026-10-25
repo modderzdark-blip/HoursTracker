@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
-import { collectErrors, hook, state } from './helpers';
+import { collectErrors, hook, skipPrologue, state } from './helpers';
 import { audit, settle, type AuditIssue, type AuditResult } from './uiAudit';
 
 /**
@@ -173,6 +173,7 @@ async function boot(page: Page): Promise<void> {
 
 async function enter(page: Page): Promise<void> {
   await page.touchscreen.tap(HOME.width / 2, HOME.height * 0.7);
+  await skipPrologue(page);
   await waitScreen(page, 'hub');
 }
 

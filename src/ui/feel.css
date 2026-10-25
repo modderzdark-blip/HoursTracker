@@ -1,0 +1,397 @@
+/* ===== Ashbound — story, cinematics, combat juice, reward sequences and menu polish =====
+   Animations use transform / opacity only. Everything honours "Reduce flashes"
+   (.reduce-flashes on #ui-root) and the safe-area insets (--sl / --sr / --st / --sb). */
+
+:root {
+  --gold-hot: #ffd27a;
+  --shine: linear-gradient(100deg, transparent 30%, rgba(255, 246, 220, 0.85) 48%, transparent 66%);
+}
+
+/* ---------------------------------------------------------------- painted scenes */
+.scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #07060a;
+  transition: opacity 0.9s ease;
+}
+
+.scene.is-entering {
+  animation: scene-in 0.9s ease-out both;
+}
+
+.scene.is-leaving {
+  opacity: 0;
+}
+
+@keyframes scene-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.scene-sky {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 60% at 68% 30%, rgba(255, 110, 30, 0.45), transparent 70%),
+    linear-gradient(180deg, #160608 0%, #4a1408 52%, #1a0806 80%, #07060a 100%);
+}
+
+.scene-spire .scene-sky {
+  background:
+    radial-gradient(ellipse 40% 50% at 50% 18%, rgba(255, 60, 30, 0.35), transparent 70%),
+    linear-gradient(180deg, #0a0408 0%, #2a0c12 55%, #120609 85%, #07060a 100%);
+}
+
+.scene-risen .scene-sky {
+  background:
+    radial-gradient(ellipse 50% 50% at 50% 85%, rgba(255, 110, 40, 0.35), transparent 70%),
+    linear-gradient(180deg, #0b0709 0%, #21110f 60%, #120909 85%, #07060a 100%);
+}
+
+.scene-oath .scene-sky {
+  background:
+    radial-gradient(ellipse 60% 55% at 74% 32%, rgba(255, 130, 50, 0.5), transparent 70%),
+    linear-gradient(180deg, #12070a 0%, #3c1309 50%, #1c0907 82%, #07060a 100%);
+}
+
+.scene-layer {
+  position: absolute;
+  left: -6%;
+  width: 112%;
+  bottom: 0;
+  height: 100%;
+  will-change: transform;
+}
+
+.scene-far {
+  animation: drift-far 22s ease-in-out infinite alternate;
+}
+
+.scene-mid {
+  animation: drift-mid 22s ease-in-out infinite alternate;
+}
+
+.scene-near {
+  animation: drift-near 22s ease-in-out infinite alternate;
+}
+
+@keyframes drift-far {
+  from {
+    transform: translate3d(-1%, 0, 0) scale(1.02);
+  }
+  to {
+    transform: translate3d(1%, -1%, 0) scale(1.04);
+  }
+}
+
+@keyframes drift-mid {
+  from {
+    transform: translate3d(-2.2%, 0, 0) scale(1.03);
+  }
+  to {
+    transform: translate3d(2.2%, -1%, 0) scale(1.06);
+  }
+}
+
+@keyframes drift-near {
+  from {
+    transform: translate3d(-4%, 0, 0) scale(1.05);
+  }
+  to {
+    transform: translate3d(4%, 0, 0) scale(1.08);
+  }
+}
+
+.scene-ash {
+  position: absolute;
+  inset: -20% 0 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(2px 2px at 12% 18%, rgba(255, 190, 120, 0.85), transparent),
+    radial-gradient(1.5px 1.5px at 28% 62%, rgba(220, 210, 200, 0.6), transparent),
+    radial-gradient(2px 2px at 46% 34%, rgba(255, 150, 70, 0.8), transparent),
+    radial-gradient(1.5px 1.5px at 63% 78%, rgba(230, 220, 210, 0.55), transparent),
+    radial-gradient(2.5px 2.5px at 77% 22%, rgba(255, 170, 90, 0.75), transparent),
+    radial-gradient(1.5px 1.5px at 88% 55%, rgba(220, 210, 200, 0.6), transparent),
+    radial-gradient(2px 2px at 6% 84%, rgba(255, 140, 60, 0.7), transparent),
+    radial-gradient(1.5px 1.5px at 54% 92%, rgba(255, 200, 140, 0.6), transparent);
+  background-size: 100% 50%;
+  animation: ash-fall 14s linear infinite;
+  will-change: transform;
+}
+
+.scene-ash-2 {
+  background-size: 70% 40%;
+  opacity: 0.6;
+  animation-duration: 21s;
+  animation-direction: reverse;
+}
+
+@keyframes ash-fall {
+  from {
+    transform: translate3d(0, -10%, 0);
+  }
+  to {
+    transform: translate3d(-4%, 20%, 0);
+  }
+}
+
+.scene-shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(7, 6, 10, 0.55) 0%, transparent 24%),
+    linear-gradient(0deg, rgba(7, 6, 10, 0.92) 0%, rgba(7, 6, 10, 0.55) 30%, transparent 55%);
+}
+
+/* ---------------------------------------------------------------- prologue (story cards) */
+.story {
+  position: absolute;
+  inset: 0;
+  z-index: 70;
+  background: #07060a;
+  transition: opacity 0.5s ease;
+}
+
+.story.is-leaving {
+  opacity: 0;
+  pointer-events: none !important;
+}
+
+.story-stage {
+  position: absolute;
+  inset: 0;
+}
+
+.story-copy {
+  position: absolute;
+  left: calc(24px + max(var(--sl), var(--sr)));
+  right: calc(24px + max(var(--sl), var(--sr)));
+  bottom: calc(44px + var(--sb));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.story-title {
+  font-family: var(--font-title);
+  font-size: clamp(14px, 2.4vw, 20px);
+  letter-spacing: 0.4em;
+  padding-left: 0.4em;
+  text-transform: uppercase;
+  color: var(--gold);
+  text-shadow: 0 0 14px rgba(255, 122, 42, 0.6);
+  opacity: 0;
+}
+
+.story-title.is-in {
+  animation: story-title-in 0.8s ease-out forwards;
+}
+
+@keyframes story-title-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    letter-spacing: 0.7em;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.story-text {
+  margin: 0;
+  max-width: 720px;
+  font-family: var(--font-title);
+  font-size: clamp(17px, 2.9vw, 26px);
+  line-height: 1.45;
+  color: #f4e3c4;
+  text-shadow:
+    0 2px 6px #000,
+    0 0 20px rgba(0, 0, 0, 0.8);
+}
+
+.story-word {
+  display: inline-block;
+  opacity: 0;
+  animation: word-in 0.5s ease-out forwards;
+}
+
+.story-text.is-revealed .story-word {
+  animation: none;
+  opacity: 1;
+}
+
+@keyframes word-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+.story-dots {
+  position: absolute;
+  bottom: calc(18px + var(--sb));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.story-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(239, 230, 216, 0.25);
+  transition: transform 0.3s ease;
+}
+
+.story-dot.is-on {
+  background: var(--ember-hot);
+  transform: scale(1.35);
+  box-shadow: 0 0 8px rgba(255, 140, 60, 0.9);
+}
+
+.story-hint {
+  position: absolute;
+  right: calc(20px + var(--sr));
+  bottom: calc(14px + var(--sb));
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  color: rgba(239, 230, 216, 0.6);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+
+.story-hint.is-ready {
+  opacity: 1;
+  animation: hint-breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes hint-breathe {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.story-skip {
+  position: absolute;
+  top: calc(10px + var(--st));
+  right: calc(12px + var(--sr));
+  min-width: 88px;
+  min-height: 48px;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 24px;
+  border: 1px solid rgba(201, 162, 74, 0.45);
+  background: rgba(16, 11, 10, 0.6);
+  color: var(--ink);
+  font-size: 15px;
+  letter-spacing: 0.08em;
+}
+
+.story-skip.is-pressed {
+  transform: scale(0.95);
+  filter: brightness(1.3);
+}
+
+/* ---------------------------------------------------------------- title lore tips */
+.title-tip {
+  position: absolute;
+  left: calc(24px + max(var(--sl), var(--sr)));
+  right: calc(24px + max(var(--sl), var(--sr)));
+  bottom: calc(34px + var(--sb));
+  margin: 0 auto;
+  max-width: 620px;
+  text-align: center;
+  font-family: var(--font-title);
+  font-style: italic;
+  font-size: 14px;
+  line-height: 1.4;
+  color: rgba(239, 230, 216, 0.62);
+  opacity: 0;
+}
+
+.title-tip.is-in {
+  animation: tip-in 4.2s ease-in-out forwards;
+}
+
+@keyframes tip-in {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  12%,
+  85% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.title-logo {
+  animation: logo-in 1.6s ease-out both;
+}
+
+@keyframes logo-in {
+  from {
+    opacity: 0;
+    transform: scale(1.06);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+.title-name {
+  background: linear-gradient(180deg, #fff6e2 0%, #f4e3c4 45%, #c9a24a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 16px rgba(255, 122, 42, 0.55));
+  text-shadow: none;
+}
+
+/* The narration sits at the bottom: lift the scenery above it. */
+.story .scene-far,
+.story .scene-mid {
+  bottom: 13%;
+}
+
+.story .scene-near {
+  bottom: 4%;
+}
+
+.story .scene::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 14%;
+  background: #050203;
+}

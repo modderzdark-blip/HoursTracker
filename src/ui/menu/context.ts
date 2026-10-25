@@ -1,3 +1,4 @@
+import type { Stingers } from '../../audio/Stingers';
 import type { DifficultyId } from '../../data/difficulty';
 import type { HeroId } from '../../data/heroes';
 import type { GearSlot } from '../../data/items';
@@ -39,6 +40,8 @@ export interface MenuContext {
   readonly actions: MenuActions;
   readonly uiTap: () => void;
   readonly toast: (text: string) => void;
+  /** Musical cues (level up, loot reveal, unlocks…) on the SFX bus. */
+  readonly stingers: Stingers;
   /** Called when the selected hero changes (hub preview). */
   readonly onHeroChanged: (id: HeroId) => void;
   readonly settings: SettingsPort;
