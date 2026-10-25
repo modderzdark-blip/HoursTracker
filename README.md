@@ -42,7 +42,9 @@ The repository is public, so you don't need to sign in to download.
 * **Graphics:** a per-pixel candy shader (`www/js/sprites.js`): signed distance field → pillow height → normals,
   wrap diffuse, two specular lobes, a studio-window reflection with Fresnel, subsurface glow, theme detail and a contact
   shadow. Three materials (Settings → Theme): **Gummy** (default), **Hard Candy** and **Sugar Sprinkle**. Sprites are
-  shaded lazily into a cache sized to the board, so the first special of a level never stalls an animation.
+  shaded lazily into a cache sized to the board, so the first special of a level never stalls an animation. Colours
+  are deep and saturated (no speckle textures, which look like grain on a phone), on a deep navy board; the scenery
+  behind the board and on the map goes through `SCENERY.vivid` so it reads bright rather than pastel.
 * **Map:** like the original's map today: a wide candy road winds up a round world that rolls as you scroll (the land
   near you is big and flat, further up it curves over a round horizon into the sky, with clouds by day and moon and stars
   over the night lands). Each episode has its own clean, flat-colour land with big one-of-a-kind set pieces beside the
@@ -96,15 +98,18 @@ The repository is public, so you don't need to sign in to download.
   map). **Hard** levels are purple and **Super Hard** ones crimson (skull badge on the map, the level popup and the start
   ribbon); beating one for the first time says so and pays +2 / +4 Gold. Every 5th level (not the episode
   finales, which have their own reward) holds a **treasure chest** on the map that opens on the first win.
-* **Difficulty:** made to grind, like the original (matched to Candy Crush Saga player data: openers passed on about
-  62% of tries, ordinary levels 20–45%, hard ones 4–14%, the episode's last level about 4%). Episode 1 is the on-ramp;
+* **Difficulty:** challenging but fair, shaped like the original's episodes (Candy Crush Saga player data: openers
+  easier, a few hard levels in the middle, a hard last level). Episode 1 is the on-ramp;
   episode 2 already has a Hard level (23) and a hard gate (30). After that every episode opens with an easier level,
   has one to three **Hard levels** in the middle with an easier one after each, and ends on a hard gate (a **Super hard
   level** every 5th episode). Every level is tuned with a **smart bot** that plays like a careful person: it plays out
   its best few moves and judges each by what it can see happen (the matches, the specials made and fired, what their
-  blasts hit), never by the candies that will drop in afterwards. Its win rate per try: ordinary levels ease from about
-  45% down to 15%, hard ones about 5–16%, super hard about 2–7% (`LEVELS.targetWinRate`, report in
-  `docs/difficulty/`). Levels use five or six candy colours like the original (six on a third of the levels from 26,
+  blasts hit), never by the candies that will drop in afterwards. The bot never misses a move or the goal's colour, so
+  people win less often than it does; its win rate per try is set high enough that a level feels beatable: the first
+  lessons about 96%, the rest of episode 1 about 87–83%, ordinary levels then ease from about 66% down to 33% by level
+  200 (28% in the long run), hard ones about half of that, super hard about a third (`LEVELS.targetWinRate`, report
+  in `docs/difficulty/`). Version 1.13 raised these after level 14 felt impossible.
+  Levels use five or six candy colours like the original (six on a third of the levels from 26,
   over half from 60, most from 150; fewer colours mean free cascades), never absurd goals: the calibrator keeps every
   colour goal at 60 or fewer and about 3 candies per move at most, and tries another board if it cannot.
 * **Hints:** like the original, a **possible** move (not the best one: planning is up to you) wiggles and glows after a

@@ -383,8 +383,9 @@
           ag = mix(ag, high[1], amount);
           ab = mix(ab, high[2], amount);
         } else if (detail === 'sugar') {
-          const grain = hash2(col, row, seed);
-          const sugar = 0.1 + 0.12 * grain;
+          // A soft sugar coat: coarse, gentle variation (pixel-sized noise reads as grain on a phone).
+          const grain = hash2(Math.floor(x * 14), Math.floor(y * 14), seed);
+          const sugar = 0.1 + 0.05 * grain;
           ar = mix(ar, 1, sugar * 0.6);
           ag = mix(ag, 1, sugar * 0.6);
           ab = mix(ab, 1, sugar * 0.6);
@@ -438,7 +439,7 @@
         b += tight * 0.97 + wide + reflection * 0.95;
 
         // Sugar glitter specks catch the light.
-        if (detail === 'sugar' && hash2(col * 3 + 1, row * 7 + 2, seed) > 0.985 && -distance > 0.05) {
+        if (detail === 'sugar' && hash2(col * 3 + 1, row * 7 + 2, seed) > 0.996 && -distance > 0.05) {
           const sparkle = 0.6 + 1.4 * half_dot;
           r += sparkle;
           g += sparkle;
@@ -1007,8 +1008,8 @@
   function iconRecipe(kind) {
     if (kind === 'heart') return { shape: 'heart', base: '#ff3b6b', highlight: '#ff9db5', shadow: '#b3123f', theme: 'gummy', seed: 5 };
     if (kind === 'star') return { shape: 'star', base: '#ffd23f', highlight: '#fff3a8', shadow: '#d08a00', theme: 'hard', seed: 9, material: { env: 0.9, spec_tight: 1.6 } };
-    if (kind === 'star_empty') return { shape: 'star', base: '#c9b8d6', highlight: '#efe6f5', shadow: '#8e7aa0', theme: 'sprinkle', seed: 10 };
-    if (kind === 'pip') return { shape: 'gumdrop', base: '#46d6b4', highlight: '#b8f7e6', shadow: '#169378', theme: 'sprinkle', seed: 12, bevel: 0.5 };
+    if (kind === 'star_empty') return { shape: 'star', base: '#c9b8d6', highlight: '#efe6f5', shadow: '#8e7aa0', theme: 'gummy', seed: 10 };
+    if (kind === 'pip') return { shape: 'gumdrop', base: '#46d6b4', highlight: '#b8f7e6', shadow: '#169378', theme: 'gummy', seed: 12, bevel: 0.5 }; // smooth gummy, no sugar specks
     return null;
   }
 
