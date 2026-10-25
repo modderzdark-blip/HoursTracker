@@ -57,7 +57,7 @@
 
   // ---------------------------------------------------------------- families
   const FAMILIES = {
-    gumdrop_meadow: { sky: ['#9fe4ff', '#e8f8ff', '#fff0f8'], sun: '#fffbe0', far: '#b6e8a8', mid: '#86d47c', near: '#5ec06c', profile: 'hills', props: ['gumdrops', 'flowers'] },
+    gumdrop_meadow: { sky: ['#5cc8ff', '#b4e8ff', '#f2fbff'], sun: '#fffbe0', far: '#b6e8a8', mid: '#86d47c', near: '#5ec06c', profile: 'hills', props: ['gumdrops', 'flowers'] },
     lollipop_forest: { sky: ['#ffc4e6', '#ffe6f2', '#fff6d6'], sun: '#ffffff', far: '#e9bdf0', mid: '#cfa0ea', near: '#a77ddc', profile: 'hills', props: ['lollipops', 'lollipops'] },
     frosted_peaks: { sky: ['#a9cfff', '#dcebff', '#ffe8f6'], sun: '#ffffff', far: '#d6e2ff', mid: '#b4c6f2', near: '#f4f8ff', profile: 'peaks', props: ['canes', 'snowdrifts'] },
     caramel_canyon: { sky: ['#ffc27a', '#ffe0b0', '#fff3d6'], sun: '#fff6cc', far: '#eab06c', mid: '#d48a48', near: '#b86e34', profile: 'mesas', props: ['rocks', 'rocks'] },
@@ -72,18 +72,31 @@
   };
   const FAMILY_IDS = Object.keys(FAMILIES);
 
+  /**
+   * A richer version of a colour: more saturated and a touch deeper, so the scenes read bright and candy-coloured on a
+   * phone rather than pastel (near-whites stay near white).
+   */
+  function vivid(hex) {
+    const hsl = hexToHsl(hex);
+    if (hsl[1] < 0.04) return hex;
+    const saturation = Math.min(Math.max(0.72, hsl[1]), hsl[1] * 1.25 + 0.08);
+    const lightness = hsl[2] > 0.9 ? hsl[2] - 0.03 : hsl[2] > 0.25 ? hsl[2] - 0.08 : hsl[2];
+    return hslToHex(hsl[0], saturation, lightness);
+  }
+
   /** The colors of one episode (family colors with the cycle's hue shift); `accent` overrides the sky for the title. */
   function colorsFor(scenery, accent_sky) {
     const family = FAMILIES[scenery.family] || FAMILIES.gumdrop_meadow;
     const shift = scenery.hue_shift || 0;
+    const tint = (hex) => vivid(shiftHue(hex, shift));
     return {
       family: scenery.family,
-      sky: accent_sky || family.sky.map((hex) => shiftHue(hex, shift)),
+      sky: accent_sky || family.sky.map(tint),
       sun: family.sun,
       night: !accent_sky && !!family.night,
-      far: shiftHue(family.far, shift),
-      mid: shiftHue(family.mid, shift),
-      near: shiftHue(family.near, shift),
+      far: tint(family.far),
+      mid: tint(family.mid),
+      near: tint(family.near),
       profile: family.profile,
       props: family.props,
       shift,
@@ -193,7 +206,7 @@
     ctx.fill();
   }
 
-  const CANDY_COLORS = ['#ff5c8a', '#ffb347', '#ffe066', '#5fe0a8', '#6cb8ff', '#b57bff', '#ff8fd0'];
+  const CANDY_COLORS = ['#ff2e74', '#ff9a1f', '#ffd21f', '#1fd38a', '#2f9bff', '#9a4dff', '#ff5cc0'];
 
   // ---------------------------------------------------------------- props (x, ground y, size unit)
   const PROPS = {
@@ -210,8 +223,11 @@
       fill.addColorStop(1, shade(color, -0.12));
       ctx.fillStyle = fill;
       ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      for (let dot = 0; dot < 6; dot += 1) ctx.fillRect(x - radius * 0.6 + rng() * radius * 1.2, y - radius * 0.9 + rng() * radius * 0.8, 1.5, 1.5);
+      // A glossy shine instead of sugar specks (specks read as grain on a phone).
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.beginPath();
+      ctx.ellipse(x - radius * 0.38, y - radius * 0.62, radius * 0.26, radius * 0.14, -0.5, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     },
     flowers(ctx, x, y, unit, rng) {
@@ -551,15 +567,15 @@
   const LANDS = {
     gumdrop_meadow: { ground: '#8fdc6c', light: '#b8ef8f', dark: '#6cc457', water: '#6fd3ff', tree: '#4cbf55', props: ['roundTree', 'gumdrop', 'flowers', 'mushroom', 'roundTree', 'bush'], landmarks: ['candyShop', 'giantLolly', 'roundTree'] },
     lollipop_forest: { ground: '#d9b6f3', light: '#efdcff', dark: '#bb92e4', water: '#ff9fd6', tree: '#ff8fcf', props: ['lollipop', 'cottonTree', 'gumdrop', 'flowers', 'lollipop', 'mushroom'], landmarks: ['giantLolly', 'cottonTree', 'candyShop'] },
-    frosted_peaks: { ground: '#eef5ff', light: '#ffffff', dark: '#cddcf5', water: '#9ed9ff', tree: '#ffffff', props: ['snowTree', 'cane', 'snowMound', 'crystal', 'snowTree'], landmarks: ['giantCane', 'snowTree', 'chocoStack'] },
+    frosted_peaks: { ground: '#d9e8ff', light: '#ffffff', dark: '#adc6f0', water: '#9ed9ff', tree: '#ffffff', props: ['snowTree', 'cane', 'snowMound', 'crystal', 'snowTree'], landmarks: ['giantCane', 'snowTree', 'chocoStack'] },
     caramel_canyon: { ground: '#f0c27c', light: '#ffdcaa', dark: '#d79f5b', water: '#ffae4f', tree: '#7fcf6a', props: ['rock', 'cactus', 'rock', 'iceCone', 'bush'], landmarks: ['caramelTower', 'chocoStack', 'caramelTower'] },
     starlight_sky: { ground: '#3b2d7c', light: '#5643a6', dark: '#2a1f5e', water: '#2b78d8', tree: '#7f6cff', night: true, props: ['glowShroom', 'lamp', 'crystal', 'glowShroom', 'balloon'], landmarks: ['caramelTower', 'lamp', 'giantLolly'] },
     jelly_lagoon: { ground: '#ffe7ae', light: '#fff4d2', dark: '#f2cf8a', water: '#46cbf0', tree: '#46c96a', lakes: 3, props: ['palm', 'jellyBlob', 'rock', 'palm', 'flowers'], landmarks: ['palm', 'candyShop', 'giantLolly'] },
     cookie_town: { ground: '#a5db78', light: '#c6ee9c', dark: '#82c460', water: '#6fd3ff', tree: '#4cbf55', props: ['house', 'roundTree', 'lamp', 'house', 'fence', 'flowers'], landmarks: ['candyShop', 'caramelTower', 'house'] },
     sorbet_desert: { ground: '#ffcbb0', light: '#ffe3d2', dark: '#f4aa8c', water: '#7fe3f0', tree: '#5fd59b', props: ['cactus', 'iceCone', 'rock', 'cactus', 'gumdrop'], landmarks: ['caramelTower', 'cactus', 'giantLolly'] },
     midnight_carnival: { ground: '#41297c', light: '#5a3d9e', dark: '#2c1b5c', water: '#3a8ae0', tree: '#ff6fb5', night: true, props: ['tent', 'balloon', 'lamp', 'tent', 'glowShroom'], landmarks: ['tent', 'giantLolly', 'caramelTower'] },
-    cloud_kitchen: { ground: '#fbefff', light: '#ffffff', dark: '#ead6f6', water: '#bde9ff', tree: '#ffb3dc', props: ['cupcake', 'iceCone', 'cottonTree', 'cupcake', 'gumdrop'], landmarks: ['chocoStack', 'candyShop', 'cupcake'] },
-    glacier_gelato: { ground: '#d9f3ff', light: '#f2fbff', dark: '#b6e0f4', water: '#7fd0ff', tree: '#ffffff', props: ['iceCone', 'snowMound', 'snowTree', 'crystal', 'iceCone'], landmarks: ['giantCane', 'iceCone', 'chocoStack'] },
+    cloud_kitchen: { ground: '#f5ddff', light: '#ffffff', dark: '#dfbdf2', water: '#bde9ff', tree: '#ffb3dc', props: ['cupcake', 'iceCone', 'cottonTree', 'cupcake', 'gumdrop'], landmarks: ['chocoStack', 'candyShop', 'cupcake'] },
+    glacier_gelato: { ground: '#c6ecff', light: '#f2fbff', dark: '#9ad3f0', water: '#7fd0ff', tree: '#ffffff', props: ['iceCone', 'snowMound', 'snowTree', 'crystal', 'iceCone'], landmarks: ['giantCane', 'iceCone', 'chocoStack'] },
     sunrise_orchard: { ground: '#a7d96f', light: '#c9ec95', dark: '#86c255', water: '#6fd3ff', tree: '#55bf4d', props: ['fruitTree', 'fruitTree', 'bush', 'flowers', 'fence', 'mushroom'], landmarks: ['fruitTree', 'candyShop', 'giantLolly'] },
   };
 
@@ -567,7 +583,7 @@
   function landFor(scenery) {
     const land = LANDS[scenery.family] || LANDS.gumdrop_meadow;
     const shift = scenery.hue_shift || 0;
-    const tint = (hex) => shiftHue(hex, shift);
+    const tint = (hex) => vivid(shiftHue(hex, shift));
     return Object.assign({}, land, { ground: tint(land.ground), light: tint(land.light), dark: tint(land.dark), water: tint(land.water), tree: tint(land.tree) });
   }
 
@@ -1457,7 +1473,7 @@
     return standing;
   }
 
-  const SCENERY = { FAMILIES, FAMILY_IDS, LANDS, colorsFor, landFor, paintSky, paintLayer, paintLand, paintProp, paintPuff, shiftHue, shade };
+  const SCENERY = { FAMILIES, FAMILY_IDS, LANDS, colorsFor, landFor, paintSky, paintLayer, paintLand, paintProp, paintPuff, shiftHue, shade, vivid };
   SC.SCENERY = SCENERY;
   if (typeof module === 'object' && module.exports) module.exports = SCENERY;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -15,7 +15,7 @@
 
   const INK = '#4a2445'; // the one outline colour
   const SHADOW = 'rgba(40, 14, 48, 0.2)';
-  const CANDY = { pink: '#ff6fa8', red: '#ee4b5a', orange: '#ff9f43', yellow: '#ffd23f', mint: '#4fd1a0', sky: '#5fb8ff', purple: '#a77bff', cream: '#fff3df', white: '#ffffff', wood: '#c4834a', woodDark: '#8e5530', choco: '#7a4528' };
+  const CANDY = { pink: '#ff4f9a', red: '#f0283c', orange: '#ff8a1f', yellow: '#ffcc1a', mint: '#1fcf8a', sky: '#2f9bff', purple: '#8f4fff', cream: '#fff0d6', white: '#ffffff', wood: '#c97a3a', woodDark: '#8a4a22', choco: '#74391c' };
   const shade = (hex, amount) => SCENERY.shade(hex, amount);
 
   function mix(first, second, amount) {

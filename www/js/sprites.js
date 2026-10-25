@@ -12,12 +12,12 @@
   // ---------------------------------------------------------------- palette: the classic candy-shop set
   // Jelly bean, lozenge, lemon drop, gum square, gumball and jujube cluster: each with its own color AND silhouette.
   const CANDIES = Object.freeze([
-    { id: 0, name: 'Cherry Bean', shape: 'bean', base: '#ff2e4f', highlight: '#ff9aa8', shadow: '#a80d2c', symbol: 'heart' },
-    { id: 1, name: 'Orange Lozenge', shape: 'lozenge', base: '#ff8a12', highlight: '#ffc77a', shadow: '#c25300', symbol: 'wedge' },
-    { id: 2, name: 'Lemon Drop', shape: 'lemon', base: '#ffd92e', highlight: '#fff6a8', shadow: '#c49a00', symbol: 'diamond' },
-    { id: 3, name: 'Mint Square', shape: 'chiclet', base: '#2fd36b', highlight: '#a3f5bd', shadow: '#0f8a3c', symbol: 'square' },
-    { id: 4, name: 'Blueberry Ball', shape: 'ball', base: '#2f8cff', highlight: '#a8d4ff', shadow: '#1450b8', symbol: 'circle' },
-    { id: 5, name: 'Grape Cluster', shape: 'cluster', base: '#a64dff', highlight: '#dcb5ff', shadow: '#5a1aa8', symbol: 'star' },
+    { id: 0, name: 'Cherry Bean', shape: 'bean', base: '#ff1638', highlight: '#ff7c8e', shadow: '#9c0420', symbol: 'heart' },
+    { id: 1, name: 'Orange Lozenge', shape: 'lozenge', base: '#ff7a00', highlight: '#ffb85c', shadow: '#b84400', symbol: 'wedge' },
+    { id: 2, name: 'Lemon Drop', shape: 'lemon', base: '#ffd000', highlight: '#fff07a', shadow: '#c27f00', symbol: 'diamond' },
+    { id: 3, name: 'Mint Square', shape: 'chiclet', base: '#1fc452', highlight: '#86eea4', shadow: '#05702a', symbol: 'square' },
+    { id: 4, name: 'Blueberry Ball', shape: 'ball', base: '#1a72ff', highlight: '#86c0ff', shadow: '#0a3aa6', symbol: 'circle' },
+    { id: 5, name: 'Grape Cluster', shape: 'cluster', base: '#9a2cff', highlight: '#d09cff', shadow: '#4c0a9e', symbol: 'star' },
   ]);
   // The jujube cluster: a centre gummy and six around it (x, y, radius), shared by its shape and its height detail.
   const CLUSTER_GUMMIES = Object.freeze([[0, 0, 0.44]].concat([0, 1, 2, 3, 4, 5].map((index) => {
@@ -27,9 +27,9 @@
 
   // Material themes: same shapes and colors, different shader parameters (Section 4.2).
   const THEMES = Object.freeze({
-    gummy: { id: 'gummy', name: 'Gummy', spec_power: 60, spec_tight: 1.3, spec_wide: 0.18, env: 0.6, fresnel0: 0.05, subsurface: 1.0, translucency: 0.55, saturation: 1.22, detail: 'bubbles', height: 0.95 },
-    hard: { id: 'hard', name: 'Hard Candy', spec_power: 110, spec_tight: 1.8, spec_wide: 0.1, env: 1.0, fresnel0: 0.08, subsurface: 0.55, translucency: 0.35, saturation: 1.26, detail: 'swirl', height: 0.85 },
-    sprinkle: { id: 'sprinkle', name: 'Sugar Sprinkle', spec_power: 22, spec_tight: 0.38, spec_wide: 0.12, env: 0.16, fresnel0: 0.03, subsurface: 0.35, translucency: 0.15, saturation: 1.14, detail: 'sugar', height: 1.0 },
+    gummy: { id: 'gummy', name: 'Gummy', spec_power: 60, spec_tight: 1.3, spec_wide: 0.14, env: 0.45, fresnel0: 0.04, subsurface: 0.7, translucency: 0.45, saturation: 1.45, detail: 'none', height: 0.95 },
+    hard: { id: 'hard', name: 'Hard Candy', spec_power: 110, spec_tight: 1.8, spec_wide: 0.1, env: 0.8, fresnel0: 0.06, subsurface: 0.45, translucency: 0.3, saturation: 1.45, detail: 'swirl', height: 0.85 },
+    sprinkle: { id: 'sprinkle', name: 'Sugar Sprinkle', spec_power: 22, spec_tight: 0.38, spec_wide: 0.12, env: 0.16, fresnel0: 0.03, subsurface: 0.3, translucency: 0.15, saturation: 1.32, detail: 'sugar', height: 1.0 },
   });
   const THEME_IDS = Object.freeze(['gummy', 'hard', 'sprinkle']);
 
@@ -359,9 +359,9 @@
         // Albedo: thin (edge) regions lighter and more saturated, thick regions deeper (subsurface look).
         const thickness = h;
         const thick = smoothstep(0.1, 0.95, thickness);
-        let ar = mix(mix(base[0], high[0], 0.28), mix(base[0], deep[0], 0.38), thick);
-        let ag = mix(mix(base[1], high[1], 0.28), mix(base[1], deep[1], 0.38), thick);
-        let ab = mix(mix(base[2], high[2], 0.28), mix(base[2], deep[2], 0.38), thick);
+        let ar = mix(mix(base[0], high[0], 0.14), mix(base[0], deep[0], 0.3), thick);
+        let ag = mix(mix(base[1], high[1], 0.14), mix(base[1], deep[1], 0.3), thick);
+        let ab = mix(mix(base[2], high[2], 0.14), mix(base[2], deep[2], 0.3), thick);
         let spec_scale = 1;
         let paint = null;
         if (spec.albedo) {
@@ -413,7 +413,7 @@
         const fill_dot = nx * fill[0] + ny * fill[1] + nz * fill[2];
         const key_light = clamp((key_dot + 0.4) / 1.4, 0, 1);
         const fill_light = clamp((fill_dot + 0.6) / 1.6, 0, 1) * 0.3;
-        const ambient = 0.1 + 0.06 * (1 - clamp(ny, -1, 1));
+        const ambient = 0.07 + 0.06 * (1 - clamp(ny, -1, 1));
         let r = ar * (key_light * 1.0 + ambient) + fill_light * mix(ar, high[0], 0.35);
         let g = ag * (key_light * 0.96 + ambient) + fill_light * mix(ag, high[1], 0.35);
         let b = ab * (key_light * 0.9 + ambient) + fill_light * mix(ab, high[2], 0.35);
@@ -432,7 +432,7 @@
         const rx = 2 * nz * nx;
         const ry = 2 * nz * ny;
         const rz = 2 * nz * nz - 1;
-        const reflection = environment(rx, ry, rz) * (material.env * 0.4 + fresnel * 1.1) * spec_scale;
+        const reflection = environment(rx, ry, rz) * (material.env * 0.35 + fresnel * 0.6) * spec_scale;
         r += tight + wide + reflection;
         g += tight + wide + reflection * 0.98;
         b += tight * 0.97 + wide + reflection * 0.95;
@@ -448,7 +448,7 @@
         // Ambient occlusion near the rim and an inset darker outline.
         const outline_width = spec.colorblind ? 0.11 : 0.055;
         const rim = smoothstep(0, outline_width, -distance);
-        const darken = (spec.colorblind ? 0.55 : 0.7) + (spec.colorblind ? 0.45 : 0.3) * rim;
+        const darken = (spec.colorblind ? 0.55 : 0.62) + (spec.colorblind ? 0.45 : 0.38) * rim;
         r *= darken;
         g *= darken;
         b *= darken;
@@ -663,7 +663,7 @@
     const ring_color = lin('#ffffff');
     return {
       shape: 'square', base: icing, highlight: '#ffffff', shadow: FROSTING_COLORS[Math.min(4, layers)], theme: theme_id, seed: 70 + layers,
-      material: { subsurface: 0.3, translucency: 0.1, spec_power: 30, spec_tight: 0.6, env: 0.2, saturation: 1.05 }, detail: 'sugar', bevel: 0.36, smooth: 0.012,
+      material: { subsurface: 0.3, translucency: 0.1, spec_power: 30, spec_tight: 0.6, env: 0.2, saturation: 1.1 }, detail: 'none', bevel: 0.36, smooth: 0.012,
       height_detail: (x, y) => {
         // One raised tier per layer, plus a scalloped drip at the top.
         let tiers = 0;

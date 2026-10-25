@@ -264,15 +264,16 @@
       layer.fill(frame_rim, 'nonzero');
       layer.restore();
       const pane = layer.createLinearGradient(0, -pad, 0, board.rows * cell + pad);
-      pane.addColorStop(0, 'rgba(34,62,150,0.8)');
-      pane.addColorStop(1, 'rgba(20,38,110,0.86)');
+      // A deep, rich pane so the candies glow against it (a pale one washes them out).
+      pane.addColorStop(0, 'rgba(24,42,124,0.9)');
+      pane.addColorStop(1, 'rgba(14,26,88,0.93)');
       layer.fillStyle = pane;
       layer.fill(frame, 'nonzero');
       layer.save();
       layer.clip(frame, 'nonzero');
       // Frosted inner highlight along the top and a soft glow at the bottom edge.
       const sheen = layer.createLinearGradient(0, -pad, 0, cell * 1.2);
-      sheen.addColorStop(0, 'rgba(255,255,255,0.32)');
+      sheen.addColorStop(0, 'rgba(255,255,255,0.16)');
       sheen.addColorStop(1, 'rgba(255,255,255,0)');
       layer.fillStyle = sheen;
       layer.fillRect(-pad, -pad, board.cols * cell + pad * 2, cell * 1.2 + pad);
@@ -283,15 +284,15 @@
           const x = col * cell;
           const y = row * cell;
           const tile = SPRITES.roundedRectPath(new Path2D(), x + 1.5, y + 1.5, cell - 3, cell - 3, cell * 0.14);
-          layer.fillStyle = (row + col) % 2 === 0 ? 'rgba(130,175,255,0.34)' : 'rgba(80,125,225,0.2)';
+          layer.fillStyle = (row + col) % 2 === 0 ? 'rgba(104,150,255,0.3)' : 'rgba(70,112,230,0.17)';
           layer.fill(tile);
           layer.save();
           layer.clip(tile);
           const bevel = layer.createLinearGradient(x, y, x, y + cell);
-          bevel.addColorStop(0, 'rgba(255,255,255,0.22)');
-          bevel.addColorStop(0.18, 'rgba(255,255,255,0.04)');
-          bevel.addColorStop(0.85, 'rgba(5,15,60,0.05)');
-          bevel.addColorStop(1, 'rgba(5,15,60,0.24)');
+          bevel.addColorStop(0, 'rgba(255,255,255,0.14)');
+          bevel.addColorStop(0.18, 'rgba(255,255,255,0.02)');
+          bevel.addColorStop(0.85, 'rgba(5,15,60,0.04)');
+          bevel.addColorStop(1, 'rgba(5,15,60,0.2)');
           layer.fillStyle = bevel;
           layer.fillRect(x, y, cell, cell);
           layer.restore();
