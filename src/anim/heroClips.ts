@@ -65,12 +65,12 @@ export function buildHeroClip(
       // Crouch, vault high with the shield raised, crash it into the ground.
       return buildPoseClip(name, total, [
         { t: 0, pose: idle },
-        { t: s * 0.3, pose: pose(CROUCH, {}, [0, -0.35, 0]) },
-        { t: s * 0.75, pose: pose(SHIELD_SLAM_WIND, {}, [0, 1.6, 0]) },
-        { t: s, pose: pose(SHIELD_SLAM_WIND, {}, [0, 1.0, 0]) },
-        { t: s + (a - s) * 0.25, pose: SHIELD_SLAM_HIT },
-        { t: a + (1 - a) * 0.5, pose: SHIELD_SLAM_HIT },
-        { t: 1, pose: idle },
+        { t: s * 0.3, pose: pose(CROUCH, {}, [0, -0.35, 0]), ease: 'inOut' },
+        { t: s * 0.75, pose: pose(SHIELD_SLAM_WIND, {}, [0, 1.6, 0]), ease: 'out' },
+        { t: s, pose: pose(SHIELD_SLAM_WIND, {}, [0, 1.0, 0]), ease: 'in' },
+        { t: s + (a - s) * 0.25, pose: SHIELD_SLAM_HIT, ease: 'in' },
+        { t: a + (1 - a) * 0.5, pose: SHIELD_SLAM_HIT, ease: 'out' },
+        { t: 1, pose: idle, ease: 'inOut' },
       ]);
     case 'seraphine_ult':
       // Staff raised, pumping it skyward with every falling star.
@@ -108,12 +108,12 @@ export function buildHeroClip(
       // Spring up with the spear raised, drop onto the target point-first.
       return buildPoseClip(name, total, [
         { t: 0, pose: idle },
-        { t: s * 0.18, pose: pose(CROUCH, {}, [0, -0.3, 0]) },
-        { t: s * 0.6, pose: pose(SPEAR_RAISE, {}, [0, 1.8, 0]) },
-        { t: s * 0.85, pose: pose(SPEAR_IMPALE, {}, [0, 0.9, 0]) },
-        { t: s, pose: SPEAR_IMPALE },
-        { t: a + (1 - a) * 0.5, pose: SPEAR_IMPALE },
-        { t: 1, pose: idle },
+        { t: s * 0.18, pose: pose(CROUCH, {}, [0, -0.3, 0]), ease: 'inOut' },
+        { t: s * 0.6, pose: pose(SPEAR_RAISE, {}, [0, 1.8, 0]), ease: 'out' },
+        { t: s * 0.85, pose: pose(SPEAR_IMPALE, {}, [0, 0.9, 0]), ease: 'in' },
+        { t: s, pose: SPEAR_IMPALE, ease: 'in' },
+        { t: a + (1 - a) * 0.5, pose: SPEAR_IMPALE, ease: 'out' },
+        { t: 1, pose: idle, ease: 'inOut' },
       ]);
     case 'valka_wheel':
       return buildPoseClip(name, total, [

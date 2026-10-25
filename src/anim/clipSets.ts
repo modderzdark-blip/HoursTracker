@@ -263,8 +263,8 @@ export function buildCustomActionClip(name: string, def: ActionDef, idle: Pose):
     case 'kael_ult': {
       const keys: ClipKey[] = [
         { t: 0, pose: idle },
-        { t: s * 0.6, pose: pose(OVERHEAD_WIND, {}, [0, 0.15, 0]) },
-        { t: s, pose: OVERHEAD_WIND },
+        { t: s * 0.6, pose: pose(OVERHEAD_WIND, {}, [0, 0.15, 0]), ease: 'out' },
+        { t: s, pose: OVERHEAD_WIND, ease: 'inOut' },
       ];
       const strikes = 6;
       for (let i = 0; i < strikes; i++) {
@@ -288,12 +288,12 @@ export function buildCustomActionClip(name: string, def: ActionDef, idle: Pose):
       // Crouch, leap high with the sword raised, crash down.
       return buildPoseClip(name, total, [
         { t: 0, pose: idle },
-        { t: s * 0.3, pose: pose(CROUCH, {}, [0, -0.35, 0]) },
-        { t: s * 0.7, pose: pose(OVERHEAD_WIND, {}, [0, 1.3, 0]) },
-        { t: s, pose: pose(CHARGE_HOLD, {}, [0, 0.9, 0]) },
-        { t: s + (a - s) * 0.4, pose: OVERHEAD_HIT },
-        { t: a + (1 - a) * 0.5, pose: OVERHEAD_HIT },
-        { t: 1, pose: idle },
+        { t: s * 0.3, pose: pose(CROUCH, {}, [0, -0.35, 0]), ease: 'inOut' },
+        { t: s * 0.7, pose: pose(OVERHEAD_WIND, {}, [0, 1.3, 0]), ease: 'out' },
+        { t: s, pose: pose(CHARGE_HOLD, {}, [0, 0.9, 0]), ease: 'in' },
+        { t: s + (a - s) * 0.4, pose: OVERHEAD_HIT, ease: 'in' },
+        { t: a + (1 - a) * 0.5, pose: OVERHEAD_HIT, ease: 'out' },
+        { t: 1, pose: idle, ease: 'inOut' },
       ]);
     case 'lyra_backflip': {
       const flip = (deg: number, lift: number): Pose =>

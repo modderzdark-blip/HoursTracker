@@ -11,16 +11,15 @@ import {
   Color,
   TorusGeometry,
   Vector3,
-  type AnimationClip,
   type BufferGeometry,
   type Material,
   type WebGLRenderer,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { AnimationController } from '../anim/AnimationController';
-import { buildActionClip, buildCustomActionClip, buildHumanoidClips } from '../anim/clipSets';
+import { heroAnimSet } from '../anim/animSets';
+import { idleVariantNames } from '../anim/heroMoves';
 import { HumanoidRig } from '../anim/HumanoidRig';
-import { POSE_LIBRARY } from '../anim/poses';
 import type { HeroDef } from '../data/heroes';
 import { RIGS } from '../data/rigs';
 import { EmberField } from '../vfx/EmberField';
@@ -200,18 +199,14 @@ export class HubScene {
     this.disposeRig();
     if (hero.visual.kind !== 'rig') return;
     const rig = new HumanoidRig(RIGS[hero.visual.rig]);
-    const idle = POSE_LIBRARY[hero.idlePose];
-    const base = buildHumanoidClips(idle);
-    const clips: AnimationClip[] = [...base.clips];
-    this.flourishes = [];
-    for (const a of [hero.combo[0], hero.combo[1], hero.skills[1]]) {
-      if (a === undefined) continue;
-      const clip =
-        a.clip !== undefined ? buildCustomActionClip(a.clip, a, idle) : buildActionClip(a, idle);
-      clips.push(clip);
-      this.flourishes.push(clip.name);
-    }
-    this.anim = new AnimationController(rig.root, clips, base.additive);
+    // The shared clip set: idle variants alternate with a few moves from the kit.
+    const set = heroAnimSet(hero);
+    const moves = [hero.combo[0], hero.skills[1]].map((a) => a?.clip ?? a?.id ?? '');
+    const idles = idleVariantNames(hero.id);
+    this.flourishes = [idles[0] ?? '', moves[0] ?? '', idles[1] ?? '', moves[1] ?? ''].filter(
+      (n) => n !== '' && set.clips.some((c) => c.name === n),
+    );
+    this.anim = new AnimationController(rig.root, set.clips, set.additive);
     this.anim.play('idle', { loop: true, fade: 0 });
     rig.root.rotation.y = 0.35;
     this.scene.add(rig.root);
@@ -242,9 +237,11 @@ export class HubScene {
     if (this.timer <= 0 && this.flourishes.length > 0) {
       this.timer = FLOURISH_EVERY_SEC;
       const name = this.flourishes[this.flourishIndex++ % this.flourishes.length] ?? 'idle';
-      anim.play(name, { durationSec: 0.9, fade: 0.12, restart: true });
+      // Idle variants play at their own pace; attacks are shown slightly slowed.
+      const idleVariant = name.startsWith('idle_');
+      anim.play(name, { durationSec: idleVariant ? undefined : 0.9, fade: 0.2, restart: true });
     }
-    if (anim.playing !== 'idle' && this.timer < FLOURISH_EVERY_SEC - 1.1) {
+    if (anim.playing !== 'idle' && anim.finished) {
       anim.play('idle', { loop: true, fade: 0.3 });
     }
     anim.update(dtSec);
