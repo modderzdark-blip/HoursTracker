@@ -62,6 +62,8 @@ export class TouchControls {
   private readonly skillCdCache = [-1, -1, -1];
   private readonly ultimate: HTMLElement;
   private readonly ultimateFill: HTMLElement;
+  /** Ring that bursts out of the ULT button the moment it is ready. */
+  private readonly ultimateRing: HTMLElement;
   private ultimateCache = -1;
   private readonly disposers: (() => void)[] = [];
 
@@ -113,6 +115,8 @@ export class TouchControls {
     this.ultimate = ult.el;
     this.ultimateFill = el('div', 'tc-ult-fill');
     this.ultimate.prepend(this.ultimateFill);
+    this.ultimateRing = el('div', 'tc-ult-ring');
+    cluster.append(this.ultimateRing);
     this.root.append(cluster);
     container.append(this.root);
 
@@ -193,7 +197,16 @@ export class TouchControls {
     if (q === this.ultimateCache) return;
     this.ultimateCache = q;
     this.ultimateFill.style.setProperty('--fill', q.toFixed(2));
+    const wasReady = this.ultimate.classList.contains('is-ready');
     this.ultimate.classList.toggle('is-ready', q >= 1);
+    if (q >= 1 && !wasReady) {
+      // A one-off ring burst the moment it fills (CSS animation, restarted).
+      this.ultimateRing.classList.remove('is-on');
+      void this.ultimateRing.offsetWidth;
+      this.ultimateRing.classList.add('is-on');
+    } else if (q < 1) {
+      this.ultimateRing.classList.remove('is-on');
+    }
   }
 
   get joystickActive(): boolean {

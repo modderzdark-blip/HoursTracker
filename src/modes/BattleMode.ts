@@ -11,6 +11,7 @@ import { DuelistBrain } from '../ai/DuelistBrain';
 import type { BrainContext } from '../ai/EnemyBrain';
 import type { AudioManager } from '../audio/AudioManager';
 import { Sfx } from '../audio/Sfx';
+import type { Stingers } from '../audio/Stingers';
 import { CameraDirector } from '../camera/CameraDirector';
 import type { FollowCamera } from '../camera/FollowCamera';
 import { CombatSystem } from '../combat/CombatSystem';
@@ -20,7 +21,7 @@ import type { GameEvents, HitEvent, TeamName } from '../core/events';
 import type { GameClock } from '../core/GameClock';
 import { mulberry32 } from '../core/random';
 import { ARENAS, type ArenaDef } from '../data/arenas';
-import { BOSSES } from '../data/bosses';
+import { BOSSES, type BossId } from '../data/bosses';
 import type { StatBlock } from '../data/combatTypes';
 import { DIFFICULTIES, type DifficultyDef, type DifficultyId } from '../data/difficulty';
 import { ECONOMY } from '../data/economy';
@@ -30,6 +31,7 @@ import type { QualityLevel, QualityPreset } from '../data/quality';
 import { RIGS } from '../data/rigs';
 import type { StageDef } from '../data/stages';
 import type { StatusId } from '../data/statusEffects';
+import { BOSS_LINES, HERO_LINES } from '../data/story';
 import type { InputState } from '../input/InputState';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { enemyScaleFor } from '../progression/enemyScale';
@@ -39,6 +41,7 @@ import type { Wallet } from '../progression/wallet';
 import { Atmosphere } from '../render/Atmosphere';
 import type { QualityTarget } from '../render/QualityManager';
 import type { RenderContext } from '../render/RenderContext';
+import { BattleCallouts, type ChapterCard } from '../ui/BattleCallouts';
 import { BattleHud } from '../ui/BattleHud';
 import { DamageNumbers } from '../ui/DamageNumbers';
 import { ResultScreen } from '../ui/ResultScreen';
@@ -53,6 +56,7 @@ import { FxDirector } from './FxDirector';
 import { TelegraphDecals } from '../vfx/TelegraphDecals';
 import { WeaponTrails } from '../vfx/WeaponTrails';
 import { ArenaBuilder } from './ArenaBuilder';
+import { BattleFeel } from './BattleFeel';
 import { separateCrowd } from './crowd';
 import { EnemyRoster } from './EnemyRoster';
 import { WaveDirector, type WaveWorld } from './WaveDirector';
@@ -75,6 +79,10 @@ export interface BattleDeps {
   /** Enables/disables player input (cinematics, result screens). */
   readonly setInputEnabled: (enabled: boolean) => void;
   readonly vibrate: (ms: number) => void;
+  /** Musical cues (boss sting, combo ranks, fanfare, heartbeat…). */
+  readonly stingers: Stingers;
+  /** Settings → Reduce flashes (read live). */
+  readonly reduceFlashes: () => boolean;
   /** Called once when the battle ends (victory, or the player gives up after a defeat). */
   readonly onFinish: (outcome: BattleOutcome) => void;
 }
@@ -95,6 +103,8 @@ export interface BattleSetup {
   readonly allowRevive: boolean;
   /** Arena: an AI-controlled hero to defeat (the stage should be a `duel` stage). */
   readonly duel?: DuelSetup;
+  /** Adventure: a chapter's first stage opens with the chapter card instead of the label banner. */
+  readonly chapterIntro?: ChapterCard;
 }
 
 export interface DuelSetup {
@@ -118,6 +128,8 @@ export interface BattleOutcome {
   readonly revives: number;
   readonly kills: number;
   readonly bossKilled: boolean;
+  /** The boss fight began (its intro played). */
+  readonly bossReached: boolean;
   readonly souls: number;
   readonly hpFrac: number;
 }
@@ -125,6 +137,8 @@ export interface BattleOutcome {
 const MAX_PARTICLES = 320;
 const DEFEAT_SCREEN_DELAY_MS = 1600;
 const VICTORY_DELAY_MS = 2600;
+/** Real-time delay before the VICTORY title (after a boss falls its last words come first). */
+const VICTORY_TITLE_MS = { boss: 1700, waves: 450 } as const;
 const ULT_CLONE_INTERVAL_MS = 220;
 
 const TRAIL_COLORS = { enemy: 0xff5a2a, boss: 0xff7a2a } as const;
@@ -171,6 +185,8 @@ export class BattleMode implements QualityTarget, WaveWorld {
   private readonly blobs: BlobShadows;
   private readonly clones: ShadowClones;
   private readonly hud: BattleHud;
+  private readonly callouts: BattleCallouts;
+  private readonly feel: BattleFeel;
   private readonly numbers: DamageNumbers;
   private readonly results: ResultScreen;
   private readonly sfx: Sfx;
@@ -193,6 +209,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
   private ultCloneTimer = 0;
   private chargeSparkSec = 0;
   private duelHudShown = false;
+  private introPending = false;
   private dotTarget: Actor | null = null;
   private readonly tmp = new Vector3();
   private readonly bossFrame = new Vector3();
@@ -352,6 +369,16 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.hud = new BattleHud(d.uiRoot, () => this.director.skipCountdown());
     this.hud.setHeroName(hero.name);
     this.numbers = new DamageNumbers(d.uiRoot);
+    this.callouts = new BattleCallouts(d.uiRoot);
+    this.feel = new BattleFeel({
+      bus: d.bus,
+      hud: this.hud,
+      callouts: this.callouts,
+      stingers: d.stingers,
+      reduceFlashes: d.reduceFlashes,
+      vibrate: d.vibrate,
+    });
+    this.fxd.screenEffects = !d.reduceFlashes();
     this.results = new ResultScreen(d.uiRoot);
     this.director = new WaveDirector(setup.stage, this);
 
@@ -496,9 +523,11 @@ export class BattleMode implements QualityTarget, WaveWorld {
           this.sfx.play('telegraph');
       }),
       b.on('boss:phase', (e) => {
-        this.hud.showBanner(`PHASE ${e.label}`, 'phase', 1600);
         this.sfx.play('roar');
+        const name = this.boss?.bossDef.name ?? '';
+        this.feel.bossPhase(name, e.label, () => this.fxd.screen(0.42, 0xff6a2a, 0.01));
       }),
+      b.on('ultimate:charge', (e) => this.feel.ultimateCharge(e.value)),
       b.on('boss:break', (e) => {
         const boss = this.boss;
         if (e.broken && boss !== null) {
@@ -552,6 +581,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.numbers.clear();
     this.results.hide();
     this.hud.reset();
+    this.feel.reset();
     this.hud.setVisible(true);
     this.tokens.clear();
     this.cam.cancel();
@@ -583,7 +613,9 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.runStartMs = this.d.clock.nowMs;
     this.d.camera.snap(this.player.currFeet);
     this.d.setInputEnabled(true);
-    this.hud.showBanner(this.setup.label.toUpperCase(), 'wave', 1800);
+    // The chapter card starts with the first rendered frame (building the arena can take a while).
+    this.introPending = this.setup.chapterIntro !== undefined;
+    if (!this.introPending) this.hud.showBanner(this.setup.label.toUpperCase(), 'wave', 1800);
   }
 
   // WaveWorld ---------------------------------------------------------
@@ -632,20 +664,24 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.bossIntroFinished = false;
     this.d.setInputEnabled(false);
     const def = boss.bossDef;
-    this.hud.showBanner(def.name.toUpperCase(), 'phase', def.introMs);
     this.sfx.play('roar');
+    this.feel.bossIntro(
+      { name: def.name, title: def.title, line: BOSS_LINES[def.id as BossId].taunt },
+      def.introMs,
+    );
     // Framing in units of a 1.9 m figure (creatures are lower / taller than their scale says).
+    // A low, wide sweep that pushes in on the boss.
     const scale = boss.rig.height / 1.9;
     this.cam.play(
       {
         center: this.tmp.set(bx, 0, bz),
-        radius: 4 * scale,
-        height: 1.2 * scale,
-        fromDeg: (yaw * 180) / Math.PI + 35,
-        toDeg: (yaw * 180) / Math.PI - 15,
+        radius: 5.4 * scale,
+        height: 0.9 * scale,
+        fromDeg: (yaw * 180) / Math.PI + 55,
+        toDeg: (yaw * 180) / Math.PI - 12,
         durationMs: def.introMs,
-        lookHeight: 1.28 * scale,
-        endRadiusMult: 0.75,
+        lookHeight: 1.3 * scale,
+        endRadiusMult: 0.58,
       },
       () => this.finishBossIntro(),
     );
@@ -656,6 +692,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
     const boss = this.boss;
     if (this.bossIntroFinished || boss === null) return;
     this.bossIntroFinished = true;
+    this.feel.bossIntroEnd();
     this.d.camera.blendFromCurrent();
     this.d.setInputEnabled(true);
     boss.bossBrain.beginFight();
@@ -687,7 +724,8 @@ export class BattleMode implements QualityTarget, WaveWorld {
 
   onWaveStart(wave: number, total: number): void {
     if (wave === 0) this.removeDummy();
-    this.hud.showBanner(`WAVE ${wave + 1} / ${total}`, 'wave', 1500);
+    this.callouts.hideChapter();
+    this.feel.waveStart(wave, total);
     this.d.bus.emit('wave:start', { wave, total });
   }
 
@@ -710,13 +748,43 @@ export class BattleMode implements QualityTarget, WaveWorld {
   }
 
   onWaveCleared(wave: number): void {
+    const last = wave >= this.setup.stage.waves.length - 1;
+    this.feel.waveCleared(last, this.boss !== null);
     this.d.bus.emit('wave:cleared', { wave });
   }
 
   onVictory(): void {
     this.resultKind = 'victory';
     this.resultTimerMs = VICTORY_DELAY_MS;
+    const bossFight = this.bossDown;
+    if (!bossFight) {
+      // The final kill of a wave stage: a beat of slow motion and a push-in on the hero.
+      this.d.bus.emit('time:slowMotion', { scale: 0.3, ms: 900 });
+    }
+    this.d.setInputEnabled(false);
+    this.playVictoryShot();
+    this.feel.victory(bossFight ? VICTORY_TITLE_MS.boss : VICTORY_TITLE_MS.waves);
     this.d.bus.emit('stage:victory', {});
+  }
+
+  /** Slow orbit around the hero while VICTORY plays (cosmetic; any tap ends it). */
+  private playVictoryShot(): void {
+    const p = this.player;
+    const yawDeg = (p.yaw * 180) / Math.PI;
+    this.cam.play(
+      {
+        center: this.tmp.copy(p.currFeet),
+        radius: 4.2,
+        height: 1.5,
+        fromDeg: yawDeg + 150,
+        toDeg: yawDeg + 205,
+        durationMs: 3400,
+        lookHeight: 1.15,
+        endRadiusMult: 0.72,
+      },
+      () => this.d.camera.blendFromCurrent(),
+      p.renderFeet,
+    );
   }
 
   // ------------------------------------------------------------------ events
@@ -766,6 +834,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
       return;
     }
     if (isPlayerTarget) {
+      this.feel.playerHurt();
       this.sparks.burst(
         e.x,
         e.y - 0.6,
@@ -797,7 +866,9 @@ export class BattleMode implements QualityTarget, WaveWorld {
       1,
     );
     this.sfx.play(e.crit ? 'crit' : 'hit');
-    this.hud.registerHit();
+    this.feel.hitLanded(this.hud.registerHit());
+    if (e.killed && e.attackerId === this.player.id && e.targetId !== this.dummy.id)
+      this.feel.enemyKilled(this.d.clock.nowMs, e.shake > 0.35 || e.crit || e.poiseBroken);
     if (e.counter) this.numbers.spawn('COUNTER', e.x, e.y + 0.5, e.z, 'info');
     if (e.poiseBroken && (this.boss === null || e.targetId !== this.boss.id))
       this.numbers.spawn('STAGGER', e.x, e.y + 0.4, e.z, 'info');
@@ -825,7 +896,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
       this.d.bus.emit('time:slowMotion', { scale: 0.25, ms: 1400 });
       this.d.bus.emit('camera:shake', { trauma: 0.9 });
       this.sfx.play('roar');
-      this.hud.showBanner(`${boss.bossDef.name.toUpperCase()} FALLS`, 'phase', 2400);
+      this.feel.bossFell(boss.bossDef.name, BOSS_LINES[boss.bossDef.id as BossId].fall);
       this.hud.hideBoss();
       this.d.camera.setFraming(null);
       this.telegraphs.hideAll();
@@ -879,17 +950,21 @@ export class BattleMode implements QualityTarget, WaveWorld {
         this.sfx.play('ult');
         this.ultCloneTimer = 0;
         const p = this.player;
+        const hero = this.setup.hero;
+        this.feel.ultimate(hero.ultimate.name, `#${hero.color.toString(16).padStart(6, '0')}`);
+        this.fxd.screen(0.3, hero.color, 0.006);
         const yawDeg = (p.yaw * 180) / Math.PI;
+        // Snap in close on the hero, then pull out as the ultimate erupts.
         this.cam.play(
           {
             center: this.tmp.copy(p.currFeet),
-            radius: 4.5,
-            height: 1.6,
+            radius: 3,
+            height: 1.4,
             fromDeg: yawDeg + 140,
             toDeg: yawDeg + 200,
             durationMs: 950,
             lookHeight: 1.2,
-            endRadiusMult: 1.5,
+            endRadiusMult: 2.1,
           },
           () => this.d.camera.blendFromCurrent(),
           p.renderFeet,
@@ -1015,6 +1090,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
       revives: p.revivesUsed,
       kills: this.enemiesKilled,
       bossKilled: this.bossDown,
+      bossReached: this.bossActive,
       souls: this.soulsThisRun,
       hpFrac: p.alive ? p.health.frac : 0,
     };
@@ -1052,6 +1128,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
           gems: this.d.wallet.get('gems'),
           revivesLeft,
           allowRevive: this.setup.allowRevive,
+          heroLine: HERO_LINES[this.setup.hero.id].defeat,
         },
         () => this.revive(),
         () => this.startRun(),
@@ -1142,6 +1219,12 @@ export class BattleMode implements QualityTarget, WaveWorld {
     const size = this.d.ctx.renderer.domElement;
     this.numbers.update(realDtSec, this.d.camera.camera, size.clientWidth, size.clientHeight);
     this.updateHud(realDtSec);
+    this.feel.update(realDtSec, this.player.health.frac, this.player.alive);
+    const intro = this.setup.chapterIntro;
+    if (this.introPending && intro !== undefined && realDtSec > 0) {
+      this.introPending = false;
+      this.feel.chapterIntro(intro);
+    }
   }
 
   private updateHud(dtSec: number): void {
@@ -1344,6 +1427,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.atmosphere.dispose();
     this.builder.dispose();
     this.hud.dispose();
+    this.callouts.dispose();
     this.numbers.dispose();
     this.results.dispose();
   }

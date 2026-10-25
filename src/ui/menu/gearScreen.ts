@@ -272,10 +272,13 @@ function openItem(ctx: MenuContext, item: GearItem, filter: GearSlot | null): vo
       'btn btn-primary',
       () => {
         ctx.uiTap();
+        const before = p.power(heroId);
         if (wornHere) p.unequip(heroId, item.slot);
         else p.equip(heroId, item.uid);
         ctx.shell.closeModal();
         renderGear(ctx, filter);
+        if (ctx.shell.showPower(before, p.power(heroId)))
+          ctx.stingers.play('power', p.power(heroId) > before ? 3 : 0);
       },
       { testid: 'item-equip' },
     ),
@@ -284,9 +287,13 @@ function openItem(ctx: MenuContext, item: GearItem, filter: GearSlot | null): vo
       'btn',
       () => {
         ctx.uiTap();
+        const before = p.power(heroId);
         const res = p.upgrade(item.uid);
-        if (res === 'success') ctx.toast(`Upgrade succeeded: +${item.plus}`);
-        else if (res === 'failed') ctx.toast('Upgrade failed — materials spent, item unharmed');
+        if (res === 'success') {
+          ctx.toast(`Upgrade succeeded: +${item.plus}`);
+          ctx.stingers.play('power', item.plus);
+          if (wornHere) ctx.shell.showPower(before, p.power(heroId));
+        } else if (res === 'failed') ctx.toast('Upgrade failed — materials spent, item unharmed');
         renderGear(ctx, filter);
         openItem(ctx, item, filter);
       },

@@ -7,6 +7,8 @@ export interface DefeatInfo {
   revivesLeft: number;
   /** Some modes (arena, tower) don't allow revives. */
   allowRevive: boolean;
+  /** The hero's own words as they fall. */
+  heroLine: string;
 }
 
 /** Defeat screen: revive (gems), retry from the start, or give up. */
@@ -65,6 +67,7 @@ export class ResultScreen {
     );
     this.panel.append(
       el('h2', 'panel-title result-title result-defeat', 'You have fallen'),
+      el('p', 'panel-body result-hero-line', `“${info.heroLine}”`),
       el('p', 'panel-body', 'The shadow is patient. Rise again, or begin anew.'),
     );
     if (info.allowRevive) this.panel.append(revive);

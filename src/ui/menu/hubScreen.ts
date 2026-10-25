@@ -1,6 +1,7 @@
 import { HEROES } from '../../data/heroes';
 import { MODE_ORDER, MODES } from '../../data/modes';
 import { HEARTH_CONFIG } from '../../data/goals';
+import { chapterProgress } from '../../progression/feel';
 import { xpToNext } from '../../progression/xp';
 import { el } from '../dom';
 import type { MenuContext } from './context';
@@ -28,13 +29,16 @@ export function renderHub(ctx: MenuContext): void {
     xpBar,
   );
 
+  const attention = p.attention();
+  const next = p.nextStage();
   const modes = el('div', 'hub-modes');
   for (const m of MODE_ORDER) {
     const info2 = MODES[m];
     const open = p.modeUnlocked(m);
+    const isNew = attention.newModes.includes(m);
     const b = v.button(
       '',
-      `mode-btn mode-${m}${open ? '' : ' is-locked'}`,
+      `mode-btn mode-${m}${open ? '' : ' is-locked'}${isNew ? ' is-new' : ''}`,
       () => {
         ctx.uiTap();
         if (open) ctx.nav.mode(m);
@@ -42,10 +46,24 @@ export function renderHub(ctx: MenuContext): void {
       },
       { testid: `mode-${m}` },
     );
-    b.append(
-      el('span', 'mode-name', info2.name),
-      el('span', 'mode-sub', open ? info2.blurb : `🔒 ${info2.requiresLabel}`),
-    );
+    const name = el('span', 'mode-name', info2.name);
+    if (isNew) name.append(el('span', 'mode-new', 'NEW'));
+    b.append(name);
+    if (m === 'adventure' && next !== null) {
+      // The clear next goal: the stage to beat, and how far through its chapter you are.
+      const prog = chapterProgress(next.chapter, (sid) => p.stageClearedAnyDifficulty(sid));
+      const line = el('span', 'mode-next');
+      const bar = el('span', 'mode-next-bar');
+      const fill = el('span', 'mode-next-fill');
+      fill.style.display = 'block';
+      fill.style.transform = `scaleX(${prog.total > 0 ? prog.cleared / prog.total : 0})`;
+      bar.append(fill);
+      line.append(el('span', '', `Next: ${next.chapter}-${next.index + 1} · ${next.name}`), bar);
+      line.dataset['testid'] = 'hub-next';
+      b.append(line);
+    } else {
+      b.append(el('span', 'mode-sub', open ? info2.blurb : `🔒 ${info2.requiresLabel}`));
+    }
     modes.append(b);
   }
 
@@ -65,6 +83,7 @@ export function renderHub(ctx: MenuContext): void {
   );
   v.tap(hearth, () => {
     ctx.uiTap();
+    const powerBefore = p.power(id);
     const got = p.collectHearth();
     if (got === null) {
       ctx.toast(`The hearth is still kindling (fills over ${HEARTH_CONFIG.capHours} h)`);
@@ -73,14 +92,24 @@ export function renderHub(ctx: MenuContext): void {
     ctx.toast(
       `Hearth: +${fmtInt(got.gold)} gold, +${fmtInt(got.xp)} XP${got.materials > 0 ? `, +${got.materials} materials` : ''}${got.levelsGained > 0 ? ' — LEVEL UP!' : ''}`,
     );
-    if (got.levelsGained > 0) ctx.onHeroChanged(id);
+    if (got.levelsGained > 0) {
+      ctx.onHeroChanged(id);
+      ctx.stingers.play('levelUp');
+    }
     ctx.nav.hub();
+    ctx.shell.showPower(powerBefore, p.power(id));
   });
   hearth.dataset['testid'] = 'hub-hearth';
 
   const newItems = p.data.items.filter((i) => i.isNew).length;
   const dock = el('div', 'hub-dock');
-  const dockBtn = (label: string, testid: string, fn: () => void, badge = 0): HTMLElement => {
+  const dockBtn = (
+    label: string,
+    testid: string,
+    fn: () => void,
+    badge = 0,
+    dot = false,
+  ): HTMLElement => {
     const b = v.button(
       label,
       'dock-btn',
@@ -91,13 +120,14 @@ export function renderHub(ctx: MenuContext): void {
       { testid },
     );
     if (badge > 0) b.append(el('span', 'badge', String(badge)));
+    else if (dot) b.append(el('span', 'dot-new'));
     return b;
   };
   dock.append(
-    dockBtn('Heroes', 'dock-heroes', () => ctx.nav.heroes()),
-    dockBtn('Gear', 'dock-gear', () => ctx.nav.gear(null), newItems),
-    dockBtn('Skills', 'dock-skills', () => ctx.nav.skills()),
-    dockBtn('Journal', 'dock-quests', () => ctx.nav.quests(), p.pendingClaims()),
+    dockBtn('Heroes', 'dock-heroes', () => ctx.nav.heroes(), 0, attention.heroes > 0),
+    dockBtn('Gear', 'dock-gear', () => ctx.nav.gear(null), newItems, attention.gearUpgrade),
+    dockBtn('Skills', 'dock-skills', () => ctx.nav.skills(), 0, attention.skills > 0),
+    dockBtn('Journal', 'dock-quests', () => ctx.nav.quests(), attention.journal),
     dockBtn('Settings', 'dock-settings', () => ctx.nav.settings()),
   );
   hub.append(hearth, info, modes, dock);

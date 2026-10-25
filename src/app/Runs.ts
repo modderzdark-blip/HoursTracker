@@ -1,4 +1,4 @@
-import { BOSSES } from '../data/bosses';
+import { BOSSES, type BossId } from '../data/bosses';
 import { DIFFICULTIES, type DifficultyId } from '../data/difficulty';
 import { HEROES } from '../data/heroes';
 import {
@@ -9,7 +9,13 @@ import {
   HUNT_OMENS,
   TOWER_CONFIG,
 } from '../data/modes';
-import { CHAPTERS, findAdventureStage, type StageDef } from '../data/stages';
+import {
+  CHAPTERS,
+  findAdventureStage,
+  type AdventureStageDef,
+  type StageDef,
+} from '../data/stages';
+import type { ChapterCard } from '../ui/BattleCallouts';
 import type { BattleOutcome, BattleSetup } from '../modes/BattleMode';
 import {
   challengeMult,
@@ -33,12 +39,15 @@ import {
 import {
   grantAdventureVictory,
   grantVictory,
+  heroStatLine,
   recordDefeat,
   type RewardSummary,
 } from '../modes/rewards';
 import type { PlayerProfile } from '../progression/PlayerProfile';
 import type { MenuContext } from '../ui/menu/context';
+import { BOSS_LINES, CHAPTER_STORY } from '../data/story';
 import { renderDefeat, renderVictory, type ResultButton } from '../ui/menu/rewardScreen';
+import { recommendedPower } from '../ui/menu/stageMapScreen';
 import type { Menus } from './Menus';
 
 /** Dungeon XP grows with its level so it stays worth running as heroes level up. */
@@ -167,7 +176,11 @@ export class Runs {
       case 'adventure': {
         const stage = findAdventureStage(run.stageId);
         if (stage === undefined) return null;
-        const base = this.baseSetup(stage, `${stage.chapter}-${stage.index + 1} · ${stage.name}`);
+        const intro = this.chapterIntro(stage);
+        const base = {
+          ...this.baseSetup(stage, `${stage.chapter}-${stage.index + 1} · ${stage.name}`),
+          ...(intro !== null ? { chapterIntro: intro } : {}),
+        };
         const b = this.host.profile.blessing(stage.id, run.difficulty);
         if (b.stacks === 0) return { ...base, difficulty: run.difficulty };
         return {
@@ -250,6 +263,27 @@ export class Runs {
     }
   }
 
+  /** A chapter's first stage opens with its card (longer the first time it is seen). */
+  private chapterIntro(stage: AdventureStageDef): ChapterCard | null {
+    if (stage.index !== 0) return null;
+    const chapter = CHAPTERS.find((c) => c.number === stage.chapter);
+    const story = CHAPTER_STORY[stage.chapter];
+    if (chapter === undefined || story === undefined) return null;
+    const seen = this.host.profile.data.story.chapterIntros;
+    const first = !seen.includes(stage.chapter);
+    if (first) {
+      seen.push(stage.chapter);
+      this.host.profile.commit();
+    }
+    return {
+      numeral: story.numeral,
+      name: chapter.name,
+      subtitle: chapter.subtitle,
+      lore: story.intro,
+      long: first,
+    };
+  }
+
   // ------------------------------------------------------------------ outcomes
 
   /** Shows the right result screen and grants rewards for the battle that just ended. */
@@ -311,10 +345,19 @@ export class Runs {
         b.stacks > 0
           ? ` — Ember Blessing ${'✦'.repeat(b.stacks)}: +${Math.round((b.atkMult - 1) * 100)}% ATK and +${Math.round((b.hpMult - 1) * 100)}% HP here until you win`
           : '';
-      renderDefeat(this.ctx, `${stage.chapter}-${stage.index + 1} · ${stage.name}${help}`, [
-        toMap,
-        { ...retry, primary: true },
-      ]);
+      const boss = stage.boss !== null && outcome.bossReached ? BOSSES[stage.boss] : null;
+      renderDefeat(
+        this.ctx,
+        `${stage.chapter}-${stage.index + 1} · ${stage.name}${help}`,
+        [toMap, { ...retry, primary: true }],
+        'Defeat',
+        {
+          ...(boss !== null
+            ? { bossLine: { name: boss.name, line: BOSS_LINES[boss.id as BossId].triumph } }
+            : {}),
+          recommended: recommendedPower(stage.level, run.difficulty),
+        },
+      );
       return;
     }
     const summary = grantAdventureVictory(
@@ -629,6 +672,8 @@ export class Runs {
     p.data.lifetime.battles++;
     p.data.lifetime.victories++;
     p.commit();
+    const hero = p.hero(p.selectedHero);
+    const line = heroStatLine(p, p.selectedHero);
     renderVictory(
       this.ctx,
       {
@@ -647,9 +692,16 @@ export class Runs {
         autoSalvaged: { count: 0, materials: 0, gold: 0 },
         heroId: p.selectedHero,
         levelsGained: 0,
-        heroLevel: p.hero(p.selectedHero).level,
+        heroLevel: hero.level,
         firstClear: false,
         unlocks: [],
+        unlockEvents: [],
+        levelBefore: hero.level,
+        xpBefore: hero.xp,
+        xpAfter: hero.xp,
+        statsBefore: line,
+        statsAfter: line,
+        chapterComplete: null,
       },
       [toMenu],
     );

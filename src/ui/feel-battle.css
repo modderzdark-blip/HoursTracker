@@ -1,0 +1,692 @@
+/* ===== Ashbound — battle feedback layer: cinematics, callouts, combo ranks, heartbeat =====
+   Click-through overlays; animations use transform / opacity. Honours Reduce flashes. */
+
+.bfx {
+  position: absolute;
+  inset: 0;
+  z-index: 16;
+  pointer-events: none !important;
+  overflow: hidden;
+}
+
+.bfx > * {
+  pointer-events: none !important;
+}
+
+.bfx .is-off {
+  display: none;
+}
+
+/* ---- letterbox */
+.bfx-bars {
+  position: absolute;
+  inset: 0;
+}
+
+.bfx-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: max(34px, 12vh);
+  background: #000;
+  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+
+.bfx-bar-top {
+  top: 0;
+  transform: translateY(-101%);
+}
+
+.bfx-bar-bottom {
+  bottom: 0;
+  transform: translateY(101%);
+}
+
+.bfx-bars.is-on .bfx-bar {
+  transform: none;
+}
+
+.bfx-skip {
+  position: absolute;
+  right: calc(18px + var(--sr));
+  bottom: calc(max(34px, 12vh) / 2 - 9px);
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  color: rgba(239, 230, 216, 0.55);
+  opacity: 0;
+  transition: opacity 0.3s ease 0.4s;
+}
+
+.bfx-bars.is-on.can-skip .bfx-skip {
+  opacity: 1;
+}
+
+/* While a cinematic plays the HUD and touch controls step aside. */
+#ui-root:has(.bfx.is-cinematic) .touch-layer,
+#ui-root:has(.bfx.is-cinematic) .bhud-player,
+#ui-root:has(.bfx.is-cinematic) .bhud-top,
+#ui-root:has(.bfx.is-cinematic) .bhud-combo,
+#ui-root:has(.bfx.is-cinematic) .bhud-banner,
+#ui-root:has(.bfx.is-cinematic) .hud-pause,
+#ui-root:has(.bfx.is-cinematic) .dmg-layer,
+.bfx.is-cinematic .bfx-kill {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.touch-layer,
+.bhud-player,
+.bhud-top,
+.hud-pause {
+  transition: opacity 0.35s ease;
+}
+
+/* ---- boss name card */
+.bfx-boss {
+  --card-ms: 3000ms;
+  position: absolute;
+  left: calc(7% + var(--sl));
+  bottom: calc(max(34px, 12vh) + 16px + var(--sb));
+  max-width: min(62%, 560px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.bfx-boss-title {
+  font-family: var(--font-title);
+  font-size: clamp(12px, 1.8vw, 16px);
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ember-hot);
+  text-shadow: 0 0 10px rgba(255, 106, 26, 0.8);
+  opacity: 0;
+}
+
+.bfx-boss-name {
+  font-family: var(--font-title);
+  font-size: clamp(30px, 6.4vw, 64px);
+  line-height: 1.02;
+  letter-spacing: 0.06em;
+  color: #fff3dc;
+  background: linear-gradient(180deg, #fffaf0 0%, #f4d9a8 55%, #d08a3a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 2px #000) drop-shadow(0 0 18px rgba(255, 90, 20, 0.55));
+  opacity: 0;
+}
+
+.bfx-boss-rule {
+  width: 100%;
+  min-width: 180px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--ember-hot), rgba(255, 177, 94, 0.6) 60%, transparent);
+  transform-origin: left center;
+  transform: scaleX(0);
+}
+
+.bfx-boss-line {
+  font-family: var(--font-title);
+  font-style: italic;
+  font-size: clamp(14px, 2.1vw, 19px);
+  line-height: 1.35;
+  color: rgba(244, 227, 196, 0.92);
+  text-shadow: 0 1px 3px #000;
+  opacity: 0;
+}
+
+.bfx-boss.is-on .bfx-boss-title {
+  animation: card-rise 0.6s ease-out 0.15s forwards;
+}
+
+.bfx-boss.is-on .bfx-boss-name {
+  animation: boss-name-in 0.75s cubic-bezier(0.2, 0.9, 0.2, 1) 0.3s forwards;
+}
+
+.bfx-boss.is-on .bfx-boss-rule {
+  animation: rule-grow 0.9s cubic-bezier(0.3, 0.9, 0.3, 1) 0.55s forwards;
+}
+
+.bfx-boss.is-on .bfx-boss-line {
+  animation: card-rise 0.7s ease-out 0.95s forwards;
+}
+
+@keyframes card-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes boss-name-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-24px) scale(1.15);
+    letter-spacing: 0.3em;
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes rule-grow {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* ---- chapter intro card */
+.bfx-chapter {
+  --card-ms: 4000ms;
+  position: absolute;
+  left: 50%;
+  top: max(64px, 20%);
+  width: min(78vw, 640px);
+  transform: translateX(-50%);
+  padding: 14px 28px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  background: radial-gradient(ellipse at center, rgba(7, 6, 10, 0.78), rgba(7, 6, 10, 0) 72%);
+  transition: opacity 0.45s ease;
+}
+
+.bfx-chapter.is-fading {
+  opacity: 0;
+}
+
+.bfx-ch-num {
+  font-family: var(--font-title);
+  font-size: 13px;
+  letter-spacing: 0.5em;
+  padding-left: 0.5em;
+  text-transform: uppercase;
+  color: var(--ember-hot);
+  opacity: 0;
+}
+
+.bfx-ch-name {
+  font-family: var(--font-title);
+  font-size: clamp(26px, 5vw, 48px);
+  line-height: 1.1;
+  letter-spacing: 0.14em;
+  padding-left: 0.14em;
+  color: #fff3dc;
+  text-shadow:
+    0 0 22px rgba(255, 106, 26, 0.65),
+    0 2px 3px #000;
+  opacity: 0;
+}
+
+.bfx-ch-rule {
+  width: 60%;
+  height: 1px;
+  margin: 4px 0;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  transform: scaleX(0);
+}
+
+.bfx-ch-sub {
+  font-family: var(--font-title);
+  font-style: italic;
+  font-size: 15px;
+  color: var(--gold);
+  opacity: 0;
+}
+
+.bfx-ch-lore {
+  max-width: 560px;
+  font-family: var(--font-title);
+  font-size: clamp(13px, 1.9vw, 16px);
+  line-height: 1.4;
+  color: rgba(239, 230, 216, 0.85);
+  text-shadow: 0 1px 3px #000;
+  opacity: 0;
+}
+
+.bfx-chapter.is-on .bfx-ch-num {
+  animation: card-rise 0.6s ease-out 0.1s forwards;
+}
+
+.bfx-chapter.is-on .bfx-ch-name {
+  animation: chapter-name-in 1.1s ease-out 0.25s forwards;
+}
+
+.bfx-chapter.is-on .bfx-ch-rule {
+  animation: rule-grow 1s ease-out 0.6s forwards;
+}
+
+.bfx-chapter.is-on .bfx-ch-sub {
+  animation: card-rise 0.7s ease-out 0.85s forwards;
+}
+
+.bfx-chapter.is-on .bfx-ch-lore {
+  animation: card-rise 0.8s ease-out 1.35s forwards;
+}
+
+@keyframes chapter-name-in {
+  from {
+    opacity: 0;
+    transform: scale(1.12);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+/* ---- kill callouts (under the combo counter) */
+.bfx-kill {
+  position: absolute;
+  left: calc(84px + var(--sl));
+  top: calc(156px + var(--st));
+}
+
+#ui-root:has(.touch-layer.is-left) .bfx-kill {
+  left: auto;
+  right: calc(28px + var(--sr));
+}
+
+.bfx-kill-word {
+  font-family: var(--font-title);
+  font-size: 22px;
+  font-weight: 700;
+  font-style: italic;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: #ffe2a8;
+  text-shadow:
+    0 0 12px rgba(255, 120, 30, 0.9),
+    0 2px 2px #000;
+}
+
+.bfx-kill[data-tier='1'] .bfx-kill-word {
+  color: #ffb15e;
+}
+
+.bfx-kill[data-tier='2'] .bfx-kill-word {
+  color: #ff7a4a;
+  font-size: 25px;
+}
+
+.bfx-kill[data-tier='3'] .bfx-kill-word {
+  color: #ff4a3a;
+  font-size: 28px;
+  text-shadow:
+    0 0 16px rgba(255, 40, 20, 0.95),
+    0 2px 2px #000;
+}
+
+.bfx-kill.is-on .bfx-kill-word {
+  animation: kill-in 1.3s ease-out forwards;
+}
+
+@keyframes kill-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-30px) skewX(-12deg) scale(1.5);
+  }
+  14% {
+    opacity: 1;
+    transform: none;
+  }
+  78% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+/* ---- centre titles: VICTORY, phase changes, the ultimate's name */
+.bfx-title {
+  --card-ms: 2000ms;
+  --edge: calc(16px + max(var(--sl), var(--sr)));
+  position: absolute;
+  left: 50%;
+  top: 36%;
+  width: max-content;
+  max-width: min(calc(100% - 2 * var(--edge)), 64vw);
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.bfx-title-main {
+  position: relative;
+  font-family: var(--font-title);
+  font-size: clamp(28px, 5.4vw, 56px);
+  line-height: 1.1;
+  letter-spacing: 0.18em;
+  padding-left: 0.18em;
+  color: #fff0d0;
+  text-shadow:
+    0 0 20px rgba(255, 110, 30, 0.85),
+    0 2px 3px #000;
+  overflow: hidden;
+}
+
+.bfx-title-sub {
+  font-family: var(--font-title);
+  font-style: italic;
+  font-size: clamp(14px, 2vw, 18px);
+  line-height: 1.35;
+  color: rgba(244, 227, 196, 0.9);
+  text-shadow: 0 1px 3px #000;
+  opacity: 0;
+}
+
+.bfx-title.is-on {
+  animation: title-life var(--card-ms) ease-out forwards;
+}
+
+.bfx-title.is-on .bfx-title-main {
+  animation: title-slam 0.55s cubic-bezier(0.2, 0.9, 0.25, 1.2) both;
+}
+
+.bfx-title.is-on .bfx-title-sub {
+  animation: card-rise 0.6s ease-out 0.35s forwards;
+}
+
+@keyframes title-life {
+  0%,
+  82% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes title-slam {
+  from {
+    opacity: 0;
+    transform: scale(1.8);
+    letter-spacing: 0.5em;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.bfx-title[data-kind='victory'] .bfx-title-main {
+  font-size: clamp(44px, 9vw, 96px);
+  letter-spacing: 0.24em;
+  padding-left: 0.24em;
+  color: transparent;
+  background: linear-gradient(180deg, #fffbe8 0%, #ffe0a0 45%, #e0942e 80%, #a85a14 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 3px 2px #000) drop-shadow(0 0 26px rgba(255, 140, 40, 0.75));
+}
+
+/* A bright shine sweeps across VICTORY. */
+.bfx-title[data-kind='victory'] .bfx-title-main::after {
+  content: '';
+  position: absolute;
+  inset: 0 -40%;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(255, 246, 220, 0.85) 48%,
+    transparent 66%
+  );
+  mix-blend-mode: overlay;
+  transform: translateX(-80%);
+  animation: shine-sweep 1.4s ease-in-out 0.45s 2;
+}
+
+@keyframes shine-sweep {
+  to {
+    transform: translateX(80%);
+  }
+}
+
+.bfx-title[data-kind='ult'] .bfx-title-main {
+  font-size: clamp(22px, 3.6vw, 36px);
+  font-style: italic;
+  color: #ffe2b0;
+}
+
+.bfx-title[data-kind='phase'] .bfx-title-main {
+  color: #ffd0b0;
+  text-shadow:
+    0 0 24px rgba(255, 50, 20, 0.95),
+    0 2px 3px #000;
+}
+
+/* ---- low-HP heartbeat vignette */
+.bfx-lowhp {
+  --beat: 900ms;
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 48%,
+    rgba(120, 0, 0, 0.42) 78%,
+    rgba(70, 0, 0, 0.78) 100%
+  );
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.bfx-lowhp.is-on {
+  opacity: 1;
+  animation: heartbeat var(--beat) ease-out infinite;
+}
+
+@keyframes heartbeat {
+  0% {
+    opacity: 0.55;
+    transform: scale(1.04);
+  }
+  12% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  26% {
+    opacity: 0.7;
+  }
+  36% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0.55;
+    transform: scale(1.04);
+  }
+}
+
+/* ---- ultimate burst */
+.bfx-burst {
+  --burst: #ff7a2a;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 140vmax;
+  height: 140vmax;
+  margin: -70vmax 0 0 -70vmax;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--burst) 70%, #fff) 0%,
+    color-mix(in srgb, var(--burst) 45%, transparent) 30%,
+    transparent 62%
+  );
+  opacity: 0;
+  mix-blend-mode: screen;
+}
+
+.bfx-burst.is-on {
+  animation: ult-burst 0.7s ease-out forwards;
+}
+
+@keyframes ult-burst {
+  0% {
+    opacity: 0.85;
+    transform: scale(0.1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+/* ---- combo counter with rank words */
+.bhud-combo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+
+#ui-root:has(.touch-layer.is-left) .bhud-combo {
+  align-items: flex-end;
+}
+
+.bhud-combo-word {
+  font-family: var(--font-title);
+  font-size: 15px;
+  font-style: italic;
+  letter-spacing: 0.22em;
+  color: #ffd27a;
+  text-shadow:
+    0 0 10px rgba(255, 140, 40, 0.85),
+    0 1px 2px #000;
+}
+
+.bhud-combo-word:empty {
+  display: none;
+}
+
+.bhud-combo[data-rank='1'] {
+  color: #ffb860;
+}
+
+.bhud-combo[data-rank='2'] {
+  color: #ff8a40;
+}
+
+.bhud-combo[data-rank='2'] .bhud-combo-word,
+.bhud-combo[data-rank='3'] .bhud-combo-word {
+  color: #ff8a5a;
+  text-shadow:
+    0 0 12px rgba(255, 70, 20, 0.95),
+    0 1px 2px #000;
+}
+
+.bhud-combo[data-rank='3'] {
+  color: #ff6a3a;
+}
+
+.bhud-combo[data-rank='4'],
+.bhud-combo[data-rank='5'] {
+  color: #fff0c8;
+  text-shadow:
+    0 0 16px rgba(255, 90, 30, 1),
+    0 0 4px #fff;
+}
+
+.bhud-combo[data-rank='4'] .bhud-combo-word,
+.bhud-combo[data-rank='5'] .bhud-combo-word {
+  color: #fff6dc;
+  font-size: 17px;
+  text-shadow:
+    0 0 14px rgba(255, 60, 20, 1),
+    0 1px 2px #000;
+}
+
+.bhud-combo.is-rankup .bhud-combo-word {
+  animation: rank-up 0.5s cubic-bezier(0.2, 0.9, 0.2, 1.3);
+}
+
+@keyframes rank-up {
+  from {
+    transform: scale(1.9) translateX(10px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.reduce-flashes .bhud-combo.is-rankup .bhud-combo-word,
+.reduce-flashes .bfx-lowhp.is-on,
+.reduce-flashes .bfx-title[data-kind='victory'] .bfx-title-main::after {
+  animation: none !important;
+}
+
+.reduce-flashes .bfx-lowhp.is-on {
+  opacity: 0.6;
+}
+
+.reduce-flashes .bfx-burst {
+  display: none;
+}
+
+/* ---- ULT ready ring */
+.tc-ult-ring {
+  position: absolute;
+  width: 72px;
+  height: 72px;
+  right: calc(196px + var(--sr));
+  bottom: calc(180px + var(--sb));
+  border-radius: 50%;
+  border: 3px solid var(--ember-hot);
+  opacity: 0;
+  pointer-events: none !important;
+}
+
+.tc-ult-ring.is-on {
+  animation: ult-ring 0.9s ease-out 2;
+}
+
+@keyframes ult-ring {
+  from {
+    opacity: 0.95;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.3);
+  }
+}
+
+.reduce-flashes .tc-ult-ring.is-on {
+  animation: none;
+}
+
+/* ---- damage numbers: crits slam in bigger */
+.dmg-crit {
+  font-size: 30px;
+  font-style: italic;
+  color: #ffe060;
+  text-shadow:
+    0 0 10px rgba(255, 140, 30, 0.95),
+    0 2px 2px #000,
+    0 0 2px #000;
+}
+
+.dmg-counter {
+  font-size: 26px;
+}

@@ -8,7 +8,9 @@ import { el, onTap } from './dom';
 export class TitleScreen {
   readonly root: HTMLElement;
   private readonly status: HTMLElement;
+  private readonly tip: HTMLElement;
   private readonly startBtn: HTMLElement;
+  private tipTimer = 0;
   private ready = false;
   private handler: (() => void) | null = null;
   private readonly disposeTap: () => void;
@@ -26,8 +28,9 @@ export class TitleScreen {
     this.startBtn.setAttribute('role', 'button');
     this.startBtn.dataset['testid'] = 'title-start';
     this.status = el('p', 'title-status', '');
+    this.tip = el('p', 'title-tip', '');
     const build = el('p', 'title-build', buildLabel);
-    this.root.append(embers, logo, this.startBtn, this.status, build);
+    this.root.append(embers, logo, this.startBtn, this.status, this.tip, build);
     container.append(this.root);
 
     // The whole screen is the tap target once ready (easier on phones than a small button).
@@ -38,6 +41,19 @@ export class TitleScreen {
 
   setStatus(text: string): void {
     this.status.textContent = text;
+  }
+
+  /** Rotates lore lines under the status while the game loads. */
+  showTips(next: () => string, everyMs = 4200): void {
+    const swap = (): void => {
+      this.tip.classList.remove('is-in');
+      void this.tip.offsetWidth;
+      this.tip.textContent = next();
+      this.tip.classList.add('is-in');
+    };
+    swap();
+    window.clearInterval(this.tipTimer);
+    this.tipTimer = window.setInterval(swap, everyMs);
   }
 
   setReady(onStart: () => void): void {
@@ -57,6 +73,7 @@ export class TitleScreen {
   }
 
   hide(): void {
+    window.clearInterval(this.tipTimer);
     this.disposeTap();
     this.root.classList.add('is-leaving');
     window.setTimeout(() => this.root.remove(), 450);

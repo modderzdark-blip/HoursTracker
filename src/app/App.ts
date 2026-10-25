@@ -1,6 +1,7 @@
 import { Scene } from 'three';
 import type { AudioManager } from '../audio/AudioManager';
 import { Music } from '../audio/Music';
+import { Stingers } from '../audio/Stingers';
 import { resolveCameraOptions } from '../camera/cameraOptions';
 import { FollowCamera } from '../camera/FollowCamera';
 import { EventBus } from '../core/EventBus';
@@ -15,6 +16,10 @@ import type { Currency } from '../data/economy';
 import type { DifficultyId } from '../data/difficulty';
 import { HEROES, type HeroId } from '../data/heroes';
 import { CHAPTERS } from '../data/stages';
+import { ACHIEVEMENTS } from '../data/goals';
+import { loreTip, PROLOGUE } from '../data/story';
+import { goalsReached, type GoalSnapshot } from '../progression/feel';
+import { questDef } from '../progression/goals';
 import {
   BLOOM_CONFIG,
   QUALITY_PRESETS,
@@ -56,6 +61,9 @@ import { el } from '../ui/dom';
 import { Hud } from '../ui/Hud';
 import type { SettingsPort } from '../ui/menu/context';
 import { PauseMenu } from '../ui/PauseMenu';
+import { GoalToasts } from '../ui/GoalToasts';
+import { LoadingVeil } from '../ui/LoadingVeil';
+import { StoryCards } from '../ui/StoryCards';
 import { Menus } from './Menus';
 import { Runs } from './Runs';
 import { modeScreens } from '../ui/menu/modeScreens';
@@ -217,6 +225,14 @@ export class App {
   private battlePhysics: PhysicsWorld | null = null;
   private readonly runs: Runs;
   private readonly music: Music;
+  private readonly stingers: Stingers;
+  private story: StoryCards | null = null;
+  private readonly goalToasts: GoalToasts;
+  private goalBase: GoalSnapshot;
+  private readonly veil: LoadingVeil;
+  /** Bumped per battle start (a newer start cancels a pending one). */
+  private battleToken = 0;
+  private lastCoinMs = 0;
   private pendingOutcome: BattleOutcome | null = null;
   private saveTimer = 0;
   private resizePending = false;
@@ -268,6 +284,7 @@ export class App {
     this.input = new InputState(INPUT_CONFIG.bufferMs, () => this.clock.nowMs, this.bus);
     this.touch = new TouchControls(opts.uiRoot, this.input);
     this.music = new Music(opts.audio);
+    this.stingers = new Stingers(opts.audio);
     this.keyboard = new KeyboardInput(this.input);
     this.gamepad = new GamepadInput(this.input);
 
@@ -294,9 +311,23 @@ export class App {
       settings: this.settingsPort(),
       uiTap: () => opts.audio.playUiClick(),
       toast: (t) => this.hud.showToast(t, 2200),
+      stingers: this.stingers,
       onHeroChanged: (id: HeroId) => this.hubScene.setHero(HEROES[id]),
       modeScreens,
     });
+    this.goalToasts = new GoalToasts(opts.uiRoot, () => this.stingers.play('goal'));
+    this.goalBase = this.profile.goalSnapshot();
+    this.veil = new LoadingVeil(opts.uiRoot);
+    this.menus.shell.onScreen = (id) => {
+      // Goals reached in battle are announced once the result screens are behind us.
+      if (id !== 'victory' && id !== 'defeat' && id !== 'interlude') this.announceGoals();
+    };
+    this.menus.shell.onGain = () => {
+      const now = performance.now();
+      if (now - this.lastCoinMs < 150) return;
+      this.lastCoinMs = now;
+      this.stingers.play('coin', 4, 0.8);
+    };
     this.runs = new Runs({
       profile: this.profile,
       menus: this.menus,
@@ -447,12 +478,32 @@ export class App {
   start(): void {
     if (this.running) return;
     this.running = true;
-    this.showHub();
+    if (this.profile.data.story.prologueSeen) this.showHub();
+    else this.showPrologue();
     this.loop.start();
     console.info(`[app] started; quality ${this.quality.level} (${this.quality.setting})`);
   }
 
   // ------------------------------------------------------------------ hub / battle switching
+
+  /** First launch: the story so far, then the hub. Skippable at any point. */
+  private showPrologue(): void {
+    this.music.play('hub');
+    this.touch.setVisible(false);
+    this.hud.setPauseVisible(false);
+    this.applyInputEnabled(false);
+    this.menus.setVisible(false);
+    this.story = new StoryCards(this.opts.uiRoot, PROLOGUE, {
+      onPage: () => this.stingers.play('page'),
+      onDone: () => {
+        this.story = null;
+        this.profile.data.story.prologueSeen = true;
+        this.profile.commit();
+        this.stingers.play('whoosh');
+        this.showHub();
+      },
+    });
+  }
 
   private showHub(): void {
     this.music.play('hub');
@@ -465,7 +516,43 @@ export class App {
     this.menus.hub();
   }
 
+  /** Toasts for daily quests finished and achievement tiers reached since the last check. */
+  private announceGoals(): void {
+    const now = this.profile.goalSnapshot();
+    for (const g of goalsReached(this.goalBase, now)) {
+      if (g.kind === 'quest') {
+        const def = questDef(g.id);
+        if (def !== undefined)
+          this.goalToasts.push({
+            kicker: 'Quest complete',
+            text: `${def.text} — claim it in the Journal`,
+          });
+      } else {
+        const a = ACHIEVEMENTS.find((x) => x.id === g.id);
+        if (a !== undefined)
+          this.goalToasts.push({ kicker: 'Achievement', text: `${a.name} · tier ${g.tier}` });
+      }
+    }
+    this.goalBase = now;
+  }
+
+  /**
+   * Shows the loading veil (stage name + a lore line), lets it paint, then builds the battle.
+   * A newer start cancels a pending one.
+   */
   private startBattle(setup: BattleSetup): void {
+    const token = ++this.battleToken;
+    this.veil.show(setup.label, loreTip(token + this.profile.data.lifetime.battles));
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        if (token !== this.battleToken) return;
+        this.buildBattle(setup);
+        this.veil.hide();
+      }),
+    );
+  }
+
+  private buildBattle(setup: BattleSetup): void {
     this.endBattle();
     this.menus.setVisible(false);
     const scene = new Scene();
@@ -493,6 +580,8 @@ export class App {
           if (s.vibration && typeof navigator.vibrate === 'function')
             navigator.vibrate(vibrationMs(ms, s.vibrationStrength));
         },
+        stingers: this.stingers,
+        reduceFlashes: () => this.opts.save.settings.reduceFlashes,
         onFinish: (outcome) => {
           this.pendingOutcome = outcome;
         },
@@ -780,6 +869,8 @@ export class App {
   private renderFrame(alpha: number, dtSec: number): void {
     const b = this.battle;
     if (b === null) {
+      // The prologue covers the screen: no need to draw the hub behind it.
+      if (this.story !== null) return;
       this.hubScene.update(dtSec);
       this.ctx.render(this.hubScene.camera);
       return;
@@ -885,6 +976,8 @@ export class App {
       setQuality: (q) => this.settingsPort().setQuality(q),
       grant: (c, n) => this.grant(c, n),
       goHub: () => {
+        this.battleToken++;
+        this.veil.hide();
         this.endBattle();
         this.showHub();
       },
@@ -914,7 +1007,8 @@ export class App {
           ready: true,
           running: this.running,
           paused: this.loop.isPaused,
-          screen: m !== null ? 'battle' : this.menus.shell.screen,
+          screen:
+            m !== null ? 'battle' : this.story !== null ? 'prologue' : this.menus.shell.screen,
           player: {
             x: p?.currFeet.x ?? 0,
             y: p?.currFeet.y ?? 0,
@@ -998,6 +1092,9 @@ export class App {
     this.music.stop();
     for (const d of this.disposers) d();
     this.endBattle();
+    this.story?.dispose();
+    this.goalToasts.dispose();
+    this.veil.dispose();
     this.hubScene.dispose();
     this.menus.dispose();
     this.touch.dispose();

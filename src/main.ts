@@ -1,6 +1,11 @@
 import './ui/styles.css';
+import './ui/feel.css';
+import './ui/feel-battle.css';
+import './ui/feel-menus.css';
+import './ui/feel-hub.css';
 import { AudioManager } from './audio/AudioManager';
 import { DEBUG_CONFIG } from './data/config';
+import { loreTip } from './data/story';
 import { copyText } from './debug/clipboard';
 import { collectDeviceInfo } from './debug/deviceInfo';
 import { installLogCapture } from './debug/LogCapture';
@@ -35,6 +40,8 @@ const audio = new AudioManager();
 window.addEventListener('pointerdown', () => audio.unlock(), { capture: true, passive: true });
 
 const title = new TitleScreen(uiRoot, `v${__APP_VERSION__} · ${__BUILD_SHA__}`);
+let tipSeed = Math.floor(Math.random() * 1000);
+title.showTips(() => loreTip(tipSeed++));
 
 function fatal(titleText: string, err: unknown): void {
   console.error('[app] fatal', err);

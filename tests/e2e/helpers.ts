@@ -99,17 +99,32 @@ export async function state(page: Page): Promise<HookState> {
   });
 }
 
-/** Title → tap → hub. */
-export async function enterHub(page: Page): Promise<void> {
-  await page.goto('./');
-  await page.locator('.title-start.is-pulsing').waitFor({ timeout: 90_000 });
-  await page.touchscreen.tap(450, 300);
+/**
+ * After the title tap: a fresh profile first sees the prologue (story cards). Taps "Skip" and
+ * waits for the hub. Does nothing when the hub is already up.
+ */
+export async function skipPrologue(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const s = (
+      window as unknown as { __ashbound?: { state: () => { screen: string } } }
+    ).__ashbound?.state().screen;
+    return s === 'hub' || s === 'prologue';
+  });
+  if ((await state(page)).screen === 'prologue') await page.getByTestId('prologue-skip').tap();
   await page.waitForFunction(
     () =>
       (
         window as unknown as { __ashbound?: { state: () => { running: boolean; screen: string } } }
       ).__ashbound?.state().screen === 'hub',
   );
+}
+
+/** Title → tap → (prologue skipped) → hub. */
+export async function enterHub(page: Page): Promise<void> {
+  await page.goto('./');
+  await page.locator('.title-start.is-pulsing').waitFor({ timeout: 90_000 });
+  await page.touchscreen.tap(450, 300);
+  await skipPrologue(page);
   // First visit of the day: the daily-gift calendar pops over the hub. Claim it.
   const gift = page.getByTestId('login-modal-claim');
   if (await gift.isVisible()) {

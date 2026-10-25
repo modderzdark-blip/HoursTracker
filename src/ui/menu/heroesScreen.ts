@@ -142,6 +142,7 @@ export function renderHeroes(ctx: MenuContext, focus?: HeroId): void {
         () => {
           ctx.uiTap();
           if (p.unlockHero(shown)) {
+            ctx.stingers.play('unlock');
             ctx.toast(`${def.name} joins the hunt`);
             renderHeroes(ctx, shown);
           }

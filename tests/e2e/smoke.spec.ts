@@ -6,6 +6,7 @@ import {
   enterHub,
   heapAfterGC,
   hook,
+  skipPrologue,
   slope,
   startGame,
   state,
@@ -64,6 +65,7 @@ test.describe('Ashbound smoke (Pixel 7 landscape, touch)', () => {
     await page.goto('./');
     await page.locator('.title-start.is-pulsing').waitFor({ timeout: 90_000 });
     await page.touchscreen.tap(450, 300);
+    await skipPrologue(page);
     const gift = page.getByTestId('login-modal-claim');
     await expect(gift).toBeVisible();
     await page.screenshot({ path: `${SHOTS}/02b-daily-gift.png` });

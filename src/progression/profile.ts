@@ -70,6 +70,18 @@ export interface HearthState {
   sinceMs: number;
 }
 
+/** Story moments already shown, and things the player has already looked at. */
+export interface StoryState {
+  /** The narration on first launch. */
+  prologueSeen: boolean;
+  /** Chapters whose intro card has been shown. */
+  chapterIntros: number[];
+  /** Chapters whose completion moment has been shown. */
+  chapterOutros: number[];
+  /** Game modes opened at least once (a newly unlocked mode is marked as new until then). */
+  modesSeen: string[];
+}
+
 export interface ProfileData {
   selectedHero: HeroId;
   heroes: Record<HeroId, HeroProgress>;
@@ -91,6 +103,7 @@ export interface ProfileData {
   achievements: Record<string, number>;
   /** Ember Blessing stacks by stage record key (`stageId:difficulty`). */
   blessings: Record<string, number>;
+  story: StoryState;
 }
 
 export const ARENA_START_RATING = 1000;
@@ -139,6 +152,7 @@ export function createDefaultProfile(nowMs = Date.now()): ProfileData {
     hearth: { sinceMs: nowMs },
     achievements: {},
     blessings: {},
+    story: { prologueSeen: false, chapterIntros: [], chapterOutros: [], modesSeen: ['adventure'] },
   };
 }
 
@@ -159,6 +173,30 @@ function num(v: unknown, fallback: number): number {
 
 function oneOf<T extends string>(list: readonly T[], v: unknown, fallback: T): T {
   return list.find((x) => x === v) ?? fallback;
+}
+
+/** Distinct small positive integers (chapter numbers), sorted. */
+function chapterList(v: unknown): number[] {
+  if (!Array.isArray(v)) return [];
+  const out = new Set<number>();
+  for (const x of v) {
+    const n = int(x, 0, 99, 0);
+    if (n > 0) out.add(n);
+  }
+  return [...out].sort((a, b) => a - b);
+}
+
+function sanitizeStory(raw: unknown, into: StoryState): void {
+  if (!isRecord(raw)) return;
+  into.prologueSeen = raw['prologueSeen'] === true;
+  into.chapterIntros = chapterList(raw['chapterIntros']);
+  into.chapterOutros = chapterList(raw['chapterOutros']);
+  if (Array.isArray(raw['modesSeen'])) {
+    const seen = new Set<string>(into.modesSeen);
+    for (const m of raw['modesSeen'])
+      if (typeof m === 'string' && /^[a-z]{1,16}$/.test(m)) seen.add(m);
+    into.modesSeen = [...seen];
+  }
 }
 
 function sanitizeRoll(raw: unknown): StatRoll | null {
@@ -360,5 +398,6 @@ export function sanitizeProfile(raw: unknown, nowMs = Date.now()): ProfileData {
       if (v > 0 && /^c\d+s\d+:(normal|hard|nightmare)$/.test(key)) p.blessings[key] = v;
     }
   }
+  sanitizeStory(raw['story'], p.story);
   return p;
 }
