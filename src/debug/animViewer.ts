@@ -142,7 +142,7 @@ for (let i = 0; i < frames; i++) {
   const body = makeBody();
   bodies.push(body);
   const s = body.rig.def.scale;
-  spacing = Math.max(spacing, 1.25 * s * scale);
+  spacing = Math.max(spacing, 1.6 * s * scale * num('gap', 1));
 }
 const width = spacing * (frames - 1);
 bodies.forEach((b, i) => {
@@ -188,7 +188,12 @@ bodies.forEach((b, i) => {
 
 let maxH = 0;
 for (const b of bodies) maxH = Math.max(maxH, b.rig.height);
-const camera = new PerspectiveCamera(28, window.innerWidth / window.innerHeight, 0.1, 300);
+const camera = new PerspectiveCamera(
+  num('fov', 14),
+  window.innerWidth / window.innerHeight,
+  0.1,
+  300,
+);
 // Fit the strip horizontally and the tallest body vertically.
 const halfH = Math.tan((camera.fov * Math.PI) / 360);
 const halfW = halfH * camera.aspect;
@@ -205,6 +210,7 @@ ctx.setBloom(QUALITY_PRESETS[quality].bloom, camera);
 function frame(): void {
   ctx.render(camera);
   (window as unknown as { __viewerReady: boolean }).__viewerReady = true;
+  (window as unknown as { __bodies: Body[] }).__bodies = bodies;
   if (params.get('live') === '1') {
     for (const b of bodies) {
       b.anim.update(1 / 60);

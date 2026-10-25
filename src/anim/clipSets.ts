@@ -343,10 +343,32 @@ export function buildCustomActionClip(name: string, def: ActionDef, idle: Pose):
  * read from across the arena. `windup` 0..1 comes from the motion style.
  */
 export function telegraphPose(idle: Pose, wind: Pose, windup: number): Pose {
-  const big = blendPose(idle, wind, 1 + 0.16 * windup);
-  const r = big.root ?? [0, 0, 0];
-  return pose(big, {}, [r[0], r[1] - 0.035 * windup, r[2]]);
+  // Coil further only where it reads as loading the blow: the torso twist and the legs (a lower,
+  // wider stance). Pitch and the arms keep the wind-up (overhead arms must not fold back).
+  const k = 1 + 0.2 * windup;
+  const big = blendPose(idle, wind, k);
+  const r: Record<string, Rot> = { ...big.r };
+  for (const b of ['Spine', 'Chest'] as const) {
+    const w = wind.r[b] ?? [0, 0, 0];
+    const e = big.r[b] ?? [0, 0, 0];
+    r[b] = [w[0], e[1], w[2]];
+  }
+  for (const b of ARM_BONES) {
+    const w = wind.r[b];
+    if (w !== undefined) r[b] = w;
+  }
+  const root = big.root ?? [0, 0, 0];
+  return { r, root: [root[0], root[1] - 0.035 * windup, root[2]] };
 }
+
+const ARM_BONES = [
+  'LeftArm',
+  'LeftForeArm',
+  'LeftHand',
+  'RightArm',
+  'RightForeArm',
+  'RightHand',
+] as const;
 
 /**
  * Telegraph keys: a small counter-move away from the wind-up (the anticipation of the

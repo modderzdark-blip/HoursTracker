@@ -246,13 +246,23 @@ export function buildRunClip(idle: Pose, style: MotionStyle): AnimationClip {
       // Lurching: the torso rolls over the stance leg, the head lolls, the right leg drags.
       runA = addPose(
         runA,
-        d({ Spine: [6, 0, -7], Head: [10, -8, 10], Chest: [0, 6, 0] }, [0, -0.02, 0]),
+        d(
+          { Spine: [8, 0, -11], Head: [14, -10, 16], Chest: [0, 6, -4], LeftArm: [26, 0, 6] },
+          [0, -0.03, 0],
+        ),
       );
       passL = addPose(
         passL,
         d(
-          { Spine: [8, 0, -9], Head: [14, 0, 12], RightLeg: [-40, 0, 0], RightUpLeg: [10, 0, 0] },
-          [0, -0.04, 0],
+          {
+            Spine: [10, 0, -12],
+            Head: [18, 0, 18],
+            Chest: [0, 0, -4],
+            RightLeg: [-40, 0, 0],
+            RightUpLeg: [10, 0, 0],
+            LeftArm: [10, 0, 6],
+          },
+          [0, -0.05, 0],
         ),
       );
       passR = mirror(
@@ -338,21 +348,32 @@ export function buildRunClip(idle: Pose, style: MotionStyle): AnimationClip {
       lift = 0.02;
       break;
     case 'prowl':
+      // Blade carried low and back, point raised off the ground.
       runA = addPose(
         runA,
         d(
           {
             Spine: [16, 0, 0],
             Head: [-16, 0, 0],
-            RightArm: [70, 0, -10],
-            RightForeArm: [30, 0, 0],
+            RightArm: [60, 0, -10],
+            RightForeArm: [-30, 0, 0],
+            RightHand: [-30, 0, 0],
           },
           [0, -0.06, 0],
         ),
       );
       passL = addPose(
         passL,
-        d({ Spine: [18, 0, 0], Head: [-18, 0, 0], RightArm: [30, 0, -6] }, [0, -0.06, 0]),
+        d(
+          {
+            Spine: [18, 0, 0],
+            Head: [-18, 0, 0],
+            RightArm: [20, 0, -6],
+            RightForeArm: [-40, 0, 0],
+            RightHand: [-30, 0, 0],
+          },
+          [0, -0.06, 0],
+        ),
       );
       lift = 0.03;
       break;
