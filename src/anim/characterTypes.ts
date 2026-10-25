@@ -23,6 +23,11 @@ export interface CharacterRig {
   setWeaponFx(on: boolean): void;
   setGlowIntensity(v: number): void;
   setVisible(v: boolean): void;
+  /**
+   * Burn-away dissolve (0 = whole, 1 = gone): deaths crumble into embers, spawns form out of
+   * ash. Uniform-only, never recompiles a shader.
+   */
+  setDissolve(amount: number, edgeColor?: number): void;
   updateSecondary(dtSec: number, forward: number, right: number, turnRate: number): void;
   resetSecondary(): void;
   dispose(): void;
@@ -33,6 +38,10 @@ export interface CharacterAnimator {
   readonly playing: string;
   readonly normalizedTime: number;
   has(name: string): boolean;
+  /** Natural length of a clip in seconds (0 when unknown or procedural). */
+  clipDuration(name: string): number;
+  /** True once a non-looping current clip has played to its end. */
+  readonly finished: boolean;
   play(name: string, opts?: PlayOptions): void;
   react(name: string, strength?: number, durationSec?: number): void;
   setPaused(paused: boolean): void;

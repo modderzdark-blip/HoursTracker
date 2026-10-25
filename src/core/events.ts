@@ -58,6 +58,18 @@ export interface GameEvents {
   'player:died': Record<string, never>;
   'player:revived': Record<string, never>;
   'enemy:telegraph': { readonly actorId: number; readonly attackId: string };
+  /** A dead enemy burning away into embers (sent a few times while it dissolves). */
+  'enemy:dissolve': {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+    /** Standing height of the body (m). */
+    readonly height: number;
+    /** 0 → 1 over the dissolve. */
+    readonly progress: number;
+    readonly color: number;
+    readonly big: boolean;
+  };
   'enemy:exploded': { readonly x: number; readonly z: number; readonly radius: number };
   'boss:grab': { readonly holding: boolean };
   'boss:phase': { readonly phase: number; readonly label: string };

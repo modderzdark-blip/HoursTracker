@@ -165,6 +165,7 @@ export const beastPlan: CreaturePlan = {
   bones: BONES,
   core: { Spine: 'Spine', Chest: 'Chest', Head: 'Head' },
   bodyBone: 'Pelvis',
+  tail: ['Tail0', 'Tail1', 'Tail2'],
   sockets: {
     rightBase: { bone: 'FRc', offset: new Vector3(0, -0.02, 0.02) },
     rightTip: { bone: 'FRc', offset: new Vector3(0, -0.06, 0.16) },

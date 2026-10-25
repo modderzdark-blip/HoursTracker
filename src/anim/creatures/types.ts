@@ -52,6 +52,8 @@ export interface CreaturePlan {
   readonly bodyBone: string;
   /** Glow parts blend additively (translucent fire / spirit bodies) instead of opaque. */
   readonly additiveGlow?: boolean;
+  /** Tail / tendril chain (root first) that lags behind turns and streams back with speed. */
+  readonly tail?: readonly string[];
   readonly sockets: Readonly<Record<SocketName, { bone: string; offset: Vector3 }>>;
   build(
     def: CreatureDef,

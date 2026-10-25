@@ -1,12 +1,11 @@
 import type { Scene } from 'three';
-import {
-  buildCustomActionClip,
-  buildActionClip,
-  buildDodgeClips,
-  buildHumanoidClips,
-} from '../anim/clipSets';
+import { heroAnimSet } from '../anim/animSets';
+import { idleVariantNames } from '../anim/heroMoves';
+import { HumanoidRig } from '../anim/HumanoidRig';
+import { FLINCH_CLIPS, HEAVY_CLIPS, HURT_CLIPS, hitSide } from '../anim/reactions';
+import { ImpactWobble } from '../anim/BodyDynamics';
+import type { Bone } from 'three';
 import { runCycleSec } from '../anim/locomotion';
-import { POSE_LIBRARY } from '../anim/poses';
 import { ActionRunner } from '../combat/ActionRunner';
 import type { CombatSystem, StrikeOptions } from '../combat/CombatSystem';
 import type { Effects } from '../combat/Effects';
@@ -45,7 +44,9 @@ export type PlayerState =
   | 'airborne'
   | 'knockdown'
   | 'getup'
-  | 'dead';
+  | 'dead'
+  /** Stage won: holds the victory pose (no input). */
+  | 'victory';
 
 export interface PlayerDeps {
   readonly hero: HeroDef;
@@ -144,6 +145,16 @@ export class Player extends Actor {
   private moveZ = 0;
   private readonly disp: Displacement = { x: 0, y: 0, z: 0 };
   private wasRunning = false;
+  /** Fastest speed of the current run (a hard stop plays the braking clip). */
+  private runPeak = 0;
+  /** Standing still this long (ms) plays one of the hero's idle variants. */
+  private idleMs = 0;
+  private nextVariantMs = 6000;
+  private variantIndex = 0;
+  private readonly idleVariants: readonly string[];
+  /** Weapon hands shudder when a blow lands. */
+  private readonly wobble = new ImpactWobble();
+  private readonly wobbleBones: readonly Bone[];
   revivesUsed = 0;
   /** Lifetime stats for the run. */
   damageTaken = 0;
@@ -152,20 +163,7 @@ export class Player extends Actor {
   constructor(private readonly deps: PlayerDeps) {
     const hero = deps.hero;
     if (hero.visual.kind !== 'rig') throw new Error('glTF heroes arrive with the M3 assets');
-    const idle = POSE_LIBRARY[hero.idlePose];
-    const base = buildHumanoidClips(idle);
-    const clips = [...base.clips, ...buildDodgeClips(idle)];
-    const all: ActionDef[] = [
-      ...hero.combo,
-      ...(hero.rangedCombo ?? []),
-      ...hero.skills,
-      hero.ultimate,
-    ];
-    for (const a of all) {
-      clips.push(
-        a.clip !== undefined ? buildCustomActionClip(a.clip, a, idle) : buildActionClip(a, idle),
-      );
-    }
+    const set = heroAnimSet(hero);
     const stats = deps.stats ?? hero.stats;
     super({
       rig: RIGS[hero.visual.rig],
@@ -175,8 +173,8 @@ export class Player extends Actor {
       halfHeight: hero.body.capsuleHalfHeight,
       physics: deps.physics,
       membership: deps.team === 'enemy' ? GROUP.enemy : GROUP.player,
-      clips,
-      additiveClips: base.additive,
+      clips: set.clips,
+      additiveClips: set.additive,
       scene: deps.scene,
       knockbackResist: 0,
     });
@@ -190,6 +188,16 @@ export class Player extends Actor {
     this.cooldowns = new Cooldowns(
       hero.skills.map((s, i) => Math.round(s.cooldownMs * (mods.skillCooldown[i] ?? 1))),
     );
+    this.idleVariants = idleVariantNames(hero.id).filter((n) => this.anim.has(n));
+    this.wobbleBones =
+      this.rig instanceof HumanoidRig
+        ? [
+            this.rig.bone('RightForeArm'),
+            this.rig.bone('RightHand'),
+            this.rig.bone('LeftForeArm'),
+            this.rig.bone('LeftHand'),
+          ]
+        : [];
     this.anim.play('idle', { loop: true, fade: 0 });
   }
 
@@ -209,7 +217,13 @@ export class Player extends Actor {
 
   isInvulnerable(): boolean {
     if (this.god) return true;
-    if (this.state === 'dead' || this.state === 'getup' || this.invulnMs > 0) return true;
+    if (
+      this.state === 'dead' ||
+      this.state === 'getup' ||
+      this.state === 'victory' ||
+      this.invulnMs > 0
+    )
+      return true;
     if (this.state === 'dodge') {
       const d = this.def.dodge;
       return this.stateMs >= d.iframeStartMs && this.stateMs < d.iframeEndMs;
@@ -311,6 +325,7 @@ export class Player extends Actor {
         if (this.stateMs >= this.def.getupMs) this.enterLocomotion();
         break;
       case 'dead':
+      case 'victory':
         this.vel.x = this.vel.z = 0;
         break;
     }
@@ -343,10 +358,38 @@ export class Player extends Actor {
         durationSec: cadence,
         fade: this.wasRunning ? 0.12 : 0.15,
       });
-    } else if (this.wasRunning || this.anim.playing !== 'idle') {
-      this.anim.play('idle', { loop: true, fade: 0.2 });
+      this.runPeak = Math.max(this.runPeak, speed);
+      this.idleMs = 0;
+    } else if (this.wasRunning) {
+      // A hard stop from a sprint plants the feet and leans back; a stroll just settles.
+      if (this.runPeak > this.stats.moveSpeed * 0.7 && this.anim.has('run_stop'))
+        this.anim.play('run_stop', { fade: 0.1, restart: true });
+      else this.anim.play('idle', { loop: true, fade: 0.2 });
+      this.runPeak = 0;
+    } else {
+      this.tickIdle(dtSec);
     }
     this.wasRunning = running;
+  }
+
+  /** Standing still: idle loop, with an occasional idle variant (weapon twirl, look around…). */
+  private tickIdle(dtSec: number): void {
+    const playing = this.anim.playing;
+    if (playing === 'run_stop' || playing.startsWith('idle_')) {
+      if (this.anim.finished) this.anim.play('idle', { loop: true, fade: 0.3 });
+      return;
+    }
+    if (playing !== 'idle') {
+      this.anim.play('idle', { loop: true, fade: 0.2 });
+      this.idleMs = 0;
+      return;
+    }
+    this.idleMs += dtSec * 1000;
+    if (this.idleMs < this.nextVariantMs || this.idleVariants.length === 0) return;
+    const name = this.idleVariants[this.variantIndex++ % this.idleVariants.length] ?? 'idle';
+    this.anim.play(name, { fade: 0.3, restart: true });
+    this.idleMs = 0;
+    this.nextVariantMs = 7000 + Math.random() * 5000;
   }
 
   /**
@@ -577,6 +620,7 @@ export class Player extends Actor {
   private strike(spec: ActionDef['hits'][number]['spec']): void {
     const r = this.deps.combat.strike(this, spec, this.strikeOpts);
     if (r.hits > 0) {
+      this.wobble.kick(Math.min(1.6, 0.5 + spec.shake * 3));
       this.deps.bus.emit('time:hitStop', { ms: r.maxHitStopMs });
       if (r.maxShake > 0) this.deps.bus.emit('camera:shake', { trauma: r.maxShake });
       this.consumeCounter();
@@ -738,22 +782,25 @@ export class Player extends Actor {
       this.die();
       return;
     }
-    if (this.hasSuperArmor()) return;
+    const side = hitSide(h.dirX, h.dirZ, this.yaw);
+    if (this.hasSuperArmor()) {
+      this.anim.react(HURT_CLIPS[side], 0.7);
+      return;
+    }
     this.interruptAction();
     switch (h.spec.reaction) {
       case 'flinch':
-        this.anim.react('hurt', 1);
-        this.enterState('hurt', null, this.def.hurtMs);
+        this.enterState('hurt', FLINCH_CLIPS[side], this.def.hurtMs);
         break;
       case 'knockback':
-        this.anim.react('hurt', 1.2);
         this.knockback(h.dirX, h.dirZ, h.spec.knockback);
-        this.enterState('hurt', null, this.def.hurtMs + 150);
+        this.enterState('hurt', HEAVY_CLIPS[side], this.def.hurtMs + 150);
         break;
       case 'launch':
         this.knockback(h.dirX, h.dirZ, h.spec.knockback);
         this.vy = LAUNCH_VY;
-        this.enterState('airborne', 'knockdown', 0);
+        this.enterState('airborne', null, 0);
+        this.anim.play('knockdown', { durationSec: 0.9, fade: 0.06, restart: true });
         break;
       case 'knockdown':
         this.knockback(h.dirX, h.dirZ, h.spec.knockback);
@@ -782,8 +829,7 @@ export class Player extends Actor {
     if (this.state === 'dead') return;
     this.interruptAction();
     this.knockback(dirX, dirZ, distance);
-    this.enterState('hurt', null, this.def.hurtMs + 200);
-    this.anim.react('hurt', 1.2);
+    this.enterState('hurt', HEAVY_CLIPS[hitSide(dirX, dirZ, this.yaw)], this.def.hurtMs + 200);
   }
 
   private interruptAction(): void {
@@ -796,7 +842,9 @@ export class Player extends Actor {
   }
 
   private enterKnockdown(): void {
-    this.enterState('knockdown', 'knockdown', this.def.knockdownMs);
+    // Landing from a launch keeps the fall already playing instead of restarting it.
+    const falling = this.state === 'airborne' && this.anim.playing === 'knockdown';
+    this.enterState('knockdown', falling ? null : 'knockdown', this.def.knockdownMs);
   }
 
   private enterState(state: PlayerState, clip: string | null, durationMs: number): void {
@@ -826,12 +874,36 @@ export class Player extends Actor {
     this.runner.stop();
     this.anim.play('idle', { loop: true, fade: 0.18 });
     this.wasRunning = false;
+    this.runPeak = 0;
+    this.idleMs = 0;
+  }
+
+  protected override postAnimate(dtSec: number): void {
+    this.wobble.update(dtSec);
+    this.wobble.apply(this.wobbleBones);
   }
 
   private die(): void {
     this.interruptAction();
     this.enterState('dead', 'death', 1200);
     this.emitHuman('player:died', {});
+  }
+
+  /**
+   * Plays this hero's victory pose and holds it: the hero stops acting and cannot be hurt.
+   * For the stage-won flow (UI / camera code calls it once the fight is over).
+   */
+  playVictory(): void {
+    if (this.state === 'dead' || this.state === 'victory') return;
+    this.interruptAction();
+    this.enterState('victory', null, 0);
+    this.visualLift = 0;
+    this.anim.play('victory', { fade: 0.25, restart: true });
+  }
+
+  /** True while the victory pose plays or holds. */
+  get celebrating(): boolean {
+    return this.state === 'victory';
   }
 
   revive(): void {

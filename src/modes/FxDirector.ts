@@ -104,6 +104,33 @@ export class FxDirector {
     if (big) this.screen(0.35, color, 0.012);
   }
 
+  /**
+   * Embers and soot rising off a corpse that burns away (sent a few times per death while it
+   * dissolves; `progress` 0..1). The body lies on the ground, so embers lift from along it.
+   */
+  ashes(
+    x: number,
+    y: number,
+    z: number,
+    height: number,
+    progress: number,
+    color: number,
+    big: boolean,
+  ): void {
+    const reach = height * 0.32;
+    const n = big ? 3 : 2;
+    for (let i = 0; i < n; i++) {
+      const a = this.rand() * Math.PI * 2;
+      const r = this.rand() * reach;
+      const px = x + Math.cos(a) * r;
+      const pz = z + Math.sin(a) * r;
+      const py = y + 0.15 + this.rand() * height * 0.25;
+      this.sparks.burst(px, py, pz, big ? 9 : 5, color, 0.9, 0, 0, 1.3, 1.0, -0.22);
+      this.sparks.burst(px, py, pz, big ? 4 : 2, 0xffe0a0, 0.6, 0, 0, 0.8, 0.7, -0.3);
+    }
+    if (progress < 0.15) this.fx.smokeBurst(x, y + 0.2, z, big ? 10 : 4, reach * 2, 0.08);
+  }
+
   /** Brief screen flash with optional colour fringing (Medium/High only). */
   screen(amount: number, color: number, aberration = 0): void {
     if (!this.screenEffects) return;

@@ -39,6 +39,21 @@ export function blendPose(a: Pose, b: Pose, k: number): Pose {
   };
 }
 
+/**
+ * Adds the per-bone offsets of `delta` (× k) on top of `base`: reactions and secondary motion
+ * that keep the character's own stance and weapon grip (`delta.root` is added too).
+ */
+export function addPose(base: Pose, delta: Pose, k = 1): Pose {
+  const out: Record<string, Rot> = { ...base.r };
+  for (const [name, d] of Object.entries<Rot>(delta.r)) {
+    const b = out[name] ?? [0, 0, 0];
+    out[name] = [b[0] + d[0] * k, b[1] + d[1] * k, b[2] + d[2] * k];
+  }
+  const pb = base.root ?? [0, 0, 0];
+  const pd = delta.root ?? [0, 0, 0];
+  return { r: out, root: [pb[0] + pd[0] * k, pb[1] + pd[1] * k, pb[2] + pd[2] * k] };
+}
+
 /** Mirror a pose left↔right (negate Y/Z rotations, swap sides). */
 export function mirror(p: Pose): Pose {
   const out: Record<string, Rot> = {};

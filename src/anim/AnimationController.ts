@@ -30,6 +30,18 @@ interface ClipEvent {
 
 const UP = new Vector3(0, 1, 0);
 
+/** Additive versions of shared clips, converted once (pooled characters share their clips). */
+const additiveCache = new WeakMap<AnimationClip, AnimationClip>();
+
+function additiveOf(clip: AnimationClip): AnimationClip {
+  let add = additiveCache.get(clip);
+  if (add === undefined) {
+    add = AnimationUtils.makeClipAdditive(clip.clone());
+    additiveCache.set(clip, add);
+  }
+  return add;
+}
+
 /**
  * Animation state player on top of THREE.AnimationMixer: one base layer with crossfades, an
  * additive hit-reaction layer, normalised-time events, and a procedural head look-at applied
@@ -57,8 +69,7 @@ export class AnimationController {
     this.mixer = new AnimationMixer(root);
     for (const c of clips) this.actions.set(c.name, this.mixer.clipAction(c));
     for (const c of additiveClips) {
-      const add = AnimationUtils.makeClipAdditive(c.clone());
-      const a = this.mixer.clipAction(add, undefined, AdditiveAnimationBlendMode);
+      const a = this.mixer.clipAction(additiveOf(c), undefined, AdditiveAnimationBlendMode);
       a.setLoop(LoopOnce, 1);
       a.clampWhenFinished = false;
       this.additive.set(c.name, a);
@@ -71,6 +82,18 @@ export class AnimationController {
 
   has(name: string): boolean {
     return this.actions.has(name);
+  }
+
+  /** Natural length of a clip in seconds (0 if unknown). */
+  clipDuration(name: string): number {
+    return this.actions.get(name)?.getClip().duration ?? 0;
+  }
+
+  /** True once a non-looping current clip has played to its end. */
+  get finished(): boolean {
+    const a = this.current;
+    if (a === null || a.loop === LoopRepeat) return false;
+    return a.time >= a.getClip().duration - 1e-4;
   }
 
   play(name: string, opts: PlayOptions = {}): void {

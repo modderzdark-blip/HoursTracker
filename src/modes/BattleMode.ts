@@ -482,6 +482,9 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.disposers.push(
       b.on('combat:hit', (e) => this.onHitEvent(e)),
       b.on('combat:death', (e) => this.onDeath(e.actorId, e.team, e.x, e.z)),
+      b.on('enemy:dissolve', (e) =>
+        this.fxd.ashes(e.x, e.y, e.z, e.height, e.progress, e.color, e.big),
+      ),
       b.on('player:perfectDodge', (e) => {
         this.hud.showBanner('PERFECT DODGE', 'perfect', 1000);
         this.sfx.play('perfect');

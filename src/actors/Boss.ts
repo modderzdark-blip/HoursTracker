@@ -3,6 +3,7 @@ import type { BossDef } from '../data/bosses';
 import type { EnemyAttackDef } from '../data/enemies';
 import { Enemy, type EnemyDeps, type EnemyScale } from './Enemy';
 import type { HitReceived } from './Actor';
+import { HURT_CLIPS, hitSide } from '../anim/reactions';
 
 /** A boss: an Enemy with a BossBrain, a break bar (poise), phases and enrage. */
 export class Boss extends Enemy {
@@ -18,6 +19,10 @@ export class Boss extends Enemy {
         .map((id) => def.attacks.find((a) => a.id === id))
         .filter((a): a is EnemyAttackDef => a !== undefined),
     );
+  }
+
+  protected override get bigDeath(): boolean {
+    return true;
   }
 
   get bossBrain(): BossBrain {
@@ -61,9 +66,11 @@ export class Boss extends Enemy {
   override onHit(h: HitReceived): void {
     this.flashHit(0xffffff, 8);
     if (h.killed) {
-      this.die();
+      this.die(h);
       return;
     }
+    // Bosses never flinch, but every blow jolts the body a little.
+    if (!h.poiseBroken) this.anim.react(HURT_CLIPS[hitSide(h.dirX, h.dirZ, this.yaw)], 0.45);
     if (h.poiseBroken) this.bossBrain.goBroken();
     this.bossBrain.checkPhase();
   }

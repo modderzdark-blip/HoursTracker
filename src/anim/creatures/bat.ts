@@ -114,6 +114,7 @@ export const batPlan: CreaturePlan = {
   bones: BONES,
   core: { Spine: 'Body', Chest: 'Body', Head: 'Head' },
   bodyBone: 'Body',
+  tail: ['Tail'],
   sockets: {
     rightBase: { bone: 'Jaw', offset: new Vector3(0, -0.01, 0.02) },
     rightTip: { bone: 'Jaw', offset: new Vector3(0, -0.01, 0.12) },

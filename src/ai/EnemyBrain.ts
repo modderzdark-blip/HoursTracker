@@ -249,6 +249,7 @@ export class EnemyBrain {
     const p = this.ctx.player;
     if (!p.alive) {
       this.steerStop(dtSec);
+      if (p.inWorld) e.celebrate();
       return;
     }
     const gap = e.gapTo(p);
@@ -515,8 +516,11 @@ export class EnemyBrain {
   }
 
   goKnockdown(): void {
+    // Landing from a launch keeps the fall already playing instead of restarting it.
+    const falling = this.state === 'airborne' && this.enemy.anim.playing === 'knockdown';
     this.interrupt();
     this.enter('knockdown');
+    if (falling) return;
     this.enemy.anim.play('knockdown', {
       durationSec: Math.max(0.4, this.enemy.def.knockdownMs / 1000),
       fade: 0.06,

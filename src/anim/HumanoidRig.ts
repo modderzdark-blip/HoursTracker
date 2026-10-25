@@ -1,4 +1,4 @@
-import type { Vector3 } from 'three';
+import type { MeshDepthMaterial, Vector3 } from 'three';
 import {
   Bone,
   Color,
@@ -13,6 +13,12 @@ import {
 import { CHARACTER_CONFIG } from '../data/config';
 import type { RigDef } from '../data/rigs';
 import { getCharacterEnvironment } from '../render/characterEnv';
+import {
+  applyDissolve,
+  createDissolveUniforms,
+  setDissolveEdge,
+  type DissolveUniforms,
+} from '../render/dissolve';
 import { applyCharacterShading } from '../render/rimLight';
 import { buildRigTemplate, type ChainSpec, type RigTemplate, type SocketName } from './rigBuilder';
 import { BONE_SPECS, FX_BONE, type BoneName } from './skeletonDef';
@@ -62,6 +68,7 @@ interface ChainState {
 }
 
 const SUBSTEP = 1 / 120;
+
 const tmpQ = new Quaternion();
 const tmpE = new Euler();
 
@@ -84,6 +91,8 @@ export class HumanoidRig {
   private readonly flashColor = new Color();
   private readonly baseGlow = new Color(1, 1, 1);
   private readonly chains: ChainState[] = [];
+  private readonly dissolve: DissolveUniforms;
+  private readonly depthMaterial: MeshDepthMaterial;
   private time = Math.random() * 10;
 
   /** Standing height in metres (proportions are built for ~1.9 m at scale 1). */
@@ -155,8 +164,11 @@ export class HumanoidRig {
     }
     this.glowMaterial = new MeshBasicMaterial({ vertexColors: true, color: this.baseGlow });
     this.glowMaterial.color.setScalar(2.2);
+    this.dissolve = createDissolveUniforms(1.95);
+    this.depthMaterial = applyDissolve(this.material, this.glowMaterial, this.dissolve);
 
     this.mesh = new SkinnedMesh(this.template.geometry, this.material);
+    this.mesh.customDepthMaterial = this.depthMaterial;
     this.mesh.add(rootBone);
     this.mesh.castShadow = !ghost;
     this.mesh.name = `rig:${def.id}`;
@@ -209,6 +221,11 @@ export class HumanoidRig {
 
   setVisible(v: boolean): void {
     this.root.visible = v;
+  }
+
+  setDissolve(amount: number, edgeColor?: number): void {
+    this.dissolve.uDissolve.value = Math.min(1, Math.max(0, amount));
+    if (edgeColor !== undefined) setDissolveEdge(this.dissolve, edgeColor);
   }
 
   /** Puts every cloth / tail / wing bone back at rest (after teleports). */
@@ -322,6 +339,7 @@ export class HumanoidRig {
   dispose(): void {
     this.material.dispose();
     this.glowMaterial.dispose();
+    this.depthMaterial.dispose();
     this.skeleton.dispose();
     this.root.removeFromParent();
   }
