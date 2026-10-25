@@ -131,12 +131,12 @@ const CINDER_COURT: ArenaDef = {
     hemiGround: 0x1a0f0c,
   },
   lighting: {
-    moonIntensity: 2.2,
+    moonIntensity: 1.8,
     moonDirection: [-0.45, 1, 0.35],
-    hemiIntensity: 0.55,
+    hemiIntensity: 0.45,
     environmentIntensity: 0.35,
-    brazierIntensity: 14,
-    brazierRange: 9,
+    brazierIntensity: 20,
+    brazierRange: 11,
   },
 };
 
@@ -195,12 +195,12 @@ const ASH_GATE: ArenaDef = {
     hemiGround: 0x220e08,
   },
   lighting: {
-    moonIntensity: 1.9,
+    moonIntensity: 1.6,
     moonDirection: [0.5, 1, 0.3],
-    hemiIntensity: 0.6,
+    hemiIntensity: 0.5,
     environmentIntensity: 0.3,
-    brazierIntensity: 16,
-    brazierRange: 10,
+    brazierIntensity: 22,
+    brazierRange: 12,
   },
 };
 
@@ -260,12 +260,12 @@ const ASHEN_WASTES: ArenaDef = {
     hemiGround: 0x1a0806,
   },
   lighting: {
-    moonIntensity: 2.4,
+    moonIntensity: 2.2,
     moonDirection: [0.6, 0.8, -0.2],
-    hemiIntensity: 0.6,
+    hemiIntensity: 0.5,
     environmentIntensity: 0.3,
-    brazierIntensity: 14,
-    brazierRange: 9,
+    brazierIntensity: 18,
+    brazierRange: 11,
   },
 };
 
@@ -373,12 +373,12 @@ const HOLLOW_DEEP: ArenaDef = {
     hemiGround: 0x0c0a08,
   },
   lighting: {
-    moonIntensity: 1.9,
+    moonIntensity: 1.4,
     moonDirection: [0.35, 1, 0.4],
-    hemiIntensity: 0.6,
+    hemiIntensity: 0.5,
     environmentIntensity: 0.35,
-    brazierIntensity: 12,
-    brazierRange: 10,
+    brazierIntensity: 18,
+    brazierRange: 12,
   },
 };
 

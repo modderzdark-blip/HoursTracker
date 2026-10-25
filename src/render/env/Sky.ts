@@ -30,6 +30,10 @@ uniform float uStars;
 uniform float uClouds;
 uniform vec3 uCloudColor;
 uniform float uTime;
+uniform float uFlash;
+uniform vec3 uFlashDir;
+uniform vec3 uFlashColor;
+uniform float uBoltSeed;
 varying vec3 vDir;
 
 float hash(vec3 p) {
@@ -76,6 +80,16 @@ void main() {
   float cover = smoothstep(1.0 - uClouds, 1.0 - uClouds + 0.35, c) * smoothstep(-0.02, 0.25, up);
   vec3 cloud = mix(uCloudColor * 0.5, uCloudColor, pow(md, 3.0));
   col = mix(col, cloud, cover * 0.85);
+  // Lightning: the clouds around the strike light up and a jagged bolt forks to the horizon.
+  if (uFlash > 0.001) {
+    float fd = max(dot(d, normalize(uFlashDir)), 0.0);
+    col += uFlashColor * uFlash * (0.08 + 0.6 * pow(fd, 6.0) * (0.4 + cover));
+    float az = atan(d.z, d.x) - atan(uFlashDir.z, uFlashDir.x);
+    az = atan(sin(az), cos(az));
+    float jag = (vnoise(vec3(up * 30.0, uBoltSeed, 0.0)) - 0.5) * 0.05 + (vnoise(vec3(up * 90.0, uBoltSeed, 3.0)) - 0.5) * 0.015;
+    float bolt = exp(-abs(az - jag) * 500.0) * step(up, uFlashDir.y + 0.05) * smoothstep(-0.02, 0.05, up);
+    col += uFlashColor * bolt * uFlash * 3.0;
+  }
   // Low haze matches the fog colour so distant geometry melts into the sky.
   col = mix(col, uHorizon, smoothstep(0.18, -0.05, up));
   gl_FragColor = vec4(col, 1.0);
@@ -105,6 +119,10 @@ export class Sky {
         uClouds: { value: look.clouds },
         uCloudColor: { value: new Color(look.cloudColor) },
         uTime: { value: 0 },
+        uFlash: { value: 0 },
+        uFlashDir: { value: new Vector3(0, 0.3, -1) },
+        uFlashColor: { value: new Color(0xffffff) },
+        uBoltSeed: { value: 0 },
       },
       side: BackSide,
       depthWrite: false,
@@ -120,6 +138,22 @@ export class Sky {
     const t = this.material.uniforms['uTime'];
     if (t !== undefined) t.value = ((t.value as number) + dtSec) % 10_000;
     this.mesh.position.copy(center);
+  }
+
+  /** Lightning: flash strength 0..1, direction of the strike, colour, bolt shape seed. */
+  setFlash(
+    strength: number,
+    dirX: number,
+    dirY: number,
+    dirZ: number,
+    color: number,
+    seed: number,
+  ): void {
+    const u = this.material.uniforms;
+    (u['uFlash'] as { value: number }).value = strength;
+    (u['uFlashDir'] as { value: Vector3 }).value.set(dirX, dirY, dirZ);
+    (u['uFlashColor'] as { value: Color }).value.setHex(color);
+    (u['uBoltSeed'] as { value: number }).value = seed;
   }
 
   dispose(): void {
