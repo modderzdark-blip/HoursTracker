@@ -1,7 +1,7 @@
 import { HEROES, type HeroId } from '../../data/heroes';
 import { MODES, type ModeId } from '../../data/modes';
-import { CHAPTERS } from '../../data/stages';
-import { CHAPTER_STORY } from '../../data/story';
+import { chapterDef } from '../../data/adventure';
+import { chapterStory } from '../../data/story';
 import type { Celebration } from '../../progression/feel';
 import { el, onTap } from '../dom';
 import { buildScene } from '../storyScenes';
@@ -25,10 +25,10 @@ interface CardContent {
 function contentFor(c: Celebration): CardContent | null {
   switch (c.kind) {
     case 'chapter': {
-      const ch = CHAPTERS.find((x) => x.number === c.chapter);
-      const story = CHAPTER_STORY[c.chapter];
-      if (ch === undefined || story === undefined) return null;
-      const next = CHAPTERS.find((x) => x.number === c.chapter + 1);
+      const ch = chapterDef(c.chapter);
+      if (ch === undefined) return null;
+      const story = chapterStory(ch);
+      const next = chapterDef(c.chapter + 1);
       return {
         kicker: `Chapter ${story.numeral} complete`,
         title: ch.name,

@@ -42,6 +42,8 @@ export interface StageDef {
   readonly affixes?: readonly AffixId[];
   /** Elite affixes on the boss. */
   readonly bossAffixes?: readonly AffixId[];
+  /** Extra enemy HP / ATK multipliers on top of the level (Endless depth pressure). */
+  readonly pressure?: { readonly hp: number; readonly atk: number };
 }
 
 export type StageKind = 'normal' | 'miniboss' | 'boss';
@@ -52,7 +54,8 @@ export interface AdventureStageDef extends StageDef {
   readonly index: number;
   readonly kind: StageKind;
   readonly drops: DropTableId;
-  readonly rewards: { readonly gold: number; readonly xp: number };
+  /** `gems`: paid once, on the first clear at each difficulty (deep Endless stages). */
+  readonly rewards: { readonly gold: number; readonly xp: number; readonly gems?: number };
 }
 
 export interface ChapterDef {
@@ -70,7 +73,7 @@ const wave = (spawns: SpawnList, spawnIntervalMs = 450): WaveDef => ({
   spawnIntervalMs,
 });
 
-interface StageSpec {
+export interface StageSpec {
   readonly name: string;
   readonly arena: ArenaId;
   readonly waves: readonly SpawnList[];
@@ -78,10 +81,17 @@ interface StageSpec {
   readonly kind?: StageKind;
   readonly practice?: boolean;
   readonly parTimeSec?: number;
+  /** Enemy level (default: the chapter's first level + the stage index). */
+  readonly level?: number;
+  readonly affixes?: readonly AffixId[];
+  readonly bossAffixes?: readonly AffixId[];
+  /** First-clear gems (Endless chapters). */
+  readonly gems?: number;
+  readonly pressure?: { readonly hp: number; readonly atk: number };
 }
 
 /** Rewards and level grow along the chapter; balancing is the numbers in these helpers. */
-function buildChapter(
+export function buildChapter(
   number: number,
   id: string,
   name: string,
@@ -90,7 +100,7 @@ function buildChapter(
   specs: readonly StageSpec[],
 ): ChapterDef {
   const stages = specs.map((s, index): AdventureStageDef => {
-    const level = firstLevel + index;
+    const level = s.level ?? firstLevel + index;
     const kind = s.kind ?? (s.boss !== undefined ? 'boss' : 'normal');
     const goldBase = 90 + level * 30;
     // Deeper chapters pay more XP so heroes keep pace with the steeper enemy levels.
@@ -106,6 +116,11 @@ function buildChapter(
       boss: s.boss ?? null,
       stars: { maxDamageTakenFrac: 1.2, parTimeSec: s.parTimeSec ?? 150 + s.waves.length * 30 },
       interWaveMs: 2200,
+      ...(s.affixes !== undefined && s.affixes.length > 0 ? { affixes: s.affixes } : {}),
+      ...(s.pressure !== undefined ? { pressure: s.pressure } : {}),
+      ...(s.bossAffixes !== undefined && s.bossAffixes.length > 0
+        ? { bossAffixes: s.bossAffixes }
+        : {}),
       chapter: number,
       index,
       kind,
@@ -115,12 +130,14 @@ function buildChapter(
         xp: Math.round(
           (100 + level * 45) * xpMult * (kind === 'boss' ? 2.2 : kind === 'miniboss' ? 1.5 : 1),
         ),
+        ...(s.gems !== undefined && s.gems > 0 ? { gems: s.gems } : {}),
       },
     };
   });
   return { id, number, name, subtitle, stages };
 }
 
+/** The hand-made chapters (1–4). Later chapters are generated: see src/data/adventure.ts. */
 export const CHAPTERS: readonly ChapterDef[] = [
   buildChapter(1, 'ch1', 'Ashfall March', 'Where the shadow first fell', 1, [
     {
@@ -689,11 +706,3 @@ export const CHAPTERS: readonly ChapterDef[] = [
     },
   ]),
 ];
-
-export function findAdventureStage(id: string): AdventureStageDef | undefined {
-  for (const c of CHAPTERS) {
-    const s = c.stages.find((st) => st.id === id);
-    if (s !== undefined) return s;
-  }
-  return undefined;
-}

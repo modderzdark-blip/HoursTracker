@@ -15,7 +15,7 @@ import { DEBUG_CONFIG, INPUT_CONFIG, LOOP_CONFIG } from '../data/config';
 import type { Currency } from '../data/economy';
 import type { DifficultyId } from '../data/difficulty';
 import { HEROES, type HeroId } from '../data/heroes';
-import { CHAPTERS } from '../data/stages';
+import { chaptersUpTo } from '../data/adventure';
 import { ACHIEVEMENTS } from '../data/goals';
 import { loreTip, PROLOGUE } from '../data/story';
 import { goalsReached, type GoalSnapshot } from '../progression/feel';
@@ -1010,7 +1010,7 @@ export class App {
       },
       clearStages: (count) => {
         let n = 0;
-        for (const c of CHAPTERS)
+        for (const c of chaptersUpTo(Math.ceil(count / 8)))
           for (const st of c.stages)
             if (n++ < count) this.profile.submitStageResult(st.id, 'normal', 3, 100);
         if (this.battle === null) this.menus.hub();

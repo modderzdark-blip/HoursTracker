@@ -2,7 +2,7 @@ import { DIFFICULTIES, type DifficultyId } from '../data/difficulty';
 import { HEROES, type HeroId } from '../data/heroes';
 import { MODE_ORDER, MODES } from '../data/modes';
 import { DROP_TABLES, type DropTableId } from '../data/progression';
-import { CHAPTERS, type AdventureStageDef } from '../data/stages';
+import type { AdventureStageDef } from '../data/stages';
 import type { UnlockEvent } from '../progression/feel';
 import type { GearItem } from '../progression/gear';
 import { rollDrops } from '../progression/loot';
@@ -70,9 +70,11 @@ export function snapshotUnlocks(profile: PlayerProfile): UnlockSnapshot {
   const modes = new Set<string>();
   for (const m of MODE_ORDER) if (profile.modeUnlocked(m)) modes.add(m);
   const difficulties = new Set<string>();
-  for (const c of CHAPTERS)
+  // Normal is always open (a newly reached chapter is announced by its completion card).
+  for (const c of profile.chaptersSoFar())
     for (const d of DIFFICULTY_ORDER)
-      if (profile.difficultyUnlocked(c.number, d)) difficulties.add(`${c.number}:${d}`);
+      if (d !== 'normal' && profile.difficultyUnlocked(c.number, d))
+        difficulties.add(`${c.number}:${d}`);
   const heroes = new Set<string>();
   for (const id of Object.keys(HEROES) as HeroId[]) {
     const b = profile.heroUnlockBlock(id);
@@ -211,6 +213,9 @@ export function grantAdventureVictory(
   rng: () => number,
 ): RewardSummary {
   const wasCleared = profile.chapterCleared(stage.chapter, difficulty);
+  // Deep Endless elites and bosses pay gems once per difficulty, on the first clear.
+  const firstClear = (profile.record(stage.id, difficulty)?.clears ?? 0) === 0;
+  const bonusGems = firstClear ? (stage.rewards.gems ?? 0) : 0;
   return grantVictory({
     profile,
     heroId,
@@ -220,6 +225,7 @@ export function grantAdventureVictory(
     drops: stage.drops,
     gold: stage.rewards.gold,
     xp: stage.rewards.xp,
+    ...(bonusGems > 0 ? { bonusGems } : {}),
     rng,
     title: 'Victory',
     subtitle: `${stage.chapter}-${stage.index + 1} · ${stage.name} · ${DIFFICULTIES[difficulty].label}`,

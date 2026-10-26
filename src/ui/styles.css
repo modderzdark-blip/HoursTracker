@@ -1809,6 +1809,17 @@ body {
   pointer-events: none;
 }
 
+/* Chapter steps (« ‹ › ») beside the tab window once there are many chapters. */
+.tab.tab-step {
+  min-width: 40px;
+  color: var(--ink-dim);
+}
+
+.pb-affix {
+  color: #ff9a6a;
+  font-weight: 700;
+}
+
 .map-sub {
   flex: 0 0 auto;
   font-family: var(--font-title);

@@ -20,7 +20,8 @@ import {
   type HuntOmenId,
 } from '../data/modes';
 import { SKILL_TREES } from '../data/skillTrees';
-import { CHAPTERS, findAdventureStage, type StageDef, type WaveDef } from '../data/stages';
+import { adventureFrontier, chaptersUpTo, findAdventureStage } from '../data/adventure';
+import type { StageDef, WaveDef } from '../data/stages';
 import { rollItem, type GearItem } from '../progression/gear';
 import { computeHeroStats, powerRating } from '../progression/heroStats';
 import type { ArenaState, DungeonState } from '../progression/profile';
@@ -70,7 +71,7 @@ export function consumeDungeonEntry(d: DungeonState, nowMs: number): boolean {
 /** Highest Adventure stage level cleared (any difficulty), 1 if none. */
 export function highestClearedLevel(cleared: (stageId: string) => boolean): number {
   let best = 1;
-  for (const c of CHAPTERS)
+  for (const c of chaptersUpTo(adventureFrontier(cleared)))
     for (const s of c.stages) if (cleared(s.id)) best = Math.max(best, s.level);
   return best;
 }

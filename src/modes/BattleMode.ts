@@ -35,7 +35,7 @@ import type { StatusId } from '../data/statusEffects';
 import { BOSS_LINES, HERO_LINES } from '../data/story';
 import type { InputState } from '../input/InputState';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
-import { enemyScaleFor } from '../progression/enemyScale';
+import { enemyScaleFor, stageEnemyMult } from '../progression/enemyScale';
 import { affixLabel } from '../data/affixes';
 import type { HeroMods } from '../progression/skillTree';
 import { rateRun } from '../progression/stars';
@@ -232,8 +232,9 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.arena = ARENAS[setup.stage.arena];
     this.difficulty = DIFFICULTIES[setup.difficulty];
     const st = setup.stage;
-    this.enemyScale = enemyScaleFor(st.level, setup.difficulty, setup.enemyMult, st.affixes);
-    this.bossScale = enemyScaleFor(st.level, setup.difficulty, setup.enemyMult, st.bossAffixes);
+    const mult = stageEnemyMult(st, setup.enemyMult);
+    this.enemyScale = enemyScaleFor(st.level, setup.difficulty, mult, st.affixes);
+    this.bossScale = enemyScaleFor(st.level, setup.difficulty, mult, st.bossAffixes);
     this.builder = new ArenaBuilder(
       this.arena,
       d.physics,

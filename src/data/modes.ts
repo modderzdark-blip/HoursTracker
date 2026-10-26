@@ -191,6 +191,11 @@ export const TOWER_CONFIG = {
     'ash_behemoth',
     'brood_weaver',
     'cinder_wyrm',
+    'headsman',
+    'hollow_twin',
+    'bone_cantor',
+    'twin_maw',
+    'ossuary_queen',
   ] satisfies readonly BossId[],
   arenas: [
     'cinder_court',
@@ -243,6 +248,12 @@ export const CHALLENGE_CONFIG = {
     { boss: 'ash_behemoth', stage: 'c4s4', arena: 'hollow_deep' },
     { boss: 'brood_weaver', stage: 'c4s6', arena: 'hollow_deep' },
     { boss: 'cinder_wyrm', stage: 'c4s8', arena: 'hollow_deep' },
+    // Met in the Endless Adventure (generated chapters 5–8 introduce them).
+    { boss: 'hollow_twin', stage: 'c5s4', arena: 'cinder_court' },
+    { boss: 'headsman', stage: 'c5s8', arena: 'ash_gate' },
+    { boss: 'bone_cantor', stage: 'c6s8', arena: 'bound_spire' },
+    { boss: 'twin_maw', stage: 'c7s8', arena: 'ashen_wastes' },
+    { boss: 'ossuary_queen', stage: 'c8s8', arena: 'hollow_deep' },
   ] satisfies readonly { boss: BossId; stage: string; arena: ArenaId }[],
 } as const;
 

@@ -5,7 +5,8 @@ import { ENEMIES } from '../../src/data/enemies';
 import { GEAR_CONFIG, GEAR_SLOTS, RARITIES, RARITY_DEFS, SLOT_DEFS } from '../../src/data/items';
 import { MODES } from '../../src/data/modes';
 import { SKILL_TREES } from '../../src/data/skillTrees';
-import { CHAPTERS, findAdventureStage } from '../../src/data/stages';
+import { findAdventureStage } from '../../src/data/adventure';
+import { CHAPTERS } from '../../src/data/stages';
 import { CAMERA_CONFIG, INPUT_CONFIG, LOOP_CONFIG } from '../../src/data/config';
 import { HEROES } from '../../src/data/heroes';
 

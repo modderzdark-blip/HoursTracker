@@ -2,6 +2,16 @@ import type { EnemyScale } from '../actors/Enemy';
 import { combineAffixes, type AffixId } from '../data/affixes';
 import { DIFFICULTIES, type DifficultyId } from '../data/difficulty';
 import { ENEMY_SCALING } from '../data/progression';
+import type { StageDef } from '../data/stages';
+
+type ModeMult = { readonly hp: number; readonly atk: number; readonly speed?: number };
+
+/** A mode's multipliers times the stage's own depth pressure (Endless chapters). */
+export function stageEnemyMult(stage: StageDef, mode: ModeMult): ModeMult {
+  const p = stage.pressure;
+  if (p === undefined) return mode;
+  return { ...mode, hp: mode.hp * p.hp, atk: mode.atk * p.atk };
+}
 
 /**
  * Enemy stat multipliers for a stage level and difficulty, times optional mode multipliers
@@ -12,10 +22,7 @@ import { ENEMY_SCALING } from '../data/progression';
 export function enemyScaleFor(
   level: number,
   difficulty: DifficultyId,
-  extra: { readonly hp: number; readonly atk: number; readonly speed?: number } = {
-    hp: 1,
-    atk: 1,
-  },
+  extra: ModeMult = { hp: 1, atk: 1 },
   affixes: readonly AffixId[] = [],
 ): EnemyScale {
   const l = Math.max(1, level) - 1;

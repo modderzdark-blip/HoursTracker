@@ -3,8 +3,10 @@
  * begins, a line from every boss (before the fight, when it falls, and when it wins) and the
  * moment a chapter is completed. All text is original to Ashbound.
  */
-import type { BossId } from './bosses';
+import { mulberry32 } from '../core/random';
+import { BOSSES, type BossId } from './bosses';
 import type { HeroId } from './heroes';
+import type { ChapterDef } from './stages';
 
 /** Painted backdrop of a narration card (CSS + inline SVG layers, no image assets). */
 export type StoryScene = 'skyfire' | 'spire' | 'risen' | 'oath';
@@ -83,6 +85,79 @@ export const CHAPTER_STORY: Readonly<Record<number, ChapterStory>> = {
   },
 };
 
+/** Roman numeral for 1..3999 (chapter cards). */
+export function romanNumeral(n: number): string {
+  const table: readonly (readonly [number, string])[] = [
+    [1000, 'M'],
+    [900, 'CM'],
+    [500, 'D'],
+    [400, 'CD'],
+    [100, 'C'],
+    [90, 'XC'],
+    [50, 'L'],
+    [40, 'XL'],
+    [10, 'X'],
+    [9, 'IX'],
+    [5, 'V'],
+    [4, 'IV'],
+    [1, 'I'],
+  ];
+  let left = Math.max(1, Math.min(3999, Math.floor(n)));
+  let out = '';
+  for (const [v, sym] of table)
+    while (left >= v) {
+      out += sym;
+      left -= v;
+    }
+  return out;
+}
+
+const SCENES: readonly StoryScene[] = ['skyfire', 'spire', 'risen', 'oath'];
+
+/** Lore templates for generated chapters: {place} = chapter name, {lord} = its boss. */
+const INTRO_LINES: readonly string[] = [
+  'Beyond the blue sky the ash returned. In {place}, {lord} has been waiting for it.',
+  'No map names {place}. The few who came back speak only of {lord}.',
+  'The embers led you here, to {place}. Something older than the Spire answers to {lord}.',
+  'In {place} the dead keep the old oaths. {lord} keeps the dead.',
+  'Every fire you put out lit another. This one burns in {place}, at the feet of {lord}.',
+  'The road narrows into {place}. Bells ring for {lord}, and for whoever comes next.',
+  'They say {place} swallowed a kingdom whole. They say {lord} is still chewing.',
+  'Ash drifts upward in {place}, as if the ground breathes. {lord} is the breath.',
+];
+const OUTRO_LINES: readonly string[] = [
+  '{lord} falls, and {place} goes quiet. The embers drift on — deeper still.',
+  'The last fire of {place} gutters out. Far below, another catches.',
+  '{place} is free. But the ash remembers the way down, and so do you.',
+  'With {lord} gone, the bells of {place} fall silent — and others begin to ring.',
+];
+
+/**
+ * The story card of any chapter: the hand-written one for chapters 1–4, otherwise lore lines
+ * filled in from templates (deterministic per chapter).
+ */
+export function chapterStory(chapter: ChapterDef): ChapterStory {
+  const hand = CHAPTER_STORY[chapter.number];
+  if (hand !== undefined) return hand;
+  const rng = mulberry32(chapter.number * 104729 + 31);
+  const bossId = chapter.stages[chapter.stages.length - 1]?.boss ?? null;
+  // "The Bound King" reads "the Bound King" mid-sentence; the line's first letter is capitalised.
+  const lord = (bossId !== null ? BOSSES[bossId].name : 'the shadow').replace(/^The /, 'the ');
+  const place = chapter.name.replace(/^The /, 'the ');
+  const fill = (t: string): string => {
+    const line = t.replaceAll('{place}', place).replaceAll('{lord}', lord);
+    return `${line.charAt(0).toUpperCase()}${line.slice(1)}`;
+  };
+  const pickLine = (list: readonly string[]): string =>
+    list[Math.floor(rng() * list.length)] ?? list[0] ?? '';
+  return {
+    numeral: romanNumeral(chapter.number),
+    scene: SCENES[chapter.number % SCENES.length] ?? 'skyfire',
+    intro: fill(pickLine(INTRO_LINES)),
+    outro: fill(pickLine(OUTRO_LINES)),
+  };
+}
+
 export interface BossLines {
   /** Spoken on the boss intro card. */
   readonly taunt: string;
@@ -137,6 +212,31 @@ export const BOSS_LINES: Readonly<Record<BossId, BossLines>> = {
     taunt: 'I was the first fire. I will be the last.',
     fall: 'The first fire… gutters out…',
     triumph: 'Burn, little ember. Burn with me.',
+  },
+  headsman: {
+    taunt: 'Kneel, and bare your neck. The verdict was read before you were born.',
+    fall: 'The axe… falls… for me at last…',
+    triumph: 'Sentence carried out. Next.',
+  },
+  bone_cantor: {
+    taunt: 'Every bone remembers a song. Yours will make a fine verse.',
+    fall: 'The choir… falls… silent…',
+    triumph: 'Rise again, little ember. Rise for me.',
+  },
+  twin_maw: {
+    taunt: 'Two hungers stir in the smoke. One of them already tastes you.',
+    fall: 'Both heads fall still, one breath apart.',
+    triumph: 'The Twin Maw squabbles over what is left.',
+  },
+  ossuary_queen: {
+    taunt: 'I built my throne from heroes. There is room for one more bone.',
+    fall: 'My ossuary… crumbles…',
+    triumph: 'Another bone for the throne.',
+  },
+  hollow_twin: {
+    taunt: 'You know every move I make. I learned them from you.',
+    fall: 'So this… is how it feels… to lose…',
+    triumph: 'Now I am the one who walks in the light.',
   },
 };
 
