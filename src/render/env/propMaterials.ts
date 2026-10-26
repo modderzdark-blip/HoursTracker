@@ -197,15 +197,15 @@ export function createIronMaterial(time: TimeUniform): MeshStandardMaterial {
 
 /**
  * Standing water for cave puddles: a dark, near-mirror surface (sharp highlights from the moon
- * and fires) whose normal is rippled by drifting noise, with the cavern's glow colour mirrored
- * at grazing angles instead of the white environment.
+ * and fires) whose normal is rippled by drifting noise. The white room environment is not
+ * reflected; the cavern's glow colour is mirrored instead, strongest at grazing angles.
  */
 export function createPuddleMaterial(time: TimeUniform, reflect: number): MeshStandardMaterial {
   const m = new MeshStandardMaterial({
-    color: 0x050807,
+    color: 0x0b100e,
     roughness: 0.06,
     metalness: 0.1,
-    envMapIntensity: 0.15,
+    envMapIntensity: 0,
   });
   const uniforms = { pdTime: time, pdReflect: { value: new Color(reflect) } };
   m.onBeforeCompile = (shader) => {
@@ -244,7 +244,7 @@ export function createPuddleMaterial(time: TimeUniform, reflect: number): MeshSt
           '#include <emissivemap_fragment>',
           'float pdF = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 5.0);',
           'float pdG = clNoise(vPdW.xz * 0.6 + normal.xz * 3.0);',
-          'totalEmissiveRadiance += pdReflect * pdF * 0.16 * (0.3 + pdG);',
+          'totalEmissiveRadiance += pdReflect * (0.035 + pdF * 0.22) * (0.4 + pdG);',
         ].join('\n'),
       );
   };
