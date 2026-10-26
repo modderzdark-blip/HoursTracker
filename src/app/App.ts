@@ -183,6 +183,8 @@ export interface TestHookCommands {
   clearStages: (count: number) => void;
   /** Test/debug: kill the arena duelist. */
   killDuelist: () => void;
+  /** Debug: playback speed of camera shots (screenshot capture on slow renderers). */
+  setCinematicSpeed: (k: number) => void;
 }
 
 declare global {
@@ -1027,6 +1029,9 @@ export class App {
         if (this.battle === null) this.menus.hub();
       },
       killDuelist: () => this.battle?.killDuelist(),
+      setCinematicSpeed: (k) => {
+        if (this.battle !== null) this.battle.cinematicSpeed = k;
+      },
       setHero: (id) => {
         this.profile.hero(id).unlocked = true;
         this.profile.selectHero(id);

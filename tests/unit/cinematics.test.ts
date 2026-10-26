@@ -13,6 +13,9 @@ import {
   ultimateShot,
   wrapDeg,
 } from '../../src/camera/cinematics';
+import { FollowCamera } from '../../src/camera/FollowCamera';
+import { DEFAULT_CAMERA_OPTIONS } from '../../src/camera/cameraOptions';
+import { CAMERA_CONFIG } from '../../src/data/config';
 import { HEROES } from '../../src/data/heroes';
 
 function shot(ms: number, extra: Partial<OrbitShot> = {}): OrbitShot {
@@ -207,8 +210,55 @@ describe('kill / boss death shots', () => {
     const side = bearingDeg(0, 0, 0, 5);
     expect(Math.abs(wrapDeg(s.fromDeg - side))).toBeLessThan(60);
     expect(s.endRadiusMult).toBeLessThan(1);
+    expect(s.center.z).toBeLessThan(1);
+    // Far (ranged) kill: the shot aims between victim and hero.
+    const far = killCamShot(victim, new Vector3(0, 0, 14));
+    expect(far.center.z).toBeGreaterThan(2);
+    expect(far.center.z).toBeLessThan(7);
     const b = bossDeathShot(victim, hero, 1.6);
     expect(b.radius).toBeGreaterThan(s.radius);
     expect(b.durationMs).toBe(CINEMATIC_CONFIG.bossDeath.durationMs);
+  });
+});
+
+describe('dynamic gameplay framing', () => {
+  const still = new Vector3();
+  function step(cam: FollowCamera, target: Vector3, sec: number): void {
+    for (let t = 0; t < sec; t += 0.016) cam.update(target, still, 0.016, 6);
+  }
+
+  it('a zoom punch rises and settles back to zero', () => {
+    const cam = new FollowCamera(2);
+    cam.snap(new Vector3());
+    cam.punch(-0.16, 1000);
+    step(cam, new Vector3(), 0.25);
+    expect(cam.dynamicZoom).toBeLessThan(-0.1);
+    step(cam, new Vector3(), 1);
+    expect(cam.dynamicZoom).toBeCloseTo(0, 5);
+  });
+
+  it('eases back for a crowd, within its cap', () => {
+    const cam = new FollowCamera(2);
+    cam.snap(new Vector3());
+    cam.setCrowd(40);
+    step(cam, new Vector3(), 8);
+    expect(cam.dynamicZoom).toBeGreaterThan(0.1);
+    expect(cam.dynamicZoom).toBeLessThanOrEqual(CAMERA_CONFIG.dynamic.crowdZoom + 1e-6);
+    cam.setCrowd(1);
+    step(cam, new Vector3(), 10);
+    expect(cam.dynamicZoom).toBeLessThan(0.01);
+  });
+
+  it('leans toward the nearest threat only with look-ahead on', () => {
+    const lean = (lookAhead: number): number => {
+      const cam = new FollowCamera(2, { ...DEFAULT_CAMERA_OPTIONS, lookAhead });
+      cam.snap(new Vector3());
+      cam.setThreat(new Vector3(4, 0, 0));
+      step(cam, new Vector3(), 4);
+      return cam.camera.position.x;
+    };
+    expect(lean(CAMERA_CONFIG.lookAhead)).toBeGreaterThan(0.2);
+    expect(lean(CAMERA_CONFIG.lookAhead)).toBeLessThanOrEqual(CAMERA_CONFIG.dynamic.threatLead);
+    expect(Math.abs(lean(0))).toBeLessThan(1e-6);
   });
 });

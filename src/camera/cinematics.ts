@@ -243,8 +243,12 @@ export class KillCamLimiter {
 /** Brief push-in on the victim from the hero's side (the hero stays in the foreground). */
 export function killCamShot(victim: Vector3, hero: Vector3): OrbitShot {
   const side = bearingDeg(victim.x, victim.z, hero.x, hero.z);
+  // A ranged kill: aim between the two so the hero stays in the shot.
+  const d = Math.hypot(hero.x - victim.x, hero.z - victim.z);
+  const center = victim.clone();
+  if (d > 4) center.lerp(hero, Math.min(0.5, ((d - 4) / d) * 0.6));
   return {
-    center: victim.clone(),
+    center,
     radius: 4.4,
     height: 2.4,
     endHeight: 1.5,

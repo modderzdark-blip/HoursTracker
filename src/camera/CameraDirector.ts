@@ -52,6 +52,8 @@ export class CameraDirector {
   private focus = 0;
   /** Name of the playing shot (debug/tests). */
   kind = '';
+  /** Playback speed (debug: slow shots down for screenshots on slow renderers). */
+  timeScale = 1;
 
   get active(): boolean {
     return this.shot !== null;
@@ -126,7 +128,7 @@ export class CameraDirector {
   update(dtSec: number, camera: PerspectiveCamera): boolean {
     const s = this.shot;
     if (s === null) return false;
-    this.elapsed += dtSec * 1000;
+    this.elapsed += dtSec * 1000 * this.timeScale;
     const t = Math.min(1, this.elapsed / Math.max(1, s.durationMs));
     const k = easeShot(t, s.ease);
     if (this.follow !== null) {

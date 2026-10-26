@@ -1606,6 +1606,15 @@ export class BattleMode implements QualityTarget, WaveWorld {
     return this.cam.active;
   }
 
+  /** Debug: camera shot playback speed (0.05..1). */
+  get cinematicSpeed(): number {
+    return this.cam.timeScale;
+  }
+
+  set cinematicSpeed(k: number) {
+    this.cam.timeScale = Math.min(1, Math.max(0.05, Number.isFinite(k) ? k : 1));
+  }
+
   /** Playing shot: 'stageIntro', 'bossIntro', 'killCam', 'ultimate', 'bossDeath', 'victory'. */
   get cinematicKind(): string {
     return this.cam.kind;
