@@ -47,6 +47,7 @@ import { loadRapier, PhysicsWorld, type Rapier } from '../physics/PhysicsWorld';
 import { PlayerProfile } from '../progression/PlayerProfile';
 import { QualityManager, type QualityTarget } from '../render/QualityManager';
 import { autoQualityCeiling, guessInitialQuality } from '../render/qualityLogic';
+import { setCharacterLight } from '../render/rimLight';
 import { createCharacterEnvironment, setCharacterEnvironment } from '../render/characterEnv';
 import { RenderContext } from '../render/RenderContext';
 import type { SaveData, SaveStore } from '../save/SaveStore';
@@ -847,6 +848,7 @@ export class App {
       this.renderScale(),
     );
     this.ctx.setPost(postSettingsFor(preset), this.camera.camera);
+    setCharacterLight(preset.characterLight);
     this.vignette.classList.toggle('is-hidden', !preset.vignette || preset.grade);
     this.loop.requestRender();
   }

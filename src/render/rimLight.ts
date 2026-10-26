@@ -111,6 +111,21 @@ vec3 detailPerturb(vec3 surfPos, vec3 surfNorm, vec2 dHdxy, float faceDir) {
 `;
 
 /**
+ * Shared by every character material: multiplier on the rim and camera fill (the quality preset's
+ * `characterLight`; 1 = the authored look). Above 1 a soft top/back kicker joins in (Ultra). One
+ * uniform object for all programs, so changing it never recompiles a shader.
+ */
+const characterLight = { value: 1 };
+
+export function setCharacterLight(amount: number): void {
+  characterLight.value = Math.max(0, amount);
+}
+
+export function getCharacterLight(): number {
+  return characterLight.value;
+}
+
+/**
  * Character shading: the fresnel rim above plus per-vertex roughness / metalness from a `surf`
  * attribute (x = roughness, y = metalness), so one material (one draw call) can show matte
  * cloth, worn leather and polished steel side by side.
@@ -131,6 +146,7 @@ export function applyCharacterShading(
     shader.uniforms['rimColor'] = uniforms.rimColor;
     shader.uniforms['rimPower'] = uniforms.rimPower;
     shader.uniforms['rimStrength'] = uniforms.rimStrength;
+    shader.uniforms['charLight'] = characterLight;
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -144,7 +160,7 @@ export function applyCharacterShading(
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
-        `#include <common>\nuniform vec3 rimColor;\nuniform float rimPower;\nuniform float rimStrength;\nvarying vec2 vSurf;\nvarying vec3 vDetPos;\nconst float cameraFill = ${cameraFill.toFixed(3)};\n${DETAIL_GLSL}`,
+        `#include <common>\nuniform vec3 rimColor;\nuniform float rimPower;\nuniform float rimStrength;\nuniform float charLight;\nvarying vec2 vSurf;\nvarying vec3 vDetPos;\nconst float cameraFill = ${cameraFill.toFixed(3)};\n${DETAIL_GLSL}`,
       )
       .replace(
         '#include <color_fragment>',
@@ -174,13 +190,16 @@ export function applyCharacterShading(
         [
           '#include <emissivemap_fragment>',
           'float rimFactor = 1.0 - saturate(dot(normal, normalize(vViewPosition)));',
-          'totalEmissiveRadiance += rimColor * pow(rimFactor, rimPower) * rimStrength;',
+          'totalEmissiveRadiance += rimColor * pow(rimFactor, rimPower) * rimStrength * charLight;',
+          // Ultra: a soft top/back kicker that separates silhouettes from the dark arena.
+          'float kick = max(charLight - 1.0, 0.0) * pow(rimFactor, rimPower * 0.55) * saturate(normal.y * 0.6 + 0.5);',
+          'totalEmissiveRadiance += mix(rimColor, vec3(0.75, 0.8, 1.0), 0.5) * kick * 0.55;',
           // Soft key light from above-left of the camera, for characters only (view space).
           'float camKey = 0.35 + 0.65 * saturate(dot(normal, normalize(vec3(-0.35, 0.55, 0.8))));',
-          'totalEmissiveRadiance += diffuseColor.rgb * (1.0 - vSurf.y) * cameraFill * camKey;',
+          'totalEmissiveRadiance += diffuseColor.rgb * (1.0 - vSurf.y) * cameraFill * camKey * min(charLight, 1.15);',
         ].join('\n'),
       );
   };
-  material.customProgramCacheKey = () => `character-v3-${cameraFill.toFixed(3)}`;
+  material.customProgramCacheKey = () => `character-v4-${cameraFill.toFixed(3)}`;
   return uniforms;
 }

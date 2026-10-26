@@ -207,3 +207,15 @@ describe('quality presets', () => {
     expect(emberCountFor(QUALITY_PRESETS.low, 'low')).toBe(60);
   });
 });
+
+describe('character light', () => {
+  it('is one shared value set from the preset (no per-material state)', async () => {
+    const { getCharacterLight, setCharacterLight } = await import('../../src/render/rimLight');
+    setCharacterLight(QUALITY_PRESETS.ultra.characterLight);
+    expect(getCharacterLight()).toBeCloseTo(1.3);
+    setCharacterLight(-2);
+    expect(getCharacterLight()).toBe(0);
+    setCharacterLight(QUALITY_PRESETS.high.characterLight);
+    expect(getCharacterLight()).toBe(1);
+  });
+});
