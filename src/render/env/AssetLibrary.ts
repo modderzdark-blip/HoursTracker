@@ -48,6 +48,8 @@ export class AssetLibrary {
   private readonly textures = new TextureLoader();
   private readonly gltf = new GLTFLoader();
   anisotropy = 1;
+  /** Textures larger than this (px) are downsized on load (Low quality: 512, a quarter of the memory). */
+  maxTextureSize = 4096;
 
   constructor(private readonly base = 'assets/') {
     this.gltf.setMeshoptDecoder(MeshoptDecoder);
@@ -133,6 +135,7 @@ export class AssetLibrary {
     t.wrapS = t.wrapT = RepeatWrapping;
     t.colorSpace = srgb ? SRGBColorSpace : LinearSRGBColorSpace;
     t.anisotropy = this.anisotropy;
+    fitTexture(t, this.maxTextureSize);
     return t;
   }
 
@@ -167,6 +170,9 @@ export class AssetLibrary {
     g.scene.traverse((o) => {
       if (o instanceof Mesh) (o.geometry as BufferGeometry).dispose();
     });
+    const mats = new Set(parts.map((p) => p.material));
+    for (const m of mats)
+      for (const v of Object.values(m)) if (isTexture(v)) fitTexture(v, this.maxTextureSize);
     this.models.set(id, parts);
   }
 }
@@ -197,6 +203,24 @@ function disposeParts(parts: readonly ModelPart[]): void {
     for (const v of Object.values(m)) if (isTexture(v)) v.dispose();
     m.dispose();
   }
+}
+
+/** Redraws a texture's image at most `max` px wide (a canvas), freeing the larger decode. */
+function fitTexture(t: Texture, max: number): void {
+  const img = t.image as { width?: number; height?: number; close?: () => void } | null;
+  const w = img?.width ?? 0;
+  const h = img?.height ?? 0;
+  if (img === null || w <= max || h <= 0 || typeof document === 'undefined') return;
+  const k = max / w;
+  const canvas = document.createElement('canvas');
+  canvas.width = max;
+  canvas.height = Math.max(1, Math.round(h * k));
+  const g = canvas.getContext('2d');
+  if (g === null) return;
+  g.drawImage(img as CanvasImageSource, 0, 0, canvas.width, canvas.height);
+  img.close?.();
+  t.image = canvas;
+  t.needsUpdate = true;
 }
 
 function isTexture(v: unknown): v is Texture {

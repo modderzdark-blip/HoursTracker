@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { BoxGeometry, InstancedMesh, Matrix4, MeshStandardMaterial, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../../src/core/random';
@@ -11,6 +10,13 @@ import type { AssetLibrary, ModelPart } from '../../src/render/env/AssetLibrary'
 
 const IDS = Object.keys(ARENAS) as ArenaId[];
 
+/** Processed asset files on disk (keys only; nothing is loaded). */
+const FILES = new Set(
+  Object.keys(import.meta.glob('../../public/assets/{surfaces/*/*.webp,models/*.glb}')).map((k) =>
+    k.replace('../../public/assets/', ''),
+  ),
+);
+
 describe('scanned arena assets', () => {
   it('every arena references processed files that exist in public/assets', () => {
     for (const id of IDS) {
@@ -18,11 +24,8 @@ describe('scanned arena assets', () => {
       expect(req.surfaces.length).toBeGreaterThanOrEqual(3);
       for (const s of req.surfaces)
         for (const map of ['albedo', 'normal', 'orm'])
-          expect(existsSync(`public/assets/surfaces/${s}/${map}.webp`), `${id}: ${s}/${map}`).toBe(
-            true,
-          );
-      for (const m of req.models)
-        expect(existsSync(`public/assets/models/${m}.glb`), `${id}: ${m}`).toBe(true);
+          expect(FILES.has(`surfaces/${s}/${map}.webp`), `${id}: ${s}/${map}`).toBe(true);
+      for (const m of req.models) expect(FILES.has(`models/${m}.glb`), `${id}: ${m}`).toBe(true);
     }
   });
 
@@ -52,7 +55,7 @@ describe('scanned arena assets', () => {
 function fakeLibrary(): AssetLibrary {
   const mat = new MeshStandardMaterial();
   const cache = new Map<string, ModelPart[]>();
-  const make = (id: string, nodes: string[], size: [number, number, number]): ModelPart[] =>
+  const make = (nodes: string[], size: [number, number, number]): ModelPart[] =>
     nodes.map((node) => {
       const geometry = new BoxGeometry(...size);
       geometry.computeBoundingBox();
@@ -66,10 +69,10 @@ function fakeLibrary(): AssetLibrary {
         parts =
           id === FORT_MODEL
             ? [
-                ...make(id, [`${id}_wall_thin_straight_01`], [2.5, 8.6, 14.8]),
-                ...make(id, [`${id}_tower_round`], [15.8, 13.5, 15.8]),
+                ...make([`${id}_wall_thin_straight_01`], [2.5, 8.6, 14.8]),
+                ...make([`${id}_tower_round`], [15.8, 13.5, 15.8]),
               ]
-            : make(id, [`${id}_a`, `${id}_b`], [0.8, 1, 0.6]);
+            : make([`${id}_a`, `${id}_b`], [0.8, 1, 0.6]);
         cache.set(id, parts);
       }
       return parts;

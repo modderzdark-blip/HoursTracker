@@ -278,7 +278,7 @@ export class App {
       window.innerWidth,
       window.innerHeight,
       QUALITY_PRESETS[startLevel].maxPixelRatio,
-      settings.renderScale,
+      this.renderScale(),
     );
 
     // --- Profile -----------------------------------------------------------------------
@@ -549,9 +549,12 @@ export class App {
     this.veil.show(setup.label, loreTip(token + this.profile.data.lifetime.battles));
     const req = arenaAssetRequest(setup.stage.arena);
     this.assets.anisotropy = this.quality.preset.anisotropy;
+    this.assets.maxTextureSize = this.quality.preset.textureMaxSize;
     // Load the arena's scanned assets behind the veil; on failure the arena falls back to its
     // procedural look rather than blocking the fight.
-    const loaded = this.assets.preload(req).catch((e: unknown) => {
+    // `?scanned=0` keeps the procedural arenas (comparisons, low-end debugging).
+    const off = new URLSearchParams(window.location.search).get('scanned') === '0';
+    const loaded = (off ? Promise.resolve() : this.assets.preload(req)).catch((e: unknown) => {
       console.warn('[assets] arena assets failed to load', e);
     });
     void loaded.then(() =>
@@ -813,10 +816,19 @@ export class App {
     this.hud.setPauseVisible(false);
   }
 
+  /**
+   * The resolution scale setting, or `?renderScale=0.25..1` from the URL (not saved): software-
+   * rendered automated tests run the game at a lower internal resolution to keep real time.
+   */
+  private renderScale(): number {
+    const v = Number(new URLSearchParams(window.location.search).get('renderScale'));
+    return v >= 0.25 && v <= 1 ? v : this.opts.save.settings.renderScale;
+  }
+
   private resize(): void {
     const w = window.innerWidth;
     const h = window.innerHeight;
-    this.ctx.setSize(w, h, this.quality.preset.maxPixelRatio, this.opts.save.settings.renderScale);
+    this.ctx.setSize(w, h, this.quality.preset.maxPixelRatio, this.renderScale());
     this.camera.setAspect(w / Math.max(h, 1));
     this.hubScene.setAspect(w / Math.max(h, 1));
     this.battle?.applyQuality(this.quality.preset, this.quality.level);
@@ -828,7 +840,7 @@ export class App {
       window.innerWidth,
       window.innerHeight,
       preset.maxPixelRatio,
-      this.opts.save.settings.renderScale,
+      this.renderScale(),
     );
     this.ctx.setPost({ bloom: preset.bloom, grade: preset.grade }, this.camera.camera);
     this.vignette.classList.toggle('is-hidden', !preset.vignette || preset.grade);

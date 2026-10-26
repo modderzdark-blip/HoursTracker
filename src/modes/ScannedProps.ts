@@ -57,7 +57,8 @@ export class ScannedProps {
     if (this.a.castle !== undefined) this.castle(this.a.castle);
     this.braziers();
     this.boulders();
-    for (const s of this.a.scatter) this.scatter(s);
+    // Low quality keeps the set pieces and drops the scattered small props (like clutter).
+    if (this.preset.clutterDensity > 0) for (const s of this.a.scatter) this.scatter(s);
     this.flush();
   }
 

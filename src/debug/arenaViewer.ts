@@ -51,6 +51,7 @@ async function main(): Promise<void> {
   if (params.get('scanned') !== '0') {
     assets = new AssetLibrary('/assets/');
     assets.anisotropy = preset.anisotropy;
+    assets.maxTextureSize = preset.textureMaxSize;
     await assets.preload(arenaAssetRequest(arena.id as ArenaId));
   }
   const t0 = performance.now();
@@ -108,7 +109,25 @@ async function main(): Promise<void> {
     atmosphere.update(new Vector3(0, 0, 0), 1 / 30);
     builder.update(1 / 30);
   }
+  // `hide=a,b` hides arena objects whose name starts with a listed prefix (cost hunting).
+  const hide = (params.get('hide') ?? '').split(',').filter((x) => x !== '');
+  if (hide.length > 0)
+    ctx.scene.traverse((o) => {
+      if (hide.some((h) => o.name.startsWith(h))) o.visible = false;
+    });
   ctx.render(camera);
+  // `bench=N`: render N more frames and report the average frame time (GPU work included).
+  let benchMs = 0;
+  const bench = Number(params.get('bench') ?? '0');
+  if (bench > 0) {
+    const gl = ctx.renderer.getContext();
+    const tb = performance.now();
+    for (let i = 0; i < bench; i++) {
+      ctx.render(camera);
+      gl.finish();
+    }
+    benchMs = (performance.now() - tb) / bench;
+  }
   // Whole-arena totals (independent of what this camera sees): drawn objects and triangles.
   let arenaDraws = 0;
   let arenaTriangles = 0;
@@ -138,6 +157,8 @@ async function main(): Promise<void> {
   const w = window as unknown as { __viewerReady: boolean; __viewerInfo: unknown };
   w.__viewerInfo = {
     buildMs,
+    scanned: builder.scanned,
+    benchMs: Math.round(benchMs),
     calls: ctx.info.calls,
     triangles: ctx.info.triangles,
     arenaDraws,
