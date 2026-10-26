@@ -121,9 +121,9 @@ export async function skipPrologue(page: Page): Promise<void> {
 
 /** Title → tap → (prologue skipped) → hub. */
 export async function enterHub(page: Page): Promise<void> {
-  // Half internal resolution: the software renderer keeps several game frames per second, so
+  // Low internal resolution: the software renderer keeps several game frames per second, so
   // timed gameplay checks run in real time. Menus and the HUD are unaffected.
-  await page.goto('./?renderScale=0.5');
+  await page.goto('./?renderScale=0.35');
   await page.locator('.title-start.is-pulsing').waitFor({ timeout: 90_000 });
   await page.touchscreen.tap(450, 300);
   await skipPrologue(page);

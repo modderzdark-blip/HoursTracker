@@ -340,6 +340,8 @@ test.describe('Ashbound smoke (Pixel 7 landscape, touch)', () => {
   }) => {
     await startGame(page);
     const touch = await TouchDriver.create(context, page);
+    // Warm the input path first (see below): the gesture needs each tap within a second.
+    await touch.tap(5, 450, 220, 30);
     for (let i = 0; i < 3; i++) await touch.tap(4, 20, 20, 30);
     await expect(page.getByTestId('debug-overlay')).toBeVisible();
     await page.waitForTimeout(600);
