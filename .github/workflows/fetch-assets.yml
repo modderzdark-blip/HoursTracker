@@ -1,0 +1,45 @@
+name: Fetch CC0 assets
+
+# The development container cannot reach Poly Haven; the runner can. Downloads what
+# tools/assets/polyhaven.json lists and publishes it on the "ashbound-assets" pre-release, where
+# development can pull it from.
+on:
+  push:
+    branches:
+      - main
+      - 'ccr-*'
+    paths:
+      - 'tools/assets/**'
+      - '.github/workflows/fetch-assets.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fetch-assets-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RELEASE_TAG: ashbound-assets
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download from Poly Haven
+        run: python3 tools/assets/fetch_polyhaven.py tools/assets/polyhaven.json out
+
+      - name: Publish to the "ashbound-assets" pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --prerelease --target "$GITHUB_SHA" \
+              --title "Ashbound source assets" \
+              --notes "CC0 assets from Poly Haven (polyhaven.com) fetched by CI for development."
+          fi
+          gh release upload "$RELEASE_TAG" out/*.zip --clobber
