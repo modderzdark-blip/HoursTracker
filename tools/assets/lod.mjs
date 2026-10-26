@@ -1,7 +1,8 @@
-// Distant-view versions of processed models: public/assets/models/<id>.glb -> <id>_far.glb with
-// fewer triangles and smaller textures, for backdrop terrain and cliffs seen across an arena.
+// Lighter versions of processed models: public/assets/models/<id>.glb -> <id>_<lod>.glb with
+// fewer triangles and smaller textures: `far` for backdrop terrain and cliffs seen across an
+// arena, `mid` for cliff walls lining it (many copies, seen from a few metres).
 //
-// Usage: node tools/assets/lod.mjs   (rewrites every model listed in FAR below)
+// Usage: node tools/assets/lod.mjs   (rewrites every version listed in LODS below)
 
 import { join } from 'node:path';
 import { NodeIO } from '@gltf-transform/core';
@@ -17,14 +18,16 @@ import {
 import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
 import sharp from 'sharp';
 
-/** Model: triangle budget and texture edge (px) of its far version. */
-const FAR = {
-  mountainside: [3000, 512],
-  namaqualand_cliff_01: [2500, 512],
-  namaqualand_cliff_02: [3000, 512],
-  rock_face_01: [1500, 512],
-  rock_face_02: [1500, 512],
-};
+/** Model, version: triangle budget and texture edge (px). */
+const LODS = [
+  ['mountainside', 'far', 3000, 512],
+  ['mountainside', 'mid', 7000, 1024],
+  ['namaqualand_cliff_01', 'far', 2500, 512],
+  ['namaqualand_cliff_02', 'far', 3000, 512],
+  ['namaqualand_cliff_02', 'mid', 6000, 1024],
+  ['rock_face_01', 'far', 1500, 512],
+  ['rock_face_02', 'far', 1500, 512],
+];
 
 const DIR = 'public/assets/models';
 
@@ -43,7 +46,7 @@ async function main() {
     'meshopt.encoder': MeshoptEncoder,
     'meshopt.decoder': MeshoptDecoder,
   });
-  for (const [id, [budget, texSize]] of Object.entries(FAR)) {
+  for (const [id, lod, budget, texSize] of LODS) {
     const doc = await io.read(join(DIR, `${id}.glb`));
     const before = triangles(doc);
     await doc.transform(
@@ -60,8 +63,8 @@ async function main() {
     );
     const after = triangles(doc);
     await doc.transform(meshopt({ encoder: MeshoptEncoder, level: 'medium' }));
-    await io.write(join(DIR, `${id}_far.glb`), doc);
-    console.log(`${id}: ${before} -> ${after} triangles`);
+    await io.write(join(DIR, `${id}_${lod}.glb`), doc);
+    console.log(`${id}_${lod}: ${before} -> ${after} triangles`);
   }
 }
 

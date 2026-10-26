@@ -1,4 +1,5 @@
 import type { AssetRequest } from '../render/env/AssetLibrary';
+import { ASHEN_WASTES_ASSETS } from './sets/ashenWastes';
 import { ASH_GATE_ASSETS } from './sets/ashGate';
 import { CINDER_COURT_ASSETS } from './sets/cinderCourt';
 import type { DressingPart } from '../modes/arenaDressing';
@@ -172,50 +173,7 @@ function gateGroup(statueScale: number): PropPlacement[] {
 export const ARENA_ASSETS: Readonly<Record<ArenaId, ArenaAssets>> = {
   cinder_court: CINDER_COURT_ASSETS,
   ash_gate: ASH_GATE_ASSETS,
-  ashen_wastes: {
-    // Scorched clay: cracked mud plates burnt red, red stony mud gathering toward the edge.
-    floor: { id: 'mud_cracked_dry_03', size: 2.2, tint: 0x8a6656 },
-    floorPatch: { id: 'red_mud_stones', size: 1.5 },
-    wall: { id: 'rock_boulder_cracked', size: 1.4 },
-    rock: { id: 'rock_boulder_cracked', size: 1.4 },
-    stone: { id: 'rock_boulder_cracked', size: 1.6, tint: 0x9a7466 },
-    brazier: { model: 'stone_fire_pit', scale: 1.2, fire: 0.42 },
-    boulders: { model: 'rock_07' },
-    props: [
-      { model: 'rock_face_01', deg: -24, r: 0.98, scale: 1.3, solid: true },
-      { model: 'rock_face_01', deg: 22, r: 0.99, scale: 1.2, yaw: 160, solid: true },
-      { model: 'rock_face_01', deg: 130, r: 0.98, scale: 1.1, yaw: 40, solid: true },
-      { model: 'rock_face_01', deg: 236, r: 0.98, scale: 1.25, yaw: -60, solid: true },
-      { model: 'rock_face_02', deg: 70, r: 0.96, scale: 1.4, solid: true },
-      { model: 'rock_face_02', deg: 290, r: 0.96, scale: 1.5, yaw: 90, solid: true },
-      { model: 'rock_face_02', deg: 180, r: 0.97, scale: 1.3, yaw: 200, solid: true },
-      { model: 'dead_tree_trunk_02', deg: 40, r: 0.84, scale: 1.7, yaw: 10, solid: true },
-      { model: 'dead_tree_trunk_02', deg: 210, r: 0.86, scale: 1.6, yaw: 80, solid: true },
-      { model: 'dead_tree_trunk', deg: 100, r: 0.8, scale: 1.5, yaw: 30 },
-      { model: 'dead_tree_trunk', deg: 315, r: 0.82, scale: 1.4, yaw: -50 },
-      { model: 'tree_stump_02', deg: 150, r: 0.88, scale: 1.5, solid: true },
-      { model: 'tree_stump_01', deg: 262, r: 0.88, scale: 1.4, solid: true },
-    ],
-    scatter: [
-      {
-        model: 'namaqualand_boulders_01',
-        pick: true,
-        count: 10,
-        band: [0.75, 0.96],
-        scale: [1.6, 3],
-      },
-      { model: 'rock_07', count: 8, band: [0.72, 0.95], scale: [5, 9], solid: true },
-      {
-        model: 'antique_estoc',
-        count: 6,
-        band: [0.55, 0.9],
-        scale: [1.1, 1.3],
-        tilt: 18,
-        sink: 0.35,
-      },
-      { model: 'kite_shield', count: 3, band: [0.6, 0.9], scale: [1.1, 1.2], tilt: 72, sink: 0.05 },
-    ],
-  },
+  ashen_wastes: ASHEN_WASTES_ASSETS,
   bound_spire: {
     floor: { id: 'patterned_slate_tiles', size: 2.2 },
     floorPatch: { id: 'marble_mosaic_tiles', size: 2 },

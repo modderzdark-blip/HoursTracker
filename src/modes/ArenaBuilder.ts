@@ -262,7 +262,27 @@ export class ArenaBuilder {
     dresser.dress(lib === null ? undefined : skip);
     if (lib !== null) {
       dresser.hangBanners(A.banners ?? []);
-      for (const c of A.lava ?? []) dresser.lava.push(lavaChannelGeometry(c.points, c.width, 5));
+      for (const c of A.lava ?? []) {
+        dresser.lava.push(lavaChannelGeometry(c.points, c.width, 5));
+        // Its glow spills onto the ground along the banks.
+        for (let i = 0; i + 1 < c.points.length; i++) {
+          const a = c.points[i];
+          const b = c.points[i + 1];
+          if (a === undefined || b === undefined) continue;
+          const n = Math.max(1, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / 5));
+          for (let k = 0; k < n; k++) {
+            const t = (k + 0.5) / n;
+            dresser.pools.push({
+              x: a[0] + (b[0] - a[0]) * t,
+              z: a[1] + (b[1] - a[1]) * t,
+              radius: c.width * 1.5 + 2,
+              color: L.tints.glow,
+              intensity: 0.8,
+              flicker: 0.35,
+            });
+          }
+        }
+      }
       for (const pool of A.pools ?? []) dresser.puddles.push([pool[0], pool[1], pool[2]]);
       dresser.cards.push(...(A.mist ?? []));
     }

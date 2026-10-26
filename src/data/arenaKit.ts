@@ -114,6 +114,7 @@ export interface ArcOptions {
   readonly y?: number;
   readonly tier?: 0 | 1 | 2;
   readonly far?: boolean;
+  readonly upTo?: 0 | 1 | 2;
   /** Radius jitter (m). */
   readonly spread?: number;
   /** Uniform vertical stretch (taller cliffs). */
@@ -144,6 +145,7 @@ export function arc(model: string, o: ArcOptions): SetPiece[] {
       stretch: o.stretchY !== undefined ? [1, o.stretchY, 1] : undefined,
       tier: o.tier ?? 0,
       far: o.far,
+      upTo: o.upTo,
     });
   }
   return out;
@@ -180,6 +182,61 @@ export function dais(
       surface: o.surface ?? 'stone',
       solid: o.solid ?? true,
     });
+  }
+  return out;
+}
+
+export interface RimOptions {
+  /** Spacing between copies along the path (m). */
+  readonly every: number;
+  /** Distance outside the path, away from the centre (m). */
+  readonly out: number;
+  readonly scale: readonly [number, number];
+  readonly seed: number;
+  readonly node?: string;
+  /** Extra yaw on top of facing the centre, and random turn (degrees). */
+  readonly yaw?: number;
+  readonly jitter?: number;
+  readonly y?: number;
+  readonly tier?: 0 | 1 | 2;
+  readonly upTo?: 0 | 1 | 2;
+  readonly far?: boolean;
+  readonly solid?: SetPiece['solid'];
+}
+
+/** Copies of a model lining a path (an arena's rim), each turned to face the centre. */
+export function rim(model: string, points: readonly Vec2[], o: RimOptions): SetPiece[] {
+  const rand = mulberry32(o.seed);
+  const out: SetPiece[] = [];
+  for (let i = 0; i + 1 < points.length; i++) {
+    const a = points[i];
+    const b = points[i + 1];
+    if (a === undefined || b === undefined) continue;
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const n = Math.max(1, Math.round(len / o.every));
+    for (let k = 0; k < n; k++) {
+      const t = (k + 0.5 + (rand() - 0.5) * 0.4) / n;
+      const px = a[0] + (b[0] - a[0]) * t;
+      const pz = a[1] + (b[1] - a[1]) * t;
+      const d = Math.hypot(px, pz) || 1;
+      const r = o.out * (0.85 + rand() * 0.3);
+      const x = px + (px / d) * r;
+      const z = pz + (pz / d) * r;
+      const face = (Math.atan2(-x, -z) * 180) / Math.PI;
+      out.push({
+        model,
+        node: o.node,
+        x,
+        z,
+        y: o.y ?? 0,
+        yaw: face + (o.yaw ?? 0) + (rand() - 0.5) * 2 * (o.jitter ?? 0),
+        scale: o.scale[0] + rand() * (o.scale[1] - o.scale[0]),
+        tier: o.tier ?? 0,
+        upTo: o.upTo,
+        far: o.far,
+        solid: o.solid,
+      });
+    }
   }
   return out;
 }

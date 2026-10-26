@@ -12,7 +12,6 @@ import type { ArenaLook } from '../data/arenaLooks';
 import { insideOutline, type ArenaDef } from '../data/arenas';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import {
-  colossusRibsGeometry,
   floatingSpireGeometry,
   mushroomClusterGeometry,
   portcullisGeometry,
@@ -135,7 +134,6 @@ export class ArenaDresser {
   private readonly altars: { x: number; z: number }[] = [];
   private readonly temp: BufferGeometry[] = [];
   private readonly m = new Matrix4();
-  private readonly m2 = new Matrix4();
   private readonly e = new Euler();
   private readonly q = new Quaternion();
   private readonly p = new Vector3();
@@ -421,12 +419,11 @@ export class ArenaDresser {
         break;
       }
       case 'volcano': {
-        // A volcano on the northern horizon with glowing lava streams, and the bleached ribs of a
-        // colossal beast arching beyond the north-west wall.
+        // A volcano of dark basalt on the northern horizon with glowing lava streams.
         const v = volcanoGeometry(23, 38, 34);
         this.keepParts(v);
         if (v.parts.rock !== undefined)
-          this.batch.add('rock', v.parts.rock, this.at(16, -2, -70, 0.4));
+          this.batch.add('rock', v.parts.rock, this.at(16, -2, -70, 0.4), 0x5a4640);
         if (v.parts.glow !== undefined) {
           const g = v.parts.glow.clone();
           g.applyMatrix4(this.at(16, -2, -70, 0.4));
@@ -435,21 +432,6 @@ export class ArenaDresser {
           for (let i = 0; i < c.count; i++) c.setXYZ(i, hot.r, hot.g, hot.b);
           this.farGlow = g;
         }
-        const a = -2.15;
-        const r = R + t + 4.2;
-        const cx = Math.cos(a) * r;
-        const cz = Math.sin(a) * r;
-        const yaw = Math.atan2(-Math.cos(a), -Math.sin(a));
-        const ribs = this.keep(colossusRibsGeometry(31, 7, 7.5));
-        ribs.translate(-5.6, 0, 0);
-        this.batch.add('bone', ribs, this.at(cx, -0.3, cz, yaw), tint.bone);
-        const skull = this.keep(skullGeometry(3));
-        this.m2.makeRotationY(-Math.PI / 2).setPosition(-7.6, 0.9, 0.4);
-        const world = this.at(cx, -0.3, cz, yaw)
-          .clone()
-          .multiply(this.m2)
-          .multiply(new Matrix4().makeScale(13, 13, 13));
-        this.batch.add('bone', skull, world, tint.bone);
         this.cards.push({ x: 16, y: 20, z: -66, w: 16, h: 30, kind: 0, alpha: 0.5 });
         break;
       }
