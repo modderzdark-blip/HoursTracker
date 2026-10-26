@@ -31,12 +31,24 @@ export interface BrazierDef {
   readonly z: number;
 }
 
+/** A point on the ground (x, z). */
+export type Vec2 = readonly [number, number];
+
 export interface ArenaDef {
   readonly id: string;
   readonly name: string;
+  /**
+   * Radius of the open fight circle: the outline never comes closer to the centre than this,
+   * and every spawn point lies inside it.
+   */
   readonly floorRadius: number;
-  /** Ring wall: segment count and dimensions. */
+  /** Boundary wall: segment count (round arenas) and the collider's height and thickness. */
   readonly wall: { readonly segments: number; readonly height: number; readonly thickness: number };
+  /**
+   * The walkable edge as a polygon (x, z), counter-clockwise or clockwise; sealed by a wall
+   * collider along every edge. Absent: a round arena (a `wall.segments`-gon around floorRadius).
+   */
+  readonly outline?: readonly Vec2[];
   readonly spawn: readonly [number, number, number];
   /** Enemy spawn points (x, z) — kept clear of props (verified by a unit test). */
   readonly spawnPoints: readonly (readonly [number, number])[];
@@ -391,3 +403,98 @@ export const ARENAS = {
 } as const satisfies Record<string, ArenaDef>;
 
 export type ArenaId = keyof typeof ARENAS;
+
+export const ARENA_IDS = Object.keys(ARENAS) as ArenaId[];
+
+/** One edge of an arena's outline with its outward normal. */
+export interface OutlineEdge {
+  readonly a: Vec2;
+  readonly b: Vec2;
+  readonly length: number;
+  /** Unit outward normal (x, z). */
+  readonly normal: Vec2;
+  /** The outline turns outward-convex at a / b (wall colliders overlap there to seal it). */
+  readonly convexA: boolean;
+  readonly convexB: boolean;
+}
+
+/** The arena's boundary polygon (its outline, or the round arena's polygon). */
+export function arenaOutline(def: ArenaDef): Vec2[] {
+  if (def.outline !== undefined) return def.outline.map((p): Vec2 => [p[0], p[1]]);
+  const n = def.wall.segments;
+  const rc = def.floorRadius / Math.cos(Math.PI / n);
+  return Array.from({ length: n }, (_, i): Vec2 => {
+    const a = ((i + 0.5) / n) * Math.PI * 2;
+    return [Math.cos(a) * rc, Math.sin(a) * rc];
+  });
+}
+
+/** Signed area of a polygon (positive when counter-clockwise in x / z). */
+function signedArea(poly: readonly Vec2[]): number {
+  let s = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i] ?? [0, 0];
+    const q = poly[(i + 1) % poly.length] ?? [0, 0];
+    s += p[0] * q[1] - q[0] * p[1];
+  }
+  return s / 2;
+}
+
+/** The outline's edges, each with its outward normal and corner convexity. */
+export function outlineEdges(def: ArenaDef): OutlineEdge[] {
+  const poly = arenaOutline(def);
+  const ccw = signedArea(poly) > 0;
+  const n = poly.length;
+  const turn = (i: number): number => {
+    const p = poly[(i + n - 1) % n] ?? [0, 0];
+    const c = poly[i] ?? [0, 0];
+    const q = poly[(i + 1) % n] ?? [0, 0];
+    return (c[0] - p[0]) * (q[1] - c[1]) - (c[1] - p[1]) * (q[0] - c[0]);
+  };
+  const convex = (i: number): boolean => turn(i) > 0 === ccw;
+  return poly.map((a, i): OutlineEdge => {
+    const b = poly[(i + 1) % n] ?? a;
+    const dx = b[0] - a[0];
+    const dz = b[1] - a[1];
+    const length = Math.hypot(dx, dz);
+    // Counter-clockwise (signed area > 0) puts the outside on the right of travel.
+    const s = ccw ? 1 : -1;
+    const normal: Vec2 = [(dz / length) * s, (-dx / length) * s];
+    return { a, b, length, normal, convexA: convex(i), convexB: convex((i + 1) % n) };
+  });
+}
+
+/** Distance from (x, z) to the nearest outline edge. */
+export function outlineDistance(def: ArenaDef, x: number, z: number): number {
+  let best = Infinity;
+  for (const e of outlineEdges(def)) {
+    const dx = e.b[0] - e.a[0];
+    const dz = e.b[1] - e.a[1];
+    const t = Math.max(0, Math.min(1, ((x - e.a[0]) * dx + (z - e.a[1]) * dz) / e.length ** 2));
+    best = Math.min(best, Math.hypot(x - e.a[0] - dx * t, z - e.a[1] - dz * t));
+  }
+  return best;
+}
+
+/** Even-odd point-in-polygon test. */
+export function pointInPolygon(poly: readonly Vec2[], x: number, z: number): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, zi] = poly[i] ?? [0, 0];
+    const [xj, zj] = poly[j] ?? [0, 0];
+    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/** True when (x, z) is inside the outline and at least `margin` m from its edges. */
+export function insideOutline(def: ArenaDef, x: number, z: number, margin = 0): boolean {
+  return (
+    pointInPolygon(arenaOutline(def), x, z) && (margin <= 0 || outlineDistance(def, x, z) >= margin)
+  );
+}
+
+/** Farthest outline corner from the centre. */
+export function outlineReach(def: ArenaDef): number {
+  return Math.max(...arenaOutline(def).map(([x, z]) => Math.hypot(x, z)));
+}

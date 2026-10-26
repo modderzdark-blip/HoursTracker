@@ -7,6 +7,7 @@ import {
   Vector3,
   type BufferGeometry,
 } from 'three';
+import type { BannerHang } from '../data/arenaAssets';
 import type { ArenaLook } from '../data/arenaLooks';
 import type { ArenaDef } from '../data/arenas';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
@@ -191,6 +192,26 @@ export class ArenaDresser {
     }
     for (const g of this.temp) g.dispose();
     this.temp.length = 0;
+  }
+
+  /** Banners at given spots (scanned walls): cloth on an iron rod, waving out of step. */
+  hangBanners(list: readonly BannerHang[]): void {
+    for (const b of list) {
+      const yaw = (b.yaw * Math.PI) / 180;
+      const cloth = bannerClothGeometry(b.w, b.h);
+      const rod = bannerRodGeometry(b.w);
+      this.batch.add(
+        'cloth',
+        cloth,
+        this.at(b.x, b.y, b.z, yaw),
+        this.tint(this.L.tints.cloth),
+        [0, 0, 0],
+        this.rand() * 6,
+      );
+      this.batch.add('iron', rod, this.at(b.x, b.y + 0.03, b.z, yaw), this.L.tints.iron);
+      cloth.dispose();
+      rod.dispose();
+    }
   }
 
   // ------------------------------------------------------------------ helpers

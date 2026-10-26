@@ -1,7 +1,8 @@
 import { BoxGeometry, InstancedMesh, Matrix4, MeshStandardMaterial, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../../src/core/random';
-import { ARENA_ASSETS, arenaAssetRequest, FORT_MODEL } from '../../src/data/arenaAssets';
+import { ARENA_ASSETS, arenaAssetRequest } from '../../src/data/arenaAssets';
+import { FORT as FORT_MODEL } from '../../src/data/arenaKit';
 import { ARENAS, type ArenaId } from '../../src/data/arenas';
 import { QUALITY_PRESETS } from '../../src/data/quality';
 import { ScannedProps } from '../../src/modes/ScannedProps';
@@ -143,20 +144,6 @@ describe('scanned props', () => {
       expect(props.objects.length).toBe(0);
     });
   }
-
-  it('castle walls close the ring: enough kit pieces to go all the way round', () => {
-    for (const id of IDS) {
-      const c = ARENA_ASSETS[id].castle;
-      if (c === undefined) continue;
-      const def = ARENAS[id];
-      const { props } = build(id);
-      const wall = props.objects.find((o) => o.name.endsWith('wall_thin_straight_01')) as
-        InstancedMesh | undefined;
-      expect(wall, id).toBeDefined();
-      const circumference = 2 * Math.PI * (def.floorRadius + def.wall.thickness / 2);
-      expect((wall?.count ?? 0) * 14.8 * c.scale).toBeGreaterThanOrEqual(circumference);
-    }
-  });
 
   it('is deterministic for an arena', () => {
     const a = build('cinder_court').props;

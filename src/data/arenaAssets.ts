@@ -1,5 +1,6 @@
 import type { AssetRequest } from '../render/env/AssetLibrary';
-import type { ArenaId } from './arenas';
+import type { DressingPart } from '../modes/arenaDressing';
+import type { ArenaId, Vec2 } from './arenas';
 
 /**
  * Scanned CC0 assets (Poly Haven, see public/assets/CREDITS.md) dressing each arena: the PBR
@@ -51,12 +52,70 @@ export interface PropScatter {
   readonly pick?: boolean;
 }
 
-export interface CastleWall {
-  /** Uniform scale of the fort kit pieces (the kit is built for 8.6 m walls). */
-  readonly scale: number;
-  /** A round tower every N wall pieces. */
-  readonly towerEvery: number;
-  readonly towerScale: number;
+/**
+ * A scanned model (or one node of it) placed in world space: the composed architecture, cliffs,
+ * backdrop terrain and landmarks of an arena.
+ */
+export interface SetPiece {
+  readonly model: string;
+  readonly node?: string;
+  readonly x: number;
+  readonly z: number;
+  /** Height of the piece's base above the floor (negative sinks it). */
+  readonly y?: number;
+  /** Yaw in degrees (counter-clockwise seen from above; 0 = as modelled). */
+  readonly yaw?: number;
+  readonly scale?: number;
+  /** Non-uniform stretch (x, y, z) on top of `scale`. */
+  readonly stretch?: readonly [number, number, number];
+  /** Pitch / roll in degrees (fallen columns, leaning ruins). */
+  readonly tilt?: number;
+  readonly roll?: number;
+  /** Collider: a cylinder or an oriented box from the piece's footprint. */
+  readonly solid?: 'round' | 'box';
+  /** Fire burning at this height above the floor. */
+  readonly fire?: number;
+  /** Lowest quality showing it: 0 = always (key set piece), 1 = Medium and up, 2 = High. */
+  readonly tier?: 0 | 1 | 2;
+  /** Backdrop: casts no shadow. */
+  readonly far?: boolean;
+}
+
+/**
+ * Built stone: terraces, daises, ledges, plinths, stair flights and slabs, textured with the
+ * arena's scanned surfaces (merged into one mesh per surface).
+ */
+export interface Mass {
+  readonly x: number;
+  readonly z: number;
+  /** Full size (x, y, z) before yaw. */
+  readonly size: readonly [number, number, number];
+  readonly y?: number;
+  readonly yaw?: number;
+  readonly tilt?: number;
+  readonly roll?: number;
+  readonly surface?: 'stone' | 'rock' | 'wall';
+  /** Blocks movement (a flight's steps stay walkable while each rise is low enough). */
+  readonly solid?: boolean;
+  /** A stair flight of this many steps, rising toward local −Z. */
+  readonly steps?: number;
+  readonly tier?: 0 | 1 | 2;
+}
+
+/** A banner hanging on a wall face: top centre, facing yaw (degrees), cloth size. */
+export interface BannerHang {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly yaw: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+/** A lava channel along a polyline (x, z), `width` m across. */
+export interface LavaChannel {
+  readonly points: readonly Vec2[];
+  readonly width: number;
 }
 
 export interface ArenaAssets {
@@ -65,17 +124,29 @@ export interface ArenaAssets {
   readonly wall: SurfaceRef;
   readonly rock: SurfaceRef;
   readonly stone: SurfaceRef;
-  /** Fort-kit castle walls instead of the masonry ring (masonry arenas only). */
-  readonly castle?: CastleWall;
   /** Model placed at each brazier spot (fire on top). */
   readonly brazier?: { readonly model: string; readonly scale: number; readonly fire: number };
   /** Model (or set, picked piece by piece) standing in for the arena's rock outcrops. */
   readonly boulders?: { readonly model: string; readonly pick?: boolean };
+  /** Small dressing at compass positions near the edge. */
   readonly props: readonly PropPlacement[];
   readonly scatter: readonly PropScatter[];
+  /** The composed place: architecture, cliffs, landmark and backdrop in world space. */
+  readonly pieces?: readonly SetPiece[];
+  readonly masses?: readonly Mass[];
+  readonly banners?: readonly BannerHang[];
+  readonly lava?: readonly LavaChannel[];
+  /** Still water (x, z, radius). */
+  readonly pools?: readonly (readonly [number, number, number])[];
+  /** The ground's extent (polygon); absent = a disc well past the walls. */
+  readonly ground?: readonly Vec2[];
+  /** The pieces form the boundary walls: no procedural wall ring. */
+  readonly ownWalls?: boolean;
+  /** The pieces form the backdrop: no procedural cliff ring. */
+  readonly ownBackdrop?: boolean;
+  /** Procedural dressing the composition replaces (besides what scanned props always replace). */
+  readonly skip?: readonly DressingPart[];
 }
-
-const FORT = 'modular_fort_01';
 
 /** Props framing the north gate: a pair of statues, candles, a chest, banners of war. */
 function gateGroup(statueScale: number): PropPlacement[] {
@@ -94,7 +165,6 @@ export const ARENA_ASSETS: Readonly<Record<ArenaId, ArenaAssets>> = {
     wall: { id: 'castle_wall_varriation', size: 2 },
     rock: { id: 'rock_wall_13', size: 2 },
     stone: { id: 'castle_wall_varriation', size: 2.5 },
-    castle: { scale: 0.5, towerEvery: 5, towerScale: 0.36 },
     brazier: { model: 'stone_fire_pit', scale: 1, fire: 0.35 },
     boulders: { model: 'rock_09' },
     props: [
@@ -145,7 +215,6 @@ export const ARENA_ASSETS: Readonly<Record<ArenaId, ArenaAssets>> = {
     wall: { id: 'dark_brick_wall', size: 1.05 },
     rock: { id: 'rock_wall_13', size: 2 },
     stone: { id: 'stone_wall_04', size: 1.7 },
-    castle: { scale: 0.46, towerEvery: 4, towerScale: 0.34 },
     brazier: { model: 'stone_fire_pit', scale: 1.1, fire: 0.38 },
     boulders: { model: 'rock_07' },
     props: [
@@ -247,7 +316,6 @@ export const ARENA_ASSETS: Readonly<Record<ArenaId, ArenaAssets>> = {
     wall: { id: 'stone_wall_04', size: 1.7 },
     rock: { id: 'rock_wall_08', size: 1.8 },
     stone: { id: 'slate_floor', size: 2.3 },
-    castle: { scale: 0.52, towerEvery: 4, towerScale: 0.38 },
     brazier: { model: 'stone_fire_pit', scale: 1.1, fire: 0.38 },
     boulders: { model: 'rock_09' },
     props: [
@@ -330,8 +398,6 @@ export function arenaAssetRequest(id: ArenaId): AssetRequest {
   for (const s of a.scatter) models.add(s.model);
   if (a.brazier !== undefined) models.add(a.brazier.model);
   if (a.boulders !== undefined) models.add(a.boulders.model);
-  if (a.castle !== undefined) models.add(FORT);
+  for (const p of a.pieces ?? []) models.add(p.model);
   return { surfaces: [...surfaces], models: [...models] };
 }
-
-export const FORT_MODEL = FORT;
