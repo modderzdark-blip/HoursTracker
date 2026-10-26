@@ -6,7 +6,7 @@ required; this list is kept for provenance. They were downloaded by
 `.github/workflows/fetch-assets.yml` and made game-ready (resized, WebP textures, simplified
 and meshopt-compressed meshes) by `tools/assets/process.mjs`.
 
-## Surfaces (Poly Haven asset ids)
+## Surfaces (Poly Haven asset ids, 2048 px)
 
 - brown_mud_rocks_01
 - castle_brick_broken_06
@@ -32,6 +32,13 @@ and meshopt-compressed meshes) by `tools/assets/process.mjs`.
 - stone_tiles_02
 - stone_wall_04
 - volcanic_rock_tiles
+- forest_floor
+- grassy_cobblestone
+- castle_brick_07
+- medieval_blocks_06
+- old_stone_wall
+- slate_floor_02
+- rock_wall
 
 ## Models (Poly Haven asset ids)
 
@@ -68,3 +75,13 @@ and meshopt-compressed meshes) by `tools/assets/process.mjs`.
 - wooden_crate_01
 - wooden_lantern_01
 - worn_metal_rack
+- horse_statue_01
+- mountainside
+- namaqualand_cliff_01
+- namaqualand_cliff_02
+- dead_quiver_trunk
+- quiver_tree_01
+- root_cluster_02
+- single_root
+- GothicCabinet_01
+- wooden_bookshelf_worn

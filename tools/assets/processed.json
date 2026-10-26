@@ -71,6 +71,27 @@
   },
   {
    "id": "volcanic_rock_tiles"
+  },
+  {
+   "id": "forest_floor"
+  },
+  {
+   "id": "grassy_cobblestone"
+  },
+  {
+   "id": "castle_brick_07"
+  },
+  {
+   "id": "medieval_blocks_06"
+  },
+  {
+   "id": "old_stone_wall"
+  },
+  {
+   "id": "slate_floor_02"
+  },
+  {
+   "id": "rock_wall"
   }
  ],
  "models": [
@@ -238,6 +259,56 @@
    "id": "worn_metal_rack",
    "tris": 6372,
    "after": 3050
+  },
+  {
+   "id": "horse_statue_01",
+   "tris": 22388,
+   "after": 5998
+  },
+  {
+   "id": "mountainside",
+   "tris": 153472,
+   "after": 19999
+  },
+  {
+   "id": "namaqualand_cliff_01",
+   "tris": 94369,
+   "after": 11998
+  },
+  {
+   "id": "namaqualand_cliff_02",
+   "tris": 194080,
+   "after": 15989
+  },
+  {
+   "id": "dead_quiver_trunk",
+   "tris": 17978,
+   "after": 4992
+  },
+  {
+   "id": "quiver_tree_01",
+   "tris": 150124,
+   "after": 9984
+  },
+  {
+   "id": "root_cluster_02",
+   "tris": 339641,
+   "after": 7990
+  },
+  {
+   "id": "single_root",
+   "tris": 61027,
+   "after": 4980
+  },
+  {
+   "id": "GothicCabinet_01",
+   "tris": 12170,
+   "after": 3995
+  },
+  {
+   "id": "wooden_bookshelf_worn",
+   "tris": 10106,
+   "after": 3000
   }
  ]
 }
