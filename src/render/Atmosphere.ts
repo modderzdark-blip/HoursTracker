@@ -39,6 +39,11 @@ export class Atmosphere {
   private mapSize = 1024;
   private readonly flicker: number[] = [];
   private time = 0;
+  /** Lightning: seconds to the next strike, seconds since the last, strike direction. */
+  private nextStrike = 4;
+  private sinceStrike = 99;
+  private strikeAngle = 0;
+  private strikeSeed = 0;
 
   constructor(
     private readonly ctx: RenderContext,
@@ -130,6 +135,7 @@ export class Atmosphere {
 
     this.time += dtSec;
     this.sky.update(dtSec, focus);
+    this.updateLightning(dtSec);
     const base = this.arena.lighting.brazierIntensity;
     for (let i = 0; i < this.braziers.length; i++) {
       const light = this.braziers[i];
@@ -137,6 +143,40 @@ export class Atmosphere {
       const t = this.time * 9 + (this.flicker[i] ?? 0);
       light.intensity = base * (0.86 + Math.sin(t) * 0.07 + Math.sin(t * 2.3 + 1.7) * 0.07);
     }
+  }
+
+  /**
+   * Distant lightning in open-sky arenas: a double flash that brightens the moon and sky fill
+   * (existing lights only, so no shader recompiles) and draws a bolt in the sky.
+   */
+  private updateLightning(dtSec: number): void {
+    const bolt = ARENA_LOOKS[this.arena.id as ArenaId].fx.lightning;
+    if (bolt === null) return;
+    this.sinceStrike += dtSec;
+    this.nextStrike -= dtSec;
+    if (this.nextStrike <= 0) {
+      this.nextStrike = bolt.every * (0.5 + Math.random());
+      this.sinceStrike = 0;
+      // Strikes land beyond the north half, where the camera looks.
+      this.strikeAngle = -Math.PI / 2 + (Math.random() - 0.5) * 2.2;
+      this.strikeSeed = Math.random() * 100;
+    }
+    const t = this.sinceStrike;
+    const f =
+      Math.max(0, 1 - t / 0.12) +
+      0.7 * Math.max(0, 1 - Math.abs(t - 0.28) / 0.09) +
+      0.3 * Math.max(0, 1 - Math.abs(t - 0.5) / 0.1);
+    const l = this.arena.lighting;
+    this.moon.intensity = l.moonIntensity * (1 + f * 1.2);
+    this.hemi.intensity = l.hemiIntensity * (1 + f * 0.9);
+    this.sky.setFlash(
+      Math.min(1, f),
+      Math.cos(this.strikeAngle),
+      0.32,
+      Math.sin(this.strikeAngle),
+      bolt.color,
+      this.strikeSeed,
+    );
   }
 
   dispose(): void {

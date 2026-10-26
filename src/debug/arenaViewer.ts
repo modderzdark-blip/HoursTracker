@@ -3,10 +3,24 @@
  * Builds an arena exactly as a battle does (layout, synthesized materials, sky, lights, post)
  * and renders it from a free camera. URL params: arena=cinder_court, q=high|medium|low,
  * cam=x,y,z (camera position), look=x,y,z (target), fov=50, t=seconds of animation,
- * fx=slash,ring,... (effects spawned in a row along x) and fxt=seconds into them.
+ * fx=slash,ring,... (effects spawned in a row along x) and fxt=seconds into them,
+ * hero=kael (a hero in idle stance at the look target, to judge readability against the floor).
  */
-import { PerspectiveCamera, Vector3 } from 'three';
+import {
+  InstancedMesh,
+  Mesh,
+  PerspectiveCamera,
+  Points,
+  Vector3,
+  type BufferGeometry,
+  type InstancedBufferGeometry,
+} from 'three';
+import { AnimationController } from '../anim/AnimationController';
+import { buildHumanoidClips } from '../anim/clipSets';
+import { HumanoidRig } from '../anim/HumanoidRig';
+import { POSE_LIBRARY } from '../anim/poses';
 import { ARENAS, type ArenaId } from '../data/arenas';
+import { RIGS, type RigId } from '../data/rigs';
 import { QUALITY_PRESETS, type QualityLevel } from '../data/quality';
 import { ArenaBuilder } from '../modes/ArenaBuilder';
 import { loadRapier, PhysicsWorld } from '../physics/PhysicsWorld';
@@ -43,7 +57,21 @@ async function main(): Promise<void> {
     120,
   );
   camera.position.copy(vec(params.get('cam'), [0, 9, 22]));
-  camera.lookAt(vec(params.get('look'), [0, 1, 0]));
+  const target = vec(params.get('look'), [0, 1, 0]);
+  camera.lookAt(target);
+  const heroId = params.get('hero') as RigId | null;
+  if (heroId !== null && heroId in RIGS) {
+    const rig = new HumanoidRig(RIGS[heroId]);
+    rig.root.position.set(target.x, 0, target.z);
+    rig.root.rotation.y = 0.5;
+    rig.mesh.castShadow = true;
+    rig.mesh.receiveShadow = true;
+    ctx.scene.add(rig.root);
+    const clips = buildHumanoidClips(POSE_LIBRARY['NEUTRAL']);
+    const anim = new AnimationController(rig.root, clips.clips, clips.additive);
+    anim.play('idle', { loop: true, fade: 0 });
+    for (let i = 0; i < 30; i++) anim.update(1 / 30);
+  }
   ctx.setPost({ bloom: preset.bloom, grade: preset.grade }, camera);
   const fxList = (params.get('fx') ?? '').split(',').filter((x) => x !== '') as FxShape[];
   if (fxList.length > 0) {
@@ -72,8 +100,41 @@ async function main(): Promise<void> {
     builder.update(1 / 30);
   }
   ctx.render(camera);
+  // Whole-arena totals (independent of what this camera sees): drawn objects and triangles.
+  let arenaDraws = 0;
+  let arenaTriangles = 0;
+  const breakdown: Record<string, number> = {};
+  for (const root of builder.objects) {
+    root.traverse((o) => {
+      if (!o.visible) return;
+      if (o instanceof Points) {
+        arenaDraws++;
+        return;
+      }
+      if (!(o instanceof Mesh)) return;
+      const g = o.geometry as BufferGeometry;
+      const verts = g.index?.count ?? g.getAttribute('position').count;
+      const instances =
+        o instanceof InstancedMesh
+          ? o.count
+          : 'instanceCount' in g
+            ? (g as InstancedBufferGeometry).instanceCount
+            : 1;
+      arenaDraws++;
+      const tris = (verts / 3) * (Number.isFinite(instances) ? instances : 1);
+      arenaTriangles += tris;
+      breakdown[o.name] = Math.round((breakdown[o.name] ?? 0) + tris);
+    });
+  }
   const w = window as unknown as { __viewerReady: boolean; __viewerInfo: unknown };
-  w.__viewerInfo = { buildMs, calls: ctx.info.calls, triangles: ctx.info.triangles };
+  w.__viewerInfo = {
+    buildMs,
+    calls: ctx.info.calls,
+    triangles: ctx.info.triangles,
+    arenaDraws,
+    arenaTriangles: Math.round(arenaTriangles),
+    breakdown,
+  };
   w.__viewerReady = true;
 }
 

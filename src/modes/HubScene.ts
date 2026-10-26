@@ -100,7 +100,7 @@ export class HubScene {
     );
     synth.dispose();
     this.maps.push(floorMaps, stoneMaps, rockMaps);
-    const floorMat = this.mat(createTriplanarMaterial(floorMaps, { scale: 0.3, flat: true }));
+    const floorMat = this.mat(createTriplanarMaterial(floorMaps, { scale: 0.18, flat: true }));
     const stoneMat = this.mat(createTriplanarMaterial(stoneMaps, { scale: 0.6, macro: 0.2 }));
     const rockMat = this.mat(createTriplanarMaterial(rockMaps, { scale: 0.3, macro: 0.3 }));
 

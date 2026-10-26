@@ -16,6 +16,25 @@ export interface TriplanarOptions {
   readonly envMapIntensity?: number;
   /** Flat floors only: a second surface blended in organic patches. */
   readonly patch?: { readonly maps: MaterialMaps; readonly scale: number; readonly amount: number };
+  /**
+   * Flat floors only: arena radius. Patches (dirt, ash, moss) gather toward the wall and thin
+   * out in a worn, slightly polished centre.
+   */
+  readonly radius?: number;
+  /**
+   * Emissive from the maps' glow mask (ORM blue): lava cracks, magma veins, inlays, fungus. It
+   * pulses and shows in drifting patches; `center` (0..1) dims it inside `inner` metres of the
+   * arena centre so combat telegraphs stay readable, ramping to full by `outer`.
+   */
+  readonly glow?: {
+    readonly color: number;
+    readonly intensity: number;
+    readonly center: number;
+    readonly inner: number;
+    readonly outer: number;
+    /** Shared seconds uniform (the arena advances it). */
+    readonly time: { value: number };
+  };
 }
 
 /**
@@ -47,9 +66,19 @@ export function createTriplanarMaterial(
     tpPOrm: { value: o.patch?.maps.orm ?? maps.orm },
     tpPScale: { value: o.patch?.scale ?? o.scale },
     tpPAmount: { value: o.patch?.amount ?? 0 },
+    tpRadius: { value: o.radius ?? 0 },
+    tpGlowColor: {
+      value: new Color(o.glow?.color ?? 0).multiplyScalar(o.glow?.intensity ?? 0),
+    },
+    tpGlowCenter: { value: o.glow?.center ?? 1 },
+    tpGlowInner: { value: o.glow?.inner ?? 0 },
+    tpGlowOuter: { value: o.glow?.outer ?? 1 },
+    tpTime: o.glow?.time ?? { value: 0 },
   };
   const flat = o.flat === true;
   const patch = flat && o.patch !== undefined;
+  const radial = flat && o.radius !== undefined;
+  const glow = o.glow !== undefined;
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
@@ -76,15 +105,22 @@ export function createTriplanarMaterial(
       ? [
           // Organic patch mask from two octaves of value noise in world space.
           'float tpMask = tpVNoise(vTpPos.xz * 0.09) * 0.65 + tpVNoise(vTpPos.xz * 0.27 + 7.1) * 0.35;',
-          'tpMask = smoothstep(0.62 - tpPAmount * 0.3, 0.72 - tpPAmount * 0.3, tpMask);',
-          'vec2 tpUvP = vTpPos.xz * tpPScale;',
+          ...(radial
+            ? [
+                // Toward the wall the threshold drops (more dirt); the centre stays cleaner.
+                'float tpEdge = smoothstep(tpRadius * 0.35, tpRadius * 0.95, length(vTpPos.xz));',
+                'float tpT = 0.62 - tpPAmount * 0.3 + 0.1 - tpEdge * 0.3;',
+              ]
+            : ['float tpT = 0.62 - tpPAmount * 0.3;']),
+          'tpMask = smoothstep(tpT, tpT + 0.1, tpMask);',
+          'vec2 tpUvP = TP_ROT * vTpPos.xz * tpPScale;',
           'tpA = mix(tpA, texture2D(tpPAlbedo, tpUvP), tpMask);',
           'tpO = mix(tpO, texture2D(tpPOrm, tpUvP).rgb, tpMask);',
         ]
       : ['float tpMask = 0.0;'];
     const sample = flat
       ? [
-          'vec2 tpUvY = vTpPos.xz * tpScale;',
+          'vec2 tpUvY = TP_ROT * vTpPos.xz * tpScale;',
           'vec4 tpA = texture2D(tpAlbedo, tpUvY);',
           'vec3 tpO = texture2D(tpOrm, tpUvY).rgb;',
           ...patchSample,
@@ -105,8 +141,11 @@ export function createTriplanarMaterial(
             ? ['tnY = mix(tnY, texture2D(tpPNormal, tpUvP).xyz * 2.0 - 1.0, tpMask);']
             : []),
           'tnY.xy *= tpNormalScale;',
-          // Top-down projection: tangent x → world x, tangent y → world -z.
-          'vec3 tpWorldN = normalize(vec3(tnY.x, tnY.z, -tnY.y));',
+          // Top-down projection (rotated): tangent (x, -y) is a uv-space direction; rotate it
+          // back into world x / z.
+          'vec2 tpTn = vec2(tnY.x, -tnY.y);',
+          'tpTn = vec2(TP_C * tpTn.x + TP_S * tpTn.y, -TP_S * tpTn.x + TP_C * tpTn.y);',
+          'vec3 tpWorldN = normalize(vec3(tpTn.x, tnY.z, tpTn.y));',
         ]
       : [
           'vec3 tpNw = normalize(vTpNormal);',
@@ -139,6 +178,16 @@ export function createTriplanarMaterial(
           'uniform sampler2D tpPOrm;',
           'uniform float tpPScale;',
           'uniform float tpPAmount;',
+          'uniform float tpRadius;',
+          'uniform vec3 tpGlowColor;',
+          'uniform float tpGlowCenter;',
+          'uniform float tpGlowInner;',
+          'uniform float tpGlowOuter;',
+          'uniform float tpTime;',
+          // Flat floors are projected at an angle so stone joints never line up with the screen.
+          '#define TP_C 0.8776',
+          '#define TP_S 0.4794',
+          'const mat2 TP_ROT = mat2(TP_C, TP_S, -TP_S, TP_C);',
           'float tpHash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }',
           'float tpVNoise(vec2 p) { vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);',
           '  return mix(mix(tpHash(i), tpHash(i + vec2(1.0, 0.0)), f.x), mix(tpHash(i + vec2(0.0, 1.0)), tpHash(i + vec2(1.0, 1.0)), f.x), f.y); }',
@@ -151,6 +200,13 @@ export function createTriplanarMaterial(
           // Low-frequency variation from a far-scaled read of the same albedo.
           'float tpVar = dot(texture2D(tpAlbedo, vTpPos.xz * tpScale * 0.073 + 0.31).rgb, vec3(0.333));',
           'diffuseColor.rgb *= tpA.rgb * mix(1.0, 0.6 + tpVar * 1.2, tpMacro);',
+          ...(radial
+            ? [
+                // Worn centre: footsteps polish the stone a little lighter.
+                'float tpWorn = 1.0 - smoothstep(tpRadius * 0.12, tpRadius * 0.5, length(vTpPos.xz));',
+                'diffuseColor.rgb *= 1.0 + tpWorn * 0.12 * (1.0 - tpMask);',
+              ]
+            : []),
         ].join('\n'),
       )
       .replace(
@@ -166,7 +222,11 @@ export function createTriplanarMaterial(
       )
       .replace(
         '#include <roughnessmap_fragment>',
-        '#include <roughnessmap_fragment>\nroughnessFactor = tpO.g;',
+        [
+          '#include <roughnessmap_fragment>',
+          'roughnessFactor = tpO.g;',
+          ...(radial ? ['roughnessFactor -= tpWorn * 0.08 * (1.0 - tpMask);'] : []),
+        ].join('\n'),
       )
       .replace(
         '#include <normal_fragment_maps>',
@@ -174,6 +234,23 @@ export function createTriplanarMaterial(
           '#include <normal_fragment_maps>',
           ...normalBlend,
           'normal = normalize((viewMatrix * vec4(tpWorldN, 0.0)).xyz);',
+        ].join('\n'),
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        [
+          '#include <emissivemap_fragment>',
+          ...(glow
+            ? [
+                'float tpGr = length(vTpPos.xz);',
+                'float tpGm = mix(tpGlowCenter, 1.0, smoothstep(tpGlowInner, tpGlowOuter, tpGr));',
+                // Drifting patches, a slow pulse and heat crawling along the cracks.
+                'tpGm *= 0.3 + 0.7 * smoothstep(0.3, 0.7, tpVNoise(vTpPos.xz * 0.11 + 3.7));',
+                'float tpPulse = 0.7 + 0.3 * sin(tpTime * 1.6 + tpVNoise(vTpPos.xz * 0.4) * 6.2832);',
+                'tpPulse *= 0.75 + 0.5 * tpVNoise(vTpPos.xz * 0.9 + vec2(tpTime * 0.35, -tpTime * 0.2));',
+                'totalEmissiveRadiance += tpGlowColor * tpO.b * tpGm * tpPulse;',
+              ]
+            : []),
         ].join('\n'),
       )
       .replace(
@@ -186,6 +263,7 @@ export function createTriplanarMaterial(
         ].join('\n'),
       );
   };
-  m.customProgramCacheKey = () => `triplanar-${flat ? 'flat' : 'full'}${patch ? '-patch' : ''}`;
+  m.customProgramCacheKey = () =>
+    `triplanar-${flat ? 'flat' : 'full'}${patch ? '-patch' : ''}${radial ? '-radial' : ''}${glow ? '-glow' : ''}`;
   return m;
 }
