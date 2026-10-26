@@ -298,8 +298,8 @@ const ASHEN_WASTES: ArenaDef = {
   rocks: [
     { x: -20, z: -13, scale: 1.6 },
     { x: 19, z: -13.5, scale: 1.4 },
-    { x: -18, z: 17.5, scale: 1.3 },
-    { x: 17, z: 18.5, scale: 1.5 },
+    { x: -17.2, z: 15.6, scale: 1.3 },
+    { x: 17.2, z: 15.4, scale: 1.4 },
     { x: -3, z: 22.5, scale: 1.1 },
     { x: 23, z: 2, scale: 1.0 },
     { x: -23.5, z: 1, scale: 1.1 },
