@@ -28,6 +28,7 @@ import { ECONOMY } from '../data/economy';
 import type { EnemyId } from '../data/enemies';
 import type { HeroDef } from '../data/heroes';
 import type { QualityLevel, QualityPreset } from '../data/quality';
+import type { AssetLibrary } from '../render/env/AssetLibrary';
 import { RIGS } from '../data/rigs';
 import type { StageDef } from '../data/stages';
 import type { StatusId } from '../data/statusEffects';
@@ -72,6 +73,8 @@ export interface BattleDeps {
   readonly audio: AudioManager;
   readonly uiRoot: HTMLElement;
   readonly preset: QualityPreset;
+  /** Scanned arena assets (preloaded for this stage's arena); null builds procedural arenas. */
+  readonly assets?: AssetLibrary | null;
   /** The player's wallet (revives cost gems). */
   readonly wallet: Wallet;
   /** Persists wallet changes made during the battle. */
@@ -225,7 +228,13 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.arena = ARENAS[setup.stage.arena];
     this.difficulty = DIFFICULTIES[setup.difficulty];
     this.enemyScale = enemyScaleFor(setup.stage.level, setup.difficulty, setup.enemyMult);
-    this.builder = new ArenaBuilder(this.arena, d.physics, d.preset, d.ctx.renderer);
+    this.builder = new ArenaBuilder(
+      this.arena,
+      d.physics,
+      d.preset,
+      d.ctx.renderer,
+      d.assets ?? null,
+    );
     this.builder.addTo(this.scene);
     this.atmosphere = new Atmosphere(d.ctx, this.arena);
     this.embers = new EmberField(MAX_PARTICLES, this.arena.palette.ember);

@@ -22,9 +22,11 @@ import { POSE_LIBRARY } from '../anim/poses';
 import { ARENAS, type ArenaId } from '../data/arenas';
 import { RIGS, type RigId } from '../data/rigs';
 import { QUALITY_PRESETS, type QualityLevel } from '../data/quality';
+import { arenaAssetRequest } from '../data/arenaAssets';
 import { ArenaBuilder } from '../modes/ArenaBuilder';
 import { loadRapier, PhysicsWorld } from '../physics/PhysicsWorld';
 import { Atmosphere } from '../render/Atmosphere';
+import { AssetLibrary } from '../render/env/AssetLibrary';
 import { RenderContext } from '../render/RenderContext';
 import { createCharacterEnvironment, setCharacterEnvironment } from '../render/characterEnv';
 import { Fx, type FxShape } from '../vfx/Fx';
@@ -44,8 +46,15 @@ async function main(): Promise<void> {
   ctx.setSize(window.innerWidth, window.innerHeight, preset.maxPixelRatio);
   setCharacterEnvironment(createCharacterEnvironment(ctx.renderer));
   const physics = new PhysicsWorld(await loadRapier());
+  // Scanned assets unless ?scanned=0 (the procedural fallback).
+  let assets: AssetLibrary | null = null;
+  if (params.get('scanned') !== '0') {
+    assets = new AssetLibrary('/assets/');
+    assets.anisotropy = preset.anisotropy;
+    await assets.preload(arenaAssetRequest(arena.id as ArenaId));
+  }
   const t0 = performance.now();
-  const builder = new ArenaBuilder(arena, physics, preset, ctx.renderer);
+  const builder = new ArenaBuilder(arena, physics, preset, ctx.renderer, assets);
   const buildMs = performance.now() - t0;
   builder.addTo(ctx.scene);
   const atmosphere = new Atmosphere(ctx, arena);

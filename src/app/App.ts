@@ -66,6 +66,8 @@ import { LoadingVeil } from '../ui/LoadingVeil';
 import { StoryCards } from '../ui/StoryCards';
 import { Menus } from './Menus';
 import { Runs } from './Runs';
+import { arenaAssetRequest } from '../data/arenaAssets';
+import { AssetLibrary } from '../render/env/AssetLibrary';
 import { modeScreens } from '../ui/menu/modeScreens';
 import { setColorblindTelegraphs } from '../vfx/TelegraphDecals';
 
@@ -230,6 +232,8 @@ export class App {
   private readonly goalToasts: GoalToasts;
   private goalBase: GoalSnapshot;
   private readonly veil: LoadingVeil;
+  /** Scanned arena assets, loaded per arena while the loading veil shows. */
+  private readonly assets = new AssetLibrary();
   /** Bumped per battle start (a newer start cancels a pending one). */
   private battleToken = 0;
   private lastCoinMs = 0;
@@ -543,12 +547,22 @@ export class App {
   private startBattle(setup: BattleSetup): void {
     const token = ++this.battleToken;
     this.veil.show(setup.label, loreTip(token + this.profile.data.lifetime.battles));
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => {
-        if (token !== this.battleToken) return;
-        this.buildBattle(setup);
-        this.veil.hide();
-      }),
+    const req = arenaAssetRequest(setup.stage.arena);
+    this.assets.anisotropy = this.quality.preset.anisotropy;
+    // Load the arena's scanned assets behind the veil; on failure the arena falls back to its
+    // procedural look rather than blocking the fight.
+    const loaded = this.assets.preload(req).catch((e: unknown) => {
+      console.warn('[assets] arena assets failed to load', e);
+    });
+    void loaded.then(() =>
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          if (token !== this.battleToken) return;
+          this.assets.retain(req);
+          this.buildBattle(setup);
+          this.veil.hide();
+        }),
+      ),
     );
   }
 
@@ -572,6 +586,7 @@ export class App {
         audio: this.opts.audio,
         uiRoot: this.opts.uiRoot,
         preset: this.quality.preset,
+        assets: this.assets,
         wallet: this.profile.wallet,
         commitWallet: () => this.profile.commit(),
         setInputEnabled: (on) => this.setGameplayInput(on),
@@ -1095,6 +1110,7 @@ export class App {
     this.story?.dispose();
     this.goalToasts.dispose();
     this.veil.dispose();
+    this.assets.dispose();
     this.hubScene.dispose();
     this.menus.dispose();
     this.touch.dispose();

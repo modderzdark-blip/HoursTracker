@@ -22,6 +22,7 @@ import {
 } from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { mulberry32 } from '../core/random';
+import { ARENA_ASSETS, arenaAssetRequest, type SurfaceRef } from '../data/arenaAssets';
 import { ARENA_LOOKS, type ArenaLook, type SurfaceLook } from '../data/arenaLooks';
 import type { ArenaDef, ArenaId } from '../data/arenas';
 import type { QualityPreset } from '../data/quality';
@@ -33,6 +34,7 @@ import {
   shardGeometry,
   tuftGeometry,
 } from '../render/env/clutter';
+import type { AssetLibrary } from '../render/env/AssetLibrary';
 import { puddleGeometry } from '../render/env/landmarks';
 import { PropBatch, type BatchMaterial } from '../render/env/PropBatch';
 import {
@@ -62,7 +64,8 @@ import { GroundSigil } from '../vfx/GroundSigil';
 import { LavaSurface } from '../vfx/LavaSurface';
 import { LightShafts } from '../vfx/LightShafts';
 import { SmokeCards } from '../vfx/SmokeCards';
-import { ArenaDresser } from './arenaDressing';
+import { ArenaDresser, type DressingPart } from './arenaDressing';
+import { ScannedProps } from './ScannedProps';
 
 const DEG = Math.PI / 180;
 
@@ -70,6 +73,22 @@ const DEG = Math.PI / 180;
 let mapCache: { key: string; maps: Map<string, MaterialMaps> } | null = null;
 
 /** Ground clutter is kept outside this fraction of the floor radius (telegraphs stay clean). */
+/** Procedural dressing that scanned props replace (the rest: lava, cloth, chains, fungus, fog). */
+const SCANNED_REPLACES: ReadonlySet<DressingPart> = new Set<DressingPart>([
+  'statues',
+  'sarcophagi',
+  'cages',
+  'racks',
+  'barricades',
+  'trees',
+  'roots',
+  'skullPiles',
+  'remains',
+  'candles',
+  'gargoyles',
+  'puddles',
+]);
+
 export const CLUTTER_CLEAR_FRACTION = 0.42;
 
 /**
@@ -108,44 +127,81 @@ export class ArenaBuilder {
   /** Seconds, shared by every animated arena material. */
   private readonly time = { value: 0 };
   colliderCount = 0;
+  /** Built from the scanned asset set (real surfaces and props). */
+  readonly scanned: boolean;
 
   constructor(
     private readonly def: ArenaDef,
     private readonly physics: PhysicsWorld,
     private readonly preset: QualityPreset,
     renderer: WebGLRenderer,
+    assets: AssetLibrary | null = null,
   ) {
     this.look = ARENA_LOOKS[def.id as ArenaId];
     this.rand = mulberry32(def.id.length * 977 + 13);
     const L = this.look;
+    // Scanned assets when they are loaded (always in the game; unit tests build without them).
+    const A = ARENA_ASSETS[def.id as ArenaId];
+    const lib = assets !== null && assets.has(arenaAssetRequest(def.id as ArenaId)) ? assets : null;
+    this.scanned = lib !== null;
     const size = preset.textureMaxSize >= 1024 ? 1024 : 512;
-    const maps = this.synthesize(renderer, size, preset.anisotropy);
+    const maps = lib === null ? this.synthesize(renderer, size, preset.anisotropy) : null;
+    const scannedMaps: Record<string, SurfaceRef> = {
+      floor: A.floor,
+      floorPatch: A.floorPatch,
+      wall: A.wall,
+      rock: A.rock,
+      stone: A.stone,
+    };
     const get = (k: string): MaterialMaps => {
-      const v = maps.get(k);
+      const ref = scannedMaps[k];
+      const v = lib !== null && ref !== undefined ? lib.surface(ref.id) : maps?.get(k);
       if (v === undefined) throw new Error(`missing maps ${k}`);
       return v;
+    };
+    /** Colour tint of a scanned surface (white for synthesized ones, already coloured). */
+    const tintOf = (k: string): number =>
+      lib !== null ? (scannedMaps[k]?.tint ?? 0xffffff) : 0xffffff;
+    /** Texture repeats per metre: scanned tiles at their real size. */
+    const scaleOf = (k: string, synth: number): number => {
+      const ref = scannedMaps[k];
+      return lib !== null && ref !== undefined ? 1 / ref.size : synth;
     };
 
     const floorMat = this.mat(
       createTriplanarMaterial(get('floor'), {
-        scale: L.floor.scale,
+        scale: scaleOf('floor', L.floor.scale),
+        tint: tintOf('floor'),
         flat: true,
         macro: 0.45,
         normalScale: 1,
-        patch: { maps: get('floorPatch'), scale: L.floorPatch.scale, amount: 0.45 },
+        patch: {
+          maps: get('floorPatch'),
+          scale: scaleOf('floorPatch', L.floorPatch.scale),
+          amount: 0.45,
+        },
         radius: def.floorRadius,
         glow: { ...L.floorGlow, time: this.time },
       }),
     );
     const wallMat = this.mat(
-      createTriplanarMaterial(get('wall'), { scale: L.wall.scale, macro: 0.3, aoDirect: 0.6 }),
+      createTriplanarMaterial(get('wall'), {
+        scale: scaleOf('wall', L.wall.scale),
+        macro: 0.3,
+        aoDirect: 0.6,
+      }),
     );
     const rockMat = this.mat(
-      createTriplanarMaterial(get('rock'), { scale: L.rock.scale, macro: 0.3, aoDirect: 0.7 }),
+      createTriplanarMaterial(get('rock'), {
+        scale: scaleOf('rock', L.rock.scale),
+        macro: 0.3,
+        aoDirect: 0.7,
+      }),
     );
     const stoneMat = this.mat(
       createTriplanarMaterial(get('stone'), {
-        scale: this.stoneLook().scale,
+        scale: scaleOf('stone', this.stoneLook().scale),
+        tint: tintOf('stone'),
         macro: 0.2,
         aoDirect: 0.65,
       }),
@@ -161,15 +217,17 @@ export class ArenaBuilder {
 
     this.buildFloor(floorMat);
     if (L.wallKind === 'rock') this.buildRockWall(rockMat);
-    else this.buildMasonryWall(wallMat);
+    else this.buildMasonryWall(wallMat, lib === null || A.castle === undefined);
     this.buildColumns();
     this.buildBlocks();
-    this.buildRocks();
+    this.buildRocks(lib === null || A.boulders === undefined);
     this.buildBackdrop(rockMat);
-    this.buildRubble();
+    if (lib === null) {
+      this.buildRubble();
+      this.buildFallenDrums();
+    }
     this.buildSpires();
-    this.buildFallenDrums();
-    this.buildBraziers();
+    this.buildBraziers(lib === null || A.brazier === undefined);
     if (L.wallKind === 'masonry') this.buildTorches();
 
     const dresser = new ArenaDresser(
@@ -181,9 +239,17 @@ export class ArenaBuilder {
       this.keepOut,
       this.wallInfo,
     );
-    dresser.dress();
+    dresser.dress(lib === null ? undefined : SCANNED_REPLACES);
     this.colliderCount += dresser.colliders;
     this.flameSpots.push(...dresser.flames);
+    if (lib !== null) {
+      const props = new ScannedProps(lib, def, A, physics, preset, this.rand, this.keepOut);
+      props.build();
+      this.objects.push(...props.objects);
+      this.flameSpots.push(...props.flames);
+      this.colliderCount += props.colliders;
+      this.disposables.push(props);
+    }
 
     this.buildBatches(stoneMat, rockMat);
     this.buildFloating(dresser, stoneMat);
@@ -310,7 +376,7 @@ export class ArenaBuilder {
    * Ruined masonry ring: wall slabs with broken tops (merged, one draw call), buttresses and
    * capstones (stone batch). Records segment heights and buttress caps for the dressing.
    */
-  private buildMasonryWall(material: Material): void {
+  private buildMasonryWall(material: Material, visual: boolean): void {
     const w = this.def.wall;
     const n = w.segments;
     const ringR = this.def.floorRadius + w.thickness / 2;
@@ -328,7 +394,7 @@ export class ArenaBuilder {
       this.q.setFromEuler(this.e);
       this.p.set(x, 0, z);
       this.s.set(segLen, h, w.thickness);
-      const slab = variants[i % 3]?.clone();
+      const slab = visual ? variants[i % 3]?.clone() : undefined;
       if (slab !== undefined) {
         slab.applyMatrix4(this.m.compose(this.p, this.q, this.s));
         slabs.push(slab);
@@ -339,7 +405,7 @@ export class ArenaBuilder {
       this.physics.addStaticCuboid(x, w.height, z, segLen / 2, w.height, w.thickness / 2, this.q);
       this.colliderCount++;
       // Buttress at every other joint: two stacked blocks plus a capstone, leaning inward.
-      if (i % 2 === 0) {
+      if (visual && i % 2 === 0) {
         const ja = a + Math.PI / n;
         const jr = ringR - w.thickness * 0.55;
         const bh = Math.min(h, w.height) * (0.7 + this.rand() * 0.4);
@@ -362,6 +428,7 @@ export class ArenaBuilder {
     }
     for (const v of variants) v.dispose();
     buttress.dispose();
+    if (!visual) return;
     const merged = mergeGeometries(slabs, false);
     for (const g of slabs) g.dispose();
     if (merged === null) throw new Error('wall merge failed');
@@ -474,7 +541,8 @@ export class ArenaBuilder {
     block.dispose();
   }
 
-  private buildRocks(): void {
+  /** Rock outcrops: colliders always, procedural visuals unless scanned boulders replace them. */
+  private buildRocks(visual: boolean): void {
     const list = this.def.rocks;
     if (list.length === 0) return;
     const variants = [rockGeometry(1, 3), rockGeometry(2, 3, 1.4)];
@@ -484,7 +552,8 @@ export class ArenaBuilder {
       this.p.set(r.x, r.scale * 0.32, r.z);
       this.s.set(r.scale * 1.25, r.scale * 1.05, r.scale * 1.1);
       const g = variants[i % 2];
-      if (g !== undefined) this.batch.add('rock', g, this.m.compose(this.p, this.q, this.s));
+      if (visual && g !== undefined)
+        this.batch.add('rock', g, this.m.compose(this.p, this.q, this.s));
       this.physics.addStaticBall(r.x, r.scale * 0.45, r.z, r.scale * 0.95);
       this.colliderCount++;
     });
@@ -613,9 +682,17 @@ export class ArenaBuilder {
     geo.dispose();
   }
 
-  private buildBraziers(): void {
+  /** Iron braziers (or only their colliders, under scanned fire pits). */
+  private buildBraziers(visual: boolean): void {
     const list = this.def.braziers;
     if (list.length === 0) return;
+    if (!visual) {
+      for (const b of list) {
+        this.physics.addStaticCylinder(b.x, 0.35, b.z, 0.35, 0.7);
+        this.colliderCount++;
+      }
+      return;
+    }
     const stand = prep(new CylinderGeometry(0.07, 0.14, 1.2, 10), 0.8);
     stand.translate(0, 0.6, 0);
     const foot = prep(new ConeGeometry(0.42, 0.25, 6), 0.6);
@@ -756,7 +833,11 @@ export class ArenaBuilder {
     this.disposables.push(pools);
     this.objects.push(pools.mesh);
 
-    const sigil = new GroundSigil(L.fx.sigil.radius, L.fx.sigil.color, L.fx.sigil.style, this.time);
+    // Among scanned stone the sigil is a faint inlay, not a neon sign.
+    const sigilColor = this.scanned
+      ? new Color(L.fx.sigil.color).multiplyScalar(0.22).getHex()
+      : L.fx.sigil.color;
+    const sigil = new GroundSigil(L.fx.sigil.radius, sigilColor, L.fx.sigil.style, this.time);
     this.disposables.push(sigil);
     this.objects.push(sigil.mesh);
 

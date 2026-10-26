@@ -93,6 +93,32 @@ const TAU = Math.PI * 2;
  * colliders; tall props stay out of the south band where they would hide the hero from the
  * camera; the fight centre, spawns, the boss and the dummy stay clear.
  */
+export type DressingPart =
+  | 'landmark'
+  | 'arches'
+  | 'statues'
+  | 'sarcophagi'
+  | 'cages'
+  | 'racks'
+  | 'barricades'
+  | 'lavaPools'
+  | 'trees'
+  | 'crystals'
+  | 'mushrooms'
+  | 'roots'
+  | 'skullPiles'
+  | 'remains'
+  | 'candles'
+  | 'banners'
+  | 'flags'
+  | 'gargoyles'
+  | 'chains'
+  | 'stalactites'
+  | 'puddles'
+  | 'smoke';
+
+const NO_SKIP: ReadonlySet<DressingPart> = new Set();
+
 export class ArenaDresser {
   readonly flames: FlameSpot[] = [];
   readonly pools: GlowPool[] = [];
@@ -129,29 +155,36 @@ export class ArenaDresser {
     this.L = look;
   }
 
-  dress(): void {
-    this.landmark();
-    this.arches();
-    this.statues();
-    this.sarcophagi();
-    this.cages();
-    this.racks();
-    this.barricades();
-    this.lavaPools();
-    this.trees();
-    this.crystals();
-    this.mushrooms();
-    this.roots();
-    this.skullPiles();
-    this.remains();
-    this.candles();
-    this.banners();
-    this.flags();
-    this.gargoyles();
-    this.chains();
-    this.stalactites();
-    this.puddleSpots();
-    this.smokeAndFog();
+  /**
+   * Builds the dressing. `skip` names procedural props to leave out, used when scanned models
+   * (ScannedProps) take their place.
+   */
+  dress(skip: ReadonlySet<DressingPart> = NO_SKIP): void {
+    const steps: [DressingPart, () => void][] = [
+      ['landmark', () => this.landmark()],
+      ['arches', () => this.arches()],
+      ['statues', () => this.statues()],
+      ['sarcophagi', () => this.sarcophagi()],
+      ['cages', () => this.cages()],
+      ['racks', () => this.racks()],
+      ['barricades', () => this.barricades()],
+      ['lavaPools', () => this.lavaPools()],
+      ['trees', () => this.trees()],
+      ['crystals', () => this.crystals()],
+      ['mushrooms', () => this.mushrooms()],
+      ['roots', () => this.roots()],
+      ['skullPiles', () => this.skullPiles()],
+      ['remains', () => this.remains()],
+      ['candles', () => this.candles()],
+      ['banners', () => this.banners()],
+      ['flags', () => this.flags()],
+      ['gargoyles', () => this.gargoyles()],
+      ['chains', () => this.chains()],
+      ['stalactites', () => this.stalactites()],
+      ['puddles', () => this.puddleSpots()],
+      ['smoke', () => this.smokeAndFog()],
+    ];
+    for (const [name, run] of steps) if (!skip.has(name)) run();
     if (this.L.fx.lavaMoat) {
       const t = this.def.wall.thickness;
       this.lava.push(lavaRingGeometry(this.R + t + 0.5, this.R + t + 4.8, 3));
