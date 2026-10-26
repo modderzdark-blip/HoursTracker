@@ -7,6 +7,8 @@ import { CreatureAnimator } from '../anim/creatures/CreatureAnimator';
 import { CreatureRig } from '../anim/creatures/CreatureRig';
 import { runCycleSec } from '../anim/locomotion';
 import { EnemyBrain, type BrainContext } from '../ai/EnemyBrain';
+import { NO_AFFIX_EFFECTS, type AffixEffects } from '../data/affixes';
+import type { HitSpec } from '../data/combatTypes';
 import { CREATURES, type CreatureMotion } from '../data/creatures';
 import type { EnemyAttackDef, EnemyDef } from '../data/enemies';
 import { RIGS } from '../data/rigs';
@@ -23,6 +25,8 @@ export interface EnemyScale {
   readonly poise: number;
   /** Movement / attack speed (hunt omens). */
   readonly speed?: number;
+  /** Elite affix behaviours (stats are already folded into the multipliers above). */
+  readonly affix?: AffixEffects;
 }
 
 export const UNIT_SCALE: EnemyScale = { hp: 1, atk: 1, def: 1, poise: 1 };
@@ -60,6 +64,22 @@ const DEATH_CLIPS: Readonly<Record<DeathKind, string>> = {
 
 /** Spawning enemies form out of ash over this long (s). */
 const MATERIALIZE_SEC = 0.75;
+/** Hit flash while a ward soaks the blow (pale blue) instead of the plain white flash. */
+export const WARD_FLASH = 0x8ad8ff;
+
+/** Cinderburst blast (damage / radius come from the affix; bosses blow twice as wide). */
+function burstSpec(damage: number, radius: number): HitSpec {
+  return {
+    damage,
+    poise: 30,
+    reaction: 'knockback',
+    knockback: 2.2,
+    hitStopMs: 60,
+    shake: 0.4,
+    shape: { kind: 'circle', radius, forward: 0 },
+    status: { id: 'burn', chance: 0.6 },
+  };
+}
 
 /**
  * Pooled enemy: rig + kinematic body + AI brain. `activate()` takes it from the pool into the
@@ -85,6 +105,16 @@ export class Enemy extends Actor {
   /** A one-shot flourish (taunt / roar) playing while standing still. */
   private flourish = false;
   private celebrated = false;
+  /** Elite affixes of the current spawn. */
+  affix: AffixEffects = NO_AFFIX_EFFECTS;
+  /** Ward: HP it can still soak, its full size, and time since the last hit (ms). */
+  wardHp = 0;
+  private wardMax = 0;
+  private wardIdleMs = 0;
+  /** Frenzy multipliers (1 until the frenzy affix triggers); boss phases keep them. */
+  frenzyDamage = 1;
+  frenzySpeed = 1;
+  private readonly brainCtx: EnemyDeps['ctx'];
 
   constructor(
     readonly def: EnemyDef,
@@ -122,6 +152,7 @@ export class Enemy extends Actor {
     this.brain = brain ?? new EnemyBrain(deps.ctx);
     this.brain.bind(this);
     this.bus = deps.ctx.bus;
+    this.brainCtx = deps.ctx;
     this.style = rigStyle(def.rig);
     this.burnColor =
       def.creature !== undefined ? CREATURES[def.creature].colors.glow : RIGS[def.rig].look.eyes;
@@ -154,6 +185,12 @@ export class Enemy extends Actor {
     this.damageMult = 1;
     this.baseSpeed = scale.speed ?? 1;
     this.speedMult = this.baseSpeed;
+    this.affix = scale.affix ?? NO_AFFIX_EFFECTS;
+    this.wardMax = this.affix.ward !== null ? this.stats.maxHp * this.affix.ward.frac : 0;
+    this.wardHp = this.wardMax;
+    this.wardIdleMs = 0;
+    this.frenzyDamage = 1;
+    this.frenzySpeed = 1;
     this.deadMs = 0;
     this.wasMoving = false;
     this.dissolving = false;
@@ -196,6 +233,69 @@ export class Enemy extends Actor {
     return s === 'spawning' || s === 'dead' || s === 'inactive';
   }
 
+  /** A standing ward soaks part of every blow. */
+  override damageTakenMult(): number {
+    const w = this.affix.ward;
+    return w !== null && this.wardHp > 0 ? 1 - w.absorb : 1;
+  }
+
+  override lifeSteal(): number {
+    return this.affix.drain;
+  }
+
+  /** Ward bookkeeping and the frenzy trigger after a hit (called before the reaction). */
+  protected afterAffixHit(h: HitReceived): void {
+    this.wardIdleMs = 0;
+    const w = this.affix.ward;
+    if (w !== null && this.wardHp > 0) {
+      // The ward took what the hero's blow lost to it.
+      this.wardHp -= (h.amount * w.absorb) / (1 - w.absorb);
+      if (this.wardHp <= 0) {
+        this.wardHp = 0;
+        this.emitAffix('wardBroken');
+      }
+    }
+    const f = this.affix.frenzy;
+    if (f !== null && this.frenzyDamage === 1 && !h.killed && this.health.frac <= f.belowHpFrac) {
+      this.frenzyDamage = f.damage;
+      this.frenzySpeed = f.speed;
+      this.damageMult *= f.damage;
+      this.speedMult *= f.speed;
+      this.emitAffix('frenzy');
+    }
+  }
+
+  private emitAffix(kind: 'wardBroken' | 'wardUp' | 'frenzy'): void {
+    this.bus.emit('enemy:affix', {
+      kind,
+      actorId: this.id,
+      x: this.currFeet.x,
+      y: this.currFeet.y + this.halfHeight * 2 + this.radius,
+      z: this.currFeet.z,
+    });
+  }
+
+  /** Cinderburst: a telegraphed blast where the body fell. */
+  private releaseBurst(): void {
+    const b = this.affix.burst;
+    const fx = this.brainCtx.effects;
+    if (b === null || fx === undefined) return;
+    const radius = b.radius * (this.bigDeath ? 2 : 1);
+    fx.emit(
+      this,
+      burstSpec(b.damage, radius),
+      {
+        kind: 'zone',
+        zone: { visual: 'eruption', radius, delayMs: b.delayMs, ticks: 1, intervalMs: 0 },
+        place: 'self',
+        forward: 0,
+        count: 1,
+        scatter: 0,
+      },
+      { difficultyMod: this.brainCtx.difficultyMod },
+    );
+  }
+
   hasSuperArmor(): boolean {
     return this.brain.hasSuperArmor();
   }
@@ -205,7 +305,8 @@ export class Enemy extends Actor {
   }
 
   onHit(h: HitReceived): void {
-    this.flashHit(0xffffff, 7);
+    this.flashHit(this.wardHp > 0 ? WARD_FLASH : 0xffffff, 7);
+    this.afterAffixHit(h);
     if (h.killed) {
       this.die(h);
       return;
@@ -270,6 +371,7 @@ export class Enemy extends Actor {
 
   protected die(h?: HitReceived): void {
     this.brain.goDead();
+    this.releaseBurst();
     this.deadMs = 0;
     this.vel.x = this.vel.z = 0;
     this.flourish = false;
@@ -322,11 +424,22 @@ export class Enemy extends Actor {
       return;
     }
     this.poise.tick(dtMs);
+    this.tickWard(dtMs);
     this.brain.think(dtSec);
     const s = this.brain.state;
     const look =
       s === 'chase' || s === 'position' || s === 'alert' ? this.brain.angleToPlayer() : 0;
     this.anim.setLookYaw(look);
+  }
+
+  /** A shattered ward reforms after a while without being hit. */
+  private tickWard(dtMs: number): void {
+    const w = this.affix.ward;
+    if (w === null || this.wardHp > 0) return;
+    this.wardIdleMs += dtMs;
+    if (this.wardIdleMs < w.reformMs) return;
+    this.wardHp = this.wardMax;
+    this.emitAffix('wardUp');
   }
 
   /** Burns the corpse away over the end of its death time, releasing embers. */

@@ -2,6 +2,7 @@
  * Stage content (what a battle contains) and the Adventure chapters built from it. A battle is a
  * StageDef plus runtime choices (hero, difficulty) made by the mode that starts it.
  */
+import type { AffixId } from './affixes';
 import type { ArenaId } from './arenas';
 import type { BossId } from './bosses';
 import type { EnemyId } from './enemies';
@@ -37,6 +38,10 @@ export interface StageDef {
   readonly stars: StarRules;
   /** Pause between a cleared wave and the next. */
   readonly interWaveMs: number;
+  /** Elite affixes on every wave enemy (and summoned add). */
+  readonly affixes?: readonly AffixId[];
+  /** Elite affixes on the boss. */
+  readonly bossAffixes?: readonly AffixId[];
 }
 
 export type StageKind = 'normal' | 'miniboss' | 'boss';

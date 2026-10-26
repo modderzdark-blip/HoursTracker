@@ -1,7 +1,7 @@
 import { BossBrain } from '../ai/BossBrain';
 import type { BossDef } from '../data/bosses';
 import type { EnemyAttackDef } from '../data/enemies';
-import { Enemy, type EnemyDeps, type EnemyScale } from './Enemy';
+import { Enemy, WARD_FLASH, type EnemyDeps, type EnemyScale } from './Enemy';
 import type { HitReceived } from './Actor';
 import { HURT_CLIPS, hitSide } from '../anim/reactions';
 
@@ -34,8 +34,9 @@ export class Boss extends Enemy {
   }
 
   applyPhaseMultipliers(speed: number, damage: number, enraged: boolean): void {
-    this.speedMult = this.baseSpeed * speed * (enraged ? this.bossDef.enrageSpeedMult : 1);
-    this.damageMult = damage * (enraged ? this.bossDef.enrageDamageMult : 1);
+    this.speedMult =
+      this.baseSpeed * speed * this.frenzySpeed * (enraged ? this.bossDef.enrageSpeedMult : 1);
+    this.damageMult = damage * this.frenzyDamage * (enraged ? this.bossDef.enrageDamageMult : 1);
   }
 
   override activate(x: number, z: number, yaw: number, scale: EnemyScale): void {
@@ -56,7 +57,8 @@ export class Boss extends Enemy {
   }
 
   override damageTakenMult(): number {
-    return this.brain.state === 'broken' ? 1 + this.bossDef.breakDamageBonus : 1;
+    const ward = super.damageTakenMult();
+    return this.brain.state === 'broken' ? ward * (1 + this.bossDef.breakDamageBonus) : ward;
   }
 
   get isBroken(): boolean {
@@ -64,7 +66,8 @@ export class Boss extends Enemy {
   }
 
   override onHit(h: HitReceived): void {
-    this.flashHit(0xffffff, 8);
+    this.flashHit(this.wardHp > 0 ? WARD_FLASH : 0xffffff, 8);
+    this.afterAffixHit(h);
     if (h.killed) {
       this.die(h);
       return;

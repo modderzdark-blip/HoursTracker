@@ -192,7 +192,8 @@ export class CombatSystem {
     );
     const applied = target.health.damage(this.dmg.amount);
     const killed = target.health.dead;
-    if (spec.drain !== undefined && applied > 0) attacker.health.heal(applied * spec.drain);
+    const drain = (spec.drain ?? 0) + attacker.lifeSteal();
+    if (drain > 0 && applied > 0) attacker.health.heal(applied * drain);
     const poiseBroken =
       !killed && target.poise.apply(spec.poise * (blocked ? target.blockedPoiseMult() : 1));
     let status: StatusId | null = null;

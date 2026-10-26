@@ -71,6 +71,14 @@ export interface GameEvents {
     readonly big: boolean;
   };
   'enemy:exploded': { readonly x: number; readonly z: number; readonly radius: number };
+  /** An elite affix changed state: a ward shattered or reformed, or a frenzy began. */
+  'enemy:affix': {
+    readonly kind: 'wardBroken' | 'wardUp' | 'frenzy';
+    readonly actorId: number;
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+  };
   'boss:grab': { readonly holding: boolean };
   'boss:phase': { readonly phase: number; readonly label: string };
   'boss:break': { readonly broken: boolean };
