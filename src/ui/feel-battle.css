@@ -475,6 +475,25 @@
     0 2px 3px #000;
 }
 
+/* Stage name over the opening fly-over: smaller, lower, an engraved look. */
+.bfx-title[data-kind='stage'] {
+  top: 70%;
+}
+
+.bfx-title[data-kind='stage'] .bfx-title-main {
+  font-size: clamp(20px, 3.4vw, 34px);
+  letter-spacing: 0.3em;
+  padding-left: 0.3em;
+  color: #f4e3c4;
+  text-shadow:
+    0 0 18px rgba(255, 140, 60, 0.55),
+    0 2px 3px #000;
+}
+
+.bfx-title[data-kind='stage'].is-on .bfx-title-main {
+  animation: card-rise 0.9s ease-out both;
+}
+
 /* ---- low-HP heartbeat vignette */
 .bfx-lowhp {
   --beat: 900ms;

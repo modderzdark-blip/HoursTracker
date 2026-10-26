@@ -138,6 +138,11 @@ export interface TestHookState {
   telegraphs: number;
   effects: { projectiles: number; zones: number };
   cinematic: boolean;
+  /** Playing camera shot ('' when none). */
+  cinematicKind: string;
+  /** Cinematic depth-of-field strength (0..1) and whether ambient occlusion runs. */
+  dof: number;
+  ao: boolean;
   quality: QualityLevel;
   qualitySetting: string;
   benchmarkRunning: boolean;
@@ -994,7 +999,7 @@ export class App {
     window.__ashbound = {
       version: `${BUILD.version}+${BUILD.sha}`,
       setPaused: (paused) => this.setPaused(paused),
-      skipCountdown: () => this.battle?.director.skipCountdown(),
+      skipCountdown: () => this.battle?.skipCountdown(),
       killAll: () => this.battle?.killAllEnemies(),
       skipToBoss: () => this.battle?.skipToBoss(),
       damageBoss: (frac) => this.battle?.damageBoss(frac),
@@ -1090,6 +1095,9 @@ export class App {
             zones: m?.effects.activeZones ?? 0,
           },
           cinematic: m?.cinematicActive ?? false,
+          cinematicKind: m?.cinematicKind ?? '',
+          dof: this.ctx.dofAmount,
+          ao: this.ctx.aoEnabled,
           quality: this.quality.level,
           qualitySetting: this.quality.setting,
           benchmarkRunning: this.quality.benchmarkRunning,

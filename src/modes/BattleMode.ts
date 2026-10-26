@@ -13,6 +13,15 @@ import type { AudioManager } from '../audio/AudioManager';
 import { Sfx } from '../audio/Sfx';
 import type { Stingers } from '../audio/Stingers';
 import { CameraDirector } from '../camera/CameraDirector';
+import {
+  bossDeathShot,
+  CINEMATIC_CONFIG,
+  isElite,
+  KillCamLimiter,
+  killCamShot,
+  stageIntroShots,
+  ultimateShot,
+} from '../camera/cinematics';
 import type { FollowCamera } from '../camera/FollowCamera';
 import { CombatSystem } from '../combat/CombatSystem';
 import { Effects, type EffectVisuals } from '../combat/Effects';
@@ -24,6 +33,7 @@ import { ARENAS, type ArenaDef } from '../data/arenas';
 import { BOSSES, type BossId } from '../data/bosses';
 import type { StatBlock } from '../data/combatTypes';
 import { DIFFICULTIES, type DifficultyDef, type DifficultyId } from '../data/difficulty';
+import { CAMERA_CONFIG } from '../data/config';
 import { ECONOMY } from '../data/economy';
 import type { EnemyId } from '../data/enemies';
 import type { HeroDef } from '../data/heroes';
@@ -219,6 +229,12 @@ export class BattleMode implements QualityTarget, WaveWorld {
   private duelHudShown = false;
   private introPending = false;
   private dotTarget: Actor | null = null;
+  /** Cinematic state: the opening fly-over plays once per battle (not again on retry). */
+  private introPlayed = false;
+  private stageIntroActive = false;
+  private entranceDone = false;
+  private pendingVictoryShot = false;
+  private readonly killCams = new KillCamLimiter();
   private readonly tmp = new Vector3();
   private readonly bossFrame = new Vector3();
   private readonly statusStacks: Record<StatusId, number> = { bleed: 0, burn: 0, slow: 0 };
@@ -380,7 +396,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
       hero.ultimate.clones,
     );
 
-    this.hud = new BattleHud(d.uiRoot, () => this.director.skipCountdown());
+    this.hud = new BattleHud(d.uiRoot, () => this.skipCountdown());
     this.hud.setHeroName(hero.name);
     this.numbers = new DamageNumbers(d.uiRoot);
     this.callouts = new BattleCallouts(d.uiRoot);
@@ -515,6 +531,10 @@ export class BattleMode implements QualityTarget, WaveWorld {
           );
       }),
       b.on('player:action', (e) => this.onPlayerAction(e.kind, e.index)),
+      // Any gameplay input during the opening fly-over hands control back at once.
+      b.on('input:pressed', () => {
+        if (this.stageIntroActive) this.cam.skip();
+      }),
       b.on('player:died', () => {
         this.resultKind = 'defeat';
         this.resultTimerMs = DEFEAT_SCREEN_DELAY_MS;
@@ -543,6 +563,8 @@ export class BattleMode implements QualityTarget, WaveWorld {
         this.sfx.play('roar');
         const name = this.boss?.bossDef.name ?? '';
         this.feel.bossPhase(name, e.label, () => this.fxd.screen(0.42, 0xff6a2a, 0.01));
+        // Push in on the enraged boss for a beat.
+        this.d.camera.punch(-0.16, 1300);
       }),
       b.on('ultimate:charge', (e) => this.feel.ultimateCharge(e.value)),
       b.on('boss:break', (e) => {
@@ -578,6 +600,13 @@ export class BattleMode implements QualityTarget, WaveWorld {
       }),
     );
     this.souls.onCollect = () => this.sfx.play('soul', 0.6);
+    // A tap anywhere (also on the touch layer, which covers the canvas) skips the fly-over and
+    // the boss death shot.
+    const onTap = (): void => {
+      if (this.stageIntroActive || this.cam.kind === 'bossDeath') this.cam.skip();
+    };
+    window.addEventListener('pointerdown', onTap, { capture: true, passive: true });
+    this.disposers.push(() => window.removeEventListener('pointerdown', onTap, { capture: true }));
   }
 
   // ------------------------------------------------------------------ run flow
@@ -602,6 +631,9 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.hud.setVisible(true);
     this.tokens.clear();
     this.cam.cancel();
+    this.stageIntroActive = false;
+    this.pendingVictoryShot = false;
+    this.killCams.reset();
     this.d.camera.setFraming(null);
     this.bossActive = false;
     this.bossIntroFinished = false;
@@ -632,7 +664,113 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.d.setInputEnabled(true);
     // The chapter card starts with the first rendered frame (building the arena can take a while).
     this.introPending = this.setup.chapterIntro !== undefined;
-    if (!this.introPending) this.hud.showBanner(this.setup.label.toUpperCase(), 'wave', 1800);
+    if (!this.introPlayed) {
+      this.introPlayed = true;
+      this.startStageIntro();
+    } else if (!this.introPending) {
+      this.hud.showBanner(this.setup.label.toUpperCase(), 'wave', 1800);
+    }
+  }
+
+  // ------------------------------------------------------------------ cinematics
+
+  /**
+   * Opening fly-over: a high sweep across the arena's landmark, a crane down onto the hero (who
+   * draws their weapon), then a swing into the gameplay camera. The stage clock waits for it;
+   * a tap, any input or moving skips it.
+   */
+  private startStageIntro(): void {
+    const p = this.player;
+    const o = this.d.camera.options;
+    const [lx, lz] = this.arena.bossSpawn;
+    const shots = stageIntroShots({
+      hero: p.currFeet,
+      heroYaw: p.yaw,
+      landmark: { x: lx, z: lz },
+      arenaRadius: this.arena.floorRadius,
+      follow: {
+        distance: o.distance,
+        height: o.height,
+        lookAtHeight: CAMERA_CONFIG.lookAtHeight,
+        yawDeg: CAMERA_CONFIG.yawDeg,
+      },
+    });
+    const total = shots.reduce((t, sh) => t + sh.durationMs, 0);
+    this.stageIntroActive = true;
+    this.entranceDone = false;
+    // The chapter card titles a chapter's first stage; otherwise the stage name shows here.
+    this.feel.stageIntro(this.introPending ? null : this.setup.label, total);
+    this.cam.playSequence(shots, () => this.endStageIntro(), null, 'stageIntro');
+  }
+
+  private endStageIntro(): void {
+    if (!this.stageIntroActive) return;
+    this.stageIntroActive = false;
+    this.feel.stageIntroEnd();
+    this.d.camera.blendFromCurrent();
+  }
+
+  /** Cuts the fly-over now (Start now / test hooks / the boss arriving). */
+  private cutStageIntro(): void {
+    if (!this.stageIntroActive) return;
+    this.cam.cancel();
+    this.endStageIntro();
+  }
+
+  /** The hero lands in the close-up: weapon flourish, dust ring, a thud. */
+  private heroEntrance(): void {
+    this.entranceDone = true;
+    const f = this.player.currFeet;
+    this.player.playEntrance();
+    this.telegraphs.ring(f.x, f.z, 2.4, this.setup.hero.color, 520);
+    this.sparks.burst(f.x, 0.25, f.z, 28, SPARK.ash, 5, 0, 0, 0.7, 1.5, -0.1);
+    this.sparks.burst(f.x, 1.2, f.z, 12, this.setup.hero.color, 3, 0, 0, 0.45, 1.1, -0.3);
+    this.sfx.play('slam', 0.45);
+    this.feel.heroEntrance();
+  }
+
+  /** Brief slow-motion push-in on a kill (rate limited; never over another shot). */
+  private tryKillCam(kind: 'elite' | 'waveEnd', x: number, z: number): void {
+    if (this.cam.active || !this.player.alive || this.resultKind !== null) return;
+    if (!this.killCams.tryFire(kind, this.d.clock.nowMs)) return;
+    const k = CINEMATIC_CONFIG.killCam;
+    this.feel.killCam(k.slowScale, k.slowMs);
+    this.cam.play(
+      killCamShot(this.tmp.set(x, this.player.currFeet.y, z), this.player.currFeet),
+      () => this.d.camera.blendFromCurrent(),
+      null,
+      'killCam',
+    );
+  }
+
+  /** Slow-motion arc around the falling boss / rival, a burst and a flash; then the victory shot. */
+  private playBossDeath(actor: Actor, x: number, z: number, color: number): void {
+    const scale = actor.rig.height / 1.9;
+    const y = actor.currFeet.y;
+    this.sparks.burst(x, 1.6 * scale, z, 90, color, 12, 0, 0, 0.9, 1.8, 0.2);
+    this.sparks.burst(x, 0.4, z, 50, SPARK.ash, 7, 0, 0, 1, 1.9, -0.2);
+    this.telegraphs.ring(x, z, 5 * scale, color, 900);
+    this.fxLights.flash(x, 2 * scale, z, 0xffe0b0, 2, 0.7);
+    this.feel.bossDeath(() => this.fxd.screen(0.5, 0xffe6c0, 0.012));
+    this.cam.play(
+      bossDeathShot(this.tmp.set(x, y, z), this.player.currFeet, scale),
+      () => {
+        if (this.pendingVictoryShot) {
+          this.pendingVictoryShot = false;
+          this.playVictoryShot();
+        } else {
+          this.d.camera.blendFromCurrent();
+        }
+      },
+      null,
+      'bossDeath',
+    );
+  }
+
+  /** Skips the practice countdown (Start now button, test hook) and the opening fly-over. */
+  skipCountdown(): void {
+    this.cutStageIntro();
+    this.director.skipCountdown();
   }
 
   // WaveWorld ---------------------------------------------------------
@@ -673,6 +811,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
   startBossIntro(): void {
     const boss = this.boss;
     if (boss === null) return;
+    this.cutStageIntro();
     this.removeDummy();
     const [bx, bz] = this.arena.bossSpawn;
     const yaw = Math.atan2(this.player.currFeet.x - bx, this.player.currFeet.z - bz);
@@ -701,6 +840,8 @@ export class BattleMode implements QualityTarget, WaveWorld {
         endRadiusMult: 0.58,
       },
       () => this.finishBossIntro(),
+      null,
+      'bossIntro',
     );
     this.d.bus.emit('stage:bossIntro', {});
   }
@@ -743,6 +884,10 @@ export class BattleMode implements QualityTarget, WaveWorld {
     if (wave === 0) this.removeDummy();
     this.callouts.hideChapter();
     this.feel.waveStart(wave, total);
+    // Camera beat: ease back to take in the incoming wave.
+    const final = total > 1 && wave === total - 1;
+    this.d.camera.punch(final ? 0.2 : 0.13, final ? 1600 : 1200);
+    this.feel.waveBeat(final);
     this.d.bus.emit('wave:start', { wave, total });
   }
 
@@ -780,7 +925,9 @@ export class BattleMode implements QualityTarget, WaveWorld {
     }
     this.d.setInputEnabled(false);
     this.player.playVictory();
-    this.playVictoryShot();
+    // After a boss falls its death shot plays out first; the victory orbit follows it.
+    if (this.cam.active && this.cam.kind === 'bossDeath') this.pendingVictoryShot = true;
+    else this.playVictoryShot();
     this.feel.victory(bossFight ? VICTORY_TITLE_MS.boss : VICTORY_TITLE_MS.waves);
     this.d.bus.emit('stage:victory', {});
   }
@@ -802,6 +949,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
       },
       () => this.d.camera.blendFromCurrent(),
       p.renderFeet,
+      'victory',
     );
   }
 
@@ -903,6 +1051,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
       this.hud.showBanner(`${this.setup.duel?.name.toUpperCase() ?? 'RIVAL'} FALLS`, 'phase', 2200);
       this.hud.hideBoss();
       this.d.camera.setFraming(null);
+      this.playBossDeath(this.duelist, x, z, this.setup.duel?.hero.color ?? 0xffb050);
       return;
     }
     const boss = this.boss;
@@ -918,6 +1067,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
       this.hud.hideBoss();
       this.d.camera.setFraming(null);
       this.telegraphs.hideAll();
+      this.playBossDeath(boss, x, z, 0xffb050);
       this.d.bus.emit('boss:defeated', { souls, x, z });
       return;
     }
@@ -929,6 +1079,15 @@ export class BattleMode implements QualityTarget, WaveWorld {
       this.soulsThisRun += souls;
       this.souls.burst(x, 1.2, z, souls * 3);
     }
+    // Kill cam: an elite falls, or the last enemy of a wave (not the stage's very last kill,
+    // where the victory shot takes over).
+    const dir = this.director;
+    const lastOfWave =
+      dir.phase === 'wave' && dir.pendingSpawns === 0 && this.roster.aliveCount() === 0;
+    const stageEnds =
+      lastOfWave && dir.wave >= dir.totalWaves - 1 && this.boss === null && this.duelist === null;
+    if (lastOfWave && !stageEnds) this.tryKillCam('waveEnd', x, z);
+    else if (e !== undefined && isElite(e.def.stats.maxHp)) this.tryKillCam('elite', x, z);
   }
 
   private onPlayerAction(kind: 'attack' | 'dodge' | 'skill' | 'ultimate', index: number): void {
@@ -971,21 +1130,12 @@ export class BattleMode implements QualityTarget, WaveWorld {
         const hero = this.setup.hero;
         this.feel.ultimate(hero.ultimate.name, `#${hero.color.toString(16).padStart(6, '0')}`);
         this.fxd.screen(0.3, hero.color, 0.006);
-        const yawDeg = (p.yaw * 180) / Math.PI;
-        // Snap in close on the hero, then pull out as the ultimate erupts.
+        // A short move picked from the ultimate's own data (low angle / pull-out / orbit).
         this.cam.play(
-          {
-            center: this.tmp.copy(p.currFeet),
-            radius: 3,
-            height: 1.4,
-            fromDeg: yawDeg + 140,
-            toDeg: yawDeg + 200,
-            durationMs: 950,
-            lookHeight: 1.2,
-            endRadiusMult: 2.1,
-          },
+          ultimateShot(hero.ultimate, p.currFeet, p.yaw),
           () => this.d.camera.blendFromCurrent(),
           p.renderFeet,
+          'ultimate',
         );
         break;
       }
@@ -1016,7 +1166,8 @@ export class BattleMode implements QualityTarget, WaveWorld {
 
   fixedUpdate(dtSec: number): void {
     const dtMs = dtSec * 1000;
-    this.director.update(dtMs);
+    // The stage clock waits for the opening fly-over.
+    if (!this.stageIntroActive) this.director.update(dtMs);
     const boss = this.boss;
 
     this.player.think(dtSec);
@@ -1193,7 +1344,23 @@ export class BattleMode implements QualityTarget, WaveWorld {
       );
       this.d.camera.setFraming(this.bossFrame, size);
     }
-    if (!this.cam.update(realDtSec, this.d.camera.camera)) {
+    if (this.stageIntroActive) {
+      // Moving the stick takes control straight away.
+      const v = this.player.renderVelocity;
+      if (v.x * v.x + v.z * v.z > 0.5) this.cam.skip();
+      else if (
+        !this.entranceDone &&
+        (this.cam.sequenceIndex > 1 ||
+          (this.cam.sequenceIndex === 1 &&
+            this.cam.progress >= CINEMATIC_CONFIG.stageIntro.entranceAt))
+      )
+        this.heroEntrance();
+    }
+    this.updateDynamicFraming();
+    const shot = this.cam.update(realDtSec, this.d.camera.camera);
+    // Depth of field only while a shot plays (High / Ultra); gameplay stays sharp.
+    this.d.ctx.setCinematicFocus(shot ? this.cam.focusDistance : null, realDtSec);
+    if (!shot) {
       this.d.camera.update(
         feet,
         this.player.renderVelocity,
@@ -1243,6 +1410,25 @@ export class BattleMode implements QualityTarget, WaveWorld {
       this.introPending = false;
       this.feel.chapterIntro(intro);
     }
+  }
+
+  /** Lean toward the nearest enemy and ease back when the field is crowded (no allocation). */
+  private updateDynamicFraming(): void {
+    const feet = this.player.renderFeet;
+    let best: Enemy | null = null;
+    let bestD = Number.POSITIVE_INFINITY;
+    for (const e of this.roster.active) {
+      if (!e.alive) continue;
+      const dx = e.renderFeet.x - feet.x;
+      const dz = e.renderFeet.z - feet.z;
+      const d = dx * dx + dz * dz;
+      if (d < bestD) {
+        bestD = d;
+        best = e;
+      }
+    }
+    this.d.camera.setThreat(best === null ? null : best.renderFeet);
+    this.d.camera.setCrowd(this.roster.aliveCount());
   }
 
   private updateHud(dtSec: number): void {
@@ -1364,7 +1550,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
   }
 
   skipToBoss(): void {
-    this.director.skipCountdown();
+    this.skipCountdown();
     this.killAllEnemies();
     this.director.skipToBoss();
   }
@@ -1420,12 +1606,20 @@ export class BattleMode implements QualityTarget, WaveWorld {
     return this.cam.active;
   }
 
+  /** Playing shot: 'stageIntro', 'bossIntro', 'killCam', 'ultimate', 'bossDeath', 'victory'. */
+  get cinematicKind(): string {
+    return this.cam.kind;
+  }
+
   get telegraphCount(): number {
     return this.telegraphs.activeCount;
   }
 
   dispose(): void {
     for (const d of this.disposers) d();
+    this.d.ctx.setCinematicFocus(null, 10);
+    this.d.camera.setThreat(null);
+    this.d.camera.setCrowd(0);
     this.effects.dispose();
     this.duelist?.dispose();
     this.player.dispose();

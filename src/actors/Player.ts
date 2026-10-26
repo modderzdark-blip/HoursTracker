@@ -901,6 +901,18 @@ export class Player extends Actor {
     this.anim.play('victory', { fade: 0.25, restart: true });
   }
 
+  /**
+   * Stage entrance (cosmetic): standing still, the hero plays a weapon flourish — never blocks
+   * input; any move or action replaces it.
+   */
+  playEntrance(): void {
+    if (this.state !== 'locomotion' || this.wasRunning) return;
+    const name = this.idleVariants[0];
+    if (name === undefined) return;
+    this.anim.play(name, { fade: 0.2, restart: true });
+    this.idleMs = 0;
+  }
+
   /** True while the victory pose plays or holds. */
   get celebrating(): boolean {
     return this.state === 'victory';

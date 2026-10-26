@@ -38,6 +38,15 @@ export class FollowCamera {
   private readonly blendQuat = new Quaternion();
   /** Live parameters from the camera settings (CAMERA_CONFIG scaled); see setOptions(). */
   private opts: CameraOptions = DEFAULT_CAMERA_OPTIONS;
+  // Dynamic framing: lean toward the nearest threat, pull back for crowds, zoom punches.
+  private readonly threatPoint = new Vector3();
+  private hasThreat = false;
+  private readonly threatLead = new Vector3();
+  private crowdTarget = 0;
+  private crowd = 0;
+  private punchAmount = 0;
+  private punchMs = 0;
+  private punchTotalMs = 0;
 
   constructor(aspect: number, options: CameraOptions = DEFAULT_CAMERA_OPTIONS) {
     const c = CAMERA_CONFIG;
@@ -89,6 +98,48 @@ export class FollowCamera {
 
   private frameSize = 0;
 
+  /**
+   * The nearest threat (an enemy) the camera leans toward a little, or null. Part of the
+   * look-ahead setting: with look-ahead off the camera stays centred on the hero.
+   */
+  setThreat(point: Vector3 | null): void {
+    this.hasThreat = point !== null;
+    if (point !== null) this.threatPoint.copy(point);
+  }
+
+  /** Enemies on the field: the camera eases back a little when many are around. */
+  setCrowd(count: number): void {
+    const d = CAMERA_CONFIG.dynamic;
+    this.crowdTarget =
+      Math.min(1, Math.max(0, (count - d.crowdFrom) / (d.crowdFull - d.crowdFrom))) * d.crowdZoom;
+  }
+
+  /**
+   * A brief zoom (negative = in, positive = out, as a fraction of the distance) that rises and
+   * settles over `ms` — phase changes, wave starts. Real time.
+   */
+  punch(amount: number, ms: number): void {
+    this.punchAmount = amount;
+    this.punchMs = 0;
+    this.punchTotalMs = Math.max(1, ms);
+  }
+
+  /** Current extra zoom factor from crowd + punch (tests / debug). */
+  get dynamicZoom(): number {
+    return this.crowd + this.punchValue();
+  }
+
+  private punchValue(): number {
+    if (this.punchTotalMs <= 0) return 0;
+    const t = Math.min(1, this.punchMs / this.punchTotalMs);
+    // Quick attack, slow release.
+    const env =
+      t < 0.25
+        ? Math.sin((t / 0.25) * (Math.PI / 2))
+        : 0.5 + 0.5 * Math.cos(((t - 0.25) / 0.75) * Math.PI);
+    return this.punchAmount * env;
+  }
+
   /** Start from the current camera transform and ease into the follow pose (after cinematics). */
   blendFromCurrent(ms: number = CAMERA_CONFIG.cinematicBlendMs): void {
     this.blendPos.copy(this.camera.position);
@@ -106,6 +157,10 @@ export class FollowCamera {
   snap(target: Vector3): void {
     this.anchor.copy(target);
     this.lead.set(0, 0, 0);
+    this.threatLead.set(0, 0, 0);
+    this.hasThreat = false;
+    this.crowd = this.crowdTarget = 0;
+    this.punchTotalMs = 0;
     this.apply(0);
   }
 
@@ -141,7 +196,28 @@ export class FollowCamera {
     } else {
       this.frameShift.set(0, 0, 0);
     }
-    this.offset.copy(this.baseOffset).multiplyScalar(1 + extra);
+    // Lean toward the nearest threat (not while framing a boss, which already does).
+    const dyn = c.dynamic;
+    this.tmp.set(0, 0, 0);
+    if (this.hasThreat && o.lookAhead > 0 && this.frameBlend < 0.5) {
+      this.tmp.subVectors(this.threatPoint, target);
+      this.tmp.y = 0;
+      const d = this.tmp.length();
+      if (d > 0.5 && d < dyn.threatRange) {
+        // Strongest at mid range: nothing when the enemy is on top of the hero or far away.
+        const w = Math.min(1, (d - 0.5) / 2) * (1 - d / dyn.threatRange);
+        this.tmp.multiplyScalar((dyn.threatLead * w) / d);
+      } else {
+        this.tmp.set(0, 0, 0);
+      }
+    }
+    this.threatLead.lerp(this.tmp, smoothingFactor(dyn.threatSharpness, dtSec));
+    this.crowd += (this.crowdTarget - this.crowd) * smoothingFactor(dyn.crowdSharpness, dtSec);
+    if (this.punchTotalMs > 0) {
+      this.punchMs += dtSec * 1000;
+      if (this.punchMs >= this.punchTotalMs) this.punchTotalMs = 0;
+    }
+    this.offset.copy(this.baseOffset).multiplyScalar(1 + extra + this.crowd + this.punchValue());
     this.apply(dtSec);
     if (this.blendTotalMs > 0) {
       this.blendMs += dtSec * 1000;
@@ -155,9 +231,14 @@ export class FollowCamera {
 
   private apply(dtSec: number): void {
     const c = CAMERA_CONFIG;
-    this.lookTarget.copy(this.anchor).add(this.lead).add(this.frameShift);
+    this.lookTarget.copy(this.anchor).add(this.lead).add(this.frameShift).add(this.threatLead);
     this.lookTarget.y += c.lookAtHeight;
-    this.camera.position.copy(this.anchor).add(this.lead).add(this.frameShift).add(this.offset);
+    this.camera.position
+      .copy(this.anchor)
+      .add(this.lead)
+      .add(this.frameShift)
+      .add(this.threatLead)
+      .add(this.offset);
     this.camera.up.set(0, 1, 0);
     this.camera.lookAt(this.lookTarget);
 

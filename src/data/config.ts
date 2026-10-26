@@ -80,6 +80,19 @@ export const CAMERA_CONFIG = {
   },
   /** Blend time back to the follow camera after a cinematic. */
   cinematicBlendMs: 450,
+  /** Gameplay framing polish (part of the look-ahead setting where noted). */
+  dynamic: {
+    /** Lean toward the nearest enemy by up to this many metres (look-ahead setting). */
+    threatLead: 1.1,
+    /** Enemies farther than this are ignored. */
+    threatRange: 10,
+    threatSharpness: 2.2,
+    /** Extra distance (fraction) when `crowdFull` enemies are alive; starts above `crowdFrom`. */
+    crowdZoom: 0.12,
+    crowdFrom: 3,
+    crowdFull: 10,
+    crowdSharpness: 0.9,
+  },
   shake: {
     /** Trauma decays by this much per second. Shake strength = trauma². */
     decayPerSec: 1.6,

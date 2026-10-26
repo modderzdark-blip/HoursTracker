@@ -168,8 +168,13 @@ export class BattleCallouts {
     }, 1300);
   }
 
-  /** Big centre title (VICTORY, phase changes, the ultimate's name). */
-  showTitle(main: string, sub: string, kind: 'victory' | 'phase' | 'ult', ms: number): void {
+  /** Big centre title (VICTORY, phase changes, the ultimate's name, the stage name). */
+  showTitle(
+    main: string,
+    sub: string,
+    kind: 'victory' | 'phase' | 'ult' | 'stage',
+    ms: number,
+  ): void {
     this.titleMain.textContent = main;
     this.titleSub.textContent = sub;
     this.titleSub.classList.toggle('is-hidden', sub.length === 0);
