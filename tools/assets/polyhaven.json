@@ -1,36 +1,42 @@
 {
   "assets": {
-    "antique_estoc": {
+    "GothicCabinet_01": {
       "res": "1k"
     },
-    "boulder_01": {
+    "antique_estoc": {
       "res": "1k"
     },
     "brass_candleholders": {
       "res": "1k"
     },
     "brown_mud_rocks_01": {
-      "res": "1k"
+      "res": "2k"
     },
     "caged_hanging_light": {
       "res": "1k"
     },
+    "castle_brick_07": {
+      "res": "2k"
+    },
     "castle_brick_broken_06": {
-      "res": "1k"
+      "res": "2k"
     },
     "castle_wall_varriation": {
-      "res": "1k"
+      "res": "2k"
     },
     "cobblestone_floor_07": {
-      "res": "1k"
+      "res": "2k"
     },
     "cobblestone_square": {
-      "res": "1k"
+      "res": "2k"
     },
     "cracked_red_ground": {
-      "res": "1k"
+      "res": "2k"
     },
     "dark_brick_wall": {
+      "res": "2k"
+    },
+    "dead_quiver_trunk": {
       "res": "1k"
     },
     "dead_tree_trunk": {
@@ -43,12 +49,21 @@
       "res": "1k"
     },
     "dry_ground_rocks": {
-      "res": "1k"
+      "res": "2k"
+    },
+    "forest_floor": {
+      "res": "2k"
     },
     "forest_ground_04": {
-      "res": "1k"
+      "res": "2k"
     },
     "gothic_statue": {
+      "res": "1k"
+    },
+    "grassy_cobblestone": {
+      "res": "2k"
+    },
+    "horse_statue_01": {
       "res": "1k"
     },
     "kite_shield": {
@@ -67,37 +82,52 @@
       "res": "1k"
     },
     "marble_mosaic_tiles": {
-      "res": "1k"
+      "res": "2k"
+    },
+    "medieval_blocks_06": {
+      "res": "2k"
     },
     "modular_fort_01": {
       "res": "1k"
     },
     "monastery_stone_floor": {
-      "res": "1k"
+      "res": "2k"
     },
     "mossy_cobblestone": {
-      "res": "1k"
+      "res": "2k"
     },
     "mossy_rock": {
+      "res": "2k"
+    },
+    "mountainside": {
       "res": "1k"
     },
     "mud_cracked_dry_03": {
-      "res": "1k"
+      "res": "2k"
     },
     "namaqualand_boulders_01": {
       "res": "1k"
     },
-    "patterned_cobblestone": {
+    "namaqualand_cliff_01": {
       "res": "1k"
     },
-    "patterned_slate_tiles": {
+    "namaqualand_cliff_02": {
       "res": "1k"
+    },
+    "old_stone_wall": {
+      "res": "2k"
+    },
+    "patterned_slate_tiles": {
+      "res": "2k"
     },
     "pine_roots": {
       "res": "1k"
     },
-    "red_mud_stones": {
+    "quiver_tree_01": {
       "res": "1k"
+    },
+    "red_mud_stones": {
+      "res": "2k"
     },
     "rock_07": {
       "res": "1k"
@@ -106,7 +136,7 @@
       "res": "1k"
     },
     "rock_boulder_cracked": {
-      "res": "1k"
+      "res": "2k"
     },
     "rock_face_01": {
       "res": "1k"
@@ -121,19 +151,31 @@
       "res": "1k"
     },
     "rock_pitted_mossy": {
-      "res": "1k"
+      "res": "2k"
+    },
+    "rock_wall": {
+      "res": "2k"
     },
     "rock_wall_08": {
-      "res": "1k"
+      "res": "2k"
     },
     "rock_wall_13": {
-      "res": "1k"
+      "res": "2k"
     },
     "root_cluster_01": {
       "res": "1k"
     },
-    "slate_floor": {
+    "root_cluster_02": {
       "res": "1k"
+    },
+    "single_root": {
+      "res": "1k"
+    },
+    "slate_floor": {
+      "res": "2k"
+    },
+    "slate_floor_02": {
+      "res": "2k"
     },
     "stone_01": {
       "res": "1k"
@@ -142,10 +184,10 @@
       "res": "1k"
     },
     "stone_tiles_02": {
-      "res": "1k"
+      "res": "2k"
     },
     "stone_wall_04": {
-      "res": "1k"
+      "res": "2k"
     },
     "treasure_chest": {
       "res": "1k"
@@ -157,12 +199,15 @@
       "res": "1k"
     },
     "volcanic_rock_tiles": {
-      "res": "1k"
+      "res": "2k"
     },
     "wine_barrel_01": {
       "res": "1k"
     },
     "wooden_barrels_01": {
+      "res": "1k"
+    },
+    "wooden_bookshelf_worn": {
       "res": "1k"
     },
     "wooden_candlestick": {

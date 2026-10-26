@@ -16,7 +16,8 @@ import { dedup, meshopt, prune, simplify, textureCompress, weld } from '@gltf-tr
 import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
 import sharp from 'sharp';
 
-const SURFACE_SIZE = 1024;
+/** Surfaces ship at 2048 px; the game downsizes them on load for Low/Medium (AssetLibrary). */
+const SURFACE_SIZE = 2048;
 
 /** Tileable surfaces (floors, walls, cliffs). */
 export const SURFACES = [
@@ -44,6 +45,13 @@ export const SURFACES = [
   'stone_tiles_02',
   'stone_wall_04',
   'volcanic_rock_tiles',
+  'forest_floor',
+  'grassy_cobblestone',
+  'castle_brick_07',
+  'medieval_blocks_06',
+  'old_stone_wall',
+  'slate_floor_02',
+  'rock_wall',
 ];
 
 /** Props: triangle budget and texture edge (px). */
@@ -81,6 +89,16 @@ export const MODELS = {
   wooden_crate_01: [2500, 512],
   wooden_lantern_01: [2500, 512],
   worn_metal_rack: [2500, 512],
+  horse_statue_01: [6000, 1024],
+  mountainside: [20000, 1024],
+  namaqualand_cliff_01: [12000, 1024],
+  namaqualand_cliff_02: [16000, 1024],
+  dead_quiver_trunk: [5000, 1024],
+  quiver_tree_01: [10000, 1024],
+  root_cluster_02: [8000, 1024],
+  single_root: [5000, 1024],
+  GothicCabinet_01: [4000, 512],
+  wooden_bookshelf_worn: [3000, 512],
 };
 
 function find(dir, re) {
@@ -90,10 +108,10 @@ function find(dir, re) {
 
 async function surface(src, id, out) {
   const tex = join(src, id, 'textures');
-  const diff = find(tex, /_diff_1k\.jpg$/);
-  const nor = find(tex, /_nor_gl_1k\.jpg$/);
-  const arm = find(tex, /_arm_1k\.jpg$/);
-  const rough = find(tex, /_rough_1k\.jpg$/);
+  const diff = find(tex, /_diff_[12]k\.jpg$/);
+  const nor = find(tex, /_nor_gl_[12]k\.jpg$/);
+  const arm = find(tex, /_arm_[12]k\.jpg$/);
+  const rough = find(tex, /_rough_[12]k\.jpg$/);
   if (diff === null || nor === null || (arm === null && rough === null))
     throw new Error(`${id}: missing maps`);
   const dst = join(out, 'surfaces', id);
