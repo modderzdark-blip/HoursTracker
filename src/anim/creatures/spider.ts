@@ -242,6 +242,34 @@ export const spiderPlan: CreaturePlan = {
         rigidW(bi(name)),
       );
     }
+    if (def.spines === true) {
+      // Brood queen: a crown of backswept bone horns and two rows of spines down the abdomen.
+      for (let k = 0; k < 5; k++) {
+        const a = (k / 4 - 0.5) * 1.6;
+        body.add(
+          place(
+            new ConeGeometry(0.03, 0.22 - Math.abs(a) * 0.06, 6),
+            [H.x + Math.sin(a) * 0.13, H.y + 0.12 + Math.cos(a) * 0.04, H.z - 0.02],
+            [-0.9, 0, -a * 0.8],
+          ),
+          S.horn(c.plates),
+          rigidW(iHead),
+        );
+      }
+      for (let k = 0; k < 5; k++) {
+        for (const sd of [1, -1]) {
+          body.add(
+            place(
+              new ConeGeometry(0.045, 0.3 - k * 0.03, 6),
+              [sd * 0.16, ac.y + 0.36 - k * 0.03, ac.z + 0.34 - k * 0.2],
+              [-0.7, 0, -sd * 0.35],
+            ),
+            S.horn(c.plates),
+            rigidW(iAbd),
+          );
+        }
+      }
+    }
     // Legs: femur + tibia with joint knobs and banding.
     for (const { s, tag } of SIDES) {
       for (let i = 0; i < LEGS.length; i++) {

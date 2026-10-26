@@ -2503,6 +2503,75 @@ class Builder {
         mirrorSockets();
         break;
       }
+      case 'greataxe': {
+        // Executioner's axe: long banded haft, one broad crescent bit, a back spike and a pommel
+        // spike. The cutting edge flares with fire from phase II (FX bone).
+        tilt = 0.45;
+        inHand(
+          'RightHand',
+          place(new CylinderGeometry(0.024, 0.028, 1.9, 8), [0, 0, 0.38], [Math.PI / 2, 0, 0]),
+          SURF.leather(0x3a2a22),
+        );
+        for (const z of [-0.08, 0.14, 0.62, 0.86]) {
+          inHand('RightHand', place(new TorusGeometry(0.03, 0.009, 4, 10), [0, 0, z]), trim);
+        }
+        // Bit: shape length → −Y (away from the haft), width → +Z, like the scythe blade.
+        const ax = new Shape();
+        ax.moveTo(0, 0.16);
+        ax.quadraticCurveTo(0.3, 0.18, 0.56, 0.44);
+        ax.quadraticCurveTo(0.78, 0.04, 0.56, -0.38);
+        ax.quadraticCurveTo(0.3, -0.12, 0, -0.13);
+        ax.lineTo(0, 0.16);
+        const bit = new ExtrudeGeometry(ax, {
+          depth: 0.03,
+          bevelEnabled: true,
+          bevelThickness: 0.01,
+          bevelSize: 0.012,
+          bevelSegments: 1,
+          curveSegments: 10,
+        });
+        bit.translate(0, 0, -0.015);
+        bit.applyMatrix4(new Matrix4().set(0, 0, -1, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1));
+        bit.translate(0, 0, 1.08);
+        inHand('RightHand', bit, metal);
+        inHand(
+          'RightHand',
+          place(new RoundedBoxGeometry(0.08, 0.12, 0.34, 1, 0.02), [0, -0.02, 1.1]),
+          trim,
+        );
+        inHand(
+          'RightHand',
+          place(new ConeGeometry(0.04, 0.26, 6), [0, 0.18, 1.1], [0, 0, 0]),
+          metal,
+        );
+        inHand(
+          'RightHand',
+          place(new ConeGeometry(0.03, 0.2, 6), [0, 0, 1.42], [Math.PI / 2, 0, 0]),
+          metal,
+        );
+        inHand(
+          'RightHand',
+          place(new ConeGeometry(0.026, 0.14, 6), [0, 0, -0.62], [-Math.PI / 2, 0, 0]),
+          metal,
+        );
+        inHand(
+          'RightHand',
+          ellipsoid([0, -0.02, 1.1], [0.035, 0.035, 0.035], [6, 5]),
+          SURF.glow(this.accent),
+          true,
+        );
+        inHand(
+          'RightHand',
+          place(new RoundedBoxGeometry(0.05, 0.07, 0.7, 1, 0.02), [0, -0.66, 1.1]),
+          SURF.glow(0xff6a1a),
+          true,
+          FX_BONE,
+        );
+        socket('rightBase', 'RightHand', [0, -r - 0.12, 1.1]);
+        socket('rightTip', 'RightHand', [0, -r - 0.7, 1.1]);
+        mirrorSockets();
+        break;
+      }
       case 'none':
         break;
     }

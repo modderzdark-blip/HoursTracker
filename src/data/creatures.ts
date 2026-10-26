@@ -40,6 +40,10 @@ export interface CreatureDef {
     /** Fresnel rim. */
     readonly rim: number;
   };
+  /** Beast plan: 2 = a forked neck with twin heads. */
+  readonly heads?: 1 | 2;
+  /** Spider plan: a crown of bone horns and spines along the abdomen (brood queens). */
+  readonly spines?: boolean;
 }
 
 export type CreatureId =
@@ -50,7 +54,9 @@ export type CreatureId =
   | 'cinder_wyrm'
   | 'ember_wisp'
   | 'hex_wisp'
-  | 'gloom_bat';
+  | 'gloom_bat'
+  | 'twin_maw'
+  | 'bone_matriarch';
 
 export const CREATURES: Readonly<Record<CreatureId, CreatureDef>> = {
   brood_weaver: {
@@ -142,6 +148,34 @@ export const CREATURES: Readonly<Record<CreatureId, CreatureDef>> = {
       eyes: 0xff4a5a,
       glow: 0xff3a5a,
       rim: 0xff6a7a,
+    },
+  },
+  twin_maw: {
+    id: 'twin_maw',
+    plan: 'beast',
+    scale: 2.6,
+    heads: 2,
+    colors: {
+      body: 0x2a1410,
+      plates: 0x5a2a1a,
+      belly: 0x6a2a14,
+      eyes: 0xfff080,
+      glow: 0xff4a0a,
+      rim: 0xff6a2a,
+    },
+  },
+  bone_matriarch: {
+    id: 'bone_matriarch',
+    plan: 'spider',
+    scale: 3,
+    spines: true,
+    colors: {
+      body: 0xb8ab94,
+      plates: 0xe0d6c0,
+      belly: 0x5a3a3a,
+      eyes: 0xff3a4a,
+      glow: 0xd02a3a,
+      rim: 0xff6a6a,
     },
   },
   cinder_wyrm: {

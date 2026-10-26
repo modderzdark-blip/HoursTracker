@@ -242,77 +242,89 @@ export const beastPlan: CreaturePlan = {
         torsoW,
       );
     }
-    // Head parts are modelled at base size, then scaled up about the head bone.
-    const hb = {
-      add: (g: BufferGeometry, sf: Surf, w: WeightFn): void =>
-        body.add(scaleAbout(g, H, 1.4), sf, w),
-    };
-    const hg = {
-      add: (g: BufferGeometry, sf: Surf, w: WeightFn): void =>
-        glow.add(scaleAbout(g, H, 1.4), sf, w),
-    };
-    // Head: skull, snout, jaw with teeth, horns, eyes.
-    const iHead = bi('Head');
-    const iJaw = bi('Jaw');
-    hb.add(
-      ellipsoid([H.x, H.y + 0.02, H.z + 0.04], [0.14, 0.12, 0.16], [14, 10]),
-      hide,
-      rigidW(iHead),
-    );
-    hb.add(
-      ellipsoid([H.x, H.y - 0.02, H.z + 0.2], [0.085, 0.07, 0.15], [12, 8]),
-      hide,
-      rigidW(iHead),
-    );
-    const J = bind('Jaw');
-    hb.add(
-      ellipsoid([J.x, J.y - 0.02, J.z + 0.13], [0.075, 0.035, 0.13], [12, 6]),
-      belly,
-      rigidW(iJaw),
-    );
-    for (let k = 0; k < 4; k++) {
-      for (const s of [1, -1]) {
-        hb.add(
-          place(new ConeGeometry(0.012, 0.05, 4), [
-            s * (0.05 - k * 0.006),
-            J.y + 0.02,
-            J.z + 0.08 + k * 0.045,
-          ]),
-          S.horn(0xa89c88),
-          rigidW(iJaw),
+    // Twin-headed beasts fork the neck: two slightly smaller heads side by side, both on the
+    // head bone (they bite together).
+    const twin = def.heads === 2;
+    const headScale = twin ? 1.15 : 1.4;
+    for (const dx of twin ? [0.17, -0.17] : [0]) {
+      if (dx !== 0)
+        body.add(
+          ellipsoid([N.x + dx * 0.55, N.y + 0.02, (N.z + H.z) * 0.5], [0.1, 0.1, 0.14], [10, 8]),
+          hide,
+          polylineW([bi('Neck'), bi('Head')], [N, H]),
         );
+      // Head parts are modelled at base size, then scaled up about the head bone.
+      const hb = {
+        add: (g: BufferGeometry, sf: Surf, w: WeightFn): void =>
+          body.add(scaleAbout(g, H, headScale).translate(dx, 0, 0), sf, w),
+      };
+      const hg = {
+        add: (g: BufferGeometry, sf: Surf, w: WeightFn): void =>
+          glow.add(scaleAbout(g, H, headScale).translate(dx, 0, 0), sf, w),
+      };
+      // Head: skull, snout, jaw with teeth, horns, eyes.
+      const iHead = bi('Head');
+      const iJaw = bi('Jaw');
+      hb.add(
+        ellipsoid([H.x, H.y + 0.02, H.z + 0.04], [0.14, 0.12, 0.16], [14, 10]),
+        hide,
+        rigidW(iHead),
+      );
+      hb.add(
+        ellipsoid([H.x, H.y - 0.02, H.z + 0.2], [0.085, 0.07, 0.15], [12, 8]),
+        hide,
+        rigidW(iHead),
+      );
+      const J = bind('Jaw');
+      hb.add(
+        ellipsoid([J.x, J.y - 0.02, J.z + 0.13], [0.075, 0.035, 0.13], [12, 6]),
+        belly,
+        rigidW(iJaw),
+      );
+      for (let k = 0; k < 4; k++) {
+        for (const s of [1, -1]) {
+          hb.add(
+            place(new ConeGeometry(0.012, 0.05, 4), [
+              s * (0.05 - k * 0.006),
+              J.y + 0.02,
+              J.z + 0.08 + k * 0.045,
+            ]),
+            S.horn(0xa89c88),
+            rigidW(iJaw),
+          );
+          hb.add(
+            place(
+              new ConeGeometry(0.012, 0.05, 4),
+              [s * (0.055 - k * 0.006), H.y - 0.07, H.z + 0.1 + k * 0.045],
+              [Math.PI, 0, 0],
+            ),
+            S.horn(0xa89c88),
+            rigidW(iHead),
+          );
+        }
+      }
+      for (const s of [1, -1]) {
+        const o = new Vector3(H.x + s * 0.09, H.y + 0.1, H.z - 0.02);
         hb.add(
-          place(
-            new ConeGeometry(0.012, 0.05, 4),
-            [s * (0.055 - k * 0.006), H.y - 0.07, H.z + 0.1 + k * 0.045],
-            [Math.PI, 0, 0],
+          sweep(
+            [
+              o,
+              o.clone().add(new Vector3(s * 0.08, 0.1, -0.06)),
+              o.clone().add(new Vector3(s * 0.1, 0.12, -0.22)),
+            ],
+            (k) => 0.035 * (1 - 0.85 * k),
+            8,
+            6,
           ),
-          S.horn(0xa89c88),
+          plates,
+          rigidW(iHead),
+        );
+        hg.add(
+          ellipsoid([H.x + s * 0.075, H.y + 0.05, H.z + 0.15], [0.022, 0.016, 0.012], [8, 6]),
+          S.glow(c.eyes),
           rigidW(iHead),
         );
       }
-    }
-    for (const s of [1, -1]) {
-      const o = new Vector3(H.x + s * 0.09, H.y + 0.1, H.z - 0.02);
-      hb.add(
-        sweep(
-          [
-            o,
-            o.clone().add(new Vector3(s * 0.08, 0.1, -0.06)),
-            o.clone().add(new Vector3(s * 0.1, 0.12, -0.22)),
-          ],
-          (k) => 0.035 * (1 - 0.85 * k),
-          8,
-          6,
-        ),
-        plates,
-        rigidW(iHead),
-      );
-      hg.add(
-        ellipsoid([H.x + s * 0.075, H.y + 0.05, H.z + 0.15], [0.022, 0.016, 0.012], [8, 6]),
-        S.glow(c.eyes),
-        rigidW(iHead),
-      );
     }
     // Ember cracks along the flanks and a glowing throat.
     for (let k = 0; k < 6; k++) {
