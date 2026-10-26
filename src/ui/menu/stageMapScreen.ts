@@ -3,7 +3,9 @@ import { DIFFICULTIES, type DifficultyId } from '../../data/difficulty';
 import { ENEMIES, type EnemyId } from '../../data/enemies';
 import { HEROES } from '../../data/heroes';
 import { DROP_TABLES, STAR_GEMS } from '../../data/progression';
-import { CHAPTERS, type AdventureStageDef, type StageDef } from '../../data/stages';
+import { AFFIXES, affixLabel } from '../../data/affixes';
+import { chapterDef, MAX_CHAPTER } from '../../data/adventure';
+import type { AdventureStageDef, StageDef } from '../../data/stages';
 import { computeHeroStats, powerRating } from '../../progression/heroStats';
 import { DIFFICULTY_ORDER } from '../../progression/PlayerProfile';
 import { el } from '../dom';
@@ -26,6 +28,9 @@ export function stageEnemies(stage: StageDef): string[] {
   return names;
 }
 
+/** Chapter tabs shown at once when there are many chapters. */
+const TAB_WINDOW = 5;
+
 /** Stages seen open on the map this session: newly opened ones play an unlock animation. */
 const seenOpen = new Set<string>();
 let mapSeeded = false;
@@ -37,7 +42,8 @@ function starsText(n: number): string {
 /** Adventure stage map: chapter tabs, difficulty, 8 stage nodes, pre-battle panel. */
 export function renderStageMap(ctx: MenuContext, chapterNumber: number): void {
   const p = ctx.profile;
-  const chapter = CHAPTERS.find((c) => c.number === chapterNumber) ?? CHAPTERS[0];
+  const frontier = p.adventureFrontier();
+  const chapter = chapterDef(Math.min(chapterNumber, frontier)) ?? chapterDef(1);
   if (chapter === undefined) return;
   const v = ctx.shell.begin(
     `Chapter ${chapter.number} · ${chapter.name}`,
@@ -49,19 +55,35 @@ export function renderStageMap(ctx: MenuContext, chapterNumber: number): void {
 
   const top = el('div', 'map-top');
   const tabs = el('div', 'tabs');
-  for (const c of CHAPTERS) {
-    const open = c.number === 1 || p.stageUnlocked(c.stages[0] as AdventureStageDef, 'normal');
+  const go = (n: number): void => {
+    ctx.uiTap();
+    ctx.nav.stageMap(n);
+  };
+  // Every chapter reached, plus the next one (locked). Many chapters: a window of tabs around
+  // the selected one with first / previous / next / latest steps.
+  const last = Math.min(MAX_CHAPTER, Math.max(4, frontier + 1));
+  const sel = chapter.number;
+  const windowed = last > TAB_WINDOW + 1;
+  const from = windowed ? Math.max(1, Math.min(sel - 2, last - TAB_WINDOW + 1)) : 1;
+  const to = windowed ? Math.min(last, from + TAB_WINDOW - 1) : last;
+  const step = (label: string, target: number, testid: string, enabled: boolean): void => {
+    tabs.append(v.button(label, 'tab tab-step', () => go(target), { disabled: !enabled, testid }));
+  };
+  if (windowed) {
+    step('«', 1, 'chapter-first', sel > 1);
+    step('‹', sel - 1, 'chapter-prev', sel > 1);
+  }
+  for (let n = from; n <= to; n++) {
     tabs.append(
-      v.button(
-        `${c.number}`,
-        `tab${c.number === chapter.number ? ' is-selected' : ''}`,
-        () => {
-          ctx.uiTap();
-          ctx.nav.stageMap(c.number);
-        },
-        { disabled: !open, testid: `chapter-${c.number}` },
-      ),
+      v.button(`${n}`, `tab${n === sel ? ' is-selected' : ''}`, () => go(n), {
+        disabled: n > frontier,
+        testid: `chapter-${n}`,
+      }),
     );
+  }
+  if (windowed) {
+    step('›', sel + 1, 'chapter-next', sel < frontier);
+    step('»', frontier, 'chapter-latest', sel < frontier);
   }
   const diffs = el('div', 'segmented');
   for (const d of DIFFICULTY_ORDER) {
@@ -157,6 +179,19 @@ export function renderStageMap(ctx: MenuContext, chapterNumber: number): void {
   if (unlocked > 0) ctx.stingers.play('unlock', 0, 0.7);
 }
 
+/** Elite affix lines for the pre-battle panel (names, then what each does). */
+function affixLines(stage: StageDef): HTMLElement[] {
+  const out: HTMLElement[] = [];
+  const ids = [...new Set([...(stage.affixes ?? []), ...(stage.bossAffixes ?? [])])];
+  if (ids.length === 0) return out;
+  if ((stage.affixes ?? []).length > 0)
+    out.push(el('div', 'pb-text pb-affix', `Elite foes: ${affixLabel(stage.affixes)}`));
+  if ((stage.bossAffixes ?? []).length > 0)
+    out.push(el('div', 'pb-text pb-affix', `Boss: ${affixLabel(stage.bossAffixes)}`));
+  out.push(el('div', 'pb-text pb-dim', ids.map((id) => AFFIXES[id].text).join(' · ')));
+  return out;
+}
+
 function openPreBattle(ctx: MenuContext, stage: AdventureStageDef, difficulty: DifficultyId): void {
   const p = ctx.profile;
   const m = ctx.shell.openModal('prebattle');
@@ -182,11 +217,12 @@ function openPreBattle(ctx: MenuContext, stage: AdventureStageDef, difficulty: D
   left.append(
     el('div', 'pb-label', 'Foes'),
     el('div', 'pb-text', stageEnemies(stage).join(', ')),
+    ...affixLines(stage),
     el('div', 'pb-label', 'Rewards'),
     el(
       'div',
       'pb-text',
-      `${fmtInt(Math.round(stage.rewards.gold * d.rewards))} gold · ${fmtInt(Math.round(stage.rewards.xp * d.rewards))} XP · ${table.items}${table.bonusItemChance > 0 ? '+' : ''} gear`,
+      `${fmtInt(Math.round(stage.rewards.gold * d.rewards))} gold · ${fmtInt(Math.round(stage.rewards.xp * d.rewards))} XP · ${table.items}${table.bonusItemChance > 0 ? '+' : ''} gear${stage.rewards.gems !== undefined && best === undefined ? ` · ${stage.rewards.gems} gems` : ''}`,
     ),
     el(
       'div',

@@ -35,7 +35,8 @@ import type { StatusId } from '../data/statusEffects';
 import { BOSS_LINES, HERO_LINES } from '../data/story';
 import type { InputState } from '../input/InputState';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
-import { enemyScaleFor } from '../progression/enemyScale';
+import { enemyScaleFor, stageEnemyMult } from '../progression/enemyScale';
+import { affixLabel } from '../data/affixes';
 import type { HeroMods } from '../progression/skillTree';
 import { rateRun } from '../progression/stars';
 import type { Wallet } from '../progression/wallet';
@@ -201,6 +202,9 @@ export class BattleMode implements QualityTarget, WaveWorld {
   private readonly scene: Scene;
   private readonly difficulty: DifficultyDef;
   private readonly enemyScale: EnemyScale;
+  private readonly bossScale: EnemyScale;
+  /** Boss title with its elite affixes ("Keeper of the Cinder Gate · Warded"). */
+  private readonly bossTitle: string;
   private bossActive = false;
   private bossIntroFinished = false;
   private bossDown = false;
@@ -227,7 +231,10 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.scene = d.ctx.scene;
     this.arena = ARENAS[setup.stage.arena];
     this.difficulty = DIFFICULTIES[setup.difficulty];
-    this.enemyScale = enemyScaleFor(setup.stage.level, setup.difficulty, setup.enemyMult);
+    const st = setup.stage;
+    const mult = stageEnemyMult(st, setup.enemyMult);
+    this.enemyScale = enemyScaleFor(st.level, setup.difficulty, mult, st.affixes);
+    this.bossScale = enemyScaleFor(st.level, setup.difficulty, mult, st.bossAffixes);
     this.builder = new ArenaBuilder(
       this.arena,
       d.physics,
@@ -314,8 +321,11 @@ export class BattleMode implements QualityTarget, WaveWorld {
       };
       this.trails.attach(boss.rig, 'right', TRAIL_COLORS.boss, () => this.enemyTrailOn(boss));
       this.boss = boss;
+      const affixes = affixLabel(setup.stage.bossAffixes);
+      this.bossTitle = affixes.length > 0 ? `${def.title} · ${affixes}` : def.title;
     } else {
       this.boss = null;
+      this.bossTitle = '';
     }
     this.dummy = new TrainingDummy(d.physics, this.scene);
     this.combat.register(this.dummy);
@@ -560,6 +570,27 @@ export class BattleMode implements QualityTarget, WaveWorld {
           );
         }
       }),
+      b.on('enemy:affix', (e) => {
+        // Ward shatters in pale shards, reforms with a soft ring; a frenzy flares red.
+        const color = e.kind === 'frenzy' ? 0xff3a2a : 0x8ad8ff;
+        this.sparks.burst(
+          e.x,
+          e.y,
+          e.z,
+          e.kind === 'wardUp' ? 14 : 30,
+          color,
+          5,
+          0,
+          0,
+          0.5,
+          1.2,
+          0.3,
+        );
+        if (e.kind === 'wardBroken' && this.boss !== null && e.actorId === this.boss.id)
+          this.hud.showBanner('WARD SHATTERED', 'break', 1000);
+        else if (e.kind === 'frenzy' && this.boss !== null && e.actorId === this.boss.id)
+          this.hud.showBanner('FRENZY', 'warn', 1200);
+      }),
       b.on('enemy:exploded', (e) => {
         this.effectVisuals.blast('explosion', e.x, e.z, e.radius, true);
         this.d.bus.emit('camera:shake', { trauma: 0.35 });
@@ -671,14 +702,14 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.removeDummy();
     const [bx, bz] = this.arena.bossSpawn;
     const yaw = Math.atan2(this.player.currFeet.x - bx, this.player.currFeet.z - bz);
-    boss.activate(bx, bz, yaw, this.enemyScale);
+    boss.activate(bx, bz, yaw, this.bossScale);
     this.bossActive = true;
     this.bossIntroFinished = false;
     this.d.setInputEnabled(false);
     const def = boss.bossDef;
     this.sfx.play('roar');
     this.feel.bossIntro(
-      { name: def.name, title: def.title, line: BOSS_LINES[def.id as BossId].taunt },
+      { name: def.name, title: this.bossTitle, line: BOSS_LINES[def.id as BossId].taunt },
       def.introMs,
     );
     // Framing in units of a 1.9 m figure (creatures are lower / taller than their scale says).
@@ -711,7 +742,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
     const def = boss.bossDef;
     this.hud.showBoss({
       name: def.name,
-      title: def.title,
+      title: this.bossTitle,
       hpFrac: 1,
       breakFrac: 1,
       broken: false,
@@ -1307,7 +1338,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
       this.hud.updateBoss(
         {
           name: def.name,
-          title: def.title,
+          title: this.bossTitle,
           hpFrac: boss.health.frac,
           breakFrac: boss.poise.frac,
           broken: boss.isBroken,

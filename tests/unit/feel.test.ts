@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../../src/core/random';
 import { HEROES } from '../../src/data/heroes';
 import { XP_CONFIG } from '../../src/data/progression';
-import { CHAPTERS, findAdventureStage } from '../../src/data/stages';
+import { findAdventureStage } from '../../src/data/adventure';
+import { CHAPTERS } from '../../src/data/stages';
 import {
   BOSS_LINES,
   CHAPTER_STORY,
@@ -230,8 +231,10 @@ describe('celebrations and goals', () => {
     expect(nextAdventureStage((id) => cleared.has(id))?.id).toBe('c1s3');
     expect(chapterProgress(1, (id) => cleared.has(id))).toEqual({ cleared: 2, total: 8 });
     for (const c of CHAPTERS) for (const s of c.stages) cleared.add(s.id);
-    expect(nextAdventureStage((id) => cleared.has(id))).toBeNull();
-    expect(chapterProgress(99, () => true)).toEqual({ cleared: 0, total: 0 });
+    // Past the hand-made chapters the Endless Adventure goes on.
+    expect(nextAdventureStage((id) => cleared.has(id))?.id).toBe('c5s1');
+    expect(chapterProgress(5, () => true)).toEqual({ cleared: 8, total: 8 });
+    expect(chapterProgress(1000, () => true)).toEqual({ cleared: 0, total: 0 });
   });
 });
 
@@ -256,13 +259,13 @@ describe('story save fields', () => {
     const p = sanitizeProfile({
       story: {
         prologueSeen: true,
-        chapterIntros: [2, 1, 1, -3, 'x', 400],
+        chapterIntros: [2, 1, 1, -3, 'x', 400, 5000],
         chapterOutros: 'nope',
         modesSeen: ['dungeon', 42, 'BAD MODE', 'arena'],
       },
     });
     expect(p.story.prologueSeen).toBe(true);
-    expect(p.story.chapterIntros).toEqual([1, 2, 99]);
+    expect(p.story.chapterIntros).toEqual([1, 2, 400, 999]);
     expect(p.story.chapterOutros).toEqual([]);
     expect(p.story.modesSeen).toEqual(['adventure', 'dungeon', 'arena']);
     expect(sanitizeProfile(JSON.parse(JSON.stringify(p)))).toEqual(p);

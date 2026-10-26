@@ -148,6 +148,11 @@ export abstract class Actor {
     return 1;
   }
 
+  /** Fraction of the damage this actor deals that heals it (elite affixes; 0 = none). */
+  lifeSteal(): number {
+    return 0;
+  }
+
   /**
    * Damage multiplier when hit by `attacker` (1 = no block). Shielded enemies return < 1 for
    * hits from the front.

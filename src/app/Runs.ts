@@ -9,12 +9,8 @@ import {
   HUNT_OMENS,
   TOWER_CONFIG,
 } from '../data/modes';
-import {
-  CHAPTERS,
-  findAdventureStage,
-  type AdventureStageDef,
-  type StageDef,
-} from '../data/stages';
+import { chapterDef, findAdventureStage } from '../data/adventure';
+import type { AdventureStageDef, StageDef } from '../data/stages';
 import type { ChapterCard } from '../ui/BattleCallouts';
 import type { BattleOutcome, BattleSetup } from '../modes/BattleMode';
 import {
@@ -45,7 +41,7 @@ import {
 } from '../modes/rewards';
 import type { PlayerProfile } from '../progression/PlayerProfile';
 import type { MenuContext } from '../ui/menu/context';
-import { BOSS_LINES, CHAPTER_STORY } from '../data/story';
+import { BOSS_LINES, chapterStory } from '../data/story';
 import { renderDefeat, renderVictory, type ResultButton } from '../ui/menu/rewardScreen';
 import { recommendedPower } from '../ui/menu/stageMapScreen';
 import type { Menus } from './Menus';
@@ -266,9 +262,9 @@ export class Runs {
   /** A chapter's first stage opens with its card (longer the first time it is seen). */
   private chapterIntro(stage: AdventureStageDef): ChapterCard | null {
     if (stage.index !== 0) return null;
-    const chapter = CHAPTERS.find((c) => c.number === stage.chapter);
-    const story = CHAPTER_STORY[stage.chapter];
-    if (chapter === undefined || story === undefined) return null;
+    const chapter = chapterDef(stage.chapter);
+    if (chapter === undefined) return null;
+    const story = chapterStory(chapter);
     const seen = this.host.profile.data.story.chapterIntros;
     const first = !seen.includes(stage.chapter);
     if (first) {
@@ -369,10 +365,9 @@ export class Runs {
       this.host.rng,
     );
     const buttons: ResultButton[] = [toMap, retry];
-    const chapter = CHAPTERS.find((c) => c.number === stage.chapter);
     const next =
-      chapter?.stages[stage.index + 1] ??
-      CHAPTERS.find((c) => c.number === stage.chapter + 1)?.stages[0];
+      chapterDef(stage.chapter)?.stages[stage.index + 1] ??
+      chapterDef(stage.chapter + 1)?.stages[0];
     if (next !== undefined && p.stageUnlocked(next, run.difficulty)) {
       buttons.push({
         label: 'Next stage',

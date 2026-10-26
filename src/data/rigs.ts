@@ -22,6 +22,8 @@ export type WeaponKind =
   | 'spear'
   /** Two-handed war scythe. */
   | 'scythe'
+  /** Executioner's great axe: long haft, one broad crescent bit. */
+  | 'greataxe'
   | 'none';
 
 export interface RigProportions {
@@ -772,6 +774,106 @@ export const RIGS = {
     },
     weapon: 'greatsword',
     weaponColor: 0x8a8e9a,
+  },
+  headsman: {
+    // Towering executioner: broad plate, a hooded great helm, a red tabard, the great axe.
+    id: 'headsman',
+    scale: 2.75,
+    proportions: {
+      ...HUMAN,
+      torsoRadius: 0.21,
+      limbRadius: 0.08,
+      chestWidth: 1.6,
+      headRadius: 0.12,
+      neckLen: 0.05,
+    },
+    look: {
+      body: 0x26201e,
+      trim: 0x8a5a2a,
+      skin: 0x2a2224,
+      metal: 0x5a5e68,
+      eyes: 0xff3a1a,
+      hood: true,
+      horns: false,
+      pauldrons: true,
+      rim: 0xff4a2a,
+      outfit: {
+        head: 'greathelm',
+        armor: 'plate',
+        tabard: 0x5a0c0c,
+        tassets: true,
+        spikes: true,
+        bulk: 0.55,
+        cape: { color: 0x1a0e0e, length: 1.25, width: 0.8, tattered: true },
+        accent: 0xff3a1a,
+      },
+    },
+    weapon: 'greataxe',
+    weaponColor: 0x8a8e98,
+  },
+  cantor: {
+    // Floating lich: a tall bony figure in a deep hood and grave robes, staff of bone.
+    id: 'cantor',
+    scale: 2.1,
+    proportions: {
+      ...HUMAN,
+      torsoRadius: 0.12,
+      limbRadius: 0.042,
+      chestWidth: 1.15,
+      headRadius: 0.12,
+      upperArm: 0.32,
+      foreArm: 0.3,
+    },
+    look: {
+      body: 0x1a1a22,
+      trim: 0x6a8a7a,
+      skin: 0x8a8a7e,
+      metal: 0x2a2a30,
+      eyes: 0x6affd0,
+      hood: true,
+      horns: true,
+      pauldrons: false,
+      rim: 0x5affc0,
+      outfit: {
+        head: 'deathhood',
+        armor: 'robe',
+        spikes: true,
+        cracks: 0x40e0a0,
+        cape: { color: 0x101418, length: 1.4, width: 0.8, tattered: true },
+        accent: 0x6affd0,
+        hunch: 0.1,
+      },
+    },
+    weapon: 'staff',
+    weaponColor: 0xcfc4ac,
+  },
+  hollow_twin: {
+    // The hero's shade: a lean, hooded twin-blade duelist cut from shadow, with violet eyes.
+    id: 'hollow_twin',
+    scale: 1.2,
+    proportions: { ...HUMAN, torsoRadius: 0.14, limbRadius: 0.052, chestWidth: 1.2 },
+    look: {
+      body: 0x141218,
+      trim: 0x4a3a6a,
+      skin: 0x1e1a24,
+      metal: 0x3a3646,
+      eyes: 0xc070ff,
+      hood: true,
+      horns: false,
+      pauldrons: true,
+      rim: 0xa060ff,
+      outfit: {
+        head: 'hood',
+        armor: 'leather',
+        mask: true,
+        scarf: 0x2a1040,
+        cracks: 0x9050ff,
+        cape: { color: 0x0e0c14, length: 1.0, width: 0.52, tattered: true },
+        accent: 0xb070ff,
+      },
+    },
+    weapon: 'dualBlades',
+    weaponColor: 0x3a3448,
   },
   dummy: {
     id: 'dummy',

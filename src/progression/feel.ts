@@ -5,7 +5,8 @@
  * and audio read these, and unit tests pin them down.
  */
 import type { Rarity } from '../data/items';
-import { CHAPTERS, type AdventureStageDef } from '../data/stages';
+import { adventureFrontier, chapterDef } from '../data/adventure';
+import type { AdventureStageDef } from '../data/stages';
 import { xpToNext } from './xp';
 
 // ------------------------------------------------------------------ combo ranks
@@ -277,7 +278,11 @@ export function goalsReached(before: GoalSnapshot, after: GoalSnapshot): GoalRea
 export function nextAdventureStage(
   cleared: (stageId: string) => boolean,
 ): AdventureStageDef | null {
-  for (const c of CHAPTERS) for (const s of c.stages) if (!cleared(s.id)) return s;
+  // Chapters open in order and never run out (Endless): the frontier holds the next stage
+  // unless every chapter up to the last one is done.
+  const last = adventureFrontier(cleared);
+  for (let n = 1; n <= last; n++)
+    for (const s of chapterDef(n)?.stages ?? []) if (!cleared(s.id)) return s;
   return null;
 }
 
@@ -286,7 +291,7 @@ export function chapterProgress(
   chapter: number,
   cleared: (stageId: string) => boolean,
 ): { readonly cleared: number; readonly total: number } {
-  const ch = CHAPTERS.find((c) => c.number === chapter);
+  const ch = chapterDef(chapter);
   if (ch === undefined) return { cleared: 0, total: 0 };
   return { cleared: ch.stages.filter((s) => cleared(s.id)).length, total: ch.stages.length };
 }

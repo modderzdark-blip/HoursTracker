@@ -1,6 +1,6 @@
 import type { StatBlock } from '../../data/combatTypes';
 import { HEROES, type HeroId } from '../../data/heroes';
-import { findAdventureStage } from '../../data/stages';
+import { findAdventureStage } from '../../data/adventure';
 import { xpToNext } from '../../progression/xp';
 import { el } from '../dom';
 import type { MenuContext } from './context';

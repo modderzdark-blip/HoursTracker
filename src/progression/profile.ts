@@ -1,3 +1,4 @@
+import { MAX_CHAPTER } from '../data/adventure';
 import type { DifficultyId } from '../data/difficulty';
 import { DEFAULT_HERO, HEROES, type HeroId } from '../data/heroes';
 import { GEAR_CONFIG, GEAR_SLOTS, GEAR_STATS, RARITIES, type GearSlot } from '../data/items';
@@ -180,7 +181,7 @@ function chapterList(v: unknown): number[] {
   if (!Array.isArray(v)) return [];
   const out = new Set<number>();
   for (const x of v) {
-    const n = int(x, 0, 99, 0);
+    const n = int(x, 0, MAX_CHAPTER, 0);
     if (n > 0) out.add(n);
   }
   return [...out].sort((a, b) => a - b);
@@ -228,7 +229,8 @@ function sanitizeItem(raw: unknown): GearItem | null {
     slot,
     rarity,
     base: int(raw['base'], 0, 99, 0),
-    ilvl: int(raw['ilvl'], 1, 999, 1),
+    // Endless chapters go past level 1000 at the very bottom.
+    ilvl: int(raw['ilvl'], 1, 9999, 1),
     plus: int(raw['plus'], 0, GEAR_CONFIG.maxPlus, 0),
     main,
     subs,

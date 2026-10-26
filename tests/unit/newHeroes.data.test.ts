@@ -7,7 +7,7 @@ import type { ActionDef } from '../../src/data/combatTypes';
 import { HEROES, type HeroDef, type HeroId } from '../../src/data/heroes';
 import { RIGS } from '../../src/data/rigs';
 import { SKILL_TREES } from '../../src/data/skillTrees';
-import { findAdventureStage } from '../../src/data/stages';
+import { findAdventureStage } from '../../src/data/adventure';
 import { buildOpponent } from '../../src/modes/meta';
 import { computeHeroStats, powerRating } from '../../src/progression/heroStats';
 import { PlayerProfile } from '../../src/progression/PlayerProfile';

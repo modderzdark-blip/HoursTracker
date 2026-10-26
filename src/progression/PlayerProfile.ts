@@ -12,7 +12,8 @@ import {
 } from '../data/goals';
 import { CACHE_CONFIG, STAR_GEMS, XP_CONFIG } from '../data/progression';
 import { SKILL_TREES } from '../data/skillTrees';
-import { CHAPTERS, type AdventureStageDef } from '../data/stages';
+import { adventureFrontier, chapterDef, chaptersUpTo } from '../data/adventure';
+import type { AdventureStageDef } from '../data/stages';
 import { dailyHunts, highestClearedLevel, huntRank, type HuntDef } from '../modes/meta';
 import type { SaveData, StageRecord } from '../save/SaveStore';
 import type { RewardBundle } from '../data/goals';
@@ -377,7 +378,7 @@ export class PlayerProfile {
   }
 
   chapterCleared(chapter: number, difficulty: DifficultyId): boolean {
-    const ch = CHAPTERS.find((c) => c.number === chapter);
+    const ch = chapterDef(chapter);
     if (ch === undefined) return false;
     return ch.stages.every((s) => (this.record(s.id, difficulty)?.clears ?? 0) > 0);
   }
@@ -394,12 +395,11 @@ export class PlayerProfile {
   stageUnlocked(stage: AdventureStageDef, difficulty: DifficultyId): boolean {
     if (!this.difficultyUnlocked(stage.chapter, difficulty)) return false;
     if (stage.index > 0) {
-      const ch = CHAPTERS.find((c) => c.number === stage.chapter);
-      const prev = ch?.stages[stage.index - 1];
+      const prev = chapterDef(stage.chapter)?.stages[stage.index - 1];
       return prev !== undefined && (this.record(prev.id, difficulty)?.clears ?? 0) > 0;
     }
     if (stage.chapter === 1) return true;
-    const prevCh = CHAPTERS.find((c) => c.number === stage.chapter - 1);
+    const prevCh = chapterDef(stage.chapter - 1);
     const last = prevCh?.stages[prevCh.stages.length - 1];
     return last !== undefined && (this.record(last.id, difficulty)?.clears ?? 0) > 0;
   }
@@ -433,10 +433,20 @@ export class PlayerProfile {
   }
 
   totalStars(chapter: number, difficulty: DifficultyId): number {
-    const ch = CHAPTERS.find((c) => c.number === chapter);
+    const ch = chapterDef(chapter);
     let n = 0;
     for (const s of ch?.stages ?? []) n += this.record(s.id, difficulty)?.bestStars ?? 0;
     return n;
+  }
+
+  /** Deepest chapter open on Normal (one past the last chapter whose boss has fallen). */
+  adventureFrontier(): number {
+    return adventureFrontier((id) => this.stageClearedAnyDifficulty(id));
+  }
+
+  /** Chapters 1..frontier: every chapter the player has reached. */
+  chaptersSoFar(): ReturnType<typeof chaptersUpTo> {
+    return chaptersUpTo(this.adventureFrontier());
   }
 
   modeUnlocked(mode: ModeId): boolean {
@@ -447,7 +457,7 @@ export class PlayerProfile {
   /** Highest Adventure level cleared on any difficulty (1 before the first clear). */
   progressLevel(): number {
     let level = 1;
-    for (const c of CHAPTERS)
+    for (const c of this.chaptersSoFar())
       for (const st of c.stages)
         if (this.stageClearedAnyDifficulty(st.id)) level = Math.max(level, st.level);
     return level;
@@ -455,7 +465,8 @@ export class PlayerProfile {
 
   allStars(): number {
     let n = 0;
-    for (const c of CHAPTERS) for (const d of DIFFICULTY_ORDER) n += this.totalStars(c.number, d);
+    for (const c of this.chaptersSoFar())
+      for (const d of DIFFICULTY_ORDER) n += this.totalStars(c.number, d);
     return n;
   }
 
