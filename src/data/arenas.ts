@@ -80,21 +80,37 @@ export interface ArenaDef {
   };
 }
 
+/**
+ * A castle courtyard: an octagonal yard inside fort walls, arcaded on the east and west, a
+ * gatehouse with two great towers on the north side behind a stepped dais, the keep rising
+ * beyond it and mountains on the horizon.
+ */
 const CINDER_COURT: ArenaDef = {
   id: 'cinder_court',
   name: 'Cinder Court',
-  floorRadius: 24,
+  floorRadius: 22,
   wall: { segments: 28, height: 3.2, thickness: 1.4 },
+  // Octagon with flat sides north / south / east / west (inradius 22).
+  outline: [
+    [-9.11, -22],
+    [9.11, -22],
+    [22, -9.11],
+    [22, 9.11],
+    [9.11, 22],
+    [-9.11, 22],
+    [-22, 9.11],
+    [-22, -9.11],
+  ],
   spawn: [0, 1.2, 6],
   spawnPoints: [
-    [-17, -3],
-    [17, -2],
-    [-12, 14],
-    [12, 14],
-    [0, 19],
-    [-6, -18],
-    [6, -18],
-    [-20, 6],
+    [-15, -5],
+    [15, -5],
+    [-11, 13],
+    [11, 13],
+    [0, 18],
+    [-7, -14],
+    [7, -14],
+    [-17, 4],
   ],
   bossSpawn: [0, -9.5],
   dummySpawn: [0, 1],
@@ -103,7 +119,6 @@ const CINDER_COURT: ArenaDef = {
     { x: 7, z: -4, radius: 0.8, height: 6 },
     { x: -7, z: 8, radius: 0.8, height: 3.2 },
     { x: 7, z: 8, radius: 0.8, height: 6 },
-    { x: 0, z: -13, radius: 1.1, height: 7.5 },
     { x: -14, z: 2, radius: 0.9, height: 2.2 },
     { x: 14, z: 2, radius: 0.9, height: 6 },
   ],
@@ -119,36 +134,33 @@ const CINDER_COURT: ArenaDef = {
     { position: [0, 0.4, -4], size: [3.2, 0.8, 1.6], rotationYDeg: 0 },
   ],
   rocks: [
-    { x: -18, z: -9, scale: 1.4 },
-    { x: -11, z: -16, scale: 1.1 },
-    { x: 18, z: 10, scale: 1.6 },
-    { x: 9, z: 17, scale: 1.0 },
-    { x: -16, z: 13, scale: 1.3 },
-    { x: -5, z: 18, scale: 0.9 },
-    { x: 19, z: -4, scale: 0.8 },
+    { x: -16.5, z: -10.5, scale: 1.2 },
+    { x: 15.5, z: 14, scale: 1.2 },
+    { x: -14, z: 16, scale: 1.0 },
+    { x: 19.2, z: -2, scale: 0.8 },
   ],
   braziers: [
     { x: -4.5, z: 2 },
     { x: 4.5, z: 2 },
   ],
   palette: {
-    background: 0x07060a,
-    fog: 0x120d12,
-    fogDensity: 0.028,
+    background: 0x0b0a12,
+    fog: 0x1a1520,
+    fogDensity: 0.017,
     floorBase: 0x2a2526,
     stone: 0x4a4246,
     ember: 0xff7a2a,
-    moonlight: 0x9fb3ff,
-    hemiSky: 0x3a3550,
-    hemiGround: 0x1a0f0c,
+    moonlight: 0xa8bcff,
+    hemiSky: 0x4a4868,
+    hemiGround: 0x2a1a14,
   },
   lighting: {
-    moonIntensity: 1.8,
+    moonIntensity: 2.6,
     moonDirection: [-0.45, 1, 0.35],
-    hemiIntensity: 0.45,
-    environmentIntensity: 0.35,
-    brazierIntensity: 20,
-    brazierRange: 11,
+    hemiIntensity: 0.8,
+    environmentIntensity: 0.5,
+    brazierIntensity: 22,
+    brazierRange: 12,
   },
 };
 

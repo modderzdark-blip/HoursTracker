@@ -37,6 +37,8 @@ export interface RunOptions {
   readonly y?: number;
   /** Turn the pieces so their +X side (arcades, stairs) faces this point. */
   readonly face?: Vec2;
+  /** Shift the run this far away from the arena centre (inner face on the line). */
+  readonly out?: number;
   readonly stretchY?: number;
   readonly tier?: 0 | 1 | 2;
   readonly far?: boolean;
@@ -58,14 +60,22 @@ export function wallRun(node: KitWall, a: Vec2, b: Vec2, o: RunOptions): SetPiec
     const mz = (a[1] + b[1]) / 2;
     if (Math.cos(yaw) * (o.face[0] - mx) - Math.sin(yaw) * (o.face[1] - mz) < 0) yaw += Math.PI;
   }
+  // Normal of the run pointing away from the centre.
+  let nx = dz / len;
+  let nz = -dx / len;
+  if (nx * (a[0] + b[0]) + nz * (a[1] + b[1]) < 0) {
+    nx = -nx;
+    nz = -nz;
+  }
+  const shift = o.out ?? 0;
   const out: SetPiece[] = [];
   for (let i = 0; i < n; i++) {
     const t = (i + 0.5) / n;
     out.push({
       model: FORT,
       node: kit(node),
-      x: a[0] + dx * t,
-      z: a[1] + dz * t,
+      x: a[0] + dx * t + nx * shift,
+      z: a[1] + dz * t + nz * shift,
       y: o.y ?? 0,
       yaw: (yaw * 180) / Math.PI,
       scale: o.scale,

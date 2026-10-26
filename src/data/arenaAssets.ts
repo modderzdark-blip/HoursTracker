@@ -1,4 +1,5 @@
 import type { AssetRequest } from '../render/env/AssetLibrary';
+import { CINDER_COURT_ASSETS } from './sets/cinderCourt';
 import type { DressingPart } from '../modes/arenaDressing';
 import type { ArenaId, Vec2 } from './arenas';
 
@@ -159,56 +160,7 @@ function gateGroup(statueScale: number): PropPlacement[] {
 }
 
 export const ARENA_ASSETS: Readonly<Record<ArenaId, ArenaAssets>> = {
-  cinder_court: {
-    floor: { id: 'cobblestone_floor_07', size: 2 },
-    floorPatch: { id: 'dry_ground_rocks', size: 4 },
-    wall: { id: 'castle_wall_varriation', size: 2 },
-    rock: { id: 'rock_wall_13', size: 2 },
-    stone: { id: 'castle_wall_varriation', size: 2.5 },
-    brazier: { model: 'stone_fire_pit', scale: 1, fire: 0.35 },
-    boulders: { model: 'rock_09' },
-    props: [
-      ...gateGroup(2.1),
-      { model: 'large_iron_gate', deg: 0, r: 0.995, scale: 1.25, yaw: 0 },
-      { model: 'treasure_chest', deg: -26, r: 0.88, scale: 1.3, yaw: 20 },
-      { model: 'wooden_barrels_01', deg: 62, r: 0.82, scale: 1, yaw: 30 },
-      { model: 'wooden_barrels_01', deg: 236, r: 0.84, scale: 1, yaw: -40 },
-      { model: 'worn_metal_rack', deg: 96, r: 0.93, scale: 1.2 },
-      { model: 'worn_metal_rack', deg: 264, r: 0.93, scale: 1.2 },
-      { model: 'wine_barrel_01', deg: 104, r: 0.9, scale: 1.3, solid: true },
-      { model: 'wine_barrel_01', deg: 108, r: 0.86, scale: 1.3, yaw: 70, solid: true },
-      { model: 'wooden_crate_01', deg: 252, r: 0.9, scale: 1.4, yaw: 15 },
-      { model: 'wooden_crate_01', deg: 256, r: 0.86, scale: 1.4, yaw: -30 },
-      { model: 'dead_tree_trunk_02', deg: 140, r: 0.86, scale: 1.4, yaw: 60, solid: true },
-      { model: 'dead_tree_trunk_02', deg: 210, r: 0.88, scale: 1.2, yaw: -20, solid: true },
-    ],
-    scatter: [
-      {
-        model: 'antique_estoc',
-        count: 6,
-        band: [0.62, 0.9],
-        scale: [1.1, 1.3],
-        tilt: 14,
-        sink: 0.35,
-      },
-      {
-        model: 'kite_shield',
-        count: 5,
-        band: [0.66, 0.92],
-        scale: [1.1, 1.25],
-        tilt: 70,
-        sink: 0.05,
-      },
-      { model: 'wooden_lantern_01', count: 8, band: [0.9, 0.97], scale: [1.6, 1.9] },
-      {
-        model: 'namaqualand_boulders_01',
-        pick: true,
-        count: 6,
-        band: [0.8, 0.96],
-        scale: [1.5, 2.5],
-      },
-    ],
-  },
+  cinder_court: CINDER_COURT_ASSETS,
   ash_gate: {
     floor: { id: 'volcanic_rock_tiles', size: 1.8 },
     floorPatch: { id: 'brown_mud_rocks_01', size: 1.3 },

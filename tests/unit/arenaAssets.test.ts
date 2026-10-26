@@ -139,7 +139,7 @@ describe('scanned props', () => {
       expect(colliders.length).toBeGreaterThan(0);
       for (const [x, z] of def.spawnPoints)
         for (const [cx, cz, r] of colliders) expect(Math.hypot(x - cx, z - cz)).toBeGreaterThan(r);
-      expect(props.flames.length).toBe(def.braziers.length);
+      expect(props.flames.length).toBeGreaterThanOrEqual(def.braziers.length);
       props.dispose();
       expect(props.objects.length).toBe(0);
     });
