@@ -164,12 +164,31 @@ const CINDER_COURT: ArenaDef = {
   },
 };
 
-/** A tighter ruined gatehouse: a pillar colonnade, rubble and red-tinted haze. */
+/**
+ * A ruined gate approach: a broken colonnade along the old road up to a burning gatehouse,
+ * collapsed walls and dead trees to the west, a ravine dropping away to the east.
+ */
 const ASH_GATE: ArenaDef = {
   id: 'ash_gate',
   name: 'Gate of Soot',
-  floorRadius: 21,
+  floorRadius: 20.5,
   wall: { segments: 26, height: 4, thickness: 1.4 },
+  outline: [
+    [-8, -24],
+    [8, -24],
+    [14, -21],
+    [20, -14],
+    [21, -2],
+    [20.5, 10],
+    [18, 18],
+    [8, 22],
+    [-8, 22],
+    [-17, 19],
+    [-21.5, 8],
+    [-22, -6],
+    [-18, -17],
+    [-13, -22],
+  ],
   spawn: [0, 1.2, 8],
   spawnPoints: [
     [-15, -4],
@@ -196,33 +215,32 @@ const ASH_GATE: ArenaDef = {
     { position: [0, 0.3, 14], size: [4, 0.6, 1.4], rotationYDeg: 0 },
   ],
   rocks: [
-    { x: -16, z: -10, scale: 1.3 },
-    { x: 16, z: -11, scale: 1.1 },
-    { x: -14, z: 12, scale: 1.0 },
-    { x: 15, z: 12, scale: 1.4 },
-    { x: -4, z: 17, scale: 0.9 },
-    { x: 6, z: -17, scale: 1.0 },
+    { x: -16, z: -11, scale: 1.3 },
+    { x: 15.5, z: -12, scale: 1.1 },
+    { x: -14, z: 13, scale: 1.0 },
+    { x: 15, z: 13, scale: 1.3 },
+    { x: -4, z: 18, scale: 0.9 },
   ],
   braziers: [
     { x: -5, z: -4 },
     { x: 5, z: -4 },
   ],
   palette: {
-    background: 0x0a0607,
-    fog: 0x1c0d0b,
-    fogDensity: 0.032,
+    background: 0x0e0809,
+    fog: 0x2a1512,
+    fogDensity: 0.019,
     floorBase: 0x2c2321,
     stone: 0x52423e,
     ember: 0xff6a1a,
-    moonlight: 0xc8a0ff,
-    hemiSky: 0x40303a,
-    hemiGround: 0x220e08,
+    moonlight: 0xd0b0ff,
+    hemiSky: 0x5a4458,
+    hemiGround: 0x2e1610,
   },
   lighting: {
-    moonIntensity: 1.6,
+    moonIntensity: 2.4,
     moonDirection: [0.5, 1, 0.3],
-    hemiIntensity: 0.5,
-    environmentIntensity: 0.3,
+    hemiIntensity: 0.8,
+    environmentIntensity: 0.45,
     brazierIntensity: 22,
     brazierRange: 12,
   },
@@ -509,4 +527,36 @@ export function insideOutline(def: ArenaDef, x: number, z: number, margin = 0): 
 /** Farthest outline corner from the centre. */
 export function outlineReach(def: ArenaDef): number {
   return Math.max(...arenaOutline(def).map(([x, z]) => Math.hypot(x, z)));
+}
+
+/** A boundary wall collider: centre (x, z), half sizes along and across the edge, yaw. */
+export interface WallBox {
+  readonly x: number;
+  readonly z: number;
+  readonly halfLength: number;
+  readonly halfThickness: number;
+  /** Rotation about Y turning the box's X axis along its edge. */
+  readonly yaw: number;
+}
+
+/**
+ * The wall colliders sealing an arena: one box standing just outside every outline edge,
+ * overlapping its neighbours at outward corners.
+ */
+export function wallBoxes(def: ArenaDef): WallBox[] {
+  const t = def.wall.thickness;
+  return outlineEdges(def).map((e): WallBox => {
+    const extA = e.convexA ? t / 2 : 0;
+    const extB = e.convexB ? t / 2 : 0;
+    const ux = (e.b[0] - e.a[0]) / e.length;
+    const uz = (e.b[1] - e.a[1]) / e.length;
+    const shift = (extB - extA) / 2;
+    return {
+      x: (e.a[0] + e.b[0]) / 2 + e.normal[0] * (t / 2) + ux * shift,
+      z: (e.a[1] + e.b[1]) / 2 + e.normal[1] * (t / 2) + uz * shift,
+      halfLength: e.length / 2 + (extA + extB) / 2,
+      halfThickness: t / 2,
+      yaw: -Math.atan2(uz, ux),
+    };
+  });
 }

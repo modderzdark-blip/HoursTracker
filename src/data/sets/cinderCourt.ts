@@ -128,8 +128,6 @@ export const CINDER_COURT_ASSETS: ArenaAssets = {
     { model: 'caged_hanging_light', x: 2.9, z: -21.6, y: 4.6, scale: 1.4, fire: 4.75 },
   ],
   masses: [
-    // A processional way of big flags from the south battlements to the dais.
-    { x: 0, z: 2, size: [5.2, 0.015, 39], surface: 'stone' },
     // The dais before the gate: three low steps (walkable).
     ...dais(0, -19.9, 14.5, 4.6, 3, 0.2, 0.55),
     // The keep's terrace and its retaining wall.
@@ -146,14 +144,14 @@ export const CINDER_COURT_ASSETS: ArenaAssets = {
   ],
   props: [
     { model: 'treasure_chest', deg: -32, r: 0.84, scale: 1.3, yaw: 20 },
-    { model: 'wooden_barrels_01', deg: 60, r: 0.84, scale: 1, yaw: 30 },
-    { model: 'wooden_barrels_01', deg: 300, r: 0.84, scale: 1, yaw: -40 },
-    { model: 'worn_metal_rack', deg: 80, r: 0.9, scale: 1.2 },
-    { model: 'worn_metal_rack', deg: 280, r: 0.9, scale: 1.2 },
-    { model: 'wine_barrel_01', deg: 128, r: 0.86, scale: 1.3, solid: true },
-    { model: 'wine_barrel_01', deg: 133, r: 0.82, scale: 1.3, yaw: 70, solid: true },
-    { model: 'wooden_crate_01', deg: 232, r: 0.86, scale: 1.4, yaw: 15 },
-    { model: 'wooden_crate_01', deg: 236, r: 0.82, scale: 1.4, yaw: -30 },
+    { model: 'wooden_barrels_01', deg: 60, r: 0.84, scale: 1, yaw: 30, tier: 1 },
+    { model: 'wooden_barrels_01', deg: 300, r: 0.84, scale: 1, yaw: -40, tier: 1 },
+    { model: 'worn_metal_rack', deg: 80, r: 0.9, scale: 1.2, tier: 1 },
+    { model: 'worn_metal_rack', deg: 280, r: 0.9, scale: 1.2, tier: 1 },
+    { model: 'wine_barrel_01', deg: 128, r: 0.86, scale: 1.3, solid: true, tier: 1 },
+    { model: 'wine_barrel_01', deg: 133, r: 0.82, scale: 1.3, yaw: 70, solid: true, tier: 1 },
+    { model: 'wooden_crate_01', deg: 232, r: 0.86, scale: 1.4, yaw: 15, tier: 1 },
+    { model: 'wooden_crate_01', deg: 236, r: 0.82, scale: 1.4, yaw: -30, tier: 1 },
   ],
   scatter: [
     {

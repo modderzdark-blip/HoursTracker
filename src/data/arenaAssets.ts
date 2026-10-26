@@ -1,6 +1,8 @@
 import type { AssetRequest } from '../render/env/AssetLibrary';
+import { ASH_GATE_ASSETS } from './sets/ashGate';
 import { CINDER_COURT_ASSETS } from './sets/cinderCourt';
 import type { DressingPart } from '../modes/arenaDressing';
+import type { SmokeCard } from '../vfx/SmokeCards';
 import type { ArenaId, Vec2 } from './arenas';
 
 /**
@@ -36,6 +38,8 @@ export interface PropPlacement {
   readonly solid?: boolean;
   /** Fire on top of it at this height (m, after scaling). */
   readonly fire?: number;
+  /** Lowest quality showing it (as for set pieces). */
+  readonly tier?: 0 | 1 | 2;
 }
 
 /** Scattered copies of a prop near the wall: deterministic per arena. */
@@ -78,6 +82,8 @@ export interface SetPiece {
   readonly fire?: number;
   /** Lowest quality showing it: 0 = always (key set piece), 1 = Medium and up, 2 = High. */
   readonly tier?: 0 | 1 | 2;
+  /** Highest quality showing it (a cheaper stand-in for Low). */
+  readonly upTo?: 0 | 1 | 2;
   /** Backdrop: casts no shadow. */
   readonly far?: boolean;
 }
@@ -147,6 +153,10 @@ export interface ArenaAssets {
   readonly ownBackdrop?: boolean;
   /** Procedural dressing the composition replaces (besides what scanned props always replace). */
   readonly skip?: readonly DressingPart[];
+  /** Procedural dressing kept although scanned props usually replace it (dead trees). */
+  readonly keep?: readonly DressingPart[];
+  /** Extra smoke (0) or mist (1) cards: chasms, fire, the far side of the walls. */
+  readonly mist?: readonly SmokeCard[];
 }
 
 /** Props framing the north gate: a pair of statues, candles, a chest, banners of war. */
@@ -161,63 +171,7 @@ function gateGroup(statueScale: number): PropPlacement[] {
 
 export const ARENA_ASSETS: Readonly<Record<ArenaId, ArenaAssets>> = {
   cinder_court: CINDER_COURT_ASSETS,
-  ash_gate: {
-    floor: { id: 'volcanic_rock_tiles', size: 1.8 },
-    floorPatch: { id: 'brown_mud_rocks_01', size: 1.3 },
-    wall: { id: 'dark_brick_wall', size: 1.05 },
-    rock: { id: 'rock_wall_13', size: 2 },
-    stone: { id: 'stone_wall_04', size: 1.7 },
-    brazier: { model: 'stone_fire_pit', scale: 1.1, fire: 0.38 },
-    boulders: { model: 'rock_07' },
-    props: [
-      ...gateGroup(2),
-      { model: 'large_iron_gate', deg: 0, r: 0.995, scale: 1.2 },
-      { model: 'dead_tree_trunk_02', deg: 48, r: 0.84, scale: 1.6, yaw: 40, solid: true },
-      { model: 'dead_tree_trunk_02', deg: 300, r: 0.86, scale: 1.5, yaw: -60, solid: true },
-      { model: 'dead_tree_trunk', deg: 128, r: 0.8, scale: 1.4, yaw: 75 },
-      { model: 'dead_tree_trunk', deg: 222, r: 0.82, scale: 1.3, yaw: -15 },
-      { model: 'pine_roots', deg: 70, r: 0.88, scale: 1.6 },
-      { model: 'pine_roots', deg: 280, r: 0.9, scale: 1.5, yaw: 120 },
-      { model: 'tree_stump_01', deg: 160, r: 0.88, scale: 1.4, solid: true },
-      { model: 'tree_stump_02', deg: 196, r: 0.9, scale: 1.3, solid: true },
-      { model: 'rock_face_02', deg: 92, r: 0.97, scale: 1.4, solid: true },
-      { model: 'rock_face_02', deg: 268, r: 0.97, scale: 1.3, yaw: 180, solid: true },
-      { model: 'caged_hanging_light', deg: -6, r: 0.97, scale: 1.4, sink: -3.6 },
-      { model: 'caged_hanging_light', deg: 6, r: 0.97, scale: 1.4, sink: -3.6 },
-    ],
-    scatter: [
-      {
-        model: 'dry_branches_medium_01',
-        pick: true,
-        count: 8,
-        band: [0.7, 0.95],
-        scale: [1.2, 1.6],
-      },
-      {
-        model: 'antique_estoc',
-        count: 5,
-        band: [0.6, 0.9],
-        scale: [1.1, 1.3],
-        tilt: 16,
-        sink: 0.35,
-      },
-      {
-        model: 'kite_shield',
-        count: 4,
-        band: [0.66, 0.92],
-        scale: [1.1, 1.25],
-        tilt: 70,
-        sink: 0.05,
-      },
-      {
-        model: 'namaqualand_boulders_01',
-        pick: true,
-        count: 6,
-        band: [0.82, 0.96],
-        scale: [1.5, 2.4],
-      },
-    ],
-  },
+  ash_gate: ASH_GATE_ASSETS,
   ashen_wastes: {
     // Scorched clay: cracked mud plates burnt red, red stony mud gathering toward the edge.
     floor: { id: 'mud_cracked_dry_03', size: 2.2, tint: 0x8a6656 },

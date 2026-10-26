@@ -9,7 +9,7 @@ import {
 } from 'three';
 import type { BannerHang } from '../data/arenaAssets';
 import type { ArenaLook } from '../data/arenaLooks';
-import type { ArenaDef } from '../data/arenas';
+import { insideOutline, type ArenaDef } from '../data/arenas';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import {
   colossusRibsGeometry,
@@ -727,7 +727,11 @@ export class ArenaDresser {
       } else {
         // Beyond the wall: silhouettes above it, mostly north.
         const a = Math.PI * (1.1 + this.rand() * 0.8);
-        const r = this.R + t + 1.5 + this.rand() * 3;
+        let r = this.R + t + 1.5 + this.rand() * 3;
+        // Shaped arenas reach past the radius: step out until the tree stands outside.
+        for (let k = 0; k < 12 && insideOutline(this.def, Math.cos(a) * r, Math.sin(a) * r); k++)
+          r += 1.5;
+        r += t;
         this.batch.add(
           'wood',
           g,

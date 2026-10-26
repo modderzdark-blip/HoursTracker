@@ -309,7 +309,7 @@ export const ARENA_LOOKS: Readonly<Record<ArenaId, ArenaLook>> = {
       candles: 4,
       sarcophagi: 0,
       arches: 1,
-      trees: 3,
+      trees: 6,
       roots: 3,
       crystals: 0,
       stalactites: 0,

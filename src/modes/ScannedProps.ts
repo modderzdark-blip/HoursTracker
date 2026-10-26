@@ -83,8 +83,9 @@ export class ScannedProps {
   }
 
   build(): void {
-    for (const p of this.a.pieces ?? []) if ((p.tier ?? 0) <= this.tier) this.piece(p);
-    for (const p of this.a.props) this.place(p);
+    for (const p of this.a.pieces ?? [])
+      if ((p.tier ?? 0) <= this.tier && this.tier <= (p.upTo ?? 2)) this.piece(p);
+    for (const p of this.a.props) if ((p.tier ?? 0) <= this.tier) this.place(p);
     this.braziers();
     this.boulders();
     // Low quality keeps the set pieces and drops the scattered small props (like clutter).

@@ -24,11 +24,13 @@ import { mulberry32 } from '../core/random';
 import { ARENA_ASSETS, arenaAssetRequest, type Mass, type SurfaceRef } from '../data/arenaAssets';
 import { ARENA_LOOKS, type ArenaLook, type SurfaceLook } from '../data/arenaLooks';
 import {
+  arenaOutline,
   insideOutline,
   outlineDistance,
   outlineEdges,
   outlineReach,
   pointInPolygon,
+  wallBoxes,
   type ArenaDef,
   type ArenaId,
   type Vec2,
@@ -256,11 +258,13 @@ export class ArenaBuilder {
     }
     const dresser = new ArenaDresser(def, L, this.batch, physics, this.rand, taken, this.wallInfo);
     const skip = new Set<DressingPart>([...SCANNED_REPLACES, ...(A.skip ?? [])]);
+    for (const k of A.keep ?? []) skip.delete(k);
     dresser.dress(lib === null ? undefined : skip);
     if (lib !== null) {
       dresser.hangBanners(A.banners ?? []);
       for (const c of A.lava ?? []) dresser.lava.push(lavaChannelGeometry(c.points, c.width, 5));
       for (const pool of A.pools ?? []) dresser.puddles.push([pool[0], pool[1], pool[2]]);
+      dresser.cards.push(...(A.mist ?? []));
     }
     this.colliderCount += dresser.colliders;
     this.flameSpots.push(...dresser.flames);
@@ -373,17 +377,34 @@ export class ArenaBuilder {
       ground !== undefined
         ? Math.max(...ground.map(([x, z]) => Math.hypot(x, z)))
         : outlineReach(this.def) + t + 9;
-    const cell = 1.25;
-    const n = Math.ceil((reach * 2) / cell);
-    const half = (n * cell) / 2;
+    // Fine 1.25 m cells over the arena (baked occlusion along the walls), 5 m cells beyond.
+    const coarse = 5;
+    const sub = 4;
+    const cell = coarse / sub;
+    const n = Math.ceil((reach * 2) / coarse);
+    const half = (n * coarse) / 2;
+    const poly = arenaOutline(this.def);
+    const xs = poly.map(([x]) => x);
+    const zs = poly.map(([, z]) => z);
+    const lo = (v: number): number => Math.floor((v - 3 + half) / coarse);
+    const hi = (v: number): number => Math.ceil((v + 3 + half) / coarse);
+    const fine = [
+      lo(Math.min(...xs)),
+      hi(Math.max(...xs)),
+      lo(Math.min(...zs)),
+      hi(Math.max(...zs)),
+    ];
+    const inFine = (i: number, j: number): boolean =>
+      i >= (fine[0] ?? 0) && i < (fine[1] ?? 0) && j >= (fine[2] ?? 0) && j < (fine[3] ?? 0);
     const inside = (x: number, z: number): boolean =>
       ground !== undefined ? pointInPolygon(ground, x, z) : Math.hypot(x, z) <= reach;
     const pos: number[] = [];
     const colors: number[] = [];
     const index: number[] = [];
     const ids = new Map<number, number>();
+    const side = n * sub + 1;
     const vertex = (i: number, j: number): number => {
-      const key = i * (n + 1) + j;
+      const key = i * side + j;
       const id = ids.get(key);
       if (id !== undefined) return id;
       const x = -half + i * cell;
@@ -396,14 +417,23 @@ export class ArenaBuilder {
       ids.set(key, pos.length / 3 - 1);
       return pos.length / 3 - 1;
     };
-    for (let i = 0; i < n; i++) {
-      for (let j = 0; j < n; j++) {
-        if (!inside(-half + (i + 0.5) * cell, -half + (j + 0.5) * cell)) continue;
-        const a = vertex(i, j);
-        const b = vertex(i + 1, j);
-        const c = vertex(i + 1, j + 1);
-        const d = vertex(i, j + 1);
-        index.push(a, d, c, a, c, b);
+    const quad = (i: number, j: number, k: number): void => {
+      const a = vertex(i, j);
+      const b = vertex(i + k, j);
+      const c = vertex(i + k, j + k);
+      const d = vertex(i, j + k);
+      index.push(a, d, c, a, c, b);
+    };
+    for (let I = 0; I < n; I++) {
+      for (let J = 0; J < n; J++) {
+        if (!inFine(I, J)) {
+          if (inside(-half + (I + 0.5) * coarse, -half + (J + 0.5) * coarse))
+            quad(I * sub, J * sub, sub);
+          continue;
+        }
+        for (let i = I * sub; i < (I + 1) * sub; i++)
+          for (let j = J * sub; j < (J + 1) * sub; j++)
+            if (inside(-half + (i + 0.5) * cell, -half + (j + 0.5) * cell)) quad(i, j, 1);
       }
     }
     const geo = this.geo(new BufferGeometry());
@@ -424,28 +454,11 @@ export class ArenaBuilder {
 
   /** Sealed boundary: a wall collider standing just outside every outline edge. */
   private buildWallColliders(): void {
-    const w = this.def.wall;
-    const t = w.thickness;
-    for (const e of outlineEdges(this.def)) {
-      // Overlap the neighbour at outward corners so no gap opens there.
-      const extA = e.convexA ? t / 2 : 0;
-      const extB = e.convexB ? t / 2 : 0;
-      const ux = (e.b[0] - e.a[0]) / e.length;
-      const uz = (e.b[1] - e.a[1]) / e.length;
-      const shift = (extB - extA) / 2;
-      const x = (e.a[0] + e.b[0]) / 2 + e.normal[0] * (t / 2) + ux * shift;
-      const z = (e.a[1] + e.b[1]) / 2 + e.normal[1] * (t / 2) + uz * shift;
-      this.e.set(0, Math.atan2(uz, ux) * -1, 0);
+    const h = this.def.wall.height;
+    for (const b of wallBoxes(this.def)) {
+      this.e.set(0, b.yaw, 0);
       this.q.setFromEuler(this.e);
-      this.physics.addStaticCuboid(
-        x,
-        w.height,
-        z,
-        e.length / 2 + (extA + extB) / 2,
-        w.height,
-        t / 2,
-        this.q,
-      );
+      this.physics.addStaticCuboid(b.x, h, b.z, b.halfLength, h, b.halfThickness, this.q);
       this.colliderCount++;
     }
   }
