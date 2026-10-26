@@ -229,7 +229,8 @@ function sanitizeItem(raw: unknown): GearItem | null {
     slot,
     rarity,
     base: int(raw['base'], 0, 99, 0),
-    ilvl: int(raw['ilvl'], 1, 999, 1),
+    // Endless chapters go past level 1000 at the very bottom.
+    ilvl: int(raw['ilvl'], 1, 9999, 1),
     plus: int(raw['plus'], 0, GEAR_CONFIG.maxPlus, 0),
     main,
     subs,

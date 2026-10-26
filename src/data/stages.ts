@@ -103,8 +103,9 @@ export function buildChapter(
     const level = s.level ?? firstLevel + index;
     const kind = s.kind ?? (s.boss !== undefined ? 'boss' : 'normal');
     const goldBase = 90 + level * 30;
-    // Deeper chapters pay more XP so heroes keep pace with the steeper enemy levels.
-    const xpMult = 1 + 0.15 * (number - 1);
+    // Deeper chapters pay more XP so heroes keep pace with the steeper enemy levels (the bonus
+    // stops growing in the Endless chapters, where heroes are near the level cap).
+    const xpMult = 1 + 0.15 * (Math.min(number, 12) - 1);
     return {
       id: `c${number}s${index + 1}`,
       name: s.name,

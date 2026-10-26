@@ -141,13 +141,17 @@ export function chapterStory(chapter: ChapterDef): ChapterStory {
   if (hand !== undefined) return hand;
   const rng = mulberry32(chapter.number * 104729 + 31);
   const bossId = chapter.stages[chapter.stages.length - 1]?.boss ?? null;
-  // "The Bound King" reads "the Bound King" mid-sentence; the line's first letter is capitalised.
-  const lord = (bossId !== null ? BOSSES[bossId].name : 'the shadow').replace(/^The /, 'the ');
-  const place = chapter.name.replace(/^The /, 'the ');
-  const fill = (t: string): string => {
-    const line = t.replaceAll('{place}', place).replaceAll('{lord}', lord);
-    return `${line.charAt(0).toUpperCase()}${line.slice(1)}`;
+  const names: Readonly<Record<string, string>> = {
+    place: chapter.name,
+    lord: bossId !== null ? BOSSES[bossId].name : 'The shadow',
   };
+  // "The Bound King" reads "the Bound King" in the middle of a sentence.
+  const fill = (t: string): string =>
+    t.replace(/\{(place|lord)\}/g, (_m, key: string, at: number) => {
+      const name = names[key] ?? '';
+      const opensSentence = at === 0 || /[.!?]\s*$/.test(t.slice(0, at));
+      return opensSentence ? name : name.replace(/^The /, 'the ');
+    });
   const pickLine = (list: readonly string[]): string =>
     list[Math.floor(rng() * list.length)] ?? list[0] ?? '';
   return {

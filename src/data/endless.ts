@@ -22,7 +22,7 @@ export const ENDLESS_CONFIG = {
   startLevel: 33,
   slope: 8,
   /** ...for this many chapters, then flattens: slope × knee / (knee + chapters past it). */
-  linearChapters: 3,
+  linearChapters: 1,
   knee: 6,
   /** Waves: enemy "weight" per wave (heavy enemies weigh more), growing with depth. */
   waveWeight: { base: 7, perDepth: 0.5, max: 14 },
@@ -30,8 +30,12 @@ export const ENDLESS_CONFIG = {
   waveTypes: { base: 2, perType: 4, max: 4 },
   /** Elite affixes on wave enemies (every `enemyEvery` chapters of depth) and on bosses. */
   affixes: { enemyEvery: 3, enemyMax: 3, bossBase: 1, bossEvery: 3, bossMax: 4 },
-  /** Depth pressure on top of the level: extra enemy HP / ATK per chapter of depth. */
-  pressure: { hpPerDepth: 0.015, atkPerDepth: 0.02 },
+  /**
+   * Depth pressure on top of the level. Gear outgrows enemy damage past the hero level cap, so
+   * enemy ATK climbs per chapter of depth (capped); stacking affixes already make bosses
+   * tougher, so base HP eases off a little instead (HP ÷ (1 + hpEase × depth)).
+   */
+  pressure: { hpEase: 0.01, atkPerDepth: 0.17, atkMax: 10 },
   /** First-clear gems for elite / boss stages: base + perDepth × depth, capped. */
   gems: {
     miniboss: { base: 6, perDepth: 1, max: 30 },
@@ -81,15 +85,22 @@ export function endlessDepth(chapter: number): number {
 export function endlessLevel(chapter: number, index: number): number {
   const x = chapter - C.firstChapter + index / 8;
   const lin = C.linearChapters;
-  const rise =
-    x <= lin ? C.slope * x : C.slope * lin + C.slope * C.knee * Math.log(1 + (x - lin) / C.knee);
-  return Math.floor(C.startLevel + rise);
+  if (x <= lin) return Math.floor(C.startLevel + C.slope * x);
+  // Past the knee the slope is slope × knee / (knee + t); once that falls to one level per
+  // chapter it stays there (the curve keeps climbing, smoothly, forever).
+  const t = x - lin;
+  const flat = C.slope * C.knee - C.knee;
+  const bend = C.slope * C.knee * Math.log(1 + Math.min(t, flat) / C.knee);
+  return Math.floor(C.startLevel + C.slope * lin + bend + Math.max(0, t - flat));
 }
 
 /** Extra enemy HP / ATK multipliers for a chapter's depth (on top of its level). */
 export function endlessPressure(chapter: number): { hp: number; atk: number } {
   const d = Math.max(0, endlessDepth(chapter) - 1);
-  return { hp: 1 + C.pressure.hpPerDepth * d, atk: 1 + C.pressure.atkPerDepth * d };
+  return {
+    hp: 1 / (1 + C.pressure.hpEase * d),
+    atk: Math.min(C.pressure.atkMax, 1 + C.pressure.atkPerDepth * d),
+  };
 }
 
 // ------------------------------------------------------------------ names
@@ -131,9 +142,9 @@ const CH_SUFFIX = [
   'crag',
 ] as const;
 const CH_FORMS = [
-  (a: string, b: string) => `The ${a}${b}`,
-  (_a: string, b: string, adj: string) => `The ${adj} ${capital(b)}`,
-  (a: string, b: string, adj: string) => `${a}${b} of the ${adj}`,
+  (a: string, b: string, _adj: string, _of: string) => `The ${a}${b}`,
+  (_a: string, b: string, adj: string, _of: string) => `The ${adj} ${capital(b)}`,
+  (a: string, b: string, _adj: string, of: string) => `${a}${b} of ${of}`,
 ] as const;
 const ADJECTIVES = [
   'Weeping',
@@ -152,7 +163,7 @@ const ADJECTIVES = [
   'Withered',
 ] as const;
 const SUBTITLE_SUBJECTS = [
-  'the ash',
+  'the ashes',
   'the dead',
   'the old fires',
   'the chains',
@@ -274,7 +285,7 @@ function chapterName(rng: () => number): { name: string; subtitle: string } {
   const a = pick(rng, CH_PREFIX);
   const b = pick(rng, CH_SUFFIX);
   const adj = pick(rng, ADJECTIVES);
-  const name = pick(rng, CH_FORMS)(a, b, adj);
+  const name = pick(rng, CH_FORMS)(a, b, adj, pick(rng, STAGE_OF));
   const subtitle = `Where ${pick(rng, SUBTITLE_SUBJECTS)} ${pick(rng, SUBTITLE_VERBS)}`;
   return { name, subtitle };
 }
