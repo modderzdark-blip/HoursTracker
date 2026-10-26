@@ -246,7 +246,7 @@ export const beastPlan: CreaturePlan = {
     // head bone (they bite together).
     const twin = def.heads === 2;
     const headScale = twin ? 1.15 : 1.4;
-    for (const dx of twin ? [0.17, -0.17] : [0]) {
+    for (const dx of twin ? [0.21, -0.21] : [0]) {
       if (dx !== 0)
         body.add(
           ellipsoid([N.x + dx * 0.55, N.y + 0.02, (N.z + H.z) * 0.5], [0.1, 0.1, 0.14], [10, 8]),

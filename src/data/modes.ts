@@ -91,7 +91,7 @@ export const DUNGEON_CONFIG = {
   roomGold: 140,
   roomXp: 90,
   /** Final-room elites (mini-bosses), picked at random from those already defeated. */
-  elites: ['gaoler', 'seer_exalted', 'penitent'] satisfies readonly BossId[],
+  elites: ['gaoler', 'seer_exalted', 'penitent', 'hollow_twin'] satisfies readonly BossId[],
   rooms: [
     {
       arena: 'ash_gate',
