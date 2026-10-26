@@ -1,0 +1,243 @@
+{
+ "surfaces": [
+  {
+   "id": "brown_mud_rocks_01"
+  },
+  {
+   "id": "castle_brick_broken_06"
+  },
+  {
+   "id": "castle_wall_varriation"
+  },
+  {
+   "id": "cobblestone_floor_07"
+  },
+  {
+   "id": "cobblestone_square"
+  },
+  {
+   "id": "cracked_red_ground"
+  },
+  {
+   "id": "dark_brick_wall"
+  },
+  {
+   "id": "dry_ground_rocks"
+  },
+  {
+   "id": "forest_ground_04"
+  },
+  {
+   "id": "marble_mosaic_tiles"
+  },
+  {
+   "id": "monastery_stone_floor"
+  },
+  {
+   "id": "mossy_cobblestone"
+  },
+  {
+   "id": "mossy_rock"
+  },
+  {
+   "id": "mud_cracked_dry_03"
+  },
+  {
+   "id": "patterned_slate_tiles"
+  },
+  {
+   "id": "red_mud_stones"
+  },
+  {
+   "id": "rock_boulder_cracked"
+  },
+  {
+   "id": "rock_pitted_mossy"
+  },
+  {
+   "id": "rock_wall_08"
+  },
+  {
+   "id": "rock_wall_13"
+  },
+  {
+   "id": "slate_floor"
+  },
+  {
+   "id": "stone_tiles_02"
+  },
+  {
+   "id": "stone_wall_04"
+  },
+  {
+   "id": "volcanic_rock_tiles"
+  }
+ ],
+ "models": [
+  {
+   "id": "antique_estoc",
+   "tris": 8246,
+   "after": 1200
+  },
+  {
+   "id": "brass_candleholders",
+   "tris": 41936,
+   "after": 3219
+  },
+  {
+   "id": "caged_hanging_light",
+   "tris": 22893,
+   "after": 2880
+  },
+  {
+   "id": "dead_tree_trunk",
+   "tris": 101802,
+   "after": 5996
+  },
+  {
+   "id": "dead_tree_trunk_02",
+   "tris": 83128,
+   "after": 5988
+  },
+  {
+   "id": "dry_branches_medium_01",
+   "tris": 16803,
+   "after": 2843
+  },
+  {
+   "id": "gothic_statue",
+   "tris": 27739,
+   "after": 7997
+  },
+  {
+   "id": "kite_shield",
+   "tris": 10306,
+   "after": 1497
+  },
+  {
+   "id": "lantern_chandelier_01",
+   "tris": 5971,
+   "after": 3003
+  },
+  {
+   "id": "large_castle_door",
+   "tris": 12640,
+   "after": 3996
+  },
+  {
+   "id": "large_iron_gate",
+   "tris": 38140,
+   "after": 5997
+  },
+  {
+   "id": "marble_bust_01",
+   "tris": 17456,
+   "after": 3000
+  },
+  {
+   "id": "modular_fort_01",
+   "tris": 28218,
+   "after": 28218
+  },
+  {
+   "id": "namaqualand_boulders_01",
+   "tris": 40850,
+   "after": 3998
+  },
+  {
+   "id": "pine_roots",
+   "tris": 162693,
+   "after": 5997
+  },
+  {
+   "id": "rock_07",
+   "tris": 14844,
+   "after": 2500
+  },
+  {
+   "id": "rock_09",
+   "tris": 12416,
+   "after": 2500
+  },
+  {
+   "id": "rock_face_01",
+   "tris": 20174,
+   "after": 4999
+  },
+  {
+   "id": "rock_face_02",
+   "tris": 29566,
+   "after": 4998
+  },
+  {
+   "id": "rock_moss_set_01",
+   "tris": 63127,
+   "after": 5992
+  },
+  {
+   "id": "rock_moss_set_02",
+   "tris": 57647,
+   "after": 5990
+  },
+  {
+   "id": "root_cluster_01",
+   "tris": 225261,
+   "after": 5997
+  },
+  {
+   "id": "stone_01",
+   "tris": 53520,
+   "after": 3000
+  },
+  {
+   "id": "stone_fire_pit",
+   "tris": 3887,
+   "after": 2000
+  },
+  {
+   "id": "treasure_chest",
+   "tris": 103330,
+   "after": 4117
+  },
+  {
+   "id": "tree_stump_01",
+   "tris": 41046,
+   "after": 3999
+  },
+  {
+   "id": "tree_stump_02",
+   "tris": 62345,
+   "after": 3996
+  },
+  {
+   "id": "wine_barrel_01",
+   "tris": 10820,
+   "after": 2554
+  },
+  {
+   "id": "wooden_barrels_01",
+   "tris": 33142,
+   "after": 6492
+  },
+  {
+   "id": "wooden_candlestick",
+   "tris": 212992,
+   "after": 1710
+  },
+  {
+   "id": "wooden_crate_01",
+   "tris": 6576,
+   "after": 2496
+  },
+  {
+   "id": "wooden_lantern_01",
+   "tris": 8321,
+   "after": 2531
+  },
+  {
+   "id": "worn_metal_rack",
+   "tris": 6372,
+   "after": 3050
+  }
+ ]
+}
