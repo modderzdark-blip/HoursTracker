@@ -1,5 +1,6 @@
 import {
   ACESFilmicToneMapping,
+  DepthTexture,
   HalfFloatType,
   PCFShadowMap,
   Scene,
@@ -14,7 +15,26 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { BLOOM_CONFIG, resolvePixelRatio } from '../data/quality';
+import {
+  AmbientOcclusionPass,
+  DepthOfFieldPass,
+  DepthTapPass,
+  SceneDepth,
+} from './CinematicPasses';
 import { DEFAULT_GRADE, GradePass, type ColorGrade } from './GradePass';
+
+/** Post chain request. The optional passes default to off (tools only ask for bloom/grade). */
+export interface PostRequest {
+  readonly bloom: boolean;
+  readonly grade: boolean;
+  /** Ambient occlusion from the scene depth (Ultra). */
+  readonly ao?: boolean;
+  /** Depth of field during cinematic shots (High, Ultra). */
+  readonly dof?: boolean;
+  /** Film tone curve in the grade (Ultra). */
+  readonly film?: boolean;
+  readonly bloomQuality?: 'standard' | 'fine';
+}
 
 export interface FrameRenderInfo {
   calls: number;
@@ -26,8 +46,9 @@ export interface FrameRenderInfo {
 /**
  * Owns the WebGLRenderer, the scene and the optional post-processing chain.
  * Without bloom we render straight to the canvas (tone mapping + sRGB applied by the renderer).
- * With bloom, RenderPass → UnrealBloomPass → OutputPass (tone mapping + sRGB in OutputPass), on
- * a 4× MSAA half-float target.
+ * With bloom, RenderPass → [AO] → [cinematic DoF] → UnrealBloomPass → OutputPass (tone mapping +
+ * sRGB in OutputPass) → [grade], on a 4× MSAA half-float target. AO and DoF read the scene's own
+ * depth texture, so they never render the scene twice.
  */
 export class RenderContext {
   readonly renderer: WebGLRenderer;
@@ -37,6 +58,17 @@ export class RenderContext {
   private renderPass: RenderPass | null = null;
   private bloomPass: UnrealBloomPass | null = null;
   private gradePass: GradePass | null = null;
+  private aoPass: AmbientOcclusionPass | null = null;
+  private dofPass: DepthOfFieldPass | null = null;
+  private readonly sceneDepth = new SceneDepth();
+  private post: Required<PostRequest> = {
+    bloom: false,
+    grade: false,
+    ao: false,
+    dof: false,
+    film: false,
+    bloomQuality: 'standard',
+  };
   private grade: ColorGrade = DEFAULT_GRADE;
   private width = 1;
   private height = 1;
@@ -77,10 +109,33 @@ export class RenderContext {
   setScene(scene: Scene): void {
     this.currentScene = scene;
     if (this.renderPass !== null) this.renderPass.scene = scene;
+    if (this.aoPass !== null) this.aoPass.scene = scene;
   }
 
   get bloomEnabled(): boolean {
     return this.bloomPass !== null;
+  }
+
+  get aoEnabled(): boolean {
+    return this.aoPass !== null;
+  }
+
+  /** True when this chain can blur cinematic shots. */
+  get dofAvailable(): boolean {
+    return this.dofPass !== null;
+  }
+
+  /** 0..1 strength of the cinematic depth of field right now. */
+  get dofAmount(): number {
+    return this.dofPass?.amount ?? 0;
+  }
+
+  /**
+   * Cinematic depth of field: focus `distance` metres from the camera while a shot plays, null
+   * to fade back to a sharp image. No-op on presets without it.
+   */
+  setCinematicFocus(distance: number | null, dtSec: number): void {
+    this.dofPass?.setFocus(distance, dtSec);
   }
 
   get currentPixelRatio(): number {
@@ -110,7 +165,7 @@ export class RenderContext {
   /** Bloom intensity (lowered by "Reduce flashes"); applies now and to a bloom pass made later. */
   setBloomStrength(strength: number): void {
     this.bloomStrength = Math.max(0, strength);
-    if (this.bloomPass !== null) this.bloomPass.strength = this.bloomStrength;
+    if (this.bloomPass !== null) this.bloomPass.strength = this.effectiveBloomStrength();
   }
 
   /** Shorthand kept for tools: bloom on/off with grading following it. */
@@ -129,45 +184,87 @@ export class RenderContext {
     this.gradePass?.setGrade(grade);
   }
 
+  private effectiveBloomStrength(): number {
+    const fine = this.post.bloomQuality === 'fine';
+    return this.bloomStrength * (fine ? BLOOM_CONFIG.fine.strengthMult : 1);
+  }
+
   /**
-   * Post-processing chain: RenderPass → [bloom] → OutputPass (tone mapping + sRGB) → [grade].
-   * With neither effect the scene renders straight to the canvas.
+   * Post-processing chain: RenderPass → [AO] → [DoF] → [bloom] → OutputPass (tone mapping +
+   * sRGB) → [grade]. With neither bloom nor grading the scene renders straight to the canvas.
    */
-  setPost(post: { readonly bloom: boolean; readonly grade: boolean }, camera: Camera): void {
+  setPost(request: PostRequest, camera: Camera): void {
+    const grade = request.grade;
+    const chain = request.bloom || grade;
+    const post: Required<PostRequest> = {
+      bloom: request.bloom,
+      grade,
+      // The depth effects need the full-screen chain.
+      ao: chain && request.ao === true,
+      dof: chain && request.dof === true,
+      film: grade && request.film === true,
+      bloomQuality: request.bloomQuality ?? 'standard',
+    };
+    const p = this.post;
     if (
-      post.bloom === (this.bloomPass !== null) &&
-      post.grade === (this.gradePass !== null) &&
-      (this.composer !== null) === (post.bloom || post.grade)
+      post.bloom === p.bloom &&
+      post.grade === p.grade &&
+      post.ao === p.ao &&
+      post.dof === p.dof &&
+      post.film === p.film &&
+      post.bloomQuality === p.bloomQuality &&
+      (this.composer !== null) === chain
     )
       return;
     this.disposeComposer();
-    if (!post.bloom && !post.grade) return;
+    this.post = post;
+    if (!chain) return;
+    const depthEffects = post.ao || post.dof;
     const target = new WebGLRenderTarget(
       this.width * this.pixelRatio,
       this.height * this.pixelRatio,
-      { type: HalfFloatType, samples: this.msaa ? 4 : 0 },
+      {
+        type: HalfFloatType,
+        samples: this.msaa ? 4 : 0,
+        // AO / DoF read the scene depth (resolved from MSAA with the colour, as before).
+        depthTexture: depthEffects ? new DepthTexture(1, 1) : null,
+      },
     );
     const composer = new EffectComposer(this.renderer, target);
     composer.setPixelRatio(this.pixelRatio);
     composer.setSize(this.width, this.height);
     this.renderPass = new RenderPass(this.scene, camera);
     composer.addPass(this.renderPass);
+    if (depthEffects) {
+      composer.addPass(new DepthTapPass(this.sceneDepth));
+      const initial = composer.renderTarget2.depthTexture;
+      if (post.ao && initial !== null) {
+        this.aoPass = new AmbientOcclusionPass(this.scene, camera, this.sceneDepth, initial);
+        composer.addPass(this.aoPass);
+      }
+      if (post.dof) {
+        this.dofPass = new DepthOfFieldPass(camera, this.sceneDepth);
+        composer.addPass(this.dofPass);
+      }
+    }
     if (post.bloom) {
+      const fine = post.bloomQuality === 'fine';
+      const tune = fine ? BLOOM_CONFIG.fine : BLOOM_CONFIG;
       const res = new Vector2(
-        this.width * BLOOM_CONFIG.resolutionScale,
-        this.height * BLOOM_CONFIG.resolutionScale,
+        this.width * tune.resolutionScale,
+        this.height * tune.resolutionScale,
       );
       this.bloomPass = new UnrealBloomPass(
         res,
-        this.bloomStrength,
-        BLOOM_CONFIG.radius,
-        BLOOM_CONFIG.threshold,
+        this.effectiveBloomStrength(),
+        tune.radius,
+        tune.threshold,
       );
       composer.addPass(this.bloomPass);
     }
     composer.addPass(new OutputPass());
     if (post.grade) {
-      this.gradePass = new GradePass(this.grade);
+      this.gradePass = new GradePass(this.grade, post.film ? 0.016 : 0.018, post.film);
       composer.addPass(this.gradePass);
     }
     this.composer = composer;
@@ -178,6 +275,8 @@ export class RenderContext {
     this.renderer.info.reset();
     if (this.composer !== null) {
       if (this.renderPass !== null) this.renderPass.camera = camera;
+      if (this.aoPass !== null) this.aoPass.camera = camera;
+      if (this.dofPass !== null) this.dofPass.camera = camera;
       this.composer.render();
     } else {
       this.renderer.render(this.scene, camera);
@@ -197,9 +296,14 @@ export class RenderContext {
   }
 
   private disposeComposer(): void {
+    this.post = { ...this.post, bloom: false, grade: false, ao: false, dof: false, film: false };
     if (this.composer === null) return;
     this.bloomPass?.dispose();
     this.gradePass?.dispose();
+    this.aoPass?.dispose();
+    this.dofPass?.dispose();
+    this.composer.renderTarget1.depthTexture?.dispose();
+    this.composer.renderTarget2.depthTexture?.dispose();
     this.composer.dispose();
     this.composer.renderTarget1.dispose();
     this.composer.renderTarget2.dispose();
@@ -207,6 +311,9 @@ export class RenderContext {
     this.renderPass = null;
     this.bloomPass = null;
     this.gradePass = null;
+    this.aoPass = null;
+    this.dofPass = null;
+    this.sceneDepth.texture = null;
   }
 
   private readonly onContextLost = (e: Event): void => {

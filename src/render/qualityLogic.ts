@@ -32,9 +32,45 @@ export function guessInitialQuality(hints: DeviceHints): QualityLevel {
   return 'medium';
 }
 
-export function stepQuality(level: QualityLevel, delta: -1 | 1): QualityLevel {
+/** Desktop GPUs that are clearly strong enough for Ultra (discrete cards, Apple silicon). */
+const STRONG_GPU_PATTERNS: readonly RegExp[] = [
+  /geforce (gtx 1[06-9]|rtx)/i,
+  /\brtx\b/i,
+  /radeon (rx|pro)/i,
+  /apple m[1-9]/i,
+];
+
+/** Software / integrated renderers that must never get Ultra on their own. */
+const SOFT_GPU_PATTERNS: readonly RegExp[] = [
+  /swiftshader/i,
+  /llvmpipe/i,
+  /software/i,
+  /basic render/i,
+];
+
+/**
+ * The highest level Auto may pick. Ultra only on clearly strong devices — a desktop with 8+ cores,
+ * 8 GB (the most browsers report) and a known discrete-class GPU. Phones top out at High (the
+ * player can still choose Ultra by hand).
+ */
+export function autoQualityCeiling(hints: DeviceHints): QualityLevel {
+  if (hints.isMobile) return 'high';
+  const gpu = hints.gpu ?? '';
+  if (gpu.length === 0 || SOFT_GPU_PATTERNS.some((p) => p.test(gpu))) return 'high';
+  if (!STRONG_GPU_PATTERNS.some((p) => p.test(gpu))) return 'high';
+  if (hints.cores === undefined || hints.cores < 8) return 'high';
+  if (hints.deviceMemoryGB === undefined || hints.deviceMemoryGB < 8) return 'high';
+  return 'ultra';
+}
+
+export function stepQuality(
+  level: QualityLevel,
+  delta: -1 | 1,
+  ceiling: QualityLevel = 'ultra',
+): QualityLevel {
   const i = QUALITY_ORDER.indexOf(level);
-  const next = QUALITY_ORDER[Math.min(Math.max(i + delta, 0), QUALITY_ORDER.length - 1)];
+  const top = Math.max(i, QUALITY_ORDER.indexOf(ceiling));
+  const next = QUALITY_ORDER[Math.min(Math.max(i + delta, 0), top, QUALITY_ORDER.length - 1)];
   return next ?? level;
 }
 
@@ -61,9 +97,14 @@ export class QualityBenchmark {
   private done = false;
   lastMedianMs = 0;
 
+  /**
+   * @param ceiling the highest level an upgrade may reach (autoQualityCeiling); a start level
+   *   above it is kept unless the device is too slow for it.
+   */
   constructor(
     private level: QualityLevel,
     private readonly tuning: BenchmarkTuning = BENCHMARK_CONFIG,
+    private readonly ceiling: QualityLevel = 'high',
   ) {
     this.samples = new Float64Array(tuning.sampleFrames);
     this.scratch = new Float64Array(tuning.sampleFrames);
@@ -95,9 +136,9 @@ export class QualityBenchmark {
     if (median > t.dropToLowIfMedianMsAbove) {
       next = 'low';
     } else if (median > t.downgradeIfMedianMsAbove) {
-      next = stepQuality(this.level, -1);
+      next = stepQuality(this.level, -1, this.ceiling);
     } else if (median < t.upgradeIfMedianMsBelow && !this.downgraded) {
-      next = stepQuality(this.level, 1);
+      next = stepQuality(this.level, 1, this.ceiling);
     }
 
     if (next === this.level) {

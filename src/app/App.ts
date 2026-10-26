@@ -22,6 +22,7 @@ import { goalsReached, type GoalSnapshot } from '../progression/feel';
 import { questDef } from '../progression/goals';
 import {
   BLOOM_CONFIG,
+  postSettingsFor,
   QUALITY_PRESETS,
   type QualityLevel,
   type QualityPreset,
@@ -45,7 +46,7 @@ import { HubScene } from '../modes/HubScene';
 import { loadRapier, PhysicsWorld, type Rapier } from '../physics/PhysicsWorld';
 import { PlayerProfile } from '../progression/PlayerProfile';
 import { QualityManager, type QualityTarget } from '../render/QualityManager';
-import { guessInitialQuality } from '../render/qualityLogic';
+import { autoQualityCeiling, guessInitialQuality } from '../render/qualityLogic';
 import { createCharacterEnvironment, setCharacterEnvironment } from '../render/characterEnv';
 import { RenderContext } from '../render/RenderContext';
 import type { SaveData, SaveStore } from '../save/SaveStore';
@@ -260,12 +261,13 @@ export class App {
     // Probe the GPU on a throwaway canvas: calling getContext on the game canvas would lock its
     // context attributes (antialias) before three.js gets to choose them.
     this.device = probeDevice();
-    const guessed = guessInitialQuality({
+    const hints = {
       isMobile: detectMobile(),
       deviceMemoryGB: this.device.deviceMemoryGB,
       cores: this.device.cores,
       gpu: this.device.gpuRenderer,
-    });
+    };
+    const guessed = guessInitialQuality(hints);
     const startLevel: QualityLevel =
       settings.quality === 'auto' ? (settings.detectedQuality ?? guessed) : settings.quality;
     this.ctx = new RenderContext(opts.canvas, QUALITY_PRESETS[startLevel].antialias);
@@ -444,6 +446,8 @@ export class App {
     );
 
     this.quality = new QualityManager(settings.quality, startLevel, this.bus);
+    // Auto only climbs to Ultra on clearly strong devices.
+    this.quality.autoCeiling = autoQualityCeiling(hints);
     this.quality.setOverrides(qualityOverridesFrom(settings));
     const rendererTarget: QualityTarget = {
       applyQuality: (preset: QualityPreset) => this.applyRendererQuality(preset),
@@ -842,7 +846,7 @@ export class App {
       preset.maxPixelRatio,
       this.renderScale(),
     );
-    this.ctx.setPost({ bloom: preset.bloom, grade: preset.grade }, this.camera.camera);
+    this.ctx.setPost(postSettingsFor(preset), this.camera.camera);
     this.vignette.classList.toggle('is-hidden', !preset.vignette || preset.grade);
     this.loop.requestRender();
   }

@@ -62,13 +62,29 @@ void main() {
   float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
   c = mix(vec3(l), c, uSat);
   c = (c - 0.5) * uContrast + 0.5;
+#ifdef FILM
+  // Film response (Ultra): a gentle S-curve, highlights that roll off and lose a little
+  // saturation instead of clipping, and slightly lifted blacks.
+  c = clamp(c, 0.0, 1.2);
+  c = mix(c, c * c * (3.0 - 2.0 * c), 0.22);
+  float hi = smoothstep(0.72, 1.05, l);
+  c = mix(c, vec3(dot(c, vec3(0.2126, 0.7152, 0.0722))), hi * 0.18);
+  c = c / (1.0 + max(c - 0.9, 0.0) * 1.6);
+  c = c * 0.985 + 0.012;
+#endif
   c += uShadowTint * (1.0 - smoothstep(0.0, 0.45, l));
   c += uHighTint * smoothstep(0.45, 1.0, l);
   // Vignette, wider than tall so the sides darken more on landscape phones.
   vec2 d = (vUv - 0.5) * vec2(1.0, uResolution.y / max(uResolution.x, 1.0) * 1.6);
   c *= 1.0 - uVignette * smoothstep(0.25, 0.75, length(d));
   // Fine film grain hides banding in the dark fog gradients.
+#ifdef FILM
+  // Film grain is strongest in the mid-tones, like real stock.
+  float gl = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  c += (hash(vUv * uResolution + fract(uTime) * 61.0) - 0.5) * uGrain * (0.55 + 1.6 * gl * (1.0 - gl));
+#else
   c += (hash(vUv * uResolution + fract(uTime) * 61.0) - 0.5) * uGrain;
+#endif
   c += uFlash;
   gl_FragColor = vec4(clamp(c, 0.0, 1.0), src.a);
 }`;
@@ -82,9 +98,11 @@ export class GradePass extends Pass {
   private readonly quad: FullScreenQuad;
   private time = 0;
 
-  constructor(grade: ColorGrade = DEFAULT_GRADE, grain = 0.018) {
+  /** `film` (Ultra) adds the film tone curve and mid-tone weighted grain. */
+  constructor(grade: ColorGrade = DEFAULT_GRADE, grain = 0.018, film = false) {
     super();
     this.material = new ShaderMaterial({
+      defines: film ? { FILM: 1 } : {},
       uniforms: {
         tDiffuse: { value: null },
         uShadowTint: { value: new Color() },

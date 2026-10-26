@@ -111,6 +111,8 @@ export class Atmosphere {
       this.moon.shadow.map?.dispose();
       this.moon.shadow.map = null;
     }
+    // Softer PCF penumbra on Ultra (wider Vogel-disc taps; same tap count).
+    this.moon.shadow.radius = preset.shadowRadius;
     this.frustumHalf = preset.shadowFrustumHalfSize;
     const cam = this.moon.shadow.camera;
     cam.left = -this.frustumHalf;

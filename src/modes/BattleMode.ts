@@ -27,7 +27,13 @@ import { DIFFICULTIES, type DifficultyDef, type DifficultyId } from '../data/dif
 import { ECONOMY } from '../data/economy';
 import type { EnemyId } from '../data/enemies';
 import type { HeroDef } from '../data/heroes';
-import type { QualityLevel, QualityPreset } from '../data/quality';
+import {
+  emberCountFor,
+  PARTICLE_CAPACITY,
+  PARTICLE_REFERENCE,
+  type QualityLevel,
+  type QualityPreset,
+} from '../data/quality';
 import type { AssetLibrary } from '../render/env/AssetLibrary';
 import { RIGS } from '../data/rigs';
 import type { StageDef } from '../data/stages';
@@ -137,7 +143,6 @@ export interface BattleOutcome {
   readonly hpFrac: number;
 }
 
-const MAX_PARTICLES = 320;
 const DEFEAT_SCREEN_DELAY_MS = 1600;
 const VICTORY_DELAY_MS = 2600;
 /** Real-time delay before the VICTORY title (after a boss falls its last words come first). */
@@ -237,7 +242,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
     );
     this.builder.addTo(this.scene);
     this.atmosphere = new Atmosphere(d.ctx, this.arena);
-    this.embers = new EmberField(MAX_PARTICLES, this.arena.palette.ember);
+    this.embers = new EmberField(PARTICLE_CAPACITY, this.arena.palette.ember);
     this.scene.add(this.embers.points);
     this.telegraphs = new TelegraphDecals(this.scene, 32);
     this.sparks = new Sparks(this.scene);
@@ -1321,13 +1326,13 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.hud.tick(dtSec);
   }
 
-  applyQuality(preset: QualityPreset, _level: QualityLevel): void {
+  applyQuality(preset: QualityPreset, level: QualityLevel): void {
     this.atmosphere.applyQuality(preset);
-    this.embers.setCount(preset.particleCount);
+    this.embers.setCount(emberCountFor(preset, level));
     const pr = this.d.ctx.currentPixelRatio;
     this.embers.setPixelRatio(pr);
     this.sparks.setPixelRatio(pr);
-    this.sparks.density = preset.particleCount / MAX_PARTICLES + 0.25;
+    this.sparks.density = preset.particleCount / PARTICLE_REFERENCE + 0.25;
     this.blobs.setStrength(preset.shadows ? 0.4 : 0.6);
     this.fxLights.setEnabled(preset.pointLights);
   }

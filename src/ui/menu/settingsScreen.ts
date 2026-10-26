@@ -496,12 +496,13 @@ function buildGraphics(k: SettingsKit, _ctx: MenuContext, out: HTMLElement): voi
   });
   const quality = k.choice<QualitySetting>(
     'Quality preset',
-    'Auto measures your device during the first fight.',
+    'Auto measures your device in the first fight. Ultra adds ambient occlusion, soft shadows and cinematic depth of field.',
     [
       { value: 'auto', label: 'Auto' },
       { value: 'low', label: 'Low' },
       { value: 'medium', label: 'Med' },
       { value: 'high', label: 'High' },
+      { value: 'ultra', label: 'Ultra' },
     ],
     () => k.s.quality,
     (q) => k.port.setQuality(q),

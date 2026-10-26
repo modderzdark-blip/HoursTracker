@@ -2,6 +2,7 @@ import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
 import {
   applyQualityOverrides,
+  BENCHMARK_CONFIG,
   NO_QUALITY_OVERRIDES,
   QUALITY_PRESETS,
   sameOverrides,
@@ -28,6 +29,8 @@ export class QualityManager {
   private levelValue: QualityLevel;
   private overridesValue: QualityOverrides = NO_QUALITY_OVERRIDES;
   onDetected: ((level: QualityLevel) => void) | null = null;
+  /** Highest level the Auto benchmark may upgrade to (see autoQualityCeiling). */
+  autoCeiling: QualityLevel = 'high';
   onBenchmarkStateChange: ((running: boolean) => void) | null = null;
 
   constructor(
@@ -104,7 +107,7 @@ export class QualityManager {
   }
 
   startBenchmark(): void {
-    this.benchmark = new QualityBenchmark(this.levelValue);
+    this.benchmark = new QualityBenchmark(this.levelValue, BENCHMARK_CONFIG, this.autoCeiling);
     this.onBenchmarkStateChange?.(true);
   }
 
