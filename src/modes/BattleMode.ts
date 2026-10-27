@@ -536,6 +536,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
         if (this.stageIntroActive) this.cam.skip();
       }),
       b.on('player:died', () => {
+        this.cutStageIntro();
         this.resultKind = 'defeat';
         this.resultTimerMs = DEFEAT_SCREEN_DELAY_MS;
         this.director.markDefeat();
