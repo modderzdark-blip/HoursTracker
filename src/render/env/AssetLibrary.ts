@@ -2,6 +2,7 @@ import {
   BufferAttribute,
   LinearSRGBColorSpace,
   Matrix4,
+  MeshPhysicalMaterial,
   Mesh,
   type Object3D,
   Quaternion,
@@ -151,6 +152,8 @@ export class AssetLibrary {
       if (!(o instanceof Mesh)) return;
       o.matrixWorld.decompose(t, q, s);
       const geometry = unpacked((o.geometry as BufferGeometry).clone());
+      // Instanced copies cannot animate morph targets (and the scans need none).
+      geometry.morphAttributes = {};
       geometry.applyMatrix4(m.compose(new Vector3(), q, s));
       geometry.computeBoundingBox();
       geometry.computeBoundingSphere();
@@ -171,6 +174,14 @@ export class AssetLibrary {
       if (o instanceof Mesh) (o.geometry as BufferGeometry).dispose();
     });
     const mats = new Set(parts.map((p) => p.material));
+    // Glass (cabinet panes) as plain transparency: a transmission pass is too costly on phones.
+    for (const m of mats)
+      if (m instanceof MeshPhysicalMaterial && m.transmission > 0) {
+        m.transmission = 0;
+        m.transparent = true;
+        m.opacity = Math.min(m.opacity, 0.35);
+        m.depthWrite = false;
+      }
     for (const m of mats)
       for (const v of Object.values(m)) if (isTexture(v)) fitTexture(v, this.maxTextureSize);
     this.models.set(id, parts);

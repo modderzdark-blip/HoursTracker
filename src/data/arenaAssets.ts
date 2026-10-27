@@ -1,4 +1,5 @@
 import type { AssetRequest } from '../render/env/AssetLibrary';
+import { BOUND_SPIRE_ASSETS } from './sets/boundSpire';
 import { ASHEN_WASTES_ASSETS } from './sets/ashenWastes';
 import { ASH_GATE_ASSETS } from './sets/ashGate';
 import { CINDER_COURT_ASSETS } from './sets/cinderCourt';
@@ -160,47 +161,11 @@ export interface ArenaAssets {
   readonly mist?: readonly SmokeCard[];
 }
 
-/** Props framing the north gate: a pair of statues, candles, a chest, banners of war. */
-function gateGroup(statueScale: number): PropPlacement[] {
-  return [
-    { model: 'gothic_statue', deg: -14, r: 0.84, scale: statueScale, solid: true },
-    { model: 'gothic_statue', deg: 14, r: 0.84, scale: statueScale, solid: true },
-    { model: 'brass_candleholders', deg: -20, r: 0.86, scale: 1.4 },
-    { model: 'brass_candleholders', deg: 20, r: 0.86, scale: 1.4, yaw: 180 },
-  ];
-}
-
 export const ARENA_ASSETS: Readonly<Record<ArenaId, ArenaAssets>> = {
   cinder_court: CINDER_COURT_ASSETS,
   ash_gate: ASH_GATE_ASSETS,
   ashen_wastes: ASHEN_WASTES_ASSETS,
-  bound_spire: {
-    floor: { id: 'patterned_slate_tiles', size: 2.2 },
-    floorPatch: { id: 'marble_mosaic_tiles', size: 2 },
-    wall: { id: 'stone_wall_04', size: 1.7 },
-    rock: { id: 'rock_wall_08', size: 1.8 },
-    stone: { id: 'slate_floor', size: 2.3 },
-    brazier: { model: 'stone_fire_pit', scale: 1.1, fire: 0.38 },
-    boulders: { model: 'rock_09' },
-    props: [
-      ...gateGroup(2.3),
-      { model: 'large_castle_door', deg: 0, r: 0.995, scale: 1.5 },
-      { model: 'gothic_statue', deg: 72, r: 0.86, scale: 2.1, solid: true },
-      { model: 'gothic_statue', deg: 288, r: 0.86, scale: 2.1, solid: true },
-      { model: 'gothic_statue', deg: 144, r: 0.86, scale: 2, solid: true },
-      { model: 'gothic_statue', deg: 216, r: 0.86, scale: 2, solid: true },
-      { model: 'treasure_chest', deg: 36, r: 0.88, scale: 1.3, yaw: -10 },
-      { model: 'treasure_chest', deg: 324, r: 0.88, scale: 1.3, yaw: 10 },
-      { model: 'lantern_chandelier_01', deg: 108, r: 0.95, scale: 1.8, sink: -3.4 },
-      { model: 'lantern_chandelier_01', deg: 252, r: 0.95, scale: 1.8, sink: -3.4 },
-      { model: 'marble_bust_01', deg: 50, r: 0.9, scale: 2.6 },
-      { model: 'marble_bust_01', deg: 310, r: 0.9, scale: 2.6 },
-    ],
-    scatter: [
-      { model: 'wooden_candlestick', count: 18, band: [0.82, 0.95], scale: [2.2, 3] },
-      { model: 'brass_candleholders', count: 4, band: [0.88, 0.95], scale: [1.3, 1.5] },
-    ],
-  },
+  bound_spire: BOUND_SPIRE_ASSETS,
   hollow_deep: {
     // Wet cave rock, darker and cooler than the scan's daylight colour.
     floor: { id: 'mossy_rock', size: 3, tint: 0x6f7c74 },

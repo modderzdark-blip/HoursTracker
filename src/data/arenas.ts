@@ -330,28 +330,42 @@ const ASHEN_WASTES: ArenaDef = {
   },
 };
 
-/** The demon tower's crown: a ring of tall pillars under violet witch-light. */
+/**
+ * The demon tower's crown: a roofless throne hall. Columns line the aisle, statues stand along
+ * the walls, and the throne waits in an apse to the north under the chained, floating spire.
+ */
 const BOUND_SPIRE: ArenaDef = {
   id: 'bound_spire',
   name: 'The Bound Spire',
-  floorRadius: 22,
+  floorRadius: 20.5,
   wall: { segments: 28, height: 5, thickness: 1.4 },
+  outline: [
+    [-9, -30],
+    [9, -30],
+    [9, -22],
+    [21, -22],
+    [21, 21],
+    [-21, 21],
+    [-21, -22],
+    [-9, -22],
+  ],
   spawn: [0, 1.2, 8],
   spawnPoints: [
     [-17, 0],
     [17, 0],
     [0, -17],
-    [-11, 13],
-    [11, 13],
-    [-12, -12],
-    [12, -12],
+    [-15, 12],
+    [15, 12],
+    [-15, -11],
+    [15, -11],
   ],
   bossSpawn: [0, -7],
   dummySpawn: [0, 3],
-  pillars: [0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
-    const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
-    return { x: Math.cos(a) * 14.5, z: Math.sin(a) * 14.5, radius: 0.85, height: 8 };
-  }),
+  // Two rows of columns lining the aisle.
+  pillars: [-15, -6, 3, 12].flatMap((z) => [
+    { x: -11, z, radius: 0.85, height: 8 },
+    { x: 11, z, radius: 0.85, height: 8 },
+  ]),
   blocks: [{ position: [0, 0.3, -15.5], size: [5, 0.6, 2], rotationYDeg: 0 }],
   rocks: [
     { x: -6, z: 18, scale: 0.9 },
@@ -363,23 +377,23 @@ const BOUND_SPIRE: ArenaDef = {
     { x: 0, z: 6 },
   ],
   palette: {
-    background: 0x07050c,
-    fog: 0x140c22,
-    fogDensity: 0.03,
+    background: 0x0a0814,
+    fog: 0x1c1430,
+    fogDensity: 0.02,
     floorBase: 0x221e2a,
     stone: 0x3e3650,
     ember: 0xb070ff,
-    moonlight: 0x9080ff,
-    hemiSky: 0x302850,
-    hemiGround: 0x0c0814,
+    moonlight: 0xa898ff,
+    hemiSky: 0x443a6a,
+    hemiGround: 0x18101e,
   },
   lighting: {
-    moonIntensity: 2,
+    moonIntensity: 2.5,
     moonDirection: [-0.3, 1, 0.5],
-    hemiIntensity: 0.6,
-    environmentIntensity: 0.35,
-    brazierIntensity: 12,
-    brazierRange: 9,
+    hemiIntensity: 0.85,
+    environmentIntensity: 0.5,
+    brazierIntensity: 16,
+    brazierRange: 11,
   },
 };
 
