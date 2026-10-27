@@ -190,7 +190,8 @@ export function challengeStage(entry: ChallengeBoss, tier: number): StageDef {
   return {
     id: `challenge_${entry.boss}_${tier}`,
     name: `${BOSSES[entry.boss].name} · Tier ${tier}`,
-    arena: entry.arena,
+    // The boss is fought where it was met in Adventure (the table's arena if it has none).
+    arena: findAdventureStage(entry.stage)?.arena ?? entry.arena,
     level: base + tier * CHALLENGE_CONFIG.levelPerTier,
     trainingDummy: false,
     introCountdownMs: 1500,
@@ -286,7 +287,7 @@ export function huntStage(h: HuntDef): StageDef {
   return {
     id: `hunt_${h.entry.boss}`,
     name: `Hunt · ${BOSSES[h.entry.boss].name}`,
-    arena: h.entry.arena,
+    arena: findAdventureStage(h.entry.stage)?.arena ?? h.entry.arena,
     level: h.level,
     trainingDummy: false,
     introCountdownMs: 1500,

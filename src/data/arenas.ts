@@ -104,7 +104,7 @@ const CINDER_COURT: ArenaDef = {
   spawn: [0, 1.2, 6],
   spawnPoints: [
     [-15, -5],
-    [15, -5],
+    [17, -1.5],
     [-11, 13],
     [11, 13],
     [0, 18],
@@ -353,7 +353,7 @@ const BOUND_SPIRE: ArenaDef = {
   spawnPoints: [
     [-17, 0],
     [17, 0],
-    [0, -17],
+    [0, -19],
     [-15, 12],
     [15, 12],
     [-15, -11],
@@ -473,12 +473,221 @@ const HOLLOW_DEEP: ArenaDef = {
   },
 };
 
+/**
+ * A moonlit graveyard in a wood of dead trees: rows of leaning headstones east and west, low
+ * cemetery walls, and a crypt with its angels on the north side.
+ */
+const GRAVEWOOD: ArenaDef = {
+  id: 'gravewood',
+  name: 'The Gravewood',
+  floorRadius: 21.5,
+  wall: { segments: 26, height: 3, thickness: 1.4 },
+  outline: [
+    [-10, -24],
+    [10, -24],
+    [20, -15],
+    [24, -2],
+    [22, 12],
+    [12, 22],
+    [-12, 22],
+    [-22, 12],
+    [-24, -2],
+    [-20, -15],
+  ],
+  spawn: [0, 1.2, 8],
+  spawnPoints: [
+    [0, -18],
+    [-15, -12],
+    [15, -12],
+    [-13, 12],
+    [13, 12],
+    [0, 18],
+    [9, -16],
+  ],
+  bossSpawn: [0, -8],
+  dummySpawn: [0, 3],
+  pillars: [
+    { x: -8, z: -7, radius: 0.7, height: 3.6 },
+    { x: 8, z: 7, radius: 0.7, height: 2.4 },
+  ],
+  blocks: [
+    // Tombs with their lids still on.
+    { position: [6.5, 0.45, -4], size: [2.4, 0.9, 1.2], rotationYDeg: 12 },
+    { position: [-6.5, 0.45, 5], size: [2.4, 0.9, 1.2], rotationYDeg: -8 },
+  ],
+  rocks: [
+    { x: -18, z: 8, scale: 1.1 },
+    { x: 18.5, z: -8, scale: 1.0 },
+  ],
+  braziers: [
+    { x: -4.5, z: 1 },
+    { x: 4.5, z: 1 },
+  ],
+  palette: {
+    background: 0x070b12,
+    fog: 0x15202a,
+    fogDensity: 0.022,
+    floorBase: 0x262a26,
+    stone: 0x4a5058,
+    ember: 0x9ad0ff,
+    moonlight: 0xb8d0ff,
+    hemiSky: 0x40506a,
+    hemiGround: 0x161a14,
+  },
+  lighting: {
+    moonIntensity: 2.8,
+    moonDirection: [0.35, 1, -0.45],
+    hemiIntensity: 0.85,
+    environmentIntensity: 0.5,
+    brazierIntensity: 16,
+    brazierRange: 11,
+  },
+};
+
+/**
+ * A mountain pass: a ledge between a sheer cliff to the west and a drop to the east, a parapet
+ * along the brink and the fortified gate that closes the pass to the north.
+ */
+const WIDOWS_PASS: ArenaDef = {
+  id: 'widows_pass',
+  name: "Widow's Pass",
+  floorRadius: 18,
+  wall: { segments: 26, height: 3.5, thickness: 1.4 },
+  outline: [
+    [-8, -28],
+    [8, -28],
+    [16, -18],
+    [18.5, -4],
+    [18, 10],
+    [14, 22],
+    [-14, 22],
+    [-18, 10],
+    [-18.5, -4],
+    [-16, -18],
+  ],
+  spawn: [0, 1.2, 8],
+  spawnPoints: [
+    [-13, -6],
+    [13, -6],
+    [-11, 11],
+    [11, 11],
+    [0, -13.5],
+    [-9, -13],
+    [9, -13],
+  ],
+  bossSpawn: [0, -9],
+  dummySpawn: [0, 3],
+  pillars: [
+    { x: -7, z: -2, radius: 0.8, height: 4.2 },
+    { x: 7, z: 4, radius: 0.8, height: 2.6 },
+  ],
+  blocks: [{ position: [0, 0.3, -17.2], size: [6, 0.6, 1.6], rotationYDeg: 0 }],
+  rocks: [
+    { x: -15.5, z: 4, scale: 1.4 },
+    { x: -13.5, z: -11.5, scale: 1.2 },
+    { x: 14, z: 9.5, scale: 0.9 },
+  ],
+  braziers: [
+    { x: -4, z: 1 },
+    { x: 4, z: 1 },
+  ],
+  palette: {
+    background: 0x0c0e16,
+    fog: 0x252a36,
+    fogDensity: 0.016,
+    floorBase: 0x2a2a2c,
+    stone: 0x55555a,
+    ember: 0xffa050,
+    moonlight: 0xd8e0ff,
+    hemiSky: 0x4e5878,
+    hemiGround: 0x1e1a16,
+  },
+  lighting: {
+    moonIntensity: 2.9,
+    moonDirection: [0.55, 1, 0.15],
+    hemiIntensity: 0.85,
+    environmentIntensity: 0.5,
+    brazierIntensity: 20,
+    brazierRange: 12,
+  },
+};
+
+/**
+ * A flooded cloister: arcades round a garth gone to moss and roots, standing water in its
+ * corners, and the broken bell tower to the north.
+ */
+const DROWNED_CLOISTER: ArenaDef = {
+  id: 'drowned_cloister',
+  name: 'The Drowned Cloister',
+  floorRadius: 20.5,
+  wall: { segments: 28, height: 3.6, thickness: 1.4 },
+  outline: [
+    [-17, -21],
+    [17, -21],
+    [21, -17],
+    [21, 17],
+    [17, 21],
+    [-17, 21],
+    [-21, 17],
+    [-21, -17],
+  ],
+  spawn: [0, 1.2, 8],
+  spawnPoints: [
+    [-16, 0],
+    [16, 0],
+    [0, -17],
+    [-12, 13],
+    [12, 13],
+    [-13, -12],
+    [13, -12],
+  ],
+  bossSpawn: [0, -8],
+  dummySpawn: [0, 3],
+  pillars: [
+    { x: -9, z: -9, radius: 0.75, height: 2.8 },
+    { x: 9, z: -9, radius: 0.75, height: 5.5 },
+    { x: -9, z: 9, radius: 0.75, height: 4.2 },
+    { x: 9, z: 9, radius: 0.75, height: 2.2 },
+  ],
+  blocks: [],
+  rocks: [
+    { x: -17, z: -6, scale: 1.0 },
+    { x: 17.5, z: 6, scale: 1.1 },
+  ],
+  braziers: [
+    { x: -5, z: -2 },
+    { x: 5, z: -2 },
+  ],
+  palette: {
+    background: 0x060b0c,
+    fog: 0x12201e,
+    fogDensity: 0.022,
+    floorBase: 0x262c26,
+    stone: 0x4c544c,
+    ember: 0xffb060,
+    moonlight: 0xb0e0d8,
+    hemiSky: 0x3e5a56,
+    hemiGround: 0x161a12,
+  },
+  lighting: {
+    moonIntensity: 2.6,
+    moonDirection: [-0.4, 1, 0.25],
+    hemiIntensity: 0.85,
+    environmentIntensity: 0.5,
+    brazierIntensity: 20,
+    brazierRange: 12,
+  },
+};
+
 export const ARENAS = {
   cinder_court: CINDER_COURT,
   ash_gate: ASH_GATE,
   ashen_wastes: ASHEN_WASTES,
   bound_spire: BOUND_SPIRE,
   hollow_deep: HOLLOW_DEEP,
+  gravewood: GRAVEWOOD,
+  widows_pass: WIDOWS_PASS,
+  drowned_cloister: DROWNED_CLOISTER,
 } as const satisfies Record<string, ArenaDef>;
 
 export type ArenaId = keyof typeof ARENAS;

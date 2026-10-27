@@ -1,4 +1,4 @@
-import type { ArenaId } from './arenas';
+import { ARENA_IDS, type ArenaId } from './arenas';
 import type { BossId } from './bosses';
 import type { DifficultyId } from './difficulty';
 import type { EnemyId } from './enemies';
@@ -158,6 +158,48 @@ export const DUNGEON_CONFIG = {
       ],
     },
     {
+      arena: 'gravewood',
+      name: 'Barrow Field',
+      waves: [
+        [
+          ['revenant', 4],
+          ['gloom_bat', 3],
+        ],
+        [
+          ['hexcaller', 2],
+          ['revenant', 3],
+        ],
+      ],
+    },
+    {
+      arena: 'widows_pass',
+      name: 'Toll Gate',
+      waves: [
+        [
+          ['thrall', 4],
+          ['bulwark', 1],
+        ],
+        [
+          ['brute', 1],
+          ['ember_wisp', 3],
+        ],
+      ],
+    },
+    {
+      arena: 'drowned_cloister',
+      name: 'Flooded Chapter House',
+      waves: [
+        [
+          ['gloom_bat', 5],
+          ['hex_wisp', 1],
+        ],
+        [
+          ['revenant', 3],
+          ['hexcaller', 2],
+        ],
+      ],
+    },
+    {
       arena: 'cinder_court',
       name: 'Shield Wall',
       waves: [
@@ -192,13 +234,8 @@ export const TOWER_CONFIG = {
     'brood_weaver',
     'cinder_wyrm',
   ] satisfies readonly BossId[],
-  arenas: [
-    'cinder_court',
-    'ash_gate',
-    'ashen_wastes',
-    'bound_spire',
-    'hollow_deep',
-  ] satisfies readonly ArenaId[],
+  /** Floors cycle through every arena. */
+  arenas: ARENA_IDS,
   /** Enemy types allowed from these floors on. */
   enemyUnlocks: [
     { enemy: 'thrall', floor: 1 },

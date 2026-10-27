@@ -1,4 +1,7 @@
 import type { AssetRequest } from '../render/env/AssetLibrary';
+import { GRAVEWOOD_ASSETS } from './sets/gravewood';
+import { WIDOWS_PASS_ASSETS } from './sets/widowsPass';
+import { DROWNED_CLOISTER_ASSETS } from './sets/drownedCloister';
 import { HOLLOW_DEEP_ASSETS } from './sets/hollowDeep';
 import { BOUND_SPIRE_ASSETS } from './sets/boundSpire';
 import { ASHEN_WASTES_ASSETS } from './sets/ashenWastes';
@@ -168,6 +171,9 @@ export const ARENA_ASSETS: Readonly<Record<ArenaId, ArenaAssets>> = {
   ashen_wastes: ASHEN_WASTES_ASSETS,
   bound_spire: BOUND_SPIRE_ASSETS,
   hollow_deep: HOLLOW_DEEP_ASSETS,
+  gravewood: GRAVEWOOD_ASSETS,
+  widows_pass: WIDOWS_PASS_ASSETS,
+  drowned_cloister: DROWNED_CLOISTER_ASSETS,
 };
 
 /** Everything an arena needs loaded before it is built. */

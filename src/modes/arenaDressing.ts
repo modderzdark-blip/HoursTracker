@@ -519,6 +519,56 @@ export class ArenaDresser {
         this.pool(5, -(R - 1.5), 4, tint.crystal, 0.7, 0.12);
         break;
       }
+      case 'mausoleum': {
+        // A crypt beyond the north wall: an arched door between two squat towers, an angel
+        // keeping watch on either side and lamps burning at the threshold.
+        const z0 = -(R + t + 2.2);
+        const tower = this.keep(towerGeometry(71, 3, 7));
+        for (const sx of [-1, 1]) {
+          this.batch.add('stone', tower, this.at(sx * 4.2, 0, z0, 0));
+          this.batch.add(
+            'stone',
+            this.keep(angelStatueGeometry(81 + sx, false)),
+            this.at(sx * 7.4, 0, z0 + 1.5, 0, 1.4),
+          );
+          this.flames.push({ x: sx * 2.2, y: 2.6, z: z0 + 1.4, size: 0.6 });
+        }
+        this.batch.add('stone', this.keep(archGeometry(73, false)), this.at(0, 0, z0, 0, 1.3));
+        this.pool(0, z0 + 2.5, 6, tint.glow, 0.7, 0.4);
+        break;
+      }
+      case 'pass_gate': {
+        // The pass runs on north through a fortified gate: tall towers, an arch and a portcullis.
+        const z0 = -(R + t + 3);
+        const tower = this.keep(towerGeometry(91, 4.4, 14));
+        for (const sx of [-1, 1]) {
+          this.batch.add('stone', tower, this.at(sx * 6, 0, z0, 0));
+          this.flames.push({ x: sx * 3.6, y: 4.4, z: z0 + 1.4, size: 0.8 });
+        }
+        this.batch.add('stone', this.keep(archGeometry(93, false)), this.at(0, 0, z0, 0, 1.9));
+        this.batch.add(
+          'iron',
+          this.keep(portcullisGeometry(4.6, 4.4)),
+          this.at(0, 2.4, z0 + 0.2, 0),
+          tint.iron,
+        );
+        this.pool(0, z0 + 2, 6, tint.glow, 0.6, 0.6);
+        break;
+      }
+      case 'drowned_arches': {
+        // The broken north range of the cloister: three arches, one fallen, standing in water.
+        const z0 = -(R + t + 1.5);
+        for (const [i, x] of [-6, 0, 6].entries()) {
+          this.batch.add(
+            'stone',
+            this.keep(archGeometry(101 + i, i === 2)),
+            this.at(x, 0, z0, 0, 1.5),
+          );
+        }
+        this.puddles.push([0, z0 + 2, 4], [-7, z0 + 1, 2.5], [7, z0 + 1.5, 2.2]);
+        this.pool(0, z0 + 2, 7, tint.glow, 0.5, 0.2);
+        break;
+      }
     }
   }
 
