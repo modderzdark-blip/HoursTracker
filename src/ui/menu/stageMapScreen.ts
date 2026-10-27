@@ -10,6 +10,7 @@ import type { AdventureStageDef, StageDef } from '../../data/stages';
 import { computeHeroStats, powerRating } from '../../progression/heroStats';
 import { DIFFICULTY_ORDER } from '../../progression/PlayerProfile';
 import { el } from '../dom';
+import { amount, icon, iconSpan } from '../icons';
 import type { MenuContext } from './context';
 import { fmtInt, fmtTime } from './View';
 
@@ -43,7 +44,7 @@ function endlessBanner(n: number, frontier: number): HTMLElement | null {
   if (n > frontier) {
     const b = el('div', 'endless-banner is-locked');
     b.append(
-      el('span', 'endless-mark', '🔒'),
+      iconSpan('endless-mark', 'lock'),
       el('span', '', `Defeat the Chapter ${frontier} boss to open Chapter ${frontier + 1}`),
     );
     b.dataset['testid'] = 'chapter-locked';
@@ -181,7 +182,9 @@ export function renderStageMap(ctx: MenuContext, chapterNumber: number): void {
     node.style.top = `${y}%`;
     node.append(
       el('span', 'stage-num', `${s.chapter}-${s.index + 1}`),
-      el('span', 'stage-stars', open ? starsText(rec?.bestStars ?? 0) : '🔒'),
+      open
+        ? el('span', 'stage-stars', starsText(rec?.bestStars ?? 0))
+        : iconSpan('stage-stars', 'lock'),
     );
     if (s.kind !== 'normal')
       node.append(el('span', 'stage-kind', s.kind === 'boss' ? 'BOSS' : 'ELITE'));
@@ -255,10 +258,11 @@ function openPreBattle(ctx: MenuContext, stage: AdventureStageDef, difficulty: D
     el('div', 'pb-text', stageEnemies(stage).join(', ')),
     ...affixLines(stage),
     el('div', 'pb-label', 'Rewards'),
-    el(
-      'div',
-      'pb-text',
-      `${fmtInt(Math.round(stage.rewards.gold * d.rewards))} gold · ${fmtInt(Math.round(stage.rewards.xp * d.rewards))} XP · ${table.items}${table.bonusItemChance > 0 ? '+' : ''} gear${stage.rewards.gems !== undefined && best === undefined ? ` · ${stage.rewards.gems} gems` : ''}`,
+    rewardRow(
+      Math.round(stage.rewards.gold * d.rewards),
+      Math.round(stage.rewards.xp * d.rewards),
+      `${table.items}${table.bonusItemChance > 0 ? '+' : ''}`,
+      stage.rewards.gems !== undefined && best === undefined ? stage.rewards.gems : 0,
     ),
     el(
       'div',
@@ -325,4 +329,17 @@ function openPreBattle(ctx: MenuContext, stage: AdventureStageDef, difficulty: D
     ),
   );
   m.root.append(head, cols, row);
+}
+
+/** Stage rewards as icons: gold, XP, gear count, first-clear gems. */
+function rewardRow(gold: number, xp: number, gear: string, gems: number): HTMLElement {
+  const row = el('div', 'pb-text pb-rewards');
+  row.append(amount('gold', fmtInt(gold)));
+  const x = el('span', 'amount amount-xp');
+  x.append(icon('star'), document.createTextNode(`${fmtInt(xp)} XP`));
+  const g = el('span', 'amount amount-gear');
+  g.append(icon('weapon'), document.createTextNode(`${gear} gear`));
+  row.append(x, g);
+  if (gems > 0) row.append(amount('gems', String(gems)));
+  return row;
 }

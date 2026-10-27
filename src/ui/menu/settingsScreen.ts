@@ -21,6 +21,7 @@ import {
 } from '../../save/settings';
 import { COLORBLIND_TELEGRAPH_COLOR, DEFAULT_TELEGRAPH_COLOR } from '../../vfx/TelegraphDecals';
 import { el } from '../dom';
+import { iconSpan, type IconName } from '../icons';
 import { Slider } from '../Slider';
 import type { MenuContext, SettingsPatch } from './context';
 import type { View } from './View';
@@ -30,7 +31,7 @@ export type SettingsSection = 'camera' | 'graphics' | 'controls' | 'display' | '
 interface SectionDef {
   readonly id: SettingsSection;
   readonly label: string;
-  readonly icon: string;
+  readonly icon: IconName;
   readonly title: string;
   readonly blurb: string;
 }
@@ -39,42 +40,42 @@ export const SETTINGS_SECTIONS: readonly SectionDef[] = [
   {
     id: 'camera',
     label: 'Camera',
-    icon: '◎',
+    icon: 'camera',
     title: 'Camera',
     blurb: 'Where the battle camera sits and how it moves.',
   },
   {
     id: 'graphics',
     label: 'Graphics',
-    icon: '✦',
+    icon: 'sparkle',
     title: 'Graphics',
     blurb: 'Quality, sharpness and effects. Lower settings save battery.',
   },
   {
     id: 'controls',
     label: 'Controls',
-    icon: '✥',
+    icon: 'gamepad',
     title: 'Controls',
     blurb: 'Touch layout, joystick, aim assist and vibration.',
   },
   {
     id: 'display',
     label: 'HUD & Access',
-    icon: '◐',
+    icon: 'eye',
     title: 'HUD & accessibility',
     blurb: 'Battle HUD and options that make the game easier to see.',
   },
   {
     id: 'audio',
     label: 'Audio',
-    icon: '♪',
+    icon: 'note',
     title: 'Audio',
     blurb: 'Volume levels and when sound plays.',
   },
   {
     id: 'gameplay',
     label: 'Gameplay',
-    icon: '⚔',
+    icon: 'sword',
     title: 'Gameplay & system',
     blurb: 'Safety prompts, tips, and tools.',
   },
@@ -266,7 +267,7 @@ export function renderSettings(ctx: MenuContext, section: SettingsSection = last
     );
     tab.setAttribute('aria-selected', String(sec.id === section));
     tab.append(
-      el('span', 'settings-tab-icon', sec.icon),
+      iconSpan('settings-tab-icon', sec.icon),
       el('span', 'settings-tab-label', sec.label),
     );
     nav.append(tab);

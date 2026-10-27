@@ -221,6 +221,28 @@ const ICONS = {
     ['s', 'M5.4 7.6a2.6 2.6 0 0 1 2.4-1.6'],
   ],
   check: [['l', 'M4.5 12.5l5 5 10-11']],
+  camera: [
+    ['a', 'M3 7.5h4l1.6-2.5h6.8L17 7.5h4v12H3z'],
+    ['d', circle(12, 13.2, 4.2)],
+    ['h', circle(12, 13.2, 2.2)],
+  ],
+  gamepad: [
+    [
+      'a',
+      'M7 7h10a5 5 0 0 1 5 5.5l-.6 4a2.6 2.6 0 0 1-4.6 1.2L15 15.5H9l-1.8 2.2a2.6 2.6 0 0 1-4.6-1.2l-.6-4A5 5 0 0 1 7 7z',
+    ],
+    ['d', 'M6.2 10.2h1.6v1.6h1.6v1.6H7.8v1.6H6.2v-1.6H4.6v-1.6h1.6z'],
+    ['h', `${circle(16.5, 11, 1.1)}${circle(18.5, 13.2, 1.1)}`],
+  ],
+  eye: [
+    ['a', 'M1.5 12C4 7.5 7.8 5 12 5s8 2.5 10.5 7c-2.5 4.5-6.3 7-10.5 7S4 16.5 1.5 12z'],
+    ['d', circle(12, 12, 4)],
+    ['h', circle(10.6, 10.6, 1.3)],
+  ],
+  note: [
+    ['a', 'M9 4.5l11-2v13.2a3 3 0 1 1-2-2.8V7.3l-7 1.3v9.1a3 3 0 1 1-2-2.8z'],
+    ['h', 'M9 4.5l11-2v2.4l-11 2z'],
+  ],
   sort: [['l', 'M7 4v16M3.5 16.5L7 20l3.5-3.5M14 6h7M14 11h5M14 16h3']],
 } as const satisfies Record<string, readonly Layer[]>;
 
@@ -260,4 +282,23 @@ export function iconBox(cls: string, name: IconName): HTMLElement {
   div.className = cls;
   div.append(icon(name));
   return div;
+}
+
+/** A span of class `cls` holding an icon (inline contexts). */
+export function iconSpan(cls: string, name: IconName): HTMLElement {
+  const span = document.createElement('span');
+  span.className = cls;
+  span.append(icon(name));
+  return span;
+}
+
+/** A reward bundle as currency amounts with icons (`[coin] 500  [gem] 20`). */
+export function bundleAmounts(r: Partial<Record<Currency, number>>): HTMLElement {
+  const span = document.createElement('span');
+  span.className = 'bundle';
+  for (const c of ['gold', 'gems', 'souls', 'materials', 'tickets'] as const) {
+    const v = r[c];
+    if (v !== undefined && v > 0) span.append(amount(c, String(v)));
+  }
+  return span;
 }

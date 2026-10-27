@@ -8,6 +8,7 @@ import {
   questDef,
 } from '../../progression/goals';
 import { el } from '../dom';
+import { bundleAmounts } from '../icons';
 import type { MenuContext } from './context';
 import { fmtInt, type View } from './View';
 
@@ -40,7 +41,9 @@ function calendar(ctx: MenuContext, v: View, onClaim: () => void): HTMLElement {
       'div',
       `login-cell${today ? ' is-today' : ''}${done ? ' is-done' : ''}${i === 6 ? ' is-big' : ''}`,
     );
-    cell.append(el('div', 'login-day', `Day ${i + 1}`), el('div', 'login-reward', bundleText(r)));
+    const reward = el('div', 'login-reward');
+    reward.append(bundleAmounts(r));
+    cell.append(el('div', 'login-day', `Day ${i + 1}`), reward);
     if (done) cell.append(el('div', 'login-check', '✓'));
     if (today) {
       v.tap(cell, () => {
@@ -93,11 +96,7 @@ export function renderQuests(ctx: MenuContext): void {
     body.append(
       el('div', 'goal-name', def.text),
       bar(q.progress / def.target),
-      el(
-        'div',
-        'goal-meta',
-        `${fmtInt(q.progress)} / ${fmtInt(def.target)} · ${bundleText(def.reward)}`,
-      ),
+      goalMeta(`${fmtInt(q.progress)} / ${fmtInt(def.target)}`, def.reward),
     );
     row.append(body);
     const done = q.progress >= def.target;
@@ -119,11 +118,7 @@ export function renderQuests(ctx: MenuContext): void {
   const bonusRow = el('div', `goal-row goal-bonus${d.bonusClaimed ? ' is-claimed' : ''}`);
   const allClaimed = d.quests.length > 0 && d.quests.every((q) => q.claimed);
   bonusRow.append(
-    el(
-      'div',
-      'goal-body',
-      `All quests done: ${bundleText(DAILY_CONFIG.allDoneBonus)}${d.bonusClaimed ? ' ✓' : ''}`,
-    ),
+    goalMeta(`All quests done${d.bonusClaimed ? ' ✓' : ''}`, DAILY_CONFIG.allDoneBonus),
     v.button(
       d.bonusClaimed ? 'Done' : 'Claim',
       `btn btn-small${p.dailyBonusReady ? ' btn-primary' : ''}`,
@@ -161,13 +156,11 @@ export function renderQuests(ctx: MenuContext): void {
       el('div', 'goal-name', `${a.name} ${stars}`),
       el('div', 'goal-meta', maxed ? 'Mastered' : achievementText(a, tier)),
       bar(maxed ? 1 : value / target),
-      el(
-        'div',
-        'goal-meta',
-        maxed
-          ? `${fmtInt(value)}`
-          : `${fmtInt(Math.min(value, target))} / ${fmtInt(target)} · ${a.gems[tier] ?? 0} gems`,
-      ),
+      maxed
+        ? el('div', 'goal-meta', fmtInt(value))
+        : goalMeta(`${fmtInt(Math.min(value, target))} / ${fmtInt(target)}`, {
+            gems: a.gems[tier] ?? 0,
+          }),
     );
     row.append(
       body,
@@ -221,4 +214,11 @@ export function maybeShowLoginGift(ctx: MenuContext, nowMs = Date.now()): void {
     ),
   );
   m.root.append(row);
+}
+
+/** Progress text then the reward as currency icons. */
+function goalMeta(text: string, reward: Parameters<typeof bundleAmounts>[0]): HTMLElement {
+  const m = el('div', 'goal-meta');
+  m.append(el('span', '', text), bundleAmounts(reward));
+  return m;
 }

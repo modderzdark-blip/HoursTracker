@@ -82,10 +82,11 @@ export function renderSkills(ctx: MenuContext): void {
     );
     node.style.gridColumn = String(n.col + 1);
     node.style.gridRow = String(n.row + 1);
-    node.append(
-      el('span', 'skill-name', n.name.replace(/^.*: /, '')),
-      el('span', 'skill-rank', `${rank}/${n.maxRank}`),
-    );
+    const pips = el('span', 'skill-pips');
+    for (let i = 0; i < n.maxRank; i++) pips.append(el('span', i < rank ? 'is-on' : ''));
+    const text = el('span', 'skill-text');
+    text.append(el('span', 'skill-name', n.name.replace(/^.*: /, '')), pips);
+    node.append(text, el('span', 'skill-rank', `${rank}/${n.maxRank}`));
     grid.append(node);
   }
   wrap.append(heads, grid);

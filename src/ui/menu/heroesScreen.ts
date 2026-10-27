@@ -1,8 +1,9 @@
 import type { StatBlock } from '../../data/combatTypes';
-import { HEROES, type HeroId } from '../../data/heroes';
+import { HEROES, type HeroDef, type HeroId } from '../../data/heroes';
 import { findAdventureStage } from '../../data/adventure';
 import { xpToNext } from '../../progression/xp';
 import { el } from '../dom';
+import { icon } from '../icons';
 import type { MenuContext } from './context';
 import { fmtInt } from './View';
 
@@ -42,6 +43,17 @@ export function statRows(s: StatBlock, compare?: StatBlock): HTMLElement {
   return box;
 }
 
+/** A round medallion in the hero's colour with their initial. */
+export function heroMedallion(def: HeroDef, unlocked: boolean, cls = ''): HTMLElement {
+  const m = el(
+    'span',
+    `hero-medallion${unlocked ? '' : ' is-locked'}${cls === '' ? '' : ` ${cls}`}`,
+    def.name.charAt(0),
+  );
+  m.style.setProperty('--hero', `#${def.color.toString(16).padStart(6, '0')}`);
+  return m;
+}
+
 /** Hero roster: select, unlock with souls, see stats. */
 export function renderHeroes(ctx: MenuContext, focus?: HeroId): void {
   const p = ctx.profile;
@@ -61,24 +73,29 @@ export function renderHeroes(ctx: MenuContext, focus?: HeroId): void {
       },
       { testid: `hero-${id}` },
     );
-    card.append(
-      el('span', 'hero-card-name', def.name),
-      el(
-        'span',
-        'hero-card-sub',
-        h.unlocked ? `Lv ${h.level}${id === p.selectedHero ? ' · in party' : ''}` : '🔒 Locked',
-      ),
+    const text = el('span', 'hero-card-text');
+    const sub = el(
+      'span',
+      'hero-card-sub',
+      h.unlocked ? `Lv ${h.level}${id === p.selectedHero ? ' · in party' : ''}` : 'Locked',
     );
+    if (!h.unlocked) sub.prepend(icon('lock'));
+    text.append(el('span', 'hero-card-name', def.name), sub);
+    card.append(heroMedallion(def, h.unlocked), text);
     list.append(card);
   }
 
   const def = HEROES[shown];
   const h = p.hero(shown);
   const detail = el('div', 'hero-detail');
-  detail.append(
+  const dHead = el('div', 'hero-detail-head');
+  const dText = el('div', '');
+  dText.append(
     el('div', 'hero-detail-name', `${def.name}, ${def.epithet}`),
     el('div', 'hero-detail-role', def.role),
   );
+  dHead.append(heroMedallion(def, h.unlocked, 'is-big'), dText);
+  detail.append(dHead);
   if (h.unlocked) {
     const need = xpToNext(h.level);
     detail.append(

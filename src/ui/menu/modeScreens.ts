@@ -228,7 +228,7 @@ export function renderChallenge(ctx: MenuContext): void {
         'pb-dim',
         open
           ? `${def.title} · best tier ${best}/${CHALLENGE_CONFIG.maxTier}`
-          : `🔒 Defeat it in Adventure (${entry.stage.replace('c', '').replace('s', '-')})`,
+          : `Locked · defeat it in Adventure (${entry.stage.replace('c', '').replace('s', '-')})`,
       ),
     );
     card.append(info);

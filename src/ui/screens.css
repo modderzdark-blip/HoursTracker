@@ -1089,3 +1089,307 @@
     line-height: 1.15;
   }
 }
+
+/* ================================================================ premium theme (all screens) */
+
+/* Buttons: bevel, inner light, heavier type. */
+.btn {
+  font-weight: 700;
+  border-color: rgba(201, 162, 74, 0.5);
+  background: linear-gradient(180deg, #33251f 0%, #1d1513 55%, #130d0c 100%);
+  box-shadow:
+    0 3px 10px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 220, 160, 0.14),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.btn-primary {
+  border-color: rgba(255, 190, 110, 0.85);
+  background: linear-gradient(180deg, #d0692c 0%, #a3461b 45%, #64230c 100%);
+  text-shadow: 0 1px 2px rgba(60, 16, 4, 0.8);
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.5),
+    0 0 18px rgba(255, 122, 42, 0.3),
+    inset 0 1px 0 rgba(255, 230, 190, 0.4),
+    inset 0 -2px 0 rgba(60, 16, 4, 0.5);
+}
+
+/* Modals: the framed panel with corner ornaments. */
+.modal-panel {
+  border-color: rgba(201, 162, 74, 0.55);
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgba(120, 60, 24, 0.25), rgba(0, 0, 0, 0) 60%),
+    linear-gradient(180deg, rgba(28, 19, 17, 0.97), rgba(12, 9, 9, 0.97));
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.75),
+    inset 0 1px 0 rgba(255, 220, 160, 0.12),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.45);
+}
+
+.panel-title {
+  text-shadow: 0 0 14px rgba(255, 140, 50, 0.35);
+}
+
+.panel-title::before,
+.panel-title::after {
+  content: '◆';
+  display: inline-block;
+  margin: 0 10px;
+  font-size: 0.5em;
+  vertical-align: middle;
+  color: rgba(232, 190, 110, 0.7);
+}
+
+/* Top bar: a soft shade so titles and currencies read over the 3D scene. */
+.menu-top {
+  background: linear-gradient(180deg, rgba(6, 4, 6, 0.85), rgba(6, 4, 6, 0));
+}
+
+.menu-title {
+  font-size: clamp(14px, 1.9vw, 18px);
+  color: #e8c27a;
+  text-shadow: 0 0 12px rgba(255, 140, 50, 0.3);
+}
+
+.menu-back {
+  border-color: rgba(201, 162, 74, 0.55);
+  background: linear-gradient(180deg, #33251f, #140e0d);
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 220, 160, 0.14);
+}
+
+.currency {
+  background: linear-gradient(180deg, rgba(30, 21, 18, 0.92), rgba(12, 8, 8, 0.92));
+  border-color: rgba(201, 162, 74, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 220, 160, 0.08);
+}
+
+/* ---------------------------------------------------------------- Heroes */
+.hero-card {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 52px;
+  background: linear-gradient(160deg, rgba(34, 24, 20, 0.95), rgba(14, 10, 10, 0.95));
+}
+
+.hero-card-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.hero-card-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hero-card-sub {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.hero-card-sub .icon {
+  width: 12px;
+  height: 12px;
+}
+
+.hero-medallion {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-title);
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  background: radial-gradient(
+    circle at 35% 30%,
+    color-mix(in srgb, var(--hero) 60%, #fff),
+    var(--hero) 45%,
+    #120808 100%
+  );
+  box-shadow:
+    0 0 0 2px rgba(232, 190, 110, 0.75),
+    0 0 12px color-mix(in srgb, var(--hero) 50%, transparent);
+}
+
+.hero-medallion.is-locked {
+  filter: grayscale(0.85) brightness(0.6);
+}
+
+.hero-medallion.is-big {
+  width: 58px;
+  height: 58px;
+  font-size: 28px;
+}
+
+.hero-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ---------------------------------------------------------------- Skills */
+.skill-node {
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(30, 21, 18, 0.97), rgba(14, 10, 10, 0.97));
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 220, 160, 0.08);
+}
+
+.skill-node.is-ready {
+  animation: skill-ready 2s ease-in-out infinite;
+}
+
+@keyframes skill-ready {
+  0%,
+  100% {
+    box-shadow: 0 0 8px rgba(255, 122, 42, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(255, 122, 42, 0.6);
+  }
+}
+
+.reduce-flashes .skill-node.is-ready {
+  animation: none;
+}
+
+.skill-node.is-maxed {
+  background: linear-gradient(180deg, rgba(96, 70, 18, 0.97), rgba(36, 24, 8, 0.97));
+  box-shadow: 0 0 12px rgba(255, 210, 90, 0.35);
+}
+
+/* ---------------------------------------------------------------- Journal */
+.goal-row {
+  border-radius: 12px;
+  border-color: rgba(201, 162, 74, 0.3);
+  background: linear-gradient(160deg, rgba(32, 22, 19, 0.95), rgba(14, 10, 10, 0.95));
+  box-shadow: inset 0 1px 0 rgba(255, 220, 160, 0.06);
+}
+
+/* ---------------------------------------------------------------- Settings */
+.settings-tab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-tab-icon .icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* ---------------------------------------------------------------- Map */
+.stage-stars .icon,
+.endless-mark .icon {
+  width: 14px;
+  height: 14px;
+  color: rgba(216, 200, 170, 0.7);
+}
+
+.endless-mark .icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* Reward bundles as currency icons. */
+.bundle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 2px 8px;
+  font-weight: 800;
+}
+
+.login-reward .bundle {
+  font-size: 13px;
+}
+
+.goal-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.goal-meta .bundle {
+  justify-content: flex-start;
+  color: #f4e6cf;
+}
+
+.pb-rewards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-weight: 800;
+}
+
+.amount-xp .icon {
+  color: #c8a0ff;
+}
+
+.amount-gear .icon {
+  color: #ffb23d;
+}
+
+/* Skill nodes: name over rank pips. */
+.skill-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.skill-pips {
+  display: flex;
+  gap: 3px;
+}
+
+.skill-pips > span {
+  width: 9px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.skill-pips > .is-on {
+  background: linear-gradient(90deg, #ffb15e, #ffd27a);
+  box-shadow: 0 0 5px rgba(255, 180, 90, 0.8);
+}
+
+/* Heroes: room for full names. */
+.hero-card .hero-medallion {
+  width: 32px;
+  height: 32px;
+  font-size: 15px;
+}
+
+.hero-card-name {
+  font-size: 13px;
+  letter-spacing: 0.03em;
+}
+
+.hero-detail {
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(201, 162, 74, 0.35);
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(120, 60, 24, 0.2), rgba(0, 0, 0, 0) 60%),
+    linear-gradient(180deg, rgba(26, 18, 16, 0.9), rgba(12, 9, 9, 0.9));
+}
+
+.goal-bonus > .goal-meta {
+  flex: 1 1 auto;
+  font-weight: 700;
+}
