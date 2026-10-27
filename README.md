@@ -3,8 +3,10 @@
 Mobile dark-fantasy hack-and-slash action RPG — Three.js + TypeScript + Rapier, no engine.
 Playable in Chrome on Android (GitHub Pages) and as a sideloadable Capacitor APK.
 
-> Status: **0.9.0 — endless ash** (endless Adventure chapters with elite affixes; 14 bosses;
-> 8 arenas built from scanned CC0 assets; story, cinematics, Ultra graphics), on top of 0.8.0
+> Status: **0.10.0 — wider halls** (arenas about 30% bigger, each with its own procedural
+> architecture; a new main menu; endless chapters visible from the start; 120 FPS / uncapped),
+> on top of 0.9.0 (endless Adventure chapters with elite affixes; 14 bosses;
+> 8 arenas built from scanned CC0 assets; story, cinematics, Ultra graphics) and 0.8.0
 > (8 heroes, redesigned skills, effects library, bullet-pattern enemies) and 0.7.0 (sculpted arenas, sky, fire,
 > mist, colour grading; detailed characters): hub, endless Adventure chapters × 8 stages
 > (Normal / Hard / Nightmare), 14 enemy types, 14 bosses (creatures among them: a beast, a giant
@@ -43,11 +45,11 @@ Audio and Gameplay. The pause menu has quick camera distance and shake settings.
 
 ### Heroes
 
-| Hero  | Style                      | Skills                                                                  | Ultimate                   |
-| ----- | -------------------------- | ----------------------------------------------------------------------- | -------------------------- |
-| Kael  | Dual blades, fast combos   | Phantom Rush · Blade Tempest (steerable) · Umbral Execution                     | Night of a Thousand Blades (clones)     |
-| Brann | Greatsword, super armor    | Titan Fault (shockwave) · Oathbreaker (hold to charge) · Juggernaut | Cataclysm              |
-| Lyra  | Bow at range, dagger close | Starpiercer · Starfall Volley (arrow rain) · Moonlit Snare (trap)        | Gloamstorm (homing arrows) |
+| Hero  | Style                      | Skills                                                              | Ultimate                            |
+| ----- | -------------------------- | ------------------------------------------------------------------- | ----------------------------------- |
+| Kael  | Dual blades, fast combos   | Phantom Rush · Blade Tempest (steerable) · Umbral Execution         | Night of a Thousand Blades (clones) |
+| Brann | Greatsword, super armor    | Titan Fault (shockwave) · Oathbreaker (hold to charge) · Juggernaut | Cataclysm                           |
+| Lyra  | Bow at range, dagger close | Starpiercer · Starfall Volley (arrow rain) · Moonlit Snare (trap)   | Gloamstorm (homing arrows)          |
 
 Brann unlocks after 1-4 for 60 souls, Lyra after 1-8 for 120 souls (Heroes screen).
 

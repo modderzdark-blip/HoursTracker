@@ -240,3 +240,26 @@ Each entry: the decision, why, and what would change it.
   where it would be smaller than a pixel.
 - **Grading after tone mapping** (display-referred) so the same grade reads the same in every
   arena; it replaces the CSS vignette when on (Medium/High).
+
+## Bigger places, own architecture, smoother frames (0.10.0)
+
+- **Arenas are built bigger than authored** (`ARENA_SCALE`, about 1.3×) instead of re-authoring
+  eight sets: positions, outlines, architecture and terrain grow around the centre, so walls
+  still meet and statues still stand on their plinths, while hand-sized dressing (crates,
+  barrels, chests, lanterns) keeps its real size. Dais and stair rises grow too and stay under
+  the autostep height; fog density is divided by the scale so the far side reads the same.
+- **Procedural architecture on top of the scanned kit** (`src/modes/structures.ts`): the CC0
+  libraries offer one castle kit, so every arena looked like the same fort. Arcades of real
+  voussoir arches (round or pointed), gothic walls with lancet windows and buttresses, obelisks,
+  standing-stone circles with trilithons, a colossus' ribcage, stalagmite fields, graveyards and
+  columned shrines are generated from the arena's own scanned surfaces and merged into its
+  per-surface mass meshes, so they add no draw calls. Each arena gets kinds that fit it.
+- **120 FPS by default, plus an uncapped "Max"**: 60 felt laggy on high-refresh phones. Old
+  saves sitting on the old 60 default move to 120 once (`fpsCapRev`); an explicit 30 is kept.
+  The Android activity asks for the display's highest refresh mode, since many phones keep apps
+  at 60 Hz otherwise.
+- **Lightning only during cinematic shots**: a strike seen at the top of the gameplay view read
+  as a random screen flicker, and brightening the scene lights with it flashed the whole screen.
+- **Endless chapters are always in sight**: the stage map shows two chapters past the frontier
+  as locked previews (with an ∞ mark and a banner), and the hub has an Endless tile, so chapter
+  5 and beyond exist for the player before chapter 4 is beaten.

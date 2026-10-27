@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.10.0] — Wider halls, smoother frames (2026-10-27)
+
+### Added
+
+- **Each arena has its own architecture** (procedural, built from the arena's scanned stone):
+  - The Ashen Wastes: a colossus' ribcage arching over the fire, a standing-stone circle and an
+    obelisk.
+  - The Bound Spire: pointed gothic arcades down both aisles.
+  - The Hollow Deep: stalagmite fields.
+  - The Gravewood: graves, sarcophagi, a columned mausoleum and a chapel ruin.
+  - Cinder Court and Ash Gate: a cathedral ruin, obelisks, an aqueduct and a broken colonnade.
+  - The Drowned Cloister: the abbey church wall.
+  - Widow's Pass: an old arched bridge.
+- **Endless chapters are always visible**: the chapter map shows the next chapters as locked
+  previews (∞ on the endless ones, with a banner), and the hub has an Endless tile.
+- **Frame rate**: new 120 and Max (uncapped) choices. The Android app asks the screen for its
+  highest refresh rate.
+
+### Changed
+
+- **Every arena is about 30% bigger**: the open space, the walls and the architecture all grow;
+  crates, barrels and lanterns keep their real size.
+- **New main menu**:
+  - A large Adventure card shows your chapter, the next stage, chapter progress and a play
+    button.
+  - The other modes are tiles with icons.
+  - Hero panel with a level badge, power and arrows to switch heroes.
+  - Dock buttons and the Ember Hearth have icons.
+  - The title screen has a painted backdrop.
+- The FPS cap defaults to 120. Saves still on the old 60 default move to 120; a 30 cap is kept.
+
+### Fixed
+
+- **The random screen flash during fights**: distant lightning no longer brightens the scene
+  lights, and it only strikes during cinematic shots.
+
 ## [0.9.0] — Endless Ash: real places, story and spectacle (2026-10-27)
 
 ### Added
