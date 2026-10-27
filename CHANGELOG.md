@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.9.0] — Endless Ash: real places, story and spectacle (2026-10-27)
+
+### Added
+
+- **Endless Adventure**: past chapter 4, chapters keep coming forever, each with its own name,
+  lore, foes, arenas, an elite and a boss; the stage map gets a chapter selector.
+- **Five new bosses**: Morvane the Headsman, Vaelith the Bone Cantor, Gharox and Ruul the Twin
+  Maw, Xyrith the Ossuary Queen and the Hollow Twin, also in the Demon Tower, Boss Challenge,
+  Hunts and the Dungeon.
+- **Elite affixes** (Ironclad, Bloodsworn, Cinderburst, Quickened, Warded, Frenzied, Hulking)
+  stack on enemies and bosses deeper down; deeper chapters pay more.
+- **Three new arenas**: The Gravewood, Widow's Pass and The Drowned Cloister.
+- **Scanned real-world assets** (CC0, Poly Haven, fetched by CI and made phone-ready by
+  tools/assets/process.mjs): 2K PBR surfaces and 40+ props — castle walls and towers, statues,
+  gates, fire pits, barrels, weapon racks, trees, roots, cliffs and mountains.
+- **Story**: a skippable prologue, chapter intro cards, a chapter-complete moment, lines from
+  every boss and hero.
+- **Cinematics**: stage fly-overs that settle on the hero, boss intro and death cinematics, kill
+  cams, per-hero ultimate cams, a livelier battle camera.
+- **Ultra graphics** above High: ambient occlusion, softer shadows, full 2K textures, cinematic
+  depth of field, film grade, stronger character lighting.
+- **Combat feel**: combo ranks, multi-kill and streak callouts, finisher hit-stop, bigger crits,
+  low-health heartbeat, ultimate-ready burst.
+- **Rewards**: victory sequence with stars, counters, XP bar with level-up, card-by-card loot
+  reveal; unlock celebrations; encouraging defeat screen with advice.
+- **Progress**: next-goal hint, red dots for things to do, animated currencies, power roll-ups,
+  quest/achievement toasts, road travelled on the stage map; menu transitions and a loading
+  screen; procedural stingers for all of it.
+- **Animation**: enemies burn away into embers and form out of ash; personalities per enemy;
+  directional hit reactions, knockdowns and deaths; idle variants, class dodges and victory poses
+  for every hero; richer creature motion.
+
+### Changed
+
+- All five original arenas rebuilt as places with shaped edges, terraces, set pieces and
+  backdrops instead of walled circles.
+- Low quality drops small scattered props and loads textures at 512 px.
+- "Reduce flashes" also turns off full-screen combat flashes.
+
 ## [0.8.0] — Heroes, Monsters & Spectacle (2026-10-20)
 
 ### Added
