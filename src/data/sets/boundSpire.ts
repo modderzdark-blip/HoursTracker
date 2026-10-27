@@ -23,8 +23,9 @@ const tower = (x: number, z: number, scale: number, tall: number): SetPiece => (
 });
 
 /** A statue on a plinth along a side wall, facing across the hall. */
-const sideStatue = (x: number, z: number): { piece: SetPiece; plinth: Mass } => ({
+const sideStatue = (x: number, z: number, tier: 0 | 1 = 0): { piece: SetPiece; plinth: Mass } => ({
   piece: {
+    tier,
     model: 'gothic_statue',
     x,
     z,
@@ -39,8 +40,8 @@ const sideStatue = (x: number, z: number): { piece: SetPiece; plinth: Mass } => 
 const statues = [
   sideStatue(-18.6, -8),
   sideStatue(18.6, -8),
-  sideStatue(-18.6, 6),
-  sideStatue(18.6, 6),
+  sideStatue(-18.6, 6, 1),
+  sideStatue(18.6, 6, 1),
 ];
 
 export const BOUND_SPIRE_ASSETS: ArenaAssets = {

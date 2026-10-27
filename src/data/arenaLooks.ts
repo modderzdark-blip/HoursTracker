@@ -529,7 +529,7 @@ export const ARENA_LOOKS: Readonly<Record<ArenaId, ArenaLook>> = {
       statueKind: 'angel',
       gargoyles: 8,
       cages: 2,
-      chains: 8,
+      chains: 5,
       barricades: 0,
       racks: 0,
       banners: 10,
