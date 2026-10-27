@@ -4,7 +4,8 @@ import { ENEMIES, type EnemyId } from '../../data/enemies';
 import { HEROES } from '../../data/heroes';
 import { DROP_TABLES, STAR_GEMS } from '../../data/progression';
 import { AFFIXES, affixLabel } from '../../data/affixes';
-import { chapterDef, MAX_CHAPTER } from '../../data/adventure';
+import { chapterDef, isGeneratedChapter, MAX_CHAPTER } from '../../data/adventure';
+import { ENDLESS_CONFIG } from '../../data/endless';
 import type { AdventureStageDef, StageDef } from '../../data/stages';
 import { computeHeroStats, powerRating } from '../../progression/heroStats';
 import { DIFFICULTY_ORDER } from '../../progression/PlayerProfile';
@@ -35,6 +36,35 @@ const TAB_WINDOW = 5;
 const seenOpen = new Set<string>();
 let mapSeeded = false;
 
+/** The Endless Adventure line under the tabs: what lies past the hand-made chapters, or why a
+ * previewed chapter is still closed. */
+function endlessBanner(n: number, frontier: number): HTMLElement | null {
+  const first = ENDLESS_CONFIG.firstChapter;
+  if (n > frontier) {
+    const b = el('div', 'endless-banner is-locked');
+    b.append(
+      el('span', 'endless-mark', '🔒'),
+      el('span', '', `Defeat the Chapter ${frontier} boss to open Chapter ${frontier + 1}`),
+    );
+    b.dataset['testid'] = 'chapter-locked';
+    return b;
+  }
+  if (n < first - 1) return null;
+  const b = el('div', 'endless-banner');
+  b.append(
+    el('span', 'endless-mark', '∞'),
+    el(
+      'span',
+      '',
+      isGeneratedChapter(n)
+        ? `Endless Adventure · Chapter ${n} of ${MAX_CHAPTER} · a new boss and affixes every chapter`
+        : `Endless Adventure starts at Chapter ${first}: ${MAX_CHAPTER - first + 1} chapters of new bosses and affixes`,
+    ),
+  );
+  b.dataset['testid'] = 'endless-banner';
+  return b;
+}
+
 function starsText(n: number): string {
   return '★'.repeat(n) + '☆'.repeat(3 - n);
 }
@@ -43,7 +73,10 @@ function starsText(n: number): string {
 export function renderStageMap(ctx: MenuContext, chapterNumber: number): void {
   const p = ctx.profile;
   const frontier = p.adventureFrontier();
-  const chapter = chapterDef(Math.min(chapterNumber, frontier)) ?? chapterDef(1);
+  // Chapters reached, plus a look ahead at the next ones (locked) so the endless chapters past
+  // the hand-made four are always in sight.
+  const last = Math.min(MAX_CHAPTER, Math.max(ENDLESS_CONFIG.firstChapter + 1, frontier + 2));
+  const chapter = chapterDef(Math.min(chapterNumber, last)) ?? chapterDef(1);
   if (chapter === undefined) return;
   const v = ctx.shell.begin(
     `Chapter ${chapter.number} · ${chapter.name}`,
@@ -59,9 +92,8 @@ export function renderStageMap(ctx: MenuContext, chapterNumber: number): void {
     ctx.uiTap();
     ctx.nav.stageMap(n);
   };
-  // Every chapter reached, plus the next one (locked). Many chapters: a window of tabs around
-  // the selected one with first / previous / next / latest steps.
-  const last = Math.min(MAX_CHAPTER, Math.max(4, frontier + 1));
+  // Many chapters: a window of tabs around the selected one with first / previous / next /
+  // latest steps. Locked chapters open as a preview (their stages stay locked).
   const sel = chapter.number;
   const windowed = last > TAB_WINDOW + 1;
   const from = windowed ? Math.max(1, Math.min(sel - 2, last - TAB_WINDOW + 1)) : 1;
@@ -75,15 +107,17 @@ export function renderStageMap(ctx: MenuContext, chapterNumber: number): void {
   }
   for (let n = from; n <= to; n++) {
     tabs.append(
-      v.button(`${n}`, `tab${n === sel ? ' is-selected' : ''}`, () => go(n), {
-        disabled: n > frontier,
-        testid: `chapter-${n}`,
-      }),
+      v.button(
+        `${n}`,
+        `tab${n === sel ? ' is-selected' : ''}${n > frontier ? ' is-locked' : ''}${isGeneratedChapter(n) ? ' is-endless' : ''}`,
+        () => go(n),
+        { testid: `chapter-${n}` },
+      ),
     );
   }
   if (windowed) {
-    step('›', sel + 1, 'chapter-next', sel < frontier);
-    step('»', frontier, 'chapter-latest', sel < frontier);
+    step('›', sel + 1, 'chapter-next', sel < last);
+    step('»', frontier, 'chapter-latest', sel !== frontier);
   }
   const diffs = el('div', 'segmented');
   for (const d of DIFFICULTY_ORDER) {
@@ -108,6 +142,8 @@ export function renderStageMap(ctx: MenuContext, chapterNumber: number): void {
     `★ ${p.totalStars(chapter.number, difficulty)} / ${chapter.stages.length * 3}`,
   );
   top.append(tabs, total, diffs);
+  const banner = endlessBanner(chapter.number, frontier);
+  if (banner !== null) top.append(banner);
 
   const path = el('div', 'map-path');
   const n = chapter.stages.length;

@@ -1,0 +1,586 @@
+/* ===== Ashbound — main hub: hero summary, Adventure card, mode grid, Ember Hearth, dock ===== */
+
+.icon {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon-play,
+.icon-bolt {
+  fill: currentColor;
+  stroke: none;
+}
+
+.hub {
+  position: absolute;
+  inset: 0;
+  --hub-right: clamp(300px, 48vw, 460px);
+}
+
+/* Shade behind the left text and the right column so the 3D hero stays bright in the middle. */
+.hub::before {
+  content: '';
+  position: absolute;
+  inset: -60px calc(-1 * var(--sr)) calc(-1 * var(--sb)) calc(-1 * var(--sl));
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(6, 4, 6, 0.72) 0%, rgba(6, 4, 6, 0) 34%),
+    linear-gradient(270deg, rgba(6, 4, 6, 0.8) 0%, rgba(6, 4, 6, 0) 46%),
+    linear-gradient(0deg, rgba(6, 4, 6, 0.75) 0%, rgba(6, 4, 6, 0) 26%);
+}
+
+/* ---------------------------------------------------------------- hero summary */
+.hub-hero {
+  position: absolute;
+  left: calc(12px + var(--sl));
+  bottom: calc(66px + var(--sb));
+  width: calc(100% - var(--hub-right) - 48px - var(--sl) - var(--sr));
+  max-width: 320px;
+  text-shadow: 0 2px 8px #000;
+}
+
+.hub-hero-namerow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hub-hero-name {
+  font-family: var(--font-title);
+  font-size: 28px;
+  line-height: 1.1;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #f7e9d2;
+  background: linear-gradient(180deg, #fff6e4 20%, #e2b56a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.9));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.hero-cycle {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--ember-hot);
+  border: 1px solid rgba(201, 162, 74, 0.35);
+  background: rgba(14, 10, 10, 0.6);
+}
+
+.hub-hero-epithet {
+  font-family: var(--font-title);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--gold);
+  letter-spacing: 0.06em;
+}
+
+.hub-hero-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.hub-level {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: linear-gradient(180deg, #8a5cff, #3c1f7a);
+  text-shadow: none;
+}
+
+.hub-level-num {
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+}
+
+.hub-level-tag {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  color: #e4d4ff;
+  transform: scale(0.8);
+}
+
+.hub-power {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px 4px 8px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 177, 94, 0.4);
+  background: rgba(40, 18, 8, 0.75);
+  font-size: 17px;
+  font-weight: 800;
+  color: #ffe2b0;
+  text-shadow: none;
+}
+
+.hub-power .icon {
+  width: 18px;
+  height: 18px;
+  color: var(--ember-hot);
+}
+
+.xp-bar {
+  margin-top: 8px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(208, 160, 255, 0.18);
+  overflow: hidden;
+}
+
+.xp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #8a5cff, #d0a0ff);
+  box-shadow: 0 0 8px rgba(176, 128, 255, 0.8);
+}
+
+/* ---------------------------------------------------------------- right column */
+.hub-modes {
+  position: absolute;
+  top: 2px;
+  right: calc(12px + var(--sr));
+  bottom: calc(8px + var(--sb));
+  width: var(--hub-right);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+
+.mode-btn {
+  position: relative;
+  border-radius: 12px;
+  border: 1px solid rgba(201, 162, 74, 0.4);
+  background: linear-gradient(160deg, rgba(40, 27, 22, 0.95), rgba(16, 11, 11, 0.94));
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 220, 160, 0.08);
+  overflow: hidden;
+}
+
+.mode-name {
+  font-family: var(--font-title);
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f4e6cf;
+}
+
+.mode-sub {
+  font-size: 12px;
+  color: var(--ink-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* The Adventure card: the one big call to action. */
+.adventure-card {
+  flex: 0 0 auto;
+  height: clamp(96px, 36%, 168px);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+  border-color: rgba(255, 177, 94, 0.85);
+  background:
+    radial-gradient(120% 140% at 100% 100%, rgba(255, 110, 30, 0.45), rgba(255, 110, 30, 0) 60%),
+    linear-gradient(135deg, rgba(110, 42, 14, 0.96), rgba(38, 14, 8, 0.95));
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.55),
+    0 0 22px rgba(255, 110, 30, 0.25),
+    inset 0 1px 0 rgba(255, 220, 160, 0.25);
+}
+
+/* A slow ember sheen across the card. */
+.adventure-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    rgba(255, 220, 160, 0) 30%,
+    rgba(255, 220, 160, 0.12) 45%,
+    rgba(255, 220, 160, 0) 60%
+  );
+  transform: translateX(-100%);
+  animation: adv-sheen 5s ease-in-out infinite;
+}
+
+@keyframes adv-sheen {
+  0%,
+  55% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.reduce-flashes .adventure-card::after {
+  animation: none;
+}
+
+.adv-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.adventure-card .mode-name {
+  font-size: 20px;
+  letter-spacing: 0.14em;
+  color: #fff3dc;
+}
+
+.adv-chapter {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-title);
+  font-style: italic;
+  font-size: 13px;
+  color: #f2c88a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.adv-body {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  min-width: 0;
+}
+
+.adv-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.adventure-card .mode-next {
+  margin-top: 0;
+  font-size: 14px;
+}
+
+.adv-stage {
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.adventure-card .mode-next-bar {
+  flex: 1 0 36px;
+  max-width: 110px;
+}
+
+.adv-count {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: #f2c88a;
+}
+
+.adv-endless {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffd29a;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.adv-endless .icon {
+  width: 20px;
+  height: 20px;
+  color: var(--ember-hot);
+}
+
+.adv-play {
+  flex: 0 0 auto;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #2a1006;
+  background: radial-gradient(circle at 35% 30%, #ffe0a6, #ff9a3c 55%, #c2410f);
+  box-shadow:
+    0 0 0 3px rgba(255, 200, 120, 0.25),
+    0 0 18px rgba(255, 140, 50, 0.7);
+  animation: adv-play-pulse 1.8s ease-in-out infinite;
+}
+
+.adv-play .icon {
+  width: 24px;
+  height: 24px;
+  margin-left: 3px;
+}
+
+@keyframes adv-play-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.07);
+  }
+}
+
+.reduce-flashes .adv-play {
+  animation: none;
+}
+
+/* The other modes: a 3 × 2 grid of tiles. */
+.hub-grid {
+  flex: 0 1 auto;
+  min-height: 0;
+  height: 100%;
+  max-height: 210px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.mode-tile {
+  min-height: 0;
+  padding: 7px 8px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 1px;
+  min-width: 0;
+}
+
+.mode-tile .mode-name {
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  max-width: 100%;
+}
+
+/* Short screens: tiles keep the icon and the name (a locked tile's tap says what opens it). */
+@media (max-height: 340px) {
+  .mode-tile .mode-sub {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .mode-tile .mode-name {
+    font-size: 12px;
+    letter-spacing: 0.02em;
+  }
+}
+
+.mode-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--ember-hot);
+  margin-bottom: auto;
+  filter: drop-shadow(0 0 6px rgba(255, 140, 50, 0.45));
+}
+
+.mode-btn.is-locked {
+  opacity: 1;
+  background: linear-gradient(160deg, rgba(24, 19, 18, 0.92), rgba(12, 9, 9, 0.92));
+  border-color: rgba(169, 156, 140, 0.25);
+}
+
+.mode-btn.is-locked .mode-name {
+  color: var(--ink-dim);
+}
+
+.mode-btn.is-locked .mode-icon {
+  color: var(--ink-dim);
+  filter: none;
+}
+
+.mode-endless {
+  border-color: rgba(255, 140, 60, 0.6);
+  background:
+    radial-gradient(90% 120% at 0% 0%, rgba(160, 60, 255, 0.25), rgba(160, 60, 255, 0) 60%),
+    linear-gradient(160deg, rgba(48, 20, 30, 0.95), rgba(16, 10, 14, 0.94));
+}
+
+.mode-endless .mode-icon {
+  color: #e0b0ff;
+  filter: drop-shadow(0 0 6px rgba(190, 120, 255, 0.6));
+}
+
+.mode-btn .mode-new {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------- Ember Hearth */
+.hub-hearth {
+  position: absolute;
+  top: 2px;
+  left: calc(12px + var(--sl));
+  max-width: calc(100% - var(--hub-right) - 48px - var(--sl) - var(--sr));
+  min-height: 44px;
+  padding: 5px 12px 5px 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 177, 94, 0.45);
+  background: linear-gradient(90deg, rgba(70, 30, 12, 0.9), rgba(26, 14, 10, 0.8));
+}
+
+.hearth-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  margin-top: -11px;
+  color: var(--ember-hot);
+}
+
+.hub-hearth.is-full {
+  border-color: var(--ember-hot);
+  animation: hearth-glow 1.6s ease-in-out infinite;
+}
+
+.hub-hearth.is-full .hearth-icon {
+  filter: drop-shadow(0 0 6px rgba(255, 140, 50, 0.9));
+}
+
+@keyframes hearth-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(255, 140, 50, 0);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(255, 140, 50, 0.55);
+  }
+}
+
+.hearth-title {
+  font-family: var(--font-title);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ember-hot);
+}
+
+.hearth-line {
+  font-size: 12px;
+  color: var(--ink);
+}
+
+/* ---------------------------------------------------------------- dock */
+.hub-dock {
+  position: absolute;
+  left: calc(12px + var(--sl));
+  bottom: calc(8px + var(--sb));
+  width: calc(100% - var(--hub-right) - 36px - var(--sl) - var(--sr));
+  max-width: 360px;
+  display: flex;
+  gap: 5px;
+}
+
+.dock-btn {
+  flex: 1 1 0;
+  min-width: 48px;
+  min-height: 52px;
+  padding: 4px 2px 3px;
+  border-radius: 12px;
+  border: 1px solid rgba(201, 162, 74, 0.4);
+  background: linear-gradient(180deg, rgba(36, 25, 20, 0.94), rgba(16, 11, 10, 0.94));
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.dock-icon {
+  width: 22px;
+  height: 22px;
+  color: #f2c88a;
+}
+
+.dock-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.dock-btn .badge {
+  top: -5px;
+  right: -3px;
+}
+
+/* ---------------------------------------------------------------- title backdrop */
+.title-scene {
+  z-index: 0;
+  pointer-events: none;
+}
+
+.title-scene .scene-shade {
+  background:
+    radial-gradient(ellipse 46% 40% at 50% 44%, rgba(7, 6, 10, 0.72), transparent 100%),
+    linear-gradient(180deg, rgba(7, 6, 10, 0.6) 0%, transparent 30%),
+    linear-gradient(0deg, rgba(7, 6, 10, 0.95) 0%, rgba(7, 6, 10, 0.5) 32%, transparent 58%);
+}
+
+.title-screen > :not(.title-scene) {
+  position: relative;
+  z-index: 1;
+}
+
+.title-screen > .title-embers,
+.title-screen > .title-tip,
+.title-screen > .title-build {
+  position: absolute;
+}
+
+.reduce-flashes .title-scene .scene-layer,
+.reduce-flashes .title-scene .scene-ash {
+  animation: none;
+}

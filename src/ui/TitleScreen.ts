@@ -1,4 +1,5 @@
 import { el, onTap } from './dom';
+import { buildScene } from './storyScenes';
 
 /**
  * Title screen. Shown instantly (before the 3D engine chunk finishes loading) with a progress
@@ -18,6 +19,9 @@ export class TitleScreen {
   constructor(container: HTMLElement, buildLabel: string) {
     this.root = el('div', 'screen title-screen');
     this.root.dataset['testid'] = 'title-screen';
+    // Painted backdrop (the Bound Spire over the ashlands): pure DOM, ready before the engine.
+    const scene = buildScene('spire');
+    scene.classList.add('title-scene');
     const embers = el('div', 'title-embers');
     const logo = el('div', 'title-logo');
     logo.append(
@@ -30,7 +34,7 @@ export class TitleScreen {
     this.status = el('p', 'title-status', '');
     this.tip = el('p', 'title-tip', '');
     const build = el('p', 'title-build', buildLabel);
-    this.root.append(embers, logo, this.startBtn, this.status, this.tip, build);
+    this.root.append(scene, embers, logo, this.startBtn, this.status, this.tip, build);
     container.append(this.root);
 
     // The whole screen is the tap target once ready (easier on phones than a small button).
