@@ -11,6 +11,7 @@ import {
   type Camera,
 } from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { FXAAPass } from 'three/examples/jsm/postprocessing/FXAAPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
@@ -73,6 +74,11 @@ export class RenderContext {
   private width = 1;
   private height = 1;
   private pixelRatio = 1;
+  /** The preset's pixel-ratio cap (decides MSAA vs FXAA on dense screens). */
+  private maxPixelRatio = 2;
+  /** Antialiasing the current chain was built with. */
+  private chainAa: 'msaa' | 'fxaa' | 'none' = 'none';
+  private fxaaPass: FXAAPass | null = null;
   private bloomStrength: number = BLOOM_CONFIG.strength;
   contextLost = false;
 
@@ -153,6 +159,7 @@ export class RenderContext {
   setSize(width: number, height: number, maxPixelRatio: number, renderScale = 1): void {
     this.width = Math.max(1, Math.floor(width));
     this.height = Math.max(1, Math.floor(height));
+    this.maxPixelRatio = maxPixelRatio;
     this.pixelRatio = resolvePixelRatio(window.devicePixelRatio, maxPixelRatio, renderScale);
     this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.setSize(this.width, this.height, false);
@@ -206,7 +213,9 @@ export class RenderContext {
       bloomQuality: request.bloomQuality ?? 'standard',
     };
     const p = this.post;
+    const aa = this.chainAntialias();
     if (
+      aa === this.chainAa &&
       post.bloom === p.bloom &&
       post.grade === p.grade &&
       post.ao === p.ao &&
@@ -218,6 +227,7 @@ export class RenderContext {
       return;
     this.disposeComposer();
     this.post = post;
+    this.chainAa = aa;
     if (!chain) return;
     const depthEffects = post.ao || post.dof;
     const target = new WebGLRenderTarget(
@@ -225,7 +235,7 @@ export class RenderContext {
       this.height * this.pixelRatio,
       {
         type: HalfFloatType,
-        samples: this.msaa ? 4 : 0,
+        samples: aa === 'msaa' ? 4 : 0,
         // AO / DoF read the scene depth (resolved from MSAA with the colour, as before).
         depthTexture: depthEffects ? new DepthTexture(1, 1) : null,
       },
@@ -267,7 +277,22 @@ export class RenderContext {
       this.gradePass = new GradePass(this.grade, post.film ? 0.016 : 0.018, post.film);
       composer.addPass(this.gradePass);
     }
+    if (aa === 'fxaa') {
+      this.fxaaPass = new FXAAPass();
+      composer.addPass(this.fxaaPass);
+    }
     this.composer = composer;
+  }
+
+  /**
+   * Antialiasing for the post chain. 4× MSAA on a half-float target is the most expensive part
+   * of the scene pass; on dense phone screens (≥ 1.75 device pixels per CSS pixel) the edges are
+   * already fine, so one cheap FXAA pass at the end gives the same look for a fraction of it.
+   */
+  private chainAntialias(): 'msaa' | 'fxaa' | 'none' {
+    if (!this.msaa) return 'none';
+    const dpr = Number.isFinite(window.devicePixelRatio) ? window.devicePixelRatio : 1;
+    return Math.min(dpr, this.maxPixelRatio) >= 1.75 ? 'fxaa' : 'msaa';
   }
 
   render(camera: Camera): void {
@@ -299,6 +324,8 @@ export class RenderContext {
     this.post = { ...this.post, bloom: false, grade: false, ao: false, dof: false, film: false };
     if (this.composer === null) return;
     this.bloomPass?.dispose();
+    this.fxaaPass?.dispose();
+    this.fxaaPass = null;
     this.gradePass?.dispose();
     this.aoPass?.dispose();
     this.dofPass?.dispose();

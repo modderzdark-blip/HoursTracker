@@ -23,6 +23,8 @@ export interface Settings {
   quality: QualitySetting;
   /** Result of the last auto benchmark; reused on next launch so it doesn't re-run every time. */
   detectedQuality: QualityLevel | null;
+  /** App version the detection ran on: an update (heavier arenas, new effects) measures again. */
+  detectedFor: string;
   fpsCap: FpsCap;
   /**
    * Version of the frame-cap choices the save was written with. Saves from before 120 / no cap
@@ -88,6 +90,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Readonly<Settings> = {
   quality: 'auto',
   detectedQuality: null,
+  detectedFor: '',
   fpsCap: 120,
   fpsCapRev: 2,
   renderScale: 1,
@@ -167,7 +170,11 @@ export function cameraDefaults(): Pick<Settings, (typeof CAMERA_SETTING_KEYS)[nu
  * kept (it describes the device, not a preference) so Auto quality does not re-measure.
  */
 export function resetSettings(current: Readonly<Settings>): Settings {
-  return { ...DEFAULT_SETTINGS, detectedQuality: current.detectedQuality };
+  return {
+    ...DEFAULT_SETTINGS,
+    detectedQuality: current.detectedQuality,
+    detectedFor: current.detectedFor,
+  };
 }
 
 // 'ultra' was added later; older saves simply never contain it.
@@ -215,6 +222,10 @@ export function sanitizeSettings(raw: unknown): Settings {
   return {
     quality: oneOf(raw['quality'], QUALITY_SETTINGS, d.quality),
     detectedQuality: QUALITY_LEVELS.find((q) => q === raw['detectedQuality']) ?? null,
+    detectedFor:
+      typeof raw['detectedFor'] === 'string' && raw['detectedFor'].length < 32
+        ? raw['detectedFor']
+        : '',
     fpsCap,
     fpsCapRev: d.fpsCapRev,
     renderScale: ranged(raw, 'renderScale'),

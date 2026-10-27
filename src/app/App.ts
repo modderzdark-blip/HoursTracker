@@ -29,6 +29,7 @@ import {
   type QualitySetting,
 } from '../data/quality';
 import { DebugOverlay } from '../debug/DebugOverlay';
+import { DynamicResolution, dynamicResTargetMs } from '../render/DynamicResolution';
 import { collectDeviceInfo, detectMobile, readHeapMB, type DeviceInfo } from '../debug/deviceInfo';
 import { FrameStats } from '../debug/FrameStats';
 import type { LogRing } from '../debug/LogCapture';
@@ -251,6 +252,7 @@ export class App {
   private pendingOutcome: BattleOutcome | null = null;
   private saveTimer = 0;
   private resizePending = false;
+  private readonly dynRes = new DynamicResolution();
   private appliedRenderScale = 1;
   private fpsRefreshMs = 0;
   private running = false;
@@ -278,6 +280,8 @@ export class App {
       gpu: this.device.gpuRenderer,
     };
     const guessed = guessInitialQuality(hints);
+    // A level detected on an older build is measured again (arenas and effects change).
+    if (settings.detectedFor !== BUILD.version) settings.detectedQuality = null;
     const startLevel: QualityLevel =
       settings.quality === 'auto' ? (settings.detectedQuality ?? guessed) : settings.quality;
     this.ctx = new RenderContext(opts.canvas, QUALITY_PRESETS[startLevel].antialias);
@@ -448,6 +452,7 @@ export class App {
         render: (alpha, dt) => this.renderFrame(alpha, dt),
         frameEnd: (interval, steps) => {
           this.stats.push(interval, steps);
+          this.dynamicResolution(interval);
           this.refreshFpsCounter(interval);
           if (this.battle !== null) this.quality.onFrame(interval);
           this.overlay.refresh();
@@ -467,6 +472,7 @@ export class App {
     this.quality.addTarget(rendererTarget);
     this.quality.onDetected = (level) => {
       settings.detectedQuality = level;
+      settings.detectedFor = BUILD.version;
       this.updateQualityLabel();
       this.persistSoon();
       // No toast: it would pop up mid-fight. The detected level shows in Settings and Pause.
@@ -629,6 +635,7 @@ export class App {
       setup,
     );
     this.battle = battle;
+    this.resetDynamicResolution();
     this.music.play(setup.duel !== undefined || setup.stage.waves.length === 0 ? 'boss' : 'battle');
     this.quality.addTarget(battle);
     battle.render(1, 0, 1);
@@ -650,6 +657,7 @@ export class App {
     this.quality.removeTarget(b);
     b.dispose();
     this.battle = null;
+    this.resetDynamicResolution();
     this.battlePhysics?.dispose();
     this.battlePhysics = null;
     this.touch.setVisible(false);
@@ -844,7 +852,25 @@ export class App {
    */
   private renderScale(): number {
     const v = Number(new URLSearchParams(window.location.search).get('renderScale'));
-    return v >= 0.25 && v <= 1 ? v : this.opts.save.settings.renderScale;
+    const base = v >= 0.25 && v <= 1 ? v : this.opts.save.settings.renderScale;
+    return base * this.dynRes.scale;
+  }
+
+  /**
+   * In battle, resolution follows the frame rate (see DynamicResolution); menus and the hub
+   * always render at full resolution. Paused while the quality benchmark measures the device.
+   */
+  private dynamicResolution(intervalMs: number): void {
+    if (this.battle === null || this.quality.benchmarkRunning || this.loop.isPaused) return;
+    const next = this.dynRes.frame(intervalMs, dynamicResTargetMs(this.opts.save.settings.fpsCap));
+    if (next !== null) this.resize();
+  }
+
+  /** Back to full resolution (battle start and end). */
+  private resetDynamicResolution(): void {
+    if (this.dynRes.scale === 1) return;
+    this.dynRes.reset();
+    this.resize();
   }
 
   private resize(): void {

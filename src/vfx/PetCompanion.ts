@@ -47,6 +47,10 @@ export class PetCompanion {
   private readonly m = new Matrix4();
   private readonly q = new Quaternion();
   private readonly s = new Vector3();
+  // Scratch vectors: nothing is allocated per frame.
+  private readonly dir = new Vector3();
+  private readonly prev = new Vector3();
+  private readonly to = new Vector3();
 
   constructor(
     private readonly scene: Scene,
@@ -177,7 +181,7 @@ export class PetCompanion {
     this.root.position.set(0, 0, 0);
     this.body.position.copy(this.pos);
     // Face where it is going (or the lunge target).
-    const dir = this.lungeT > 0 ? this.lunge.clone().sub(this.pos) : this.vel.clone();
+    const dir = this.lungeT > 0 ? this.dir.copy(this.lunge).sub(this.pos) : this.dir.copy(this.vel);
     dir.y = 0;
     if (dir.lengthSq() > 0.01) this.look.lerp(dir.normalize(), Math.min(1, dt * 6)).normalize();
     this.body.rotation.y = Math.atan2(this.look.x, this.look.z);
@@ -188,12 +192,12 @@ export class PetCompanion {
     // Tail beads chase each other.
     const tail = this.tail;
     if (tail !== null) {
-      let prev = this.pos.clone().addScaledVector(this.look, -d * 0.9);
+      const prev = this.prev.copy(this.pos).addScaledVector(this.look, -d * 0.9);
       const spacing = d * (this.def.shape === 'serpent' ? 0.55 : 0.4);
       for (let i = 0; i < this.trail.length; i++) {
         const t = this.trail[i];
         if (t === undefined) continue;
-        const to = t.clone().sub(prev);
+        const to = this.to.copy(t).sub(prev);
         const len = to.length();
         if (len > spacing) t.copy(prev).addScaledVector(to, spacing / len);
         t.y += Math.sin(this.time * 4 + i * 0.7) * 0.004;
@@ -201,7 +205,7 @@ export class PetCompanion {
           d * (this.def.shape === 'serpent' ? 0.5 : 0.28) * (1 - i / (this.trail.length + 2));
         this.m.compose(t, this.q.identity(), this.s.setScalar(Math.max(0.02, r)));
         tail.setMatrixAt(i, this.m);
-        prev = t;
+        prev.copy(t);
       }
       tail.instanceMatrix.needsUpdate = true;
     }
