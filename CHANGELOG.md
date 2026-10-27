@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.12.0] — Relics, enchanting and ultimates (2026-10-27)
+
+### Added
+
+- **Relics:** ten ancient artifacts for two account-wide relic slots.
+  - Each gives a stat bonus and one signature effect: ultimate damage, faster ultimate charge,
+    life drain, shorter cooldowns, crit, combo or skill damage, or stronger perfect-dodge
+    counters.
+  - They come from Reliquary caskets in the Shop.
+  - A duplicate raises the relic's level, up to 5. A duplicate of a maxed relic turns into
+    souls.
+  - There is a new Relics screen, and two relic slots on the Gear screen.
+- **Enchant Stones and enchanting:**
+  - Rare or better gear can be enchanted up to +10, for +6% to all its stats per level.
+  - From +3 onward an attempt can fail. The stones are spent, but the item never loses a level.
+  - Stones are hard to get on purpose. Bosses drop one only sometimes (6% on Normal, 10% on
+    Hard, 15% on Nightmare). The Shop sells at most one per offer per day: for gems, for souls,
+    or for tickets.
+- **More in the Shop:**
+  - New Relics and Enchant tabs.
+  - Four new daily deals (stone, relic casket, a warlord bundle, a gold feast).
+  - Four daily deals instead of three.
+
+### Changed
+
+- **Ultimates hit 60% harder.** The hero also cannot be hurt while an ultimate plays.
+- **Ultimates are cinematic:**
+  - Black bars close in.
+  - A band in the hero's colour sweeps across the screen with their name and the move's name.
+  - The world slows for a beat and the camera shakes.
+  - With Reduce flashes on, the band stays calm (no speed lines or glow).
+- **Smoother battles on phones:**
+  - Battles now watch the real frame rate. When it drops below the target (60 FPS, or your cap
+    if it is lower), the render resolution steps down a little at a time, and it climbs back
+    when there is headroom. The lowest step is 62%.
+  - Very sharp screens use FXAA instead of 4× MSAA.
+  - The quality auto-detect runs again after each update.
+
 ## [0.11.1] — New icons (2026-10-27)
 
 ### Changed

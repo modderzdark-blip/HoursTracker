@@ -3,7 +3,9 @@
 Mobile dark-fantasy hack-and-slash action RPG — Three.js + TypeScript + Rapier, no engine.
 Playable in Chrome on Android (GitHub Pages) and as a sideloadable Capacitor APK.
 
-> Status: **0.11.0 — companions and coin** (pets that fight beside you, a Shop for in-game
+> Status: **0.12.0 — relics, enchanting and ultimates** (ten relics in two slots, Enchant
+> Stones to enchant gear up to +10, cinematic ultimates that hit 60% harder, dynamic resolution
+> for smoother battles), on top of 0.11.0 (pets that fight beside you, a Shop for in-game
 > currency, a rebuilt Gear screen, a new icon set and a premium restyle of every screen), on top
 > of 0.10.0 (arenas about 30% bigger, each with its own procedural architecture; a new main menu;
 > endless chapters visible from the start; 120 FPS / uncapped) and 0.9.0 (endless Adventure chapters with elite affixes; 14 bosses;

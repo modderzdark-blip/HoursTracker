@@ -1182,7 +1182,11 @@ export class BattleMode implements QualityTarget, WaveWorld {
         this.ultCloneTimer = 0;
         const p = this.player;
         const hero = this.setup.hero;
-        this.feel.ultimate(hero.ultimate.name, `#${hero.color.toString(16).padStart(6, '0')}`);
+        this.feel.ultimate(
+          hero.name,
+          hero.ultimate.name,
+          `#${hero.color.toString(16).padStart(6, '0')}`,
+        );
         this.fxd.screen(0.3, hero.color, 0.006);
         // A short move picked from the ultimate's own data (low angle / pull-out / orbit).
         this.cam.play(

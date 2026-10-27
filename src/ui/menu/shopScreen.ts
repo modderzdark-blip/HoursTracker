@@ -96,7 +96,11 @@ export function renderShop(ctx: MenuContext, tab: ShopTab): void {
           ? 'Gear at your progress level. Pity still counts toward legendaries.'
           : tab === 'eggs'
             ? 'Hatch companions. A pet you already have becomes a shard to raise its stars.'
-            : 'Trade one currency for another.',
+            : tab === 'relics'
+              ? 'Ancient relics for your two relic slots. A duplicate raises its level.'
+              : tab === 'enchant'
+                ? `Enchant Stones are rare: one of each per day. You have ${p.wallet.get('stones')}.`
+                : 'Trade one currency for another.',
     ),
     el('span', 'shop-note', 'In-game currency only'),
   );

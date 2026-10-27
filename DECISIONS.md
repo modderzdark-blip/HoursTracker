@@ -264,6 +264,27 @@ Each entry: the decision, why, and what would change it.
   as locked previews (with an ∞ mark and a banner), and the hub has an Endless tile, so chapter
   5 and beyond exist for the player before chapter 4 is beaten.
 
+## Relics, enchanting and ultimates (0.12.0)
+
+- **Relic effects reuse the hero-modifier pipeline:** they fold into the skill-tree HeroMods
+  (applyRelicMods), and relic stat bonuses go through the same percentage path as pets. Damage,
+  cooldowns, power and the stat panels all see relics with no special cases. Relics are
+  account-wide, like the active pet, so switching heroes keeps them.
+- **Enchanting can fail but never downgrades.** A failure spends the stones, which keeps stones
+  scarce without the "lost my +9" frustration. Only rare or better gear can be enchanted, so
+  stones are not wasted on gear the player will soon throw away.
+- **Enchant Stones are scarce by supply, not by price:** a low boss-drop chance and one-per-day
+  shop offers. A high price alone would let a hoard of gems buy enchants in a single day.
+- **Ultimates get a damage multiplier on top of the modifiers (ULTIMATE_CONFIG.power) and
+  full invulnerability.** The meter takes a long time to fill, so the payoff should be decisive.
+  Being hit in the middle of the big moment felt bad.
+- **The ultimate cut-in is DOM and CSS, not 3D:** a few elements animated with transform and
+  opacity cost almost nothing on the GPU, which matters in battle on phones. It has its own bars
+  rather than the shared letterbox, so it can never leave the boss-intro bars stuck on.
+- **Dynamic resolution, not lower presets:** frame time is averaged over 0.7 s windows. The
+  resolution drops quickly and recovers slowly, so the image only softens as much as the
+  device needs and never pumps back and forth.
+
 ## Pets, Shop and the menu restyle (0.11.0)
 
 - **The Shop sells for in-game currency only.** There is no payment backend and no store

@@ -158,3 +158,18 @@ export const CHARACTER_CONFIG = {
    */
   cameraFill: 0.9,
 } as const;
+
+/** Ultimates: the hero's big moment. */
+export const ULTIMATE_CONFIG = {
+  /** Every ultimate's damage × this (on top of skill-tree and relic bonuses). */
+  power: 1.6,
+  /** Nothing can hurt the hero while the ultimate plays. */
+  invulnerable: true,
+  /** The world slows for a beat as the hero's cut-in crosses the screen. */
+  castSlowScale: 0.45,
+  castSlowMs: 260,
+  /** Camera trauma at the cast. */
+  castShake: 0.45,
+  /** How long the cut-in (bars + band) stays up, ms. */
+  cutInMs: 1250,
+} as const;

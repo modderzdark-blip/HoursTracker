@@ -1,6 +1,7 @@
 import type { Stingers } from '../audio/Stingers';
 import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
+import { ULTIMATE_CONFIG } from '../data/config';
 import { KillChain, multiKillWord, STREAK_MILESTONES, streakWord } from '../progression/feel';
 import type { BattleCallouts, BossCard, ChapterCard } from '../ui/BattleCallouts';
 import type { BattleHud } from '../ui/BattleHud';
@@ -86,12 +87,21 @@ export class BattleFeel {
     this.ultReady = ready;
   }
 
-  /** The hero unleashed the ultimate: radial burst, its name, a stinger. */
-  ultimate(name: string, color: string): void {
+  /**
+   * The hero unleashed the ultimate: a stinger, the radial burst, the hero's cut-in (bars and a
+   * band with their name and the move), a heavy rumble and a beat of slow motion.
+   */
+  ultimate(hero: string, name: string, color: string): void {
     this.ultReady = false;
+    const calm = this.d.reduceFlashes();
     this.d.stingers.play('ultBurst');
-    if (!this.d.reduceFlashes()) this.d.callouts.ultBurst(color);
-    this.d.callouts.showTitle(name.toUpperCase(), '', 'ult', 1300);
+    if (!calm) this.d.callouts.ultBurst(color);
+    this.d.callouts.ultCutIn(hero, name, color, ULTIMATE_CONFIG.cutInMs, calm);
+    this.d.bus.emit('time:slowMotion', {
+      scale: ULTIMATE_CONFIG.castSlowScale,
+      ms: ULTIMATE_CONFIG.castSlowMs,
+    });
+    this.rumble(0, ULTIMATE_CONFIG.castShake);
   }
 
   // ------------------------------------------------------------------ stage flow

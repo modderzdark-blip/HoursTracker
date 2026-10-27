@@ -14,7 +14,7 @@ import { UltimateMeter } from '../combat/UltimateMeter';
 import type { EventBus } from '../core/EventBus';
 import type { GameEvents } from '../core/events';
 import type { ActionDef, TrailSide } from '../data/combatTypes';
-import { INPUT_CONFIG, PHYSICS_CONFIG } from '../data/config';
+import { INPUT_CONFIG, PHYSICS_CONFIG, ULTIMATE_CONFIG } from '../data/config';
 import { ECONOMY } from '../data/economy';
 import type { StatBlock } from '../data/combatTypes';
 import type { HeroDef, SkillDef } from '../data/heroes';
@@ -228,6 +228,7 @@ export class Player extends Actor {
       const d = this.def.dodge;
       return this.stateMs >= d.iframeStartMs && this.stateMs < d.iframeEndMs;
     }
+    if (this.state === 'ultimate' && ULTIMATE_CONFIG.invulnerable) return true;
     if (this.state === 'attack' || this.state === 'skill' || this.state === 'ultimate') {
       return this.runner.isInvulnerable();
     }
@@ -446,7 +447,7 @@ export class Player extends Actor {
       state === 'attack'
         ? m.comboDamage
         : state === 'ultimate'
-          ? m.ultDamage
+          ? m.ultDamage * ULTIMATE_CONFIG.power
           : (m.skillDamage[this.skillSlot] ?? 1);
     this.strikeOpts.damageMult =
       this.actionMult * (counter ? this.def.dodge.counterDamageMult + m.counterBonus : 1);

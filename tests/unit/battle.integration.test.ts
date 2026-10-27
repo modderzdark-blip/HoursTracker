@@ -341,6 +341,13 @@ describe('player combat (integration)', () => {
     expect(w.player.state).toBe('ultimate');
     expect(w.player.isInvulnerable()).toBe(true);
     expect(w.player.ultimate.value).toBe(0);
+    // Untouchable for the whole ultimate, not just a window of it.
+    let exposed = 0;
+    w.step(stepsFor(4000), () => {
+      if (w.player.state === 'ultimate' && !w.player.isInvulnerable()) exposed++;
+    });
+    expect(exposed).toBe(0);
+    expect(w.player.state).not.toBe('ultimate');
   });
 });
 

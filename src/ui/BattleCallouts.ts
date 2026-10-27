@@ -40,6 +40,10 @@ export class BattleCallouts {
   private readonly title: HTMLElement;
   private readonly titleMain: HTMLElement;
   private readonly titleSub: HTMLElement;
+  private readonly cutIn: HTMLElement;
+  private readonly cutHero: HTMLElement;
+  private readonly cutUlt: HTMLElement;
+  private cutTimer = 0;
   private lowOn = false;
   private beatMs = 0;
   private chapterTimer = 0;
@@ -79,16 +83,40 @@ export class BattleCallouts {
     this.titleSub = el('div', 'bfx-title-sub');
     this.title.append(this.titleMain, this.titleSub);
 
+    // Ultimate cut-in: letterbox bars and a diagonal band in the hero's colour with their name.
+    this.cutIn = el('div', 'bfx-cutin');
+    const band = el('div', 'bfx-cutin-band');
+    band.append(el('div', 'bfx-cutin-lines'));
+    const text = el('div', 'bfx-cutin-text');
+    this.cutHero = el('div', 'bfx-cutin-hero');
+    this.cutUlt = el('div', 'bfx-cutin-ult');
+    text.append(this.cutHero, this.cutUlt);
+    this.cutIn.append(
+      el('div', 'bfx-cutin-bar is-top'),
+      el('div', 'bfx-cutin-bar is-bottom'),
+      band,
+      text,
+    );
+
     this.root.append(
       this.lowHp,
       this.burst,
+      this.cutIn,
       this.bars,
       this.bossCard,
       this.chapter,
       this.kill,
       this.title,
     );
-    for (const n of [this.bars, this.bossCard, this.chapter, this.kill, this.title, this.burst])
+    for (const n of [
+      this.bars,
+      this.bossCard,
+      this.chapter,
+      this.kill,
+      this.title,
+      this.burst,
+      this.cutIn,
+    ])
       n.classList.add('is-off');
     container.append(this.root);
   }
@@ -194,6 +222,21 @@ export class BattleCallouts {
     this.restart(this.burst, 'is-on');
   }
 
+  /** Ultimate cut-in: bars close in, the hero's band sweeps across with their name and the move. */
+  ultCutIn(hero: string, ult: string, color: string, ms: number, calm: boolean): void {
+    this.cutHero.textContent = hero.toUpperCase();
+    this.cutUlt.textContent = ult;
+    this.cutIn.style.setProperty('--hero', color);
+    this.cutIn.style.setProperty('--card-ms', `${ms}ms`);
+    this.cutIn.classList.toggle('is-calm', calm);
+    this.restart(this.cutIn, 'is-on');
+    window.clearTimeout(this.cutTimer);
+    this.cutTimer = window.setTimeout(() => {
+      this.cutIn.classList.remove('is-on');
+      this.cutIn.classList.add('is-off');
+    }, ms);
+  }
+
   /** Low-HP heartbeat vignette; `beatMs` is the heartbeat period. */
   setLowHp(on: boolean, beatMs: number): void {
     if (on !== this.lowOn) {
@@ -215,9 +258,10 @@ export class BattleCallouts {
   reset(): void {
     window.clearTimeout(this.killTimer);
     window.clearTimeout(this.titleTimer);
+    window.clearTimeout(this.cutTimer);
     this.hideChapter();
     this.chapter.classList.remove('is-fading');
-    for (const n of [this.bossCard, this.chapter, this.kill, this.title, this.burst]) {
+    for (const n of [this.bossCard, this.chapter, this.kill, this.title, this.burst, this.cutIn]) {
       n.classList.remove('is-on');
       n.classList.add('is-off');
     }

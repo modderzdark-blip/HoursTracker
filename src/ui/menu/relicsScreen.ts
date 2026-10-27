@@ -1,4 +1,4 @@
-import { RARITY_DEFS } from '../../data/items';
+import { RARITIES, RARITY_DEFS } from '../../data/items';
 import { PET_STAT_LABEL, type PetStat } from '../../data/pets';
 import {
   CASKETS,
@@ -64,7 +64,13 @@ export function renderRelics(ctx: MenuContext, selected: RelicId | null = null):
   // ---- collection
   const list = el('div', 'pet-list');
   list.dataset['allowScroll'] = '';
-  for (const id of RELIC_IDS) {
+  // Found relics first, then the rest by rarity (rarest last).
+  const order = [...RELIC_IDS].sort(
+    (a, b) =>
+      Number(p.relic(b) !== undefined) - Number(p.relic(a) !== undefined) ||
+      RARITIES.indexOf(RELICS[a].rarity) - RARITIES.indexOf(RELICS[b].rarity),
+  );
+  for (const id of order) {
     const def = RELICS[id];
     const prog = p.relic(id);
     const card = v.button(
@@ -160,21 +166,18 @@ export function renderRelics(ctx: MenuContext, selected: RelicId | null = null):
       renderRelics(ctx, sel);
       ctx.shell.showPower(before, p.power(p.selectedHero));
     };
-    for (let i = 0; i < equipped.length; i++) {
-      if (i === at) continue;
+    // Not worn: an empty slot takes it in one tap; with both full, pick which one to replace.
+    const free = equipped.indexOf(null);
+    const targets = at >= 0 ? [] : free >= 0 ? [free] : equipped.map((_, i) => i);
+    for (const i of targets) {
       const other = equipped[i];
       row.append(
         v.button(
-          other === null || other === undefined
-            ? `Equip in slot ${i + 1}`
-            : `Swap with ${RELICS[other].name}`,
+          other === null || other === undefined ? 'Equip' : `Replace ${RELICS[other].name}`,
           'btn btn-primary',
           () => {
             ctx.uiTap();
-            if (!p.equipRelic(sel, i)) return;
-            // A swap: the relic that was in slot i takes this one's old slot.
-            if (at >= 0 && other !== null && other !== undefined) p.equipRelic(other, at);
-            done();
+            if (p.equipRelic(sel, i)) done();
           },
           { testid: `relic-equip-${i}` },
         ),

@@ -709,3 +709,187 @@
 .dmg-counter {
   font-size: 26px;
 }
+
+/* ---- ultimate cut-in */
+.bfx-cutin {
+  --hero: #ff7a2a;
+  --card-ms: 1250ms;
+  position: absolute;
+  inset: 0;
+}
+
+.bfx-cutin-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 11%;
+  background: #000;
+  transform: scaleY(0);
+}
+
+.bfx-cutin-bar.is-top {
+  top: 0;
+  transform-origin: top;
+}
+
+.bfx-cutin-bar.is-bottom {
+  bottom: 0;
+  transform-origin: bottom;
+}
+
+.bfx-cutin-band {
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  top: 50%;
+  height: clamp(74px, 22vh, 150px);
+  margin-top: calc(clamp(74px, 22vh, 150px) / -2);
+  transform: rotate(-7deg) translateX(-110%);
+  overflow: hidden;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--hero) 55%, #000) 12%,
+    color-mix(in srgb, var(--hero) 85%, #fff) 50%,
+    color-mix(in srgb, var(--hero) 55%, #000) 88%,
+    transparent
+  );
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--hero) 40%, #fff),
+    0 0 40px color-mix(in srgb, var(--hero) 70%, transparent);
+  opacity: 0.92;
+}
+
+.bfx-cutin-lines {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0 34px,
+    rgba(255, 255, 255, 0.35) 34px 36px,
+    rgba(255, 255, 255, 0) 36px 90px
+  );
+  mix-blend-mode: overlay;
+}
+
+.bfx-cutin-text {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max-content;
+  max-width: calc(100% - 32px - 2 * max(var(--sl), var(--sr)));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translate(-50%, -50%) rotate(-7deg);
+  opacity: 0;
+}
+
+.bfx-cutin-hero {
+  font-family: var(--font-title);
+  font-size: clamp(30px, 7vw, 72px);
+  line-height: 1;
+  letter-spacing: 0.22em;
+  padding-left: 0.22em;
+  color: #fff;
+  text-shadow:
+    0 0 18px color-mix(in srgb, var(--hero) 90%, transparent),
+    0 3px 0 #000,
+    0 4px 12px #000;
+}
+
+.bfx-cutin-ult {
+  margin-top: 4px;
+  font-family: var(--font-title);
+  font-style: italic;
+  font-size: clamp(15px, 2.6vw, 24px);
+  letter-spacing: 0.08em;
+  color: #fff6e0;
+  text-shadow: 0 2px 4px #000;
+}
+
+.bfx-cutin.is-on .bfx-cutin-bar {
+  animation: cutin-bars var(--card-ms) cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.bfx-cutin.is-on .bfx-cutin-band {
+  animation: cutin-band var(--card-ms) cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.bfx-cutin.is-on .bfx-cutin-lines {
+  animation: cutin-lines 0.35s linear infinite;
+}
+
+.bfx-cutin.is-on .bfx-cutin-text {
+  animation: cutin-text var(--card-ms) cubic-bezier(0.2, 0.9, 0.25, 1.1) forwards;
+}
+
+.bfx-cutin.is-calm .bfx-cutin-lines {
+  animation: none;
+  display: none;
+}
+
+.bfx-cutin.is-calm .bfx-cutin-band {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--hero) 40%, #fff);
+}
+
+@keyframes cutin-bars {
+  0% {
+    transform: scaleY(0);
+  }
+  12%,
+  80% {
+    transform: scaleY(1);
+  }
+  100% {
+    transform: scaleY(0);
+  }
+}
+
+@keyframes cutin-band {
+  0% {
+    transform: rotate(-7deg) translateX(-110%);
+  }
+  14% {
+    transform: rotate(-7deg) translateX(0);
+  }
+  62% {
+    transform: rotate(-7deg) translateX(3%);
+    opacity: 0.92;
+  }
+  78%,
+  100% {
+    transform: rotate(-7deg) translateX(115%);
+    opacity: 0;
+  }
+}
+
+@keyframes cutin-lines {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 180px 0;
+  }
+}
+
+@keyframes cutin-text {
+  0%,
+  8% {
+    opacity: 0;
+    transform: translate(-80%, -50%) rotate(-7deg) scale(1.25);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(-7deg) scale(1);
+  }
+  62% {
+    opacity: 1;
+    transform: translate(-46%, -50%) rotate(-7deg) scale(1);
+  }
+  76%,
+  100% {
+    opacity: 0;
+    transform: translate(-10%, -50%) rotate(-7deg) scale(0.96);
+  }
+}
