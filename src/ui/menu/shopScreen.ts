@@ -203,6 +203,7 @@ function showPurchase(ctx: MenuContext, o: ShopOffer, r: PurchaseResult, tab: Sh
     got.append(card);
     best = Math.max(best, ['common', 'rare', 'epic', 'legendary', 'mythic'].indexOf(def.rarity));
   }
+  if (r.pets.length > 0) ctx.onPetChanged();
   const rarities = ['common', 'rare', 'epic', 'legendary', 'mythic'] as const;
   const top = rarities[best];
   if (top !== undefined) ctx.stingers.loot(top);

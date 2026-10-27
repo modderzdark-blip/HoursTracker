@@ -48,6 +48,8 @@ export interface MenuContext {
   readonly stingers: Stingers;
   /** Called when the selected hero changes (hub preview). */
   readonly onHeroChanged: (id: HeroId) => void;
+  /** Called when the active pet changes (hub preview). */
+  readonly onPetChanged: () => void;
   readonly settings: SettingsPort;
 }
 

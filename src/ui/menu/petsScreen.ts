@@ -159,6 +159,7 @@ export function renderPets(ctx: MenuContext, selected: PetId | null): void {
           const heroId = p.selectedHero;
           const before = p.power(heroId);
           p.setActivePet(sel);
+          ctx.onPetChanged();
           ctx.stingers.play('unlock');
           renderPets(ctx, sel);
           ctx.shell.showPower(before, p.power(heroId));

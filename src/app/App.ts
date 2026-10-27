@@ -313,6 +313,7 @@ export class App {
     this.hubScene = new HubScene(this.ctx.renderer);
     this.hubScene.setAspect(aspect);
     this.hubScene.setHero(HEROES[this.profile.selectedHero]);
+    this.syncHubPet();
     this.menus = new Menus({
       uiRoot: opts.uiRoot,
       profile: this.profile,
@@ -329,6 +330,7 @@ export class App {
       toast: (t) => this.hud.showToast(t, 2200),
       stingers: this.stingers,
       onHeroChanged: (id: HeroId) => this.hubScene.setHero(HEROES[id]),
+      onPetChanged: () => this.syncHubPet(),
       modeScreens,
     });
     this.goalToasts = new GoalToasts(opts.uiRoot, () => this.stingers.play('goal'));
@@ -521,6 +523,12 @@ export class App {
         this.showHub();
       },
     });
+  }
+
+  /** The hub shows the active pet beside the hero. */
+  private syncHubPet(): void {
+    const c = this.profile.petCompanion();
+    this.hubScene.setPet(c?.def.id ?? null, c?.def.look ?? null);
   }
 
   private showHub(): void {

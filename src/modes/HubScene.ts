@@ -1,3 +1,5 @@
+import type { PetLook } from '../data/pets';
+import { PetCompanion } from '../vfx/PetCompanion';
 import {
   CylinderGeometry,
   DirectionalLight,
@@ -53,6 +55,9 @@ export class HubScene {
   private readonly ring: Mesh;
   private readonly fire: PointLight;
   private readonly focus = new Vector3(0, 1.05, 0);
+  private pet: PetCompanion | null = null;
+  private petId: string | null = null;
+  private readonly petFeet = new Vector3(0, 0, 0);
   private readonly sky: Sky;
   private readonly flames: Flames;
   private readonly mist: GroundFog;
@@ -192,6 +197,14 @@ export class HubScene {
     s.add(this.embers.points);
   }
 
+  /** The companion hovering at the hero's shoulder (null: none). */
+  setPet(id: string | null, look: PetLook | null): void {
+    if (id === this.petId) return;
+    this.petId = id;
+    this.pet?.dispose();
+    this.pet = look === null ? null : new PetCompanion(this.scene, look);
+  }
+
   /** Shows `hero` on the dais (rebuilds the rig only when the hero changes). */
   setHero(hero: HeroDef): void {
     if (hero.id === this.heroId) return;
@@ -231,6 +244,7 @@ export class HubScene {
     this.sky.update(dtSec, this.camera.position);
     this.flames.update(dtSec);
     this.mist.update(dtSec);
+    this.pet?.update(dtSec, this.petFeet, 0.35);
     const anim = this.anim;
     if (anim === null) return;
     this.timer -= dtSec;
@@ -257,6 +271,7 @@ export class HubScene {
 
   dispose(): void {
     this.disposeRig();
+    this.pet?.dispose();
     this.ring.geometry.dispose();
     (this.ring.material as MeshBasicMaterial).dispose();
     this.embers.dispose();

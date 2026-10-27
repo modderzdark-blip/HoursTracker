@@ -24,6 +24,7 @@ export interface MenusOptions {
   readonly toast: (text: string) => void;
   readonly stingers: Stingers;
   readonly onHeroChanged: (id: HeroId) => void;
+  readonly onPetChanged: () => void;
   /** Screens of the non-Adventure modes. */
   readonly modeScreens: Readonly<Record<Exclude<ModeId, 'adventure'>, (ctx: MenuContext) => void>>;
 }
@@ -45,6 +46,7 @@ export class Menus implements MenuNav {
       toast: o.toast,
       stingers: o.stingers,
       onHeroChanged: o.onHeroChanged,
+      onPetChanged: o.onPetChanged,
       settings: o.settings,
     };
   }
