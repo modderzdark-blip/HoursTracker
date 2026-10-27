@@ -163,8 +163,9 @@ export function resetSettings(current: Readonly<Settings>): Settings {
   return { ...DEFAULT_SETTINGS, detectedQuality: current.detectedQuality };
 }
 
-const QUALITY_SETTINGS: readonly QualitySetting[] = ['auto', 'low', 'medium', 'high'];
-const QUALITY_LEVELS: readonly QualityLevel[] = ['low', 'medium', 'high'];
+// 'ultra' was added later; older saves simply never contain it.
+const QUALITY_SETTINGS: readonly QualitySetting[] = ['auto', 'low', 'medium', 'high', 'ultra'];
+const QUALITY_LEVELS: readonly QualityLevel[] = ['low', 'medium', 'high', 'ultra'];
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);

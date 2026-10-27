@@ -79,6 +79,7 @@ export class PauseMenu {
         { value: 'low', label: 'Low' },
         { value: 'medium', label: 'Med' },
         { value: 'high', label: 'High' },
+        { value: 'ultra', label: 'Ultra' },
       ],
       state.quality,
       (v) => {

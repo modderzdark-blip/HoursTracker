@@ -39,7 +39,7 @@ describe('sanitizeSettings', () => {
       masterVolume: 7,
       sfxVolume: -1,
       musicVolume: Number.NaN,
-      detectedQuality: 'ultra',
+      detectedQuality: 'extreme',
       vibration: false,
     });
     expect(s.quality).toBe('high');
@@ -49,6 +49,14 @@ describe('sanitizeSettings', () => {
     expect(s.musicVolume).toBe(DEFAULT_SETTINGS.musicVolume);
     expect(s.detectedQuality).toBeNull();
     expect(s.vibration).toBe(false);
+  });
+
+  it('accepts the Ultra preset (setting and detected level); older saves stay valid', () => {
+    const s = sanitizeSettings({ quality: 'ultra', detectedQuality: 'ultra' });
+    expect(s.quality).toBe('ultra');
+    expect(s.detectedQuality).toBe('ultra');
+    expect(sanitizeSettings({ quality: 'high', detectedQuality: 'medium' }).quality).toBe('high');
+    expect(sanitizeSettings({ quality: 'insane' }).quality).toBe(DEFAULT_SETTINGS.quality);
   });
 });
 

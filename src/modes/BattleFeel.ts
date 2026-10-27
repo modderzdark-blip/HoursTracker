@@ -125,6 +125,49 @@ export class BattleFeel {
     this.d.stingers.play('chapter', 0, 0.8);
   }
 
+  /**
+   * The stage opens with the camera fly-over: letterbox and the stage name (null when the chapter
+   * card already titles the stage). Tap or any input skips.
+   */
+  stageIntro(label: string | null, ms: number): void {
+    this.d.callouts.letterbox(true);
+    this.d.callouts.setSkippable(true);
+    if (label !== null) this.d.callouts.showTitle(label.toUpperCase(), '', 'stage', ms);
+    this.d.stingers.play('whoosh', 0, 0.6);
+  }
+
+  stageIntroEnd(): void {
+    this.d.callouts.letterbox(false);
+    this.d.callouts.setSkippable(false);
+  }
+
+  /** The hero lands / draws their weapon at the end of the fly-over. */
+  heroEntrance(): void {
+    this.rumble(0, 0.22);
+    this.d.vibrate(25);
+  }
+
+  /** Wave start beat: a low rumble as the enemies pour in (stronger for the final wave). */
+  waveBeat(final: boolean): void {
+    this.rumble(0, final ? 0.3 : 0.14);
+  }
+
+  /** A kill cam (elite / last enemy of a wave): a beat of slow motion. */
+  killCam(slowScale: number, slowMs: number): void {
+    this.d.bus.emit('time:slowMotion', { scale: slowScale, ms: slowMs });
+    this.d.vibrate(30);
+  }
+
+  /** The boss (or rival) dies: letterbox, a white-gold flash (unless Reduce flashes), rumble. */
+  bossDeath(flash: () => void): void {
+    if (!this.d.reduceFlashes()) flash();
+    this.d.callouts.letterbox(true);
+    this.d.callouts.setSkippable(true);
+    this.rumble(0, 0.5);
+    this.rumble(380, 0.4);
+    this.d.vibrate(90);
+  }
+
   /** The boss intro begins: letterbox, name card, sting, ground rumble, slow motion. */
   bossIntro(card: BossCard, introMs: number): void {
     this.d.callouts.showBoss(card, introMs);

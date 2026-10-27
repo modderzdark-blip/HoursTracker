@@ -1,4 +1,4 @@
-export type QualityLevel = 'low' | 'medium' | 'high';
+export type QualityLevel = 'low' | 'medium' | 'high' | 'ultra';
 export type QualitySetting = QualityLevel | 'auto';
 
 export interface QualityPreset {
@@ -29,6 +29,18 @@ export interface QualityPreset {
   /** Budget used by the asset loader to pick texture tiers (enforced once real assets land in M3). */
   readonly textureBudgetMB: number;
   readonly anisotropy: number;
+  /** PCF shadow softness (light.shadow.radius in shadow-map texels; 1 = three's default). */
+  readonly shadowRadius: number;
+  /** Screen-space ambient occlusion (GTAO from the scene depth; Ultra only). */
+  readonly ao: boolean;
+  /** Depth of field while a cinematic camera shot plays (gameplay stays sharp). */
+  readonly cinematicDof: boolean;
+  /** Film-style tone curve + highlight roll-off in the grading pass. */
+  readonly filmGrade: boolean;
+  /** Character rim / fill light multiplier (1 = the authored look). */
+  readonly characterLight: number;
+  /** 'fine' = higher-resolution, wider, softer bloom (BLOOM_CONFIG.fine). */
+  readonly bloomQuality: 'standard' | 'fine';
 }
 
 export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
@@ -50,6 +62,12 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     textureMaxSize: 512,
     textureBudgetMB: 48,
     anisotropy: 1,
+    shadowRadius: 1,
+    ao: false,
+    cinematicDof: false,
+    filmGrade: false,
+    characterLight: 1,
+    bloomQuality: 'standard',
   },
   medium: {
     label: 'MEDIUM',
@@ -69,6 +87,12 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     textureMaxSize: 1024,
     textureBudgetMB: 96,
     anisotropy: 2,
+    shadowRadius: 1,
+    ao: false,
+    cinematicDof: false,
+    filmGrade: false,
+    characterLight: 1,
+    bloomQuality: 'standard',
   },
   high: {
     label: 'HIGH',
@@ -88,10 +112,56 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     textureMaxSize: 2048,
     textureBudgetMB: 192,
     anisotropy: 4,
+    shadowRadius: 1,
+    ao: false,
+    cinematicDof: true,
+    filmGrade: false,
+    characterLight: 1,
+    bloomQuality: 'standard',
+  },
+  ultra: {
+    label: 'ULTRA',
+    maxPixelRatio: 2.5,
+    antialias: true,
+    shadows: true,
+    shadowMapSize: 4096,
+    shadowFrustumHalfSize: 12,
+    bloom: true,
+    grade: true,
+    vignette: true,
+    particleCount: 480,
+    pointLights: true,
+    clutterDensity: 1.6,
+    ambientFx: true,
+    maxActiveEnemies: 16,
+    // Scanned surfaces ship at 2048 px: Ultra never downsizes them.
+    textureMaxSize: 4096,
+    textureBudgetMB: 320,
+    anisotropy: 8,
+    shadowRadius: 2.6,
+    ao: true,
+    cinematicDof: true,
+    filmGrade: true,
+    characterLight: 1.3,
+    bloomQuality: 'fine',
   },
 };
 
-export const QUALITY_ORDER: readonly QualityLevel[] = ['low', 'medium', 'high'];
+export const QUALITY_ORDER: readonly QualityLevel[] = ['low', 'medium', 'high', 'ultra'];
+
+/** Ember / dust particles the field allocates (Ultra's count; every other preset draws fewer). */
+export const PARTICLE_CAPACITY = 480;
+/**
+ * Highest ember count below Ultra. Particle-density "High" on the High preset stays capped here,
+ * exactly as before Ultra existed (spark density is measured against it too).
+ */
+export const PARTICLE_REFERENCE = 320;
+
+/** Particles the ember field draws for a preset (Ultra may use the full capacity). */
+export function emberCountFor(preset: QualityPreset, level: QualityLevel): number {
+  const cap = level === 'ultra' ? PARTICLE_CAPACITY : PARTICLE_REFERENCE;
+  return Math.min(Math.max(0, preset.particleCount), cap);
+}
 
 export const BENCHMARK_CONFIG = {
   /** Frames ignored after the arena appears (shader compile, texture upload). */
@@ -116,7 +186,37 @@ export const BLOOM_CONFIG = {
   resolutionScale: 0.5,
   /** Strength used with "Reduce flashes" (bright hits and flashes glare less). */
   reducedStrength: 0.25,
+  /** Ultra: bloom buffers at a higher resolution, a wider and slightly softer glow. */
+  fine: { radius: 0.5, threshold: 0.8, resolutionScale: 0.75, strengthMult: 1.1 },
 } as const;
+
+/** Which post-processing passes a preset runs (RenderContext.setPost). */
+export interface PostSettings {
+  readonly bloom: boolean;
+  readonly grade: boolean;
+  /** Ambient occlusion from the scene depth. */
+  readonly ao: boolean;
+  /** Cinematic depth of field (only enabled while a camera shot plays). */
+  readonly dof: boolean;
+  /** Film tone curve in the grading pass. */
+  readonly film: boolean;
+  readonly bloomQuality: 'standard' | 'fine';
+}
+
+/**
+ * The post chain for a preset. AO, depth of field and the film curve need the full-screen chain,
+ * so they only run when grading does; Low (no post at all) and Medium are unchanged.
+ */
+export function postSettingsFor(preset: QualityPreset): PostSettings {
+  return {
+    bloom: preset.bloom,
+    grade: preset.grade,
+    ao: preset.ao && preset.grade,
+    dof: preset.cinematicDof && preset.grade,
+    film: preset.filmGrade && preset.grade,
+    bloomQuality: preset.bloomQuality,
+  };
+}
 
 /** Player overrides layered on top of the active preset (Settings → Graphics). */
 export interface QualityOverrides {
