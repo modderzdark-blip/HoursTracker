@@ -7,61 +7,9 @@
   overflow: visible;
 }
 
-/* Icon layers (see icons.ts). */
-.icon .ic-a {
-  fill: currentColor;
-}
-
-.icon .ic-b {
-  fill: currentColor;
-  opacity: 0.55;
-}
-
-.icon .ic-d {
-  fill: #000;
-  opacity: 0.3;
-}
-
-.icon .ic-h {
-  fill: #fff;
-  opacity: 0.42;
-}
-
-.icon .ic-l {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.icon .ic-s {
-  fill: none;
-  stroke: #fff;
-  stroke-width: 1.2;
-  stroke-linecap: round;
-  opacity: 0.55;
-}
-
-/* Currency colours (anywhere a currency icon appears). */
-.icon-gold {
-  color: #f4c04e;
-}
-
-.icon-gems {
-  color: #ff5fae;
-}
-
-.icon-souls {
-  color: #9ad8ff;
-}
-
-.icon-materials {
-  color: #d6ab7c;
-}
-
-.icon-tickets {
-  color: #7fe3a0;
+/* Icons carry their own outline and gloss (see icons.ts); a soft shadow lifts them off panels. */
+.icon {
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.75));
 }
 
 .hub {
@@ -154,15 +102,16 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 2px;
   clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
   background: linear-gradient(180deg, #8a5cff, #3c1f7a);
   text-shadow: none;
 }
 
 .hub-level-num {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 800;
-  line-height: 1;
+  line-height: 1.05;
   color: #fff;
 }
 
@@ -171,7 +120,6 @@
   font-weight: 700;
   line-height: 1;
   color: #e4d4ff;
-  transform: scale(0.8);
 }
 
 .hub-power {
@@ -613,8 +561,8 @@
 }
 
 .dock-icon {
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   color: #f2c88a;
 }
 

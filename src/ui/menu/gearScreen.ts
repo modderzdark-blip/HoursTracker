@@ -120,7 +120,7 @@ export function itemTile(
     testid !== undefined ? { testid } : {},
   );
   if (rarity !== undefined) tile.style.setProperty('--rarity', RARITY_DEFS[rarity].color);
-  tile.append(icon(slot, 'item-icon'));
+  tile.append(icon(slot, 'item-icon', rarity ?? 'dark'));
   if (item !== undefined) {
     if (item.plus > 0) tile.append(el('span', 'item-plus', `+${item.plus}`));
     tile.append(el('span', 'item-ilvl', `Lv${item.ilvl}`));
@@ -335,7 +335,7 @@ function openItem(ctx: MenuContext, item: GearItem, filter: GearSlot | null): vo
   const head = el('div', 'item-head');
   const big = el('div', `item-tile item-big rarity-${item.rarity}`);
   big.style.setProperty('--rarity', r.color);
-  big.append(icon(item.slot, 'item-icon'));
+  big.append(icon(item.slot, 'item-icon', item.rarity));
   if (item.plus > 0) big.append(el('span', 'item-plus', `+${item.plus}`));
   const titles = el('div', 'item-titles');
   const name = el('div', 'item-name', `${itemName(item)}${item.plus > 0 ? ` +${item.plus}` : ''}`);

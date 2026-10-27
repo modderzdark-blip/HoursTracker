@@ -11,22 +11,12 @@ import {
 } from '../../data/pets';
 import { petBonus, petLevelCost, shardsForNextStar, strikeMult } from '../../progression/pets';
 import { el } from '../dom';
-import { amount, icon, type IconName } from '../icons';
+import { amount, icon } from '../icons';
 import type { MenuContext } from './context';
 import { statRows } from './heroesScreen';
 import { fmtInt } from './View';
 
-/** The pet's picture: a glowing orb in its colours with a shape glyph. */
-const SHAPE_ICON: Readonly<Record<PetDef['look']['shape'], IconName>> = {
-  hound: 'pet',
-  fox: 'pet',
-  moth: 'sparkle',
-  drake: 'flame',
-  owl: 'star',
-  wisp: 'souls',
-  bird: 'flame',
-  serpent: 'endless',
-};
+/** The pet's picture: a glowing orb in its colours with its creature icon. */
 
 const hex = (n: number): string => `#${n.toString(16).padStart(6, '0')}`;
 
@@ -35,7 +25,10 @@ export function petPortrait(def: PetDef, owned: boolean, cls = ''): HTMLElement 
   p.style.setProperty('--pet', hex(def.look.color));
   p.style.setProperty('--pet-accent', hex(def.look.accent));
   p.style.setProperty('--rarity', RARITY_DEFS[def.rarity].color);
-  p.append(el('div', 'pet-portrait-glow'), icon(owned ? SHAPE_ICON[def.look.shape] : 'egg'));
+  p.append(
+    el('div', 'pet-portrait-glow'),
+    icon(owned ? def.look.shape : 'egg', '', owned ? 'ivory' : 'dark'),
+  );
   return p;
 }
 

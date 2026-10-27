@@ -127,7 +127,7 @@ export function renderVictory(
     name.style.color = d.color;
     card.append(
       el('div', 'loot-beam'),
-      iconBox('loot-card-glyph', item.slot),
+      iconBox('loot-card-glyph', item.slot, item.rarity),
       name,
       el('div', 'loot-card-meta', `${d.label} · Lv${item.ilvl}`),
       el('div', 'loot-card-stat', formatStat(item.main.stat, mainValue(item))),

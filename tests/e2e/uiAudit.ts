@@ -57,6 +57,7 @@ function auditInPage(o: AuditOptions): AuditResult {
     ...(o.ignore ?? []),
     '.vignette',
     '.title-embers',
+    '.title-scene',
     '.dmg-layer',
     '.debug-overlay',
     '.rotate-hint',

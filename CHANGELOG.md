@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.11.1] — New icons (2026-10-27)
+
+### Changed
+
+- **Every icon redone from scratch.** Menu, currency, gear, mode and pet icons now use detailed
+  game-icons.net art (CC BY 3.0, credited in public/assets/CREDITS.md), drawn with a dark
+  outline, a metallic gradient and a gloss highlight. Gear icons take their rarity colour, and
+  each pet has its own creature icon.
+- **New app icon and splash screen:** a gold sword rising from flames on an ember glow,
+  replacing the default Capacitor icon.
+
+### Fixed
+
+- The shine on buttons and on the Victory title no longer spills outside its frame.
+- The level number and "LV" on the hub badge no longer overlap.
+
 ## [0.11.0] — Companions and coin (2026-10-27)
 
 ### Added

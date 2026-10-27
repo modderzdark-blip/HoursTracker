@@ -184,7 +184,11 @@ function showPurchase(ctx: MenuContext, o: ShopOffer, r: PurchaseResult, tab: Sh
     card.style.setProperty('--rarity', d.color);
     const n = el('div', 'got-name', itemName(item));
     n.style.color = d.color;
-    card.append(icon(item.slot), n, el('div', 'got-value', `${d.label} · Lv${item.ilvl}`));
+    card.append(
+      icon(item.slot, '', item.rarity),
+      n,
+      el('div', 'got-value', `${d.label} · Lv${item.ilvl}`),
+    );
     got.append(card);
     best = Math.max(best, ['common', 'rare', 'epic', 'legendary', 'mythic'].indexOf(item.rarity));
   }

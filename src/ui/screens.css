@@ -1393,3 +1393,42 @@
   flex: 1 1 auto;
   font-weight: 700;
 }
+
+/* Shine sweeps move their gradient, not the layer: a translated layer widens the scroll area of
+   its clipped parent. */
+.btn-primary::after {
+  inset: 0;
+  transform: none;
+  background-size: 300% 100%;
+  background-position: 150% 0;
+  animation: btn-sheen-pos 4.5s ease-in-out 1.5s infinite;
+}
+
+@keyframes btn-sheen-pos {
+  0%,
+  70% {
+    background-position: 150% 0;
+  }
+  100% {
+    background-position: -50% 0;
+  }
+}
+
+.reward-title.reward-shine::after {
+  inset: 0;
+  transform: none;
+  background-size: 300% 100%;
+  background-position: 150% 0;
+  animation: reward-shine-pos 1.6s ease-in-out 0.3s 1 forwards;
+}
+
+@keyframes reward-shine-pos {
+  to {
+    background-position: -50% 0;
+  }
+}
+
+.reduce-flashes .btn-primary::after,
+.reduce-flashes .reward-title.reward-shine::after {
+  animation: none;
+}

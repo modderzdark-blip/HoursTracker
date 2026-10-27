@@ -224,6 +224,10 @@ so it works under any path and inside Capacitor.
 
 ## Swapping assets
 
+Menu icons, the app icon and the splash come from game-icons.net (CC BY 3.0); see
+[public/assets/CREDITS.md](public/assets/CREDITS.md) for every icon and author, and
+`tools/icons/` to change or regenerate them.
+
 Characters are procedural skinned meshes built from data (`src/anim/rigBuilder.ts`: body,
 outfit pieces, cloth chains, weapons from each rig's `outfit` in `src/data/rigs.ts`; preview
 them with `npm run dev` → `/dev/rig-viewer.html?rigs=kael,brann`) on a skeleton with

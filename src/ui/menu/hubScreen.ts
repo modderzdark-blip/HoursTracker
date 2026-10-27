@@ -86,7 +86,7 @@ export function renderHub(ctx: MenuContext): void {
     const name = el('span', 'mode-name', info2.name);
     if (isNew) b.append(el('span', 'mode-new', 'NEW'));
     b.append(
-      icon(open ? MODE_ICONS[m] : 'lock', 'mode-icon'),
+      icon(open ? MODE_ICONS[m] : 'lock', 'mode-icon', open ? undefined : 'dark'),
       name,
       el('span', 'mode-sub', open ? info2.blurb : info2.requiresLabel),
     );
@@ -156,7 +156,7 @@ export function renderHub(ctx: MenuContext): void {
     return b;
   };
   dock.append(
-    dockBtn('Heroes', 'helmet', 'dock-heroes', () => ctx.nav.heroes(), 0, attention.heroes > 0),
+    dockBtn('Heroes', 'hero', 'dock-heroes', () => ctx.nav.heroes(), 0, attention.heroes > 0),
     dockBtn(
       'Gear',
       'shield',

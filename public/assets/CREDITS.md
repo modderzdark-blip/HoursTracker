@@ -85,3 +85,59 @@ and meshopt-compressed meshes) by `tools/assets/process.mjs`.
 - single_root
 - GothicCabinet_01
 - wooden_bookshelf_worn
+
+## Icons (game-icons.net, CC BY 3.0)
+
+Menu icons, the app icon and the splash screen use icons from **game-icons.net**
+(https://game-icons.net, source https://github.com/game-icons/icons), licensed under
+**Creative Commons Attribution 3.0** (https://creativecommons.org/licenses/by/3.0/). They are
+recoloured and outlined in code (`src/ui/icons.ts`, `tools/icons/appicon.mjs`); shapes are
+extracted by `tools/icons/build.mjs` from the list in `tools/icons/icons.json`.
+
+- two-coins by Delapouite (https://delapouite.com)
+- cut-diamond by Lorc (http://lorcblog.blogspot.com)
+- soul by Delapouite (https://delapouite.com)
+- anvil-impact by Lorc (http://lorcblog.blogspot.com)
+- ticket by Delapouite (https://delapouite.com)
+- broadsword by Lorc (http://lorcblog.blogspot.com)
+- breastplate by Lorc (http://lorcblog.blogspot.com)
+- visored-helm by Lorc (http://lorcblog.blogspot.com)
+- gauntlet by Delapouite (https://delapouite.com)
+- diamond-ring by Delapouite (https://delapouite.com)
+- gem-pendant by Lorc (http://lorcblog.blogspot.com)
+- crossed-swords by Lorc (http://lorcblog.blogspot.com)
+- dungeon-gate by Delapouite (https://delapouite.com)
+- jewel-crown by Delapouite (https://delapouite.com)
+- claw-slashes by Lorc (http://lorcblog.blogspot.com)
+- crossed-axes by Lorc (http://lorcblog.blogspot.com)
+- evil-tower by Delapouite (https://delapouite.com)
+- infinity by various artists
+- cowled by Lorc (http://lorcblog.blogspot.com)
+- battle-gear by Lorc (http://lorcblog.blogspot.com)
+- star-swirl by Lorc (http://lorcblog.blogspot.com)
+- scroll-unfurled by Lorc (http://lorcblog.blogspot.com)
+- gears by Lorc (http://lorcblog.blogspot.com)
+- power-lightning by Lorc (http://lorcblog.blogspot.com)
+- fire by Sbed (http://opengameart.org/content/95-game-icons)
+- padlock by Lorc (http://lorcblog.blogspot.com)
+- swap-bag by Lorc (http://lorcblog.blogspot.com)
+- paw-print by Lorc (http://lorcblog.blogspot.com)
+- open-treasure-chest by Skoll
+- cosmic-egg by Delapouite (https://delapouite.com)
+- scroll-quill by Delapouite (https://delapouite.com)
+- trade by Lorc (http://lorcblog.blogspot.com)
+- sparkles by Delapouite (https://delapouite.com)
+- hearts by Skoll
+- photo-camera by Delapouite (https://delapouite.com)
+- gamepad by Delapouite (https://delapouite.com)
+- evil-eyes by Skoll
+- musical-notes by Delapouite (https://delapouite.com)
+- hound by Lorc (http://lorcblog.blogspot.com)
+- butterfly by Lorc (http://lorcblog.blogspot.com)
+- dragon-head by faithtoken
+- owl by Lorc (http://lorcblog.blogspot.com)
+- fox-head by Lorc (http://lorcblog.blogspot.com)
+- spectre by Lorc (http://lorcblog.blogspot.com)
+- eagle-head by Delapouite (https://delapouite.com)
+- sea-serpent by Lorc (http://lorcblog.blogspot.com)
+- trophy-cup by Delapouite (https://delapouite.com)
