@@ -18,6 +18,7 @@ import {
   type GearItem,
 } from '../../progression/gear';
 import { el } from '../dom';
+import { amount, icon } from '../icons';
 import type { MenuContext } from './context';
 import { statRows } from './heroesScreen';
 import { fmtInt, type View } from './View';
@@ -29,6 +30,15 @@ const RARITY_RANK: Readonly<Record<Rarity, number>> = {
   legendary: 3,
   mythic: 4,
 };
+
+type SortMode = 'rarity' | 'power' | 'level';
+const SORT_LABEL: Readonly<Record<SortMode, string>> = {
+  rarity: 'Rarity',
+  power: 'Power',
+  level: 'Level',
+};
+/** Kept between visits to the screen. */
+let sortMode: SortMode = 'rarity';
 
 /** Items whose salvage asks first when "Confirm rare salvage" is on (rare or better). */
 export function needsSalvageConfirm(
@@ -90,12 +100,17 @@ function confirmSalvage(
   );
 }
 
+/**
+ * An item tile: rarity frame and glow, the slot icon in rarity colour, +N, level, lock, new dot
+ * and (in the bag) an arrow when it beats what the hero wears in that slot.
+ */
 export function itemTile(
   v: View,
   item: GearItem | undefined,
   slot: GearSlot,
   onTap: () => void,
   testid?: string,
+  better = false,
 ): HTMLElement {
   const rarity = item?.rarity;
   const tile = v.button(
@@ -104,82 +119,173 @@ export function itemTile(
     onTap,
     testid !== undefined ? { testid } : {},
   );
-  tile.append(el('span', 'item-glyph', SLOT_DEFS[slot].glyph));
+  if (rarity !== undefined) tile.style.setProperty('--rarity', RARITY_DEFS[rarity].color);
+  tile.append(icon(slot, 'item-icon'));
   if (item !== undefined) {
     if (item.plus > 0) tile.append(el('span', 'item-plus', `+${item.plus}`));
     tile.append(el('span', 'item-ilvl', `Lv${item.ilvl}`));
     if (item.isNew) tile.append(el('span', 'item-new'));
-    if (item.locked) tile.append(el('span', 'item-lock', '🔒'));
+    if (item.locked) tile.append(icon('lock', 'item-lock'));
+    if (better) tile.append(el('span', 'item-better', '▲'));
   } else {
     tile.append(el('span', 'item-slot-label', SLOT_DEFS[slot].label));
   }
   return tile;
 }
 
-/** Inventory + equipment with comparisons, upgrades, locking and salvage. */
+function sortItems(items: GearItem[]): GearItem[] {
+  return items.sort((a, b) => {
+    if (sortMode === 'power') return itemPower(b) - itemPower(a);
+    if (sortMode === 'level') return b.ilvl - a.ilvl || b.plus - a.plus;
+    return RARITY_RANK[b.rarity] - RARITY_RANK[a.rarity] || itemPower(b) - itemPower(a);
+  });
+}
+
+/** Gear: the hero's six slots around their stats (left), the bag (right). */
 export function renderGear(ctx: MenuContext, filter: GearSlot | null): void {
   const p = ctx.profile;
   const heroId = p.selectedHero;
   const v = ctx.shell.begin(`Gear · ${HEROES[heroId].name}`, () => ctx.nav.hub(), 'gear');
   const wrap = el('div', 'gear');
 
-  const left = el('div', 'gear-left');
-  const slots = el('div', 'equip-grid');
-  for (const slot of GEAR_SLOTS) {
+  // ---- equipment: slots in two columns around the hero card
+  const left = el('div', 'gear-left panel-frame');
+  const slotTile = (slot: GearSlot): HTMLElement => {
     const item = p.equippedIn(heroId, slot);
-    slots.append(
-      itemTile(
-        v,
-        item,
-        slot,
-        () => {
-          ctx.uiTap();
-          if (item !== undefined) openItem(ctx, item, filter);
-          else renderGear(ctx, slot);
-        },
-        `equip-${slot}`,
-      ),
+    return itemTile(
+      v,
+      item,
+      slot,
+      () => {
+        ctx.uiTap();
+        if (item !== undefined) openItem(ctx, item, filter);
+        else renderGear(ctx, slot);
+      },
+      `equip-${slot}`,
     );
-  }
-  left.append(
-    slots,
-    el('div', 'gear-power', `Power ${fmtInt(p.power(heroId))} · Lv ${p.hero(heroId).level}`),
+  };
+  const colA = el('div', 'equip-col');
+  const colB = el('div', 'equip-col');
+  for (const s of ['weapon', 'helmet', 'armor'] as const) colA.append(slotTile(s));
+  for (const s of ['gloves', 'ring', 'amulet'] as const) colB.append(slotTile(s));
+  const core = el('div', 'gear-core');
+  const power = el('div', 'gear-power');
+  power.append(icon('bolt'), el('span', '', fmtInt(p.power(heroId))));
+  const s = p.stats(heroId);
+  const mini = el('div', 'gear-mini');
+  const stat = (label: string, value: string): HTMLElement => {
+    const d = el('div', 'gear-mini-row');
+    d.append(el('span', '', label), el('b', '', value));
+    return d;
+  };
+  mini.append(
+    stat('HP', fmtInt(s.maxHp)),
+    stat('ATK', fmtInt(s.atk)),
+    stat('DEF', fmtInt(s.def)),
+    stat('Crit', `${(s.critChance * 100).toFixed(1)}%`),
   );
+  const auto = v.button(
+    '',
+    'btn btn-primary gear-auto',
+    () => {
+      ctx.uiTap();
+      const before = p.power(heroId);
+      const n = p.autoEquip(heroId);
+      if (n === 0) {
+        ctx.toast('Already wearing your best gear');
+        return;
+      }
+      renderGear(ctx, filter);
+      if (ctx.shell.showPower(before, p.power(heroId)))
+        ctx.stingers.play('power', p.power(heroId) > before ? 3 : 0);
+    },
+    { testid: 'gear-auto' },
+  );
+  auto.append(icon('sparkle'), el('span', '', 'Auto-equip'));
+  core.append(
+    el('div', 'gear-hero-name', HEROES[heroId].name),
+    el('div', 'gear-hero-lv', `Level ${p.hero(heroId).level}`),
+    power,
+    mini,
+    auto,
+  );
+  left.append(colA, core, colB);
 
+  // ---- bag
   const right = el('div', 'gear-right');
+  const bar = el('div', 'gear-bar');
   const chips = el('div', 'chip-row');
-  const chip = (label: string, value: GearSlot | null): HTMLElement =>
-    v.button(
-      label,
+  const chip = (value: GearSlot | null): HTMLElement => {
+    const b = v.button(
+      value === null ? 'All' : '',
       `chip${filter === value ? ' is-selected' : ''}`,
       () => {
         ctx.uiTap();
         renderGear(ctx, value);
       },
-      { testid: `filter-${value ?? 'all'}` },
+      {
+        testid: `filter-${value ?? 'all'}`,
+        title: value === null ? 'All' : SLOT_DEFS[value].label,
+      },
     );
-  chips.append(chip('All', null));
-  for (const s of GEAR_SLOTS) chips.append(chip(SLOT_DEFS[s].glyph, s));
+    if (value !== null) b.append(icon(value));
+    return b;
+  };
+  chips.append(chip(null));
+  for (const sl of GEAR_SLOTS) chips.append(chip(sl));
+  const sort = v.button(
+    '',
+    'chip chip-sort',
+    () => {
+      ctx.uiTap();
+      sortMode = sortMode === 'rarity' ? 'power' : sortMode === 'power' ? 'level' : 'rarity';
+      renderGear(ctx, filter);
+    },
+    { testid: 'gear-sort', title: 'Sort' },
+  );
+  sort.append(icon('sort'), el('span', '', SORT_LABEL[sortMode]));
+  bar.append(chips);
 
-  const items = p.data.items
-    .filter((i) => filter === null || i.slot === filter)
-    .filter((i) => p.wearer(i.uid) !== heroId)
-    .sort((a, b) => RARITY_RANK[b.rarity] - RARITY_RANK[a.rarity] || itemPower(b) - itemPower(a));
+  const bestPower = new Map<GearSlot, number>();
+  for (const sl of GEAR_SLOTS) {
+    const worn = p.equippedIn(heroId, sl);
+    bestPower.set(sl, worn === undefined ? -1 : itemPower(worn));
+  }
+  const items = sortItems(
+    p.data.items
+      .filter((i) => filter === null || i.slot === filter)
+      .filter((i) => p.wearer(i.uid) !== heroId),
+  );
   const grid = el('div', 'item-grid');
   grid.dataset['allowScroll'] = '';
   if (items.length === 0)
-    grid.append(el('div', 'empty-note', 'No items here yet — win battles to find gear.'));
+    grid.append(
+      el('div', 'empty-note', 'No items here yet — win battles or open chests in the Shop.'),
+    );
   for (const item of items) {
-    const tile = itemTile(v, item, item.slot, () => {
-      ctx.uiTap();
-      openItem(ctx, item, filter);
-    });
+    const better = p.wearer(item.uid) === null && itemPower(item) > (bestPower.get(item.slot) ?? 0);
+    const tile = itemTile(
+      v,
+      item,
+      item.slot,
+      () => {
+        ctx.uiTap();
+        openItem(ctx, item, filter);
+      },
+      undefined,
+      better,
+    );
     if (p.wearer(item.uid) !== null) tile.classList.add('is-worn');
     grid.append(tile);
   }
 
   const foot = el('div', 'gear-foot');
-  foot.append(el('span', 'gear-count', `${p.data.items.length} / ${GEAR_CONFIG.inventoryCap}`));
+  const count = el('span', 'gear-count');
+  const full = p.data.items.length / GEAR_CONFIG.inventoryCap;
+  count.append(
+    icon('chest'),
+    el('span', full > 0.9 ? 'is-full' : '', `${p.data.items.length} / ${GEAR_CONFIG.inventoryCap}`),
+  );
   const bulk = (label: string, maxRank: number, testid: string): HTMLElement =>
     v.button(
       label,
@@ -207,10 +313,12 @@ export function renderGear(ctx: MenuContext, filter: GearSlot | null): void {
       { testid },
     );
   foot.append(
+    count,
+    sort,
     bulk('Salvage commons', 0, 'salvage-common'),
     bulk('Salvage ≤ rare', 1, 'salvage-rare'),
   );
-  right.append(chips, grid, foot);
+  right.append(bar, grid, foot);
   wrap.append(left, right);
   v.root.append(wrap);
   p.clearNewFlags();
@@ -225,47 +333,125 @@ function openItem(ctx: MenuContext, item: GearItem, filter: GearSlot | null): vo
   const wornHere = wearer === heroId;
 
   const head = el('div', 'item-head');
+  const big = el('div', `item-tile item-big rarity-${item.rarity}`);
+  big.style.setProperty('--rarity', r.color);
+  big.append(icon(item.slot, 'item-icon'));
+  if (item.plus > 0) big.append(el('span', 'item-plus', `+${item.plus}`));
+  const titles = el('div', 'item-titles');
   const name = el('div', 'item-name', `${itemName(item)}${item.plus > 0 ? ` +${item.plus}` : ''}`);
   name.style.color = r.color;
-  head.append(
+  titles.append(
     name,
     el(
       'div',
       'item-meta',
       `${r.label} ${SLOT_DEFS[item.slot].label} · Item level ${item.ilvl}${wearer !== null ? ` · worn by ${HEROES[wearer].name}` : ''}`,
     ),
+    el('div', 'item-power', `Item power ${fmtInt(itemPower(item))}`),
   );
+  head.append(big, titles);
   const stats = el('div', 'item-stats');
   stats.append(el('div', 'item-main', formatStat(item.main.stat, mainValue(item))));
-  for (const s of item.subs)
-    stats.append(el('div', 'item-sub', formatStat(s.stat, subValue(item, s))));
+  for (const sub of item.subs)
+    stats.append(el('div', 'item-sub', formatStat(sub.stat, subValue(item, sub))));
   if (item.subs.length === 0) stats.append(el('div', 'item-sub pb-dim', 'No substats'));
 
   const cols = el('div', 'item-cols');
-  const left = el('div', 'item-col');
-  left.append(head, stats);
-  const right = el('div', 'item-col');
+  const leftCol = el('div', 'item-col');
+  leftCol.append(head, stats);
+  const cost = upgradeCost(item);
+  if (cost !== null) {
+    const up = el('div', 'item-upgrade-info');
+    const chance = el('div', 'upgrade-chance');
+    const fill = el('div', 'upgrade-chance-fill');
+    fill.style.width = `${Math.round(cost.successRate * 100)}%`;
+    chance.append(fill);
+    up.append(
+      el(
+        'span',
+        'upgrade-step',
+        `+${item.plus} → +${item.plus + 1} · ${Math.round(cost.successRate * 100)}% success`,
+      ),
+      chance,
+    );
+    if (cost.successRate < 1)
+      up.append(el('span', 'upgrade-safe', 'A failed upgrade never harms the item'));
+    leftCol.append(up);
+  }
+  const rightCol = el('div', 'item-col');
   if (!wornHere) {
-    right.append(
+    rightCol.append(
       el('div', 'pb-label', 'If equipped'),
       statRows(p.stats(heroId), p.statsWith(heroId, item)),
     );
   } else {
-    right.append(el('div', 'pb-label', 'Hero stats'), statRows(p.stats(heroId)));
+    rightCol.append(el('div', 'pb-label', 'Hero stats'), statRows(p.stats(heroId)));
   }
-  cols.append(left, right);
+  cols.append(leftCol, rightCol);
 
-  const cost = upgradeCost(item);
-  const upLabel =
-    cost === null
-      ? 'Max +15'
-      : `Upgrade ${fmtInt(cost.gold)}◉ ${cost.materials}⚒${cost.successRate < 1 ? ` ${Math.round(cost.successRate * 100)}%` : ''}`;
   const canPay =
     cost !== null &&
     p.wallet.canAfford('gold', cost.gold) &&
     p.wallet.canAfford('materials', cost.materials);
   const sv = salvageValue(item);
-  const row = el('div', 'button-row');
+  const row = el('div', 'button-row item-actions');
+  const upBtn = m.button(
+    '',
+    'btn btn-cost',
+    () => {
+      ctx.uiTap();
+      const before = p.power(heroId);
+      const res = p.upgrade(item.uid);
+      if (res === 'success') {
+        ctx.toast(`Upgrade succeeded: +${item.plus}`);
+        ctx.stingers.play('power', item.plus);
+        if (wornHere) ctx.shell.showPower(before, p.power(heroId));
+      } else if (res === 'failed') ctx.toast('Upgrade failed — materials spent, item unharmed');
+      renderGear(ctx, filter);
+      openItem(ctx, item, filter);
+    },
+    { disabled: !canPay, testid: 'item-upgrade' },
+  );
+  if (cost === null) upBtn.textContent = 'Max +15';
+  else
+    upBtn.append(
+      el('span', 'btn-cost-label', 'Upgrade'),
+      amount('gold', fmtInt(cost.gold)),
+      amount('materials', String(cost.materials)),
+    );
+  if (!canPay && cost !== null) upBtn.classList.add('is-short');
+  const salvBtn = m.button(
+    '',
+    'btn btn-cost',
+    () => {
+      ctx.uiTap();
+      confirmSalvage(
+        ctx,
+        [item],
+        () => {
+          const res = p.salvage([item.uid]);
+          ctx.toast(`Salvaged: +${res.materials} materials, +${res.gold} gold`);
+          ctx.shell.closeModal();
+          renderGear(ctx, filter);
+        },
+        () => openItem(ctx, item, filter),
+      );
+    },
+    { disabled: item.locked || wearer !== null, testid: 'item-salvage' },
+  );
+  salvBtn.append(el('span', 'btn-cost-label', 'Salvage'), amount('materials', `+${sv.materials}`));
+  const lockBtn = m.button(
+    '',
+    `btn btn-icon${item.locked ? ' is-on' : ''}`,
+    () => {
+      ctx.uiTap();
+      p.toggleLock(item.uid);
+      renderGear(ctx, filter);
+      openItem(ctx, item, filter);
+    },
+    { testid: 'item-lock', title: item.locked ? 'Unlock' : 'Lock' },
+  );
+  lockBtn.append(icon('lock'), el('span', '', item.locked ? 'Unlock' : 'Lock'));
   row.append(
     m.button(
       wornHere ? 'Unequip' : 'Equip',
@@ -282,48 +468,9 @@ function openItem(ctx: MenuContext, item: GearItem, filter: GearSlot | null): vo
       },
       { testid: 'item-equip' },
     ),
-    m.button(
-      upLabel,
-      'btn',
-      () => {
-        ctx.uiTap();
-        const before = p.power(heroId);
-        const res = p.upgrade(item.uid);
-        if (res === 'success') {
-          ctx.toast(`Upgrade succeeded: +${item.plus}`);
-          ctx.stingers.play('power', item.plus);
-          if (wornHere) ctx.shell.showPower(before, p.power(heroId));
-        } else if (res === 'failed') ctx.toast('Upgrade failed — materials spent, item unharmed');
-        renderGear(ctx, filter);
-        openItem(ctx, item, filter);
-      },
-      { disabled: !canPay, testid: 'item-upgrade' },
-    ),
-    m.button(item.locked ? 'Unlock' : 'Lock', 'btn', () => {
-      ctx.uiTap();
-      p.toggleLock(item.uid);
-      renderGear(ctx, filter);
-      openItem(ctx, item, filter);
-    }),
-    m.button(
-      `Salvage (+${sv.materials}⚒)`,
-      'btn',
-      () => {
-        ctx.uiTap();
-        confirmSalvage(
-          ctx,
-          [item],
-          () => {
-            const res = p.salvage([item.uid]);
-            ctx.toast(`Salvaged: +${res.materials} materials, +${res.gold} gold`);
-            ctx.shell.closeModal();
-            renderGear(ctx, filter);
-          },
-          () => openItem(ctx, item, filter),
-        );
-      },
-      { disabled: item.locked || wearer !== null, testid: 'item-salvage' },
-    ),
+    upBtn,
+    lockBtn,
+    salvBtn,
     m.button('Close', 'btn', () => {
       ctx.uiTap();
       ctx.shell.closeModal();
