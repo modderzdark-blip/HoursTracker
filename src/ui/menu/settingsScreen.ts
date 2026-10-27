@@ -525,10 +525,12 @@ function buildGraphics(k: SettingsKit, _ctx: MenuContext, out: HTMLElement): voi
       ),
       k.choice<FpsCap>(
         'FPS cap',
-        '30 saves battery; 60 is smoother.',
+        '30 saves battery; 120 or Max is smoothest on fast screens.',
         [
           { value: 30, label: '30' },
           { value: 60, label: '60' },
+          { value: 120, label: '120' },
+          { value: 0, label: 'Max' },
         ],
         () => k.s.fpsCap,
         (c) => k.port.setFpsCap(c),

@@ -42,6 +42,8 @@ export class Atmosphere {
   /** Lightning: seconds to the next strike, seconds since the last, strike direction. */
   private nextStrike = 4;
   private sinceStrike = 99;
+  /** Strikes only while a cinematic shot plays (BattleMode sets it each frame). */
+  lightningOn = true;
   private strikeAngle = 0;
   private strikeSeed = 0;
 
@@ -148,12 +150,18 @@ export class Atmosphere {
   }
 
   /**
-   * Distant lightning in open-sky arenas: a double flash that brightens the moon and sky fill
-   * (existing lights only, so no shader recompiles) and draws a bolt in the sky.
+   * Distant lightning in open-sky arenas: a bolt and a glow in the clouds, only while a
+   * cinematic shot plays (`lightningOn`); the arena lighting stays steady.
    */
   private updateLightning(dtSec: number): void {
     const bolt = ARENA_LOOKS[this.arena.id as ArenaId].fx.lightning;
     if (bolt === null) return;
+    if (!this.lightningOn) {
+      // A strike caught at the top of the gameplay view reads as a random screen flicker.
+      if (this.sinceStrike < 1) this.sky.setFlash(0, 0, 0.32, -1, bolt.color, this.strikeSeed);
+      this.sinceStrike = 1;
+      return;
+    }
     this.sinceStrike += dtSec;
     this.nextStrike -= dtSec;
     if (this.nextStrike <= 0) {
@@ -168,9 +176,8 @@ export class Atmosphere {
       Math.max(0, 1 - t / 0.12) +
       0.7 * Math.max(0, 1 - Math.abs(t - 0.28) / 0.09) +
       0.3 * Math.max(0, 1 - Math.abs(t - 0.5) / 0.1);
-    const l = this.arena.lighting;
-    this.moon.intensity = l.moonIntensity * (1 + f * 1.2);
-    this.hemi.intensity = l.hemiIntensity * (1 + f * 0.9);
+    // Only the sky lights up: brightening the scene lights read as a random screen flicker from
+    // the gameplay camera, which rarely sees the sky.
     this.sky.setFlash(
       Math.min(1, f),
       Math.cos(this.strikeAngle),

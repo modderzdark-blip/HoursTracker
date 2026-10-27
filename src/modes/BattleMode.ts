@@ -1421,6 +1421,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
         if (charge >= 1) this.player.flashHit(0xffd080, 10);
       }
     }
+    this.atmosphere.lightningOn = shot;
     this.atmosphere.update(feet, realDtSec);
     this.builder.update(realDtSec);
     this.embers.update(realDtSec, feet);

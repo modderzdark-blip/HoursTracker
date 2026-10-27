@@ -93,6 +93,8 @@ export class PauseMenu {
       [
         { value: 30, label: '30' },
         { value: 60, label: '60' },
+        { value: 120, label: '120' },
+        { value: 0, label: 'Max' },
       ],
       state.fpsCap,
       (v) => {

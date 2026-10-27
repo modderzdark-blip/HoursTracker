@@ -6,7 +6,8 @@ import {
   type QualitySetting,
 } from '../data/quality';
 
-export type FpsCap = 30 | 60;
+/** Frame-rate cap; 0 = none (as fast as the display refreshes). */
+export type FpsCap = 30 | 60 | 120 | 0;
 export type CameraHeight = 'low' | 'normal' | 'high';
 export type CameraFov = 'narrow' | 'normal' | 'wide';
 export type CameraSmoothing = 'snappy' | 'normal' | 'smooth';
@@ -23,6 +24,11 @@ export interface Settings {
   /** Result of the last auto benchmark; reused on next launch so it doesn't re-run every time. */
   detectedQuality: QualityLevel | null;
   fpsCap: FpsCap;
+  /**
+   * Version of the frame-cap choices the save was written with. Saves from before 120 / no cap
+   * existed (missing) had 60 as the default; they move to the new default of 120.
+   */
+  fpsCapRev: number;
   /** Fraction (0.5..1) of the preset's pixel ratio the 3D view renders at. */
   renderScale: number;
   shadows: QualityOverride;
@@ -82,7 +88,8 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Readonly<Settings> = {
   quality: 'auto',
   detectedQuality: null,
-  fpsCap: 60,
+  fpsCap: 120,
+  fpsCapRev: 2,
   renderScale: 1,
   shadows: 'auto',
   bloom: 'auto',
@@ -198,11 +205,18 @@ export function sanitizeSettings(raw: unknown): Settings {
   const d = DEFAULT_SETTINGS;
   if (!isRecord(raw)) return { ...d };
   const override = ['auto', 'on', 'off'] as const;
-  const fpsCap: FpsCap = raw['fpsCap'] === 30 ? 30 : raw['fpsCap'] === 60 ? 60 : d.fpsCap;
+  const caps: readonly FpsCap[] = [30, 60, 120, 0];
+  const storedCap = caps.find((c) => c === raw['fpsCap']);
+  // Old saves (no revision): 60 was the default and a cap many found laggy, so it becomes 120;
+  // an explicit 30 (battery saver) is kept.
+  const fresh = raw['fpsCapRev'] === d.fpsCapRev;
+  const fpsCap: FpsCap =
+    storedCap === undefined ? d.fpsCap : !fresh && storedCap === 60 ? d.fpsCap : storedCap;
   return {
     quality: oneOf(raw['quality'], QUALITY_SETTINGS, d.quality),
     detectedQuality: QUALITY_LEVELS.find((q) => q === raw['detectedQuality']) ?? null,
     fpsCap,
+    fpsCapRev: d.fpsCapRev,
     renderScale: ranged(raw, 'renderScale'),
     shadows: oneOf(raw['shadows'], override, d.shadows),
     bloom: oneOf(raw['bloom'], override, d.bloom),

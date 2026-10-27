@@ -32,6 +32,17 @@ describe('sanitizeSettings', () => {
     expect(sanitizeSettings([1, 2])).toEqual(DEFAULT_SETTINGS);
   });
 
+  it('frame cap: 120 by default, old 60 saves move to 120, 30 / 120 / Max are kept', () => {
+    expect(DEFAULT_SETTINGS.fpsCap).toBe(120);
+    expect(sanitizeSettings({ fpsCap: 60 }).fpsCap).toBe(120);
+    expect(sanitizeSettings({ fpsCap: 30 }).fpsCap).toBe(30);
+    expect(sanitizeSettings({ fpsCap: 0 }).fpsCap).toBe(0);
+    // Chosen after the change: 60 stays 60.
+    const now = sanitizeSettings({ fpsCap: 60, fpsCapRev: DEFAULT_SETTINGS.fpsCapRev });
+    expect(now.fpsCap).toBe(60);
+    expect(sanitizeSettings(now).fpsCap).toBe(60);
+  });
+
   it('keeps valid values and repairs invalid ones', () => {
     const s = sanitizeSettings({
       quality: 'high',
