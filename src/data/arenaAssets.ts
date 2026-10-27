@@ -1,4 +1,5 @@
 import type { AssetRequest } from '../render/env/AssetLibrary';
+import { HOLLOW_DEEP_ASSETS } from './sets/hollowDeep';
 import { BOUND_SPIRE_ASSETS } from './sets/boundSpire';
 import { ASHEN_WASTES_ASSETS } from './sets/ashenWastes';
 import { ASH_GATE_ASSETS } from './sets/ashGate';
@@ -166,56 +167,7 @@ export const ARENA_ASSETS: Readonly<Record<ArenaId, ArenaAssets>> = {
   ash_gate: ASH_GATE_ASSETS,
   ashen_wastes: ASHEN_WASTES_ASSETS,
   bound_spire: BOUND_SPIRE_ASSETS,
-  hollow_deep: {
-    // Wet cave rock, darker and cooler than the scan's daylight colour.
-    floor: { id: 'mossy_rock', size: 3, tint: 0x6f7c74 },
-    floorPatch: { id: 'brown_mud_rocks_01', size: 1.3, tint: 0x8a8278 },
-    wall: { id: 'rock_wall_08', size: 1.8 },
-    rock: { id: 'mossy_rock', size: 3 },
-    stone: { id: 'rock_wall_08', size: 1.8 },
-    brazier: { model: 'stone_fire_pit', scale: 1, fire: 0.35 },
-    boulders: { model: 'rock_moss_set_02', pick: true },
-    props: [
-      { model: 'root_cluster_01', deg: -30, r: 0.88, scale: 1.8, yaw: 10 },
-      { model: 'root_cluster_01', deg: 120, r: 0.88, scale: 1.6, yaw: 60 },
-      { model: 'root_cluster_01', deg: 230, r: 0.88, scale: 1.7, yaw: -40 },
-      { model: 'pine_roots', deg: 30, r: 0.86, scale: 2 },
-      { model: 'pine_roots', deg: 300, r: 0.86, scale: 1.8, yaw: 90 },
-      { model: 'rock_face_01', deg: 0, r: 1, scale: 1.4, solid: true },
-      { model: 'rock_face_02', deg: 80, r: 0.97, scale: 1.6, solid: true },
-      { model: 'rock_face_02', deg: 180, r: 0.97, scale: 1.5, yaw: 140, solid: true },
-      { model: 'rock_face_02', deg: 270, r: 0.97, scale: 1.6, yaw: 220, solid: true },
-      { model: 'treasure_chest', deg: 160, r: 0.86, scale: 1.3, yaw: 30 },
-      { model: 'wooden_crate_01', deg: 168, r: 0.9, scale: 1.4, yaw: -20 },
-      { model: 'tree_stump_02', deg: 200, r: 0.86, scale: 1.4, solid: true },
-    ],
-    scatter: [
-      {
-        model: 'rock_moss_set_01',
-        pick: true,
-        count: 6,
-        band: [0.8, 0.96],
-        scale: [0.9, 1.3],
-        solid: true,
-      },
-      {
-        model: 'rock_moss_set_02',
-        pick: true,
-        count: 6,
-        band: [0.8, 0.96],
-        scale: [0.9, 1.3],
-        solid: true,
-      },
-      { model: 'wooden_lantern_01', count: 6, band: [0.84, 0.95], scale: [1.6, 1.9] },
-      {
-        model: 'dry_branches_medium_01',
-        pick: true,
-        count: 5,
-        band: [0.72, 0.94],
-        scale: [1.2, 1.5],
-      },
-    ],
-  },
+  hollow_deep: HOLLOW_DEEP_ASSETS,
 };
 
 /** Everything an arena needs loaded before it is built. */

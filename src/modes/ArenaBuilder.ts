@@ -784,7 +784,8 @@ export class ArenaBuilder {
     for (let i = 0; i < n; i++) {
       const spot = this.dressingSpot(R - 4, R - 0.6, 0.6);
       if (spot === null) continue;
-      const big = this.rand() < 0.35;
+      // Tall ones never in the south band (between the camera and the hero).
+      const big = this.rand() < 0.35 && spot[1] < R * 0.3;
       const h = big ? 2.5 + this.rand() * 3.5 : 0.6 + this.rand() * 1.4;
       const r = h * (0.18 + this.rand() * 0.08);
       this.e.set((this.rand() - 0.5) * 0.15, this.rand() * 6, (this.rand() - 0.5) * 0.15);

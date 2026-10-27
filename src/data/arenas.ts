@@ -397,12 +397,29 @@ const BOUND_SPIRE: ArenaDef = {
   },
 };
 
-/** A cavern under the wastes: stalagmites, glowing fungus and an open floor for big beasts. */
+/**
+ * A cavern under the wastes: walls of wet rock hung with giant roots, mossy shelves at their
+ * foot, an underground pool, glowing fungus and a great crystal breaking out of the north wall.
+ */
 const HOLLOW_DEEP: ArenaDef = {
   id: 'hollow_deep',
   name: 'The Hollow Deep',
-  floorRadius: 24,
+  floorRadius: 23,
   wall: { segments: 30, height: 6, thickness: 1.8 },
+  outline: [
+    [-8, -25],
+    [6, -26],
+    [16, -20],
+    [23, -10],
+    [24, 3],
+    [20, 15],
+    [10, 23],
+    [-4, 24.5],
+    [-15, 20],
+    [-23, 10],
+    [-24, -4],
+    [-19, -17],
+  ],
   spawn: [0, 1.2, 9],
   spawnPoints: [
     [-18, 2],
@@ -420,7 +437,6 @@ const HOLLOW_DEEP: ArenaDef = {
     { x: 15, z: -6, radius: 1.2, height: 7 },
     { x: -9, z: 17, radius: 0.9, height: 4 },
     { x: 9, z: 17, radius: 0.9, height: 5.5 },
-    { x: 0, z: -18, radius: 1.4, height: 9 },
   ],
   blocks: [],
   rocks: [
@@ -437,23 +453,23 @@ const HOLLOW_DEEP: ArenaDef = {
     { x: 0, z: -15 },
   ],
   palette: {
-    background: 0x040706,
-    fog: 0x0a120e,
-    fogDensity: 0.03,
+    background: 0x050908,
+    fog: 0x0e1a15,
+    fogDensity: 0.024,
     floorBase: 0x23271f,
     stone: 0x3c4238,
     ember: 0x8aff5a,
-    moonlight: 0x8ac8a8,
-    hemiSky: 0x283a32,
-    hemiGround: 0x0c0a08,
+    moonlight: 0x9ad8b8,
+    hemiSky: 0x3a5246,
+    hemiGround: 0x141410,
   },
   lighting: {
-    moonIntensity: 1.4,
+    moonIntensity: 1.9,
     moonDirection: [0.35, 1, 0.4],
-    hemiIntensity: 0.5,
-    environmentIntensity: 0.35,
-    brazierIntensity: 18,
-    brazierRange: 12,
+    hemiIntensity: 0.8,
+    environmentIntensity: 0.5,
+    brazierIntensity: 20,
+    brazierRange: 13,
   },
 };
 

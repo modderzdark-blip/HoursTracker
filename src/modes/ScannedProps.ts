@@ -1,5 +1,6 @@
 import {
   Box3,
+  BufferAttribute,
   Euler,
   InstancedMesh,
   Matrix4,
@@ -136,11 +137,14 @@ export class ScannedProps {
         continue;
       }
       const moved = list.map((part) => {
-        const g = part.geometry.clone();
+        const g = floatAttributes(part.geometry.clone());
         g.translate(part.offset.x, part.offset.y, part.offset.z);
         return g;
       });
-      const geometry = mergeGeometries(moved, false);
+      // Only parts with the same vertex layout merge (else they stay separate below).
+      const names = (g: BufferGeometry): string => Object.keys(g.attributes).sort().join();
+      const same = moved.every((g) => names(g) === names(moved[0] ?? g));
+      const geometry = same ? mergeGeometries(moved, false) : null;
       for (const g of moved) g.dispose();
       if (geometry === null) {
         // Parts with different vertex layouts: keep them separate (offsets baked per copy).
@@ -370,4 +374,17 @@ function bounds(parts: readonly ModelPart[], single: boolean): Box3 {
     box.union(b);
   }
   return box;
+}
+
+/** Every attribute as plain floats (quantized scans mix integer and float layouts). */
+function floatAttributes(g: BufferGeometry): BufferGeometry {
+  for (const name of Object.keys(g.attributes)) {
+    const a = g.getAttribute(name);
+    if (a.array instanceof Float32Array && !a.normalized) continue;
+    const out = new Float32Array(a.count * a.itemSize);
+    for (let i = 0; i < a.count; i++)
+      for (let k = 0; k < a.itemSize; k++) out[i * a.itemSize + k] = a.getComponent(i, k);
+    g.setAttribute(name, new BufferAttribute(out, a.itemSize));
+  }
+  return g;
 }

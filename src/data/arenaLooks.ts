@@ -630,7 +630,7 @@ export const ARENA_LOOKS: Readonly<Record<ArenaId, ArenaLook>> = {
     dressing: {
       rubble: 60,
       bones: 10,
-      spires: 26,
+      spires: 14,
       brokenColumns: 0,
       statues: 0,
       statueKind: 'knight',
