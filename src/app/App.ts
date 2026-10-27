@@ -94,6 +94,8 @@ export interface AppServices {
 
 export interface TestHookState {
   ready: boolean;
+  /** Strikes the active pet landed this run (0 without a pet). */
+  petStrikes: number;
   running: boolean;
   paused: boolean;
   /** 'battle' during a fight, otherwise the menu screen id ('hub', 'map', 'victory', ...). */
@@ -1048,6 +1050,7 @@ export class App {
         const boss = m?.boss ?? null;
         return {
           ready: true,
+          petStrikes: m?.petStrikes ?? 0,
           running: this.running,
           paused: this.loop.isPaused,
           screen:

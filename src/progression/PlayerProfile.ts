@@ -45,6 +45,20 @@ import {
   type HearthYield,
 } from './goals';
 import { rollItemLevel, rollRarity } from './loot';
+import {
+  hatch,
+  petBonus,
+  petLevelCost,
+  shardsForNextStar,
+  strikeMult,
+  type HatchResult,
+  type PetBonus,
+  type PetProgress,
+} from './pets';
+import { PETS, type EggId, type PetDef, type PetId } from '../data/pets';
+import { RARITIES, type Rarity } from '../data/items';
+import { dailyDeals, DAILY_GIFT, SHOP_CONFIG, type ShopOffer, type ShopReward } from '../data/shop';
+import type { Currency } from '../data/economy';
 import { computeHeroStats, powerRating } from './heroStats';
 import type { HeroProgress, ProfileData } from './profile';
 import { computeMods, rankBlock, rankUp, type HeroMods } from './skillTree';
@@ -52,6 +66,21 @@ import { Wallet } from './wallet';
 import { addXp } from './xp';
 
 export const DIFFICULTY_ORDER: readonly DifficultyId[] = ['normal', 'hard', 'nightmare'];
+
+/** What a shop purchase handed over. */
+export interface PurchaseResult {
+  readonly currencies: { readonly currency: Currency; readonly amount: number }[];
+  readonly items: GearItem[];
+  readonly pets: HatchResult[];
+}
+
+/** The active pet for a battle: its look, strike and progress. */
+export interface PetCompanion {
+  readonly def: PetDef;
+  readonly progress: PetProgress;
+  /** Strike damage as a multiple of the hero's ATK. */
+  readonly strikeMult: number;
+}
 
 export interface SalvageSummary {
   count: number;
@@ -165,14 +194,203 @@ export class PlayerProfile {
   }
 
   stats(id: HeroId): StatBlock {
-    return computeHeroStats(HEROES[id], this.hero(id).level, this.equippedItems(id), this.mods(id));
+    return computeHeroStats(
+      HEROES[id],
+      this.hero(id).level,
+      this.equippedItems(id),
+      this.mods(id),
+      this.activePetBonus(),
+    );
   }
 
   /** Stats if `item` replaced what is in its slot (for comparisons). */
   statsWith(id: HeroId, item: GearItem): StatBlock {
     const items = this.equippedItems(id).filter((i) => i.slot !== item.slot);
     items.push(item);
-    return computeHeroStats(HEROES[id], this.hero(id).level, items, this.mods(id));
+    return computeHeroStats(
+      HEROES[id],
+      this.hero(id).level,
+      items,
+      this.mods(id),
+      this.activePetBonus(),
+    );
+  }
+
+  /** Stats with `pet` as the active pet (for the pet screen's comparison). */
+  statsWithPet(id: HeroId, pet: PetId | null): StatBlock {
+    const prog = pet === null ? undefined : this.data.pets.owned[pet];
+    return computeHeroStats(
+      HEROES[id],
+      this.hero(id).level,
+      this.equippedItems(id),
+      this.mods(id),
+      pet === null || prog === undefined ? null : petBonus(PETS[pet], prog),
+    );
+  }
+
+  /**
+   * Equips the strongest item in each slot this hero can wear (unworn by other heroes); returns
+   * how many slots changed.
+   */
+  autoEquip(id: HeroId): number {
+    let changed = 0;
+    for (const slot of GEAR_SLOTS) {
+      const current = this.equippedIn(id, slot);
+      let best = current;
+      for (const item of this.data.items) {
+        if (item.slot !== slot) continue;
+        const w = this.wearer(item.uid);
+        if (w !== null && w !== id) continue;
+        if (best === undefined || itemPower(item) > itemPower(best)) best = item;
+      }
+      if (best !== undefined && best !== current) {
+        this.hero(id).equipped[slot] = best.uid;
+        changed++;
+      }
+    }
+    if (changed > 0) this.commit();
+    return changed;
+  }
+
+  // ------------------------------------------------------------------ pets
+
+  pet(id: PetId): PetProgress | undefined {
+    return this.data.pets.owned[id];
+  }
+
+  get activePet(): PetId | null {
+    return this.data.pets.active;
+  }
+
+  private activePetBonus(): PetBonus | null {
+    const id = this.data.pets.active;
+    const prog = id === null ? undefined : this.data.pets.owned[id];
+    return id === null || prog === undefined ? null : petBonus(PETS[id], prog);
+  }
+
+  /** The pet that follows the hero into battle, or null. */
+  petCompanion(): PetCompanion | null {
+    const id = this.data.pets.active;
+    const prog = id === null ? undefined : this.data.pets.owned[id];
+    if (id === null || prog === undefined) return null;
+    return { def: PETS[id], progress: { ...prog }, strikeMult: strikeMult(PETS[id], prog) };
+  }
+
+  setActivePet(id: PetId | null): boolean {
+    if (id !== null && this.data.pets.owned[id] === undefined) return false;
+    this.data.pets.active = id;
+    this.commit();
+    return true;
+  }
+
+  levelUpPet(id: PetId): boolean {
+    const prog = this.data.pets.owned[id];
+    if (prog === undefined) return false;
+    const cost = petLevelCost(prog.level);
+    if (cost === null) return false;
+    if (!this.wallet.canAfford('souls', cost.souls) || !this.wallet.canAfford('gold', cost.gold))
+      return false;
+    this.wallet.spend('souls', cost.souls);
+    this.wallet.spend('gold', cost.gold);
+    prog.level++;
+    this.commit();
+    return true;
+  }
+
+  /** Spends shards for the next star. */
+  ascendPet(id: PetId): boolean {
+    const prog = this.data.pets.owned[id];
+    if (prog === undefined) return false;
+    const need = shardsForNextStar(prog.stars);
+    if (need === null || prog.shards < need) return false;
+    prog.shards -= need;
+    prog.stars++;
+    this.commit();
+    return true;
+  }
+
+  // ------------------------------------------------------------------ shop
+
+  private refreshShop(nowMs: number): void {
+    const day = localDay(nowMs);
+    if (this.data.shop.day !== day) {
+      this.data.shop.day = day;
+      this.data.shop.bought = {};
+    }
+  }
+
+  /** The daily gift and today's deals. */
+  shopDeals(nowMs = Date.now()): ShopOffer[] {
+    return [DAILY_GIFT, ...dailyDeals(localDay(nowMs))];
+  }
+
+  /** Purchases left today (null: no limit). */
+  shopLeft(offer: ShopOffer, nowMs = Date.now()): number | null {
+    if (offer.limit === null) return null;
+    this.refreshShop(nowMs);
+    return Math.max(0, offer.limit - (this.data.shop.bought[offer.id] ?? 0));
+  }
+
+  /** Currency amount of a reward at the player's progress. */
+  rewardAmount(r: Extract<ShopReward, { kind: 'currency' }>): number {
+    if (r.scales !== true) return r.amount;
+    return Math.round(r.amount * (1 + SHOP_CONFIG.perLevel * (this.progressLevel() - 1)));
+  }
+
+  /** Why an offer cannot be bought now, or null. */
+  shopBlock(offer: ShopOffer, nowMs = Date.now()): 'limit' | 'funds' | 'bag' | null {
+    const left = this.shopLeft(offer, nowMs);
+    if (left !== null && left <= 0) return 'limit';
+    if (offer.price !== null && !this.wallet.canAfford(offer.price.currency, offer.price.amount))
+      return 'funds';
+    let gear = 0;
+    for (const r of offer.rewards) if (r.kind === 'gear') gear += r.count;
+    if (gear > 0 && this.data.items.length + gear > GEAR_CONFIG.inventoryCap) return 'bag';
+    return null;
+  }
+
+  /** Buys an offer: pays, hands over everything, counts it against today's limit. */
+  buy(offer: ShopOffer, nowMs = Date.now()): PurchaseResult | null {
+    if (this.shopBlock(offer, nowMs) !== null) return null;
+    if (offer.price !== null && !this.wallet.spend(offer.price.currency, offer.price.amount))
+      return null;
+    const result: PurchaseResult = { currencies: [], items: [], pets: [] };
+    for (const r of offer.rewards) {
+      if (r.kind === 'currency') {
+        const n = this.rewardAmount(r);
+        this.wallet.add(r.currency, n);
+        result.currencies.push({ currency: r.currency, amount: n });
+      } else if (r.kind === 'gear') {
+        for (let i = 0; i < r.count; i++)
+          result.items.push(this.rollShopItem(r.minRarity, r.levelBonus));
+      } else {
+        for (let i = 0; i < r.count; i++) result.pets.push(this.hatchEgg(r.egg));
+      }
+    }
+    this.data.shop.bought[offer.id] = (this.data.shop.bought[offer.id] ?? 0) + 1;
+    this.commit();
+    return result;
+  }
+
+  private hatchEgg(egg: EggId): HatchResult {
+    return hatch(this.data.pets, egg, this.rng);
+  }
+
+  private rollShopItem(minRarity: Rarity, levelBonus: number): GearItem {
+    const level = this.progressLevel();
+    let rarity = rollRarity(this.rng, 'nightmare', this.data.pity);
+    if (RARITIES.indexOf(rarity) < RARITIES.indexOf(minRarity)) rarity = minRarity;
+    const slot = GEAR_SLOTS[Math.floor(this.rng() * GEAR_SLOTS.length)] ?? 'weapon';
+    const item = rollItem(
+      this.rng,
+      this.nextUid(),
+      slot,
+      rarity,
+      rollItemLevel(this.rng, level + levelBonus, 'normal', rarity),
+    );
+    item.isNew = true;
+    this.data.items.push(item);
+    return item;
   }
 
   power(id: HeroId): number {

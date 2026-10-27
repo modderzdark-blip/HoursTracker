@@ -3,7 +3,9 @@ import type { HeroId } from '../data/heroes';
 import type { GearSlot } from '../data/items';
 import type { ModeId } from '../data/modes';
 import type { PlayerProfile } from '../progression/PlayerProfile';
-import type { MenuActions, MenuContext, MenuNav, SettingsPort } from '../ui/menu/context';
+import type { MenuActions, MenuContext, MenuNav, SettingsPort, ShopTab } from '../ui/menu/context';
+import { renderPets } from '../ui/menu/petsScreen';
+import { renderShop } from '../ui/menu/shopScreen';
 import { renderGear } from '../ui/menu/gearScreen';
 import { renderHeroes } from '../ui/menu/heroesScreen';
 import { renderHub } from '../ui/menu/hubScreen';
@@ -75,6 +77,14 @@ export class Menus implements MenuNav {
 
   settings(): void {
     renderSettings(this.ctx);
+  }
+
+  shop(tab: ShopTab = 'deals'): void {
+    renderShop(this.ctx, tab);
+  }
+
+  pets(): void {
+    renderPets(this.ctx, this.o.profile.activePet);
   }
 
   mode(id: ModeId): void {

@@ -7,6 +7,8 @@ import { ACHIEVEMENTS, BLESSING_CONFIG, DAILY_QUESTS } from '../data/goals';
 import type { GearItem, StatRoll } from './gear';
 import { createDailyState, type DailyState } from './goals';
 import type { PityState } from './loot';
+import { createPetState, type PetState } from './pets';
+import { PET_CONFIG, PET_IDS } from '../data/pets';
 
 /** Per-hero progress as stored in the save. */
 export interface HeroProgress {
@@ -83,6 +85,12 @@ export interface StoryState {
   modesSeen: string[];
 }
 
+/** Shop purchases on the current local day (limits reset each day). */
+export interface ShopState {
+  day: number;
+  bought: Record<string, number>;
+}
+
 export interface ProfileData {
   selectedHero: HeroId;
   heroes: Record<HeroId, HeroProgress>;
@@ -105,6 +113,8 @@ export interface ProfileData {
   /** Ember Blessing stacks by stage record key (`stageId:difficulty`). */
   blessings: Record<string, number>;
   story: StoryState;
+  pets: PetState;
+  shop: ShopState;
 }
 
 export const ARENA_START_RATING = 1000;
@@ -154,6 +164,8 @@ export function createDefaultProfile(nowMs = Date.now()): ProfileData {
     achievements: {},
     blessings: {},
     story: { prologueSeen: false, chapterIntros: [], chapterOutros: [], modesSeen: ['adventure'] },
+    pets: createPetState(),
+    shop: { day: -1, bought: {} },
   };
 }
 
@@ -401,5 +413,32 @@ export function sanitizeProfile(raw: unknown, nowMs = Date.now()): ProfileData {
     }
   }
   sanitizeStory(raw['story'], p.story);
+  sanitizePets(raw['pets'], p.pets);
+  if (isRecord(raw['shop'])) {
+    p.shop.day = int(raw['shop']['day'], -1, 1e7, -1);
+    const bought = raw['shop']['bought'];
+    if (isRecord(bought))
+      for (const [id, n] of Object.entries(bought)) {
+        const v = int(n, 0, 1000, 0);
+        if (v > 0 && /^[a-z_]{1,24}$/.test(id)) p.shop.bought[id] = v;
+      }
+  }
   return p;
+}
+
+function sanitizePets(raw: unknown, into: PetState): void {
+  if (!isRecord(raw)) return;
+  const owned = raw['owned'];
+  if (isRecord(owned))
+    for (const id of PET_IDS) {
+      const o = owned[id];
+      if (!isRecord(o)) continue;
+      into.owned[id] = {
+        level: int(o['level'], 1, PET_CONFIG.maxLevel, 1),
+        stars: int(o['stars'], 1, PET_CONFIG.maxStars, 1),
+        shards: int(o['shards'], 0, 10_000, 0),
+      };
+    }
+  const active = PET_IDS.find((id) => id === raw['active']);
+  into.active = active !== undefined && into.owned[active] !== undefined ? active : null;
 }

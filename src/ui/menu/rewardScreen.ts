@@ -1,10 +1,11 @@
 import { HEROES } from '../../data/heroes';
-import { RARITY_DEFS, SLOT_DEFS } from '../../data/items';
+import { RARITY_DEFS } from '../../data/items';
 import { HERO_LINES } from '../../data/story';
 import type { RewardSummary } from '../../modes/rewards';
 import { celebrationsFor, planReveal, xpSegments, type RevealStep } from '../../progression/feel';
 import { formatStat, itemName, mainValue } from '../../progression/gear';
 import type { Attention } from '../../progression/PlayerProfile';
+import { iconBox } from '../icons';
 import { el } from '../dom';
 import { playCelebrations } from './celebrate';
 import type { MenuContext } from './context';
@@ -126,7 +127,7 @@ export function renderVictory(
     name.style.color = d.color;
     card.append(
       el('div', 'loot-beam'),
-      el('div', 'loot-card-glyph', SLOT_DEFS[item.slot].glyph),
+      iconBox('loot-card-glyph', item.slot),
       name,
       el('div', 'loot-card-meta', `${d.label} · Lv${item.ilvl}`),
       el('div', 'loot-card-stat', formatStat(item.main.stat, mainValue(item))),

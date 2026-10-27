@@ -4,6 +4,30 @@
   width: 22px;
   height: 22px;
   flex: 0 0 auto;
+  overflow: visible;
+}
+
+/* Icon layers (see icons.ts). */
+.icon .ic-a {
+  fill: currentColor;
+}
+
+.icon .ic-b {
+  fill: currentColor;
+  opacity: 0.55;
+}
+
+.icon .ic-d {
+  fill: #000;
+  opacity: 0.3;
+}
+
+.icon .ic-h {
+  fill: #fff;
+  opacity: 0.42;
+}
+
+.icon .ic-l {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.7;
@@ -11,10 +35,33 @@
   stroke-linejoin: round;
 }
 
-.icon-play,
-.icon-bolt {
-  fill: currentColor;
-  stroke: none;
+.icon .ic-s {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  opacity: 0.55;
+}
+
+/* Currency colours (anywhere a currency icon appears). */
+.icon-gold {
+  color: #f4c04e;
+}
+
+.icon-gems {
+  color: #ff5fae;
+}
+
+.icon-souls {
+  color: #9ad8ff;
+}
+
+.icon-materials {
+  color: #d6ab7c;
+}
+
+.icon-tickets {
+  color: #7fe3a0;
 }
 
 .hub {
@@ -458,11 +505,39 @@
 }
 
 /* ---------------------------------------------------------------- Ember Hearth */
-.hub-hearth {
+.hub-topleft {
   position: absolute;
   top: 2px;
   left: calc(12px + var(--sl));
-  max-width: calc(100% - var(--hub-right) - 48px - var(--sl) - var(--sr));
+  width: calc(100% - var(--hub-right) - 48px - var(--sl) - var(--sr));
+  max-width: 380px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.hub-cog {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #d8c4a0;
+  border: 1px solid rgba(201, 162, 74, 0.4);
+  background: rgba(22, 15, 13, 0.88);
+}
+
+.hub-cog .icon {
+  width: 24px;
+  height: 24px;
+}
+
+.hub-hearth {
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
   min-height: 44px;
   padding: 5px 12px 5px 40px;
   border-radius: 12px;
@@ -516,14 +591,14 @@
   left: calc(12px + var(--sl));
   bottom: calc(8px + var(--sb));
   width: calc(100% - var(--hub-right) - 36px - var(--sl) - var(--sr));
-  max-width: 360px;
+  max-width: 420px;
   display: flex;
-  gap: 5px;
+  gap: 4px;
 }
 
 .dock-btn {
   flex: 1 1 0;
-  min-width: 48px;
+  min-width: 44px;
   min-height: 52px;
   padding: 4px 2px 3px;
   border-radius: 12px;
@@ -546,9 +621,21 @@
 .dock-label {
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   color: var(--ink);
   white-space: nowrap;
+}
+
+.dock-btn.is-shop {
+  border-color: rgba(255, 200, 90, 0.85);
+  background: linear-gradient(180deg, rgba(110, 66, 14, 0.95), rgba(48, 26, 8, 0.95));
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.45),
+    0 0 14px rgba(255, 170, 60, 0.35);
+}
+
+.dock-btn.is-shop .dock-icon {
+  color: #ffd27a;
 }
 
 .dock-btn .badge {

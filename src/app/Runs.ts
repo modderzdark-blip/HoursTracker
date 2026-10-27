@@ -12,7 +12,7 @@ import {
 import { chapterDef, findAdventureStage } from '../data/adventure';
 import type { AdventureStageDef, StageDef } from '../data/stages';
 import type { ChapterCard } from '../ui/BattleCallouts';
-import type { BattleOutcome, BattleSetup } from '../modes/BattleMode';
+import type { BattleOutcome, BattleSetup, PetSetup } from '../modes/BattleMode';
 import {
   challengeMult,
   challengeStage,
@@ -39,7 +39,7 @@ import {
   recordDefeat,
   type RewardSummary,
 } from '../modes/rewards';
-import type { PlayerProfile } from '../progression/PlayerProfile';
+import type { PetCompanion, PlayerProfile } from '../progression/PlayerProfile';
 import type { MenuContext } from '../ui/menu/context';
 import { BOSS_LINES, chapterStory } from '../data/story';
 import { renderDefeat, renderVictory, type ResultButton } from '../ui/menu/rewardScreen';
@@ -164,6 +164,7 @@ export class Runs {
       startHpFrac: 1,
       enemyMult: { hp: 1, atk: 1 },
       allowRevive: true,
+      pet: petSetup(p.petCompanion()),
     };
   }
 
@@ -701,4 +702,15 @@ export class Runs {
       [toMenu],
     );
   }
+}
+
+function petSetup(c: PetCompanion | null): PetSetup | null {
+  if (c === null) return null;
+  return {
+    name: c.def.name,
+    look: c.def.look,
+    everySec: c.def.strike.everySec,
+    mult: c.strikeMult,
+    rangeM: c.def.strike.rangeM,
+  };
 }

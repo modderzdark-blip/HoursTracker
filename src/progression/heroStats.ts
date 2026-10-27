@@ -2,6 +2,7 @@ import type { StatBlock } from '../data/combatTypes';
 import type { HeroDef } from '../data/heroes';
 import { GEAR_CONFIG } from '../data/items';
 import { addItemStats, emptyTotals, type GearItem } from './gear';
+import type { PetBonus } from './pets';
 import type { HeroMods } from './skillTree';
 
 /** Hero stats at a level, before gear. */
@@ -17,18 +18,21 @@ export function heroBaseStats(def: HeroDef, level: number): StatBlock {
 }
 
 /**
- * Final battle stats: level stats + flat gear, then gear percentages, then skill-tree crit, then
- * caps. HP/ATK/DEF round to integers.
+ * Final battle stats: level stats + flat gear, then gear and pet percentages, then skill-tree
+ * crit, then caps. HP/ATK/DEF round to integers.
  */
 export function computeHeroStats(
   def: HeroDef,
   level: number,
   equipped: readonly GearItem[],
   mods: HeroMods | null,
+  pet: PetBonus | null = null,
 ): StatBlock {
   const base = heroBaseStats(def, level);
   const g = emptyTotals();
   for (const item of equipped) addItemStats(item, g);
+  if (pet !== null)
+    for (const [stat, v] of Object.entries(pet) as [keyof PetBonus, number][]) g[stat] += v;
   const caps = GEAR_CONFIG.caps;
   return {
     maxHp: Math.round((base.maxHp + g.hp) * (1 + g.hpPct)),

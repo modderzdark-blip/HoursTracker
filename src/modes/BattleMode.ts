@@ -72,6 +72,8 @@ import { Fx } from '../vfx/Fx';
 import { FxLights } from '../vfx/FxLights';
 import { FxDirector } from './FxDirector';
 import { TelegraphDecals } from '../vfx/TelegraphDecals';
+import { PetCompanion } from '../vfx/PetCompanion';
+import type { PetLook } from '../data/pets';
 import { WeaponTrails } from '../vfx/WeaponTrails';
 import { ArenaBuilder } from './ArenaBuilder';
 import { BattleFeel } from './BattleFeel';
@@ -125,6 +127,17 @@ export interface BattleSetup {
   readonly duel?: DuelSetup;
   /** Adventure: a chapter's first stage opens with the chapter card instead of the label banner. */
   readonly chapterIntro?: ChapterCard;
+  /** The active pet: follows the hero and strikes the nearest foe every `everySec`. */
+  readonly pet?: PetSetup | null;
+}
+
+export interface PetSetup {
+  readonly name: string;
+  readonly look: PetLook;
+  readonly everySec: number;
+  /** Damage as a multiple of the hero's ATK. */
+  readonly mult: number;
+  readonly rangeM: number;
 }
 
 export interface DuelSetup {
@@ -244,12 +257,19 @@ export class BattleMode implements QualityTarget, WaveWorld {
   private readonly statusStacks: Record<StatusId, number> = { bleed: 0, burn: 0, slow: 0 };
   /** Debug/test counters. */
   enemiesKilled = 0;
+  petStrikes = 0;
+  private readonly pet: PetCompanion | null;
+  private petTimer = 0;
 
   constructor(
     private readonly d: BattleDeps,
     readonly setup: BattleSetup,
   ) {
     this.scene = d.ctx.scene;
+    this.pet =
+      setup.pet !== undefined && setup.pet !== null
+        ? new PetCompanion(this.scene, setup.pet.look)
+        : null;
     this.arena = ARENAS[setup.stage.arena];
     this.difficulty = DIFFICULTIES[setup.difficulty];
     const st = setup.stage;
@@ -675,6 +695,8 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.finished = false;
     this.soulsThisRun = 0;
     this.enemiesKilled = 0;
+    this.petStrikes = 0;
+    this.petTimer = (this.setup.pet?.everySec ?? 0) * 0.6;
     const [sx, , sz] = this.arena.spawn;
     this.player.resetForRun(sx, sz, Math.PI, this.setup.startHpFrac);
     if (this.setup.stage.trainingDummy) {
@@ -1227,6 +1249,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.d.physics.step(dtSec);
     this.roster.collectDead();
     if (boss !== null && boss.inWorld && boss.readyForRelease) boss.removeFromWorld();
+    this.petThink(dtSec);
 
     // Ultimate shadow clones strike around targets during the active window.
     const p = this.player;
@@ -1422,6 +1445,10 @@ export class BattleMode implements QualityTarget, WaveWorld {
       }
     }
     this.atmosphere.lightningOn = shot;
+    if (this.pet !== null) {
+      this.pet.update(animDt, feet, this.player.yaw);
+      this.pet.setVisible(this.player.alive);
+    }
     this.atmosphere.update(feet, realDtSec);
     this.builder.update(realDtSec);
     this.embers.update(realDtSec, feet);
@@ -1684,8 +1711,88 @@ export class BattleMode implements QualityTarget, WaveWorld {
     this.callouts.dispose();
     this.numbers.dispose();
     this.results.dispose();
+    this.pet?.dispose();
+  }
+
+  /**
+   * The pet strikes the nearest living foe in range (not the training dummy) every few seconds
+   * while the fight is on; damage scales with the hero's ATK through the normal damage formula.
+   */
+  private petThink(dtSec: number): void {
+    const pet = this.setup.pet;
+    if (
+      pet === undefined ||
+      pet === null ||
+      this.pet === null ||
+      this.stageIntroActive ||
+      !this.player.alive
+    )
+      return;
+    const phase = this.director.phase;
+    if (phase === 'countdown' || phase === 'victory' || phase === 'defeat') return;
+    this.petTimer -= dtSec;
+    if (this.petTimer > 0) return;
+    const from = this.player.currFeet;
+    let best: Actor | null = null;
+    let bestD = pet.rangeM * pet.rangeM;
+    for (const t of this.targetList()) {
+      if (t === this.dummy) continue;
+      const dx = t.currFeet.x - from.x;
+      const dz = t.currFeet.z - from.z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < bestD) {
+        bestD = d2;
+        best = t;
+      }
+    }
+    if (best === null) {
+      this.petTimer = 0.4;
+      return;
+    }
+    this.petTimer = pet.everySec;
+    const at = best.currFeet;
+    const src = this.pet.position;
+    const dx = at.x - src.x;
+    const dz = at.z - src.z;
+    const len = Math.hypot(dx, dz) || 1;
+    this.pet.strike(at);
+    // A streak of sparks from the pet to the target, a flash where it lands.
+    const steps = 6;
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      this.sparks.burst(
+        src.x + dx * t,
+        src.y + (at.y + 1 - src.y) * t,
+        src.z + dz * t,
+        3,
+        pet.look.accent,
+        1.2,
+        0,
+        0,
+        0.25,
+        0.7,
+        0,
+      );
+    }
+    this.sparks.burst(at.x, at.y + 1, at.z, 14, pet.look.color, 4, 0, 0, 0.4, 1.1, 0.3);
+    this.fxLights.flash(at.x, at.y + 1.2, at.z, pet.look.color, 1.6, 0.35);
+    this.combat.applyHit(this.player, best, PET_SPEC, dx / len, dz / len, {
+      damageMult: pet.mult,
+      difficultyMod: 1,
+    });
+    this.petStrikes++;
   }
 }
+
+const PET_SPEC = {
+  damage: 1,
+  poise: 4,
+  reaction: 'flinch' as const,
+  knockback: 0.15,
+  hitStopMs: 0,
+  shake: 0,
+  shape: { kind: 'circle' as const, radius: 0, forward: 0 },
+};
 
 const KILL_SPEC = {
   damage: 1,

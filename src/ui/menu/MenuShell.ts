@@ -1,18 +1,19 @@
 import type { Currency } from '../../data/economy';
 import type { Wallet } from '../../progression/wallet';
 import { el, onTap } from '../dom';
+import { icon } from '../icons';
 import { PowerPop } from './PowerPop';
 import { fmtInt, View } from './View';
 
 /** Duration of the currency count-up when a balance grows. */
 const COUNT_MS = 750;
 
-const CURRENCY_LABELS: readonly { c: Currency; icon: string; title: string }[] = [
-  { c: 'gold', icon: '◉', title: 'Gold' },
-  { c: 'gems', icon: '◆', title: 'Gems' },
-  { c: 'souls', icon: '✧', title: 'Souls' },
-  { c: 'materials', icon: '⚒', title: 'Upgrade materials' },
-  { c: 'tickets', icon: '✉', title: 'Reward tickets' },
+const CURRENCY_LABELS: readonly { c: Currency; title: string }[] = [
+  { c: 'gold', title: 'Gold' },
+  { c: 'gems', title: 'Gems' },
+  { c: 'souls', title: 'Souls' },
+  { c: 'materials', title: 'Upgrade materials' },
+  { c: 'tickets', title: 'Reward tickets' },
 ];
 
 /**
@@ -57,11 +58,13 @@ export class MenuShell {
     });
     this.title = el('div', 'menu-title', '');
     const bar = el('div', 'currency-bar');
-    for (const { c, icon, title } of CURRENCY_LABELS) {
+    for (const { c, title } of CURRENCY_LABELS) {
       const chip = el('div', `currency currency-${c}`);
       chip.title = title;
       const v = el('span', 'currency-val', '0');
-      chip.append(el('span', 'currency-icon', icon), v);
+      const ico = el('span', 'currency-icon');
+      ico.append(icon(c));
+      chip.append(ico, v);
       bar.append(chip);
       this.currencies.set(c, v);
     }

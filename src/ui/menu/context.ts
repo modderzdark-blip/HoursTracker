@@ -18,8 +18,12 @@ export interface MenuNav {
   skills(): void;
   settings(): void;
   quests(): void;
+  shop(tab?: ShopTab): void;
+  pets(): void;
   mode(id: ModeId): void;
 }
+
+export type ShopTab = 'deals' | 'chests' | 'eggs' | 'exchange';
 
 /** Actions that leave the menus (start a battle). */
 export interface MenuActions {

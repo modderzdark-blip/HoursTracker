@@ -2,6 +2,7 @@ import { chapterDef, isGeneratedChapter, MAX_CHAPTER } from '../../data/adventur
 import { ENDLESS_CONFIG } from '../../data/endless';
 import { HEROES, type HeroId } from '../../data/heroes';
 import { MODE_ORDER, MODES, type ModeId } from '../../data/modes';
+import { DAILY_GIFT } from '../../data/shop';
 import { HEARTH_CONFIG } from '../../data/goals';
 import { chapterProgress } from '../../progression/feel';
 import { xpToNext } from '../../progression/xp';
@@ -130,6 +131,7 @@ export function renderHub(ctx: MenuContext): void {
   hearth.dataset['testid'] = 'hub-hearth';
 
   const newItems = p.data.items.filter((i) => i.isNew).length;
+  const petsOwned = Object.keys(p.data.pets.owned).length;
   const dock = el('div', 'hub-dock');
   const dockBtn = (
     label: string,
@@ -163,11 +165,34 @@ export function renderHub(ctx: MenuContext): void {
       newItems,
       attention.gearUpgrade,
     ),
+    dockBtn(
+      'Pets',
+      'pet',
+      'dock-pets',
+      () => ctx.nav.pets(),
+      0,
+      p.activePet === null && petsOwned > 0,
+    ),
     dockBtn('Skills', 'star', 'dock-skills', () => ctx.nav.skills(), 0, attention.skills > 0),
-    dockBtn('Journal', 'book', 'dock-quests', () => ctx.nav.quests(), attention.journal),
-    dockBtn('Settings', 'cog', 'dock-settings', () => ctx.nav.settings()),
+    dockBtn('Quests', 'book', 'dock-quests', () => ctx.nav.quests(), attention.journal),
+    dockBtn('Shop', 'shop', 'dock-shop', () => ctx.nav.shop(), 0, p.shopBlock(DAILY_GIFT) === null),
   );
-  hub.append(hearth, info, modes, dock);
+  dock.lastElementChild?.classList.add('is-shop');
+  // Settings: a cog beside the hearth (the dock is full).
+  const top = el('div', 'hub-topleft');
+  const cog = v.button(
+    '',
+    'hub-cog',
+    () => {
+      ctx.uiTap();
+      ctx.nav.settings();
+    },
+    { testid: 'dock-settings', title: 'Settings' },
+  );
+  cog.setAttribute('aria-label', 'Settings');
+  cog.append(icon('cog'));
+  top.append(hearth, cog);
+  hub.append(top, info, modes, dock);
   v.root.append(hub);
 }
 
