@@ -263,3 +263,24 @@ Each entry: the decision, why, and what would change it.
 - **Endless chapters are always in sight**: the stage map shows two chapters past the frontier
   as locked previews (with an ∞ mark and a banner), and the hub has an Endless tile, so chapter
   5 and beyond exist for the player before chapter 4 is beaten.
+
+## Pets, Shop and the menu restyle (0.11.0)
+
+- **The Shop sells for in-game currency only.** There is no payment backend and no store
+  account behind the APK; gems are earned in play (stars, quests, achievements, login gifts).
+  The wallet stays the single place currency changes, so real purchases could be added later
+  without touching the screens.
+- **Daily deals are a pure function of the local day** (like the Hunts board): no server, they
+  survive restarts, and limits reset at local midnight with the rest of the dailies.
+- **Pets lend percentage bonuses through the same stat pipeline as gear** (computeHeroStats),
+  so power, comparisons and recommended power all account for them. One pet is active for the
+  account rather than per hero: simpler to understand, and switching heroes keeps the companion.
+- **The battle companion is procedural** (primitives, emissive materials, a halo sprite, an
+  instanced tail) at about six draw calls, matching the procedural characters; its strike goes
+  through CombatSystem.applyHit with the hero as attacker, so damage numbers, kills, crits and
+  quests all work without special cases.
+- **Icons are layered SVG paths drawn in code**: one solid body, half-tone, shade, highlight and
+  line layers coloured from CSS, so one icon serves every rarity and currency, stays sharp at
+  any size and needs no image files.
+- **The dock holds six entries; Settings moved to a cog** beside the hearth because seven
+  labelled buttons do not fit a 640 px-wide phone at legible sizes.

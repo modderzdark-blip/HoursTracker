@@ -3,9 +3,10 @@
 Mobile dark-fantasy hack-and-slash action RPG — Three.js + TypeScript + Rapier, no engine.
 Playable in Chrome on Android (GitHub Pages) and as a sideloadable Capacitor APK.
 
-> Status: **0.10.0 — wider halls** (arenas about 30% bigger, each with its own procedural
-> architecture; a new main menu; endless chapters visible from the start; 120 FPS / uncapped),
-> on top of 0.9.0 (endless Adventure chapters with elite affixes; 14 bosses;
+> Status: **0.11.0 — companions and coin** (pets that fight beside you, a Shop for in-game
+> currency, a rebuilt Gear screen, a new icon set and a premium restyle of every screen), on top
+> of 0.10.0 (arenas about 30% bigger, each with its own procedural architecture; a new main menu;
+> endless chapters visible from the start; 120 FPS / uncapped) and 0.9.0 (endless Adventure chapters with elite affixes; 14 bosses;
 > 8 arenas built from scanned CC0 assets; story, cinematics, Ultra graphics) and 0.8.0
 > (8 heroes, redesigned skills, effects library, bullet-pattern enemies) and 0.7.0 (sculpted arenas, sky, fire,
 > mist, colour grading; detailed characters): hub, endless Adventure chapters × 8 stages

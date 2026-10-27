@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.11.0] — Companions and coin (2026-10-27)
+
+### Added
+
+- **Pets**: eight original companions, from rare to mythic:
+  - Cinder Pup, Gloom Moth, Ashwing Drake, Hollow Owl, Ember Fox, Bone Wisp, Pyre Phoenix and
+    Void Serpent.
+  - Each gives a stat bonus to your hero.
+  - The pet you take with you follows you in battle as a glowing creature and strikes the
+    nearest foe every few seconds.
+  - Pets level up with souls and gold; duplicates become shards that add stars.
+- **Shop**, with in-game currency only (no real money):
+  - A free daily tribute and three daily deals that change every day.
+  - Iron, Ember and Abyss gear chests.
+  - Ember and Abyss pet eggs, with their odds shown.
+  - A currency exchange.
+  - Each purchase shows what you got.
+- **Auto-equip**: wear the strongest free item in every slot with one tap.
+
+### Changed
+
+- **New icon set**: drawn, two-tone icons for currencies, gear slots, modes and menus replace
+  the emoji and symbols everywhere.
+- **Gear screen rebuilt**:
+  - Your six slots sit around a hero card showing power and key stats.
+  - The bag has filter chips with icons, sorting by rarity, power or level, and tiles that
+    glow in their rarity colour.
+  - A green arrow marks items that beat what you wear.
+- **Item panel**: item power, an upgrade success bar, and costs shown with currency icons.
+- **Every screen restyled**:
+  - Bevelled buttons and framed panels.
+  - Hero medallions and skill rank pips.
+  - Rewards shown as icons in the Journal, daily gifts and the pre-battle panel.
+- **Main menu dock**: Heroes, Gear, Pets, Skills, Quests and Shop. Settings is now the cog
+  next to the Ember Hearth.
+
 ## [0.10.0] — Wider halls, smoother frames (2026-10-27)
 
 ### Added
