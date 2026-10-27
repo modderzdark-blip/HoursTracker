@@ -31,12 +31,24 @@ export interface BrazierDef {
   readonly z: number;
 }
 
+/** A point on the ground (x, z). */
+export type Vec2 = readonly [number, number];
+
 export interface ArenaDef {
   readonly id: string;
   readonly name: string;
+  /**
+   * Radius of the open fight circle: the outline never comes closer to the centre than this,
+   * and every spawn point lies inside it.
+   */
   readonly floorRadius: number;
-  /** Ring wall: segment count and dimensions. */
+  /** Boundary wall: segment count (round arenas) and the collider's height and thickness. */
   readonly wall: { readonly segments: number; readonly height: number; readonly thickness: number };
+  /**
+   * The walkable edge as a polygon (x, z), counter-clockwise or clockwise; sealed by a wall
+   * collider along every edge. Absent: a round arena (a `wall.segments`-gon around floorRadius).
+   */
+  readonly outline?: readonly Vec2[];
   readonly spawn: readonly [number, number, number];
   /** Enemy spawn points (x, z) — kept clear of props (verified by a unit test). */
   readonly spawnPoints: readonly (readonly [number, number])[];
@@ -68,21 +80,37 @@ export interface ArenaDef {
   };
 }
 
+/**
+ * A castle courtyard: an octagonal yard inside fort walls, arcaded on the east and west, a
+ * gatehouse with two great towers on the north side behind a stepped dais, the keep rising
+ * beyond it and mountains on the horizon.
+ */
 const CINDER_COURT: ArenaDef = {
   id: 'cinder_court',
   name: 'Cinder Court',
-  floorRadius: 24,
+  floorRadius: 22,
   wall: { segments: 28, height: 3.2, thickness: 1.4 },
+  // Octagon with flat sides north / south / east / west (inradius 22).
+  outline: [
+    [-9.11, -22],
+    [9.11, -22],
+    [22, -9.11],
+    [22, 9.11],
+    [9.11, 22],
+    [-9.11, 22],
+    [-22, 9.11],
+    [-22, -9.11],
+  ],
   spawn: [0, 1.2, 6],
   spawnPoints: [
-    [-17, -3],
-    [17, -2],
-    [-12, 14],
-    [12, 14],
-    [0, 19],
-    [-6, -18],
-    [6, -18],
-    [-20, 6],
+    [-15, -5],
+    [17, -1.5],
+    [-11, 13],
+    [11, 13],
+    [0, 18],
+    [-7, -14],
+    [7, -14],
+    [-17, 4],
   ],
   bossSpawn: [0, -9.5],
   dummySpawn: [0, 1],
@@ -91,7 +119,6 @@ const CINDER_COURT: ArenaDef = {
     { x: 7, z: -4, radius: 0.8, height: 6 },
     { x: -7, z: 8, radius: 0.8, height: 3.2 },
     { x: 7, z: 8, radius: 0.8, height: 6 },
-    { x: 0, z: -13, radius: 1.1, height: 7.5 },
     { x: -14, z: 2, radius: 0.9, height: 2.2 },
     { x: 14, z: 2, radius: 0.9, height: 6 },
   ],
@@ -107,45 +134,61 @@ const CINDER_COURT: ArenaDef = {
     { position: [0, 0.4, -4], size: [3.2, 0.8, 1.6], rotationYDeg: 0 },
   ],
   rocks: [
-    { x: -18, z: -9, scale: 1.4 },
-    { x: -11, z: -16, scale: 1.1 },
-    { x: 18, z: 10, scale: 1.6 },
-    { x: 9, z: 17, scale: 1.0 },
-    { x: -16, z: 13, scale: 1.3 },
-    { x: -5, z: 18, scale: 0.9 },
-    { x: 19, z: -4, scale: 0.8 },
+    { x: -16.5, z: -10.5, scale: 1.2 },
+    { x: 15.5, z: 14, scale: 1.2 },
+    { x: -14, z: 16, scale: 1.0 },
+    { x: 19.2, z: -2, scale: 0.8 },
   ],
   braziers: [
     { x: -4.5, z: 2 },
     { x: 4.5, z: 2 },
   ],
   palette: {
-    background: 0x07060a,
-    fog: 0x120d12,
-    fogDensity: 0.028,
+    background: 0x0b0a12,
+    fog: 0x1a1520,
+    fogDensity: 0.017,
     floorBase: 0x2a2526,
     stone: 0x4a4246,
     ember: 0xff7a2a,
-    moonlight: 0x9fb3ff,
-    hemiSky: 0x3a3550,
-    hemiGround: 0x1a0f0c,
+    moonlight: 0xa8bcff,
+    hemiSky: 0x4a4868,
+    hemiGround: 0x2a1a14,
   },
   lighting: {
-    moonIntensity: 1.8,
+    moonIntensity: 2.6,
     moonDirection: [-0.45, 1, 0.35],
-    hemiIntensity: 0.45,
-    environmentIntensity: 0.35,
-    brazierIntensity: 20,
-    brazierRange: 11,
+    hemiIntensity: 0.8,
+    environmentIntensity: 0.5,
+    brazierIntensity: 22,
+    brazierRange: 12,
   },
 };
 
-/** A tighter ruined gatehouse: a pillar colonnade, rubble and red-tinted haze. */
+/**
+ * A ruined gate approach: a broken colonnade along the old road up to a burning gatehouse,
+ * collapsed walls and dead trees to the west, a ravine dropping away to the east.
+ */
 const ASH_GATE: ArenaDef = {
   id: 'ash_gate',
   name: 'Gate of Soot',
-  floorRadius: 21,
+  floorRadius: 20.5,
   wall: { segments: 26, height: 4, thickness: 1.4 },
+  outline: [
+    [-8, -24],
+    [8, -24],
+    [14, -21],
+    [20, -14],
+    [21, -2],
+    [20.5, 10],
+    [18, 18],
+    [8, 22],
+    [-8, 22],
+    [-17, 19],
+    [-21.5, 8],
+    [-22, -6],
+    [-18, -17],
+    [-13, -22],
+  ],
   spawn: [0, 1.2, 8],
   spawnPoints: [
     [-15, -4],
@@ -172,44 +215,62 @@ const ASH_GATE: ArenaDef = {
     { position: [0, 0.3, 14], size: [4, 0.6, 1.4], rotationYDeg: 0 },
   ],
   rocks: [
-    { x: -16, z: -10, scale: 1.3 },
-    { x: 16, z: -11, scale: 1.1 },
-    { x: -14, z: 12, scale: 1.0 },
-    { x: 15, z: 12, scale: 1.4 },
-    { x: -4, z: 17, scale: 0.9 },
-    { x: 6, z: -17, scale: 1.0 },
+    { x: -16, z: -11, scale: 1.3 },
+    { x: 15.5, z: -12, scale: 1.1 },
+    { x: -14, z: 13, scale: 1.0 },
+    { x: 15, z: 13, scale: 1.3 },
+    { x: -4, z: 18, scale: 0.9 },
   ],
   braziers: [
     { x: -5, z: -4 },
     { x: 5, z: -4 },
   ],
   palette: {
-    background: 0x0a0607,
-    fog: 0x1c0d0b,
-    fogDensity: 0.032,
+    background: 0x0e0809,
+    fog: 0x2a1512,
+    fogDensity: 0.019,
     floorBase: 0x2c2321,
     stone: 0x52423e,
     ember: 0xff6a1a,
-    moonlight: 0xc8a0ff,
-    hemiSky: 0x40303a,
-    hemiGround: 0x220e08,
+    moonlight: 0xd0b0ff,
+    hemiSky: 0x5a4458,
+    hemiGround: 0x2e1610,
   },
   lighting: {
-    moonIntensity: 1.6,
+    moonIntensity: 2.4,
     moonDirection: [0.5, 1, 0.3],
-    hemiIntensity: 0.5,
-    environmentIntensity: 0.3,
+    hemiIntensity: 0.8,
+    environmentIntensity: 0.45,
     brazierIntensity: 22,
     brazierRange: 12,
   },
 };
 
-/** Open, sun-scorched wastes: broken columns, scattered boulders, red haze. */
+/**
+ * A volcanic plateau: a rim of broken rock above lava channels, terraced ledges east and west,
+ * a cliff wall and a burning river to the north and the volcano on the horizon.
+ */
 const ASHEN_WASTES: ArenaDef = {
   id: 'ashen_wastes',
   name: 'The Smoldering Wastes',
-  floorRadius: 26,
+  floorRadius: 24,
   wall: { segments: 30, height: 2.4, thickness: 1.6 },
+  outline: [
+    [-10, -25],
+    [0, -26.5],
+    [10, -25],
+    [19, -19],
+    [25, -8],
+    [26, 4],
+    [22, 15],
+    [13, 23],
+    [0, 25.5],
+    [-13, 23],
+    [-22, 15],
+    [-26, 4],
+    [-25, -8],
+    [-19, -19],
+  ],
   spawn: [0, 1.2, 9],
   spawnPoints: [
     [-19, -4],
@@ -217,8 +278,8 @@ const ASHEN_WASTES: ArenaDef = {
     [-14, 15],
     [14, 15],
     [0, -21],
-    [-21, 8],
-    [21, 8],
+    [-20, 8],
+    [20, 8],
     [-9, -18],
     [9, -18],
   ],
@@ -235,62 +296,76 @@ const ASHEN_WASTES: ArenaDef = {
     { position: [6, 0.5, 16], size: [3, 1, 2.2], rotationYDeg: -15 },
   ],
   rocks: [
-    { x: -20, z: -12, scale: 1.8 },
-    { x: 20, z: -13, scale: 1.5 },
-    { x: -18, z: 18, scale: 1.4 },
-    { x: 17, z: 19, scale: 1.7 },
-    { x: -2, z: 22, scale: 1.2 },
-    { x: 22, z: 2, scale: 1.0 },
-    { x: -23, z: 1, scale: 1.1 },
-    { x: 4, z: -23, scale: 1.3 },
+    { x: -20, z: -13, scale: 1.6 },
+    { x: 19, z: -13.5, scale: 1.4 },
+    { x: -17.2, z: 15.6, scale: 1.3 },
+    { x: 17.2, z: 15.4, scale: 1.4 },
+    { x: -3, z: 22.5, scale: 1.1 },
+    { x: 23, z: 2, scale: 1.0 },
+    { x: -23.5, z: 1, scale: 1.1 },
+    { x: 4, z: -22.8, scale: 1.2 },
   ],
   braziers: [
     { x: -6, z: 2 },
     { x: 6, z: 2 },
   ],
   palette: {
-    background: 0x100806,
-    fog: 0x2a120a,
-    fogDensity: 0.024,
+    background: 0x180a06,
+    fog: 0x3a1a0e,
+    fogDensity: 0.016,
     floorBase: 0x2e2420,
     stone: 0x5a4438,
     ember: 0xff5a10,
-    moonlight: 0xffb080,
-    hemiSky: 0x5a3020,
-    hemiGround: 0x1a0806,
+    moonlight: 0xffb888,
+    hemiSky: 0x6a3a26,
+    hemiGround: 0x2a0e08,
   },
   lighting: {
-    moonIntensity: 2.2,
+    moonIntensity: 2.7,
     moonDirection: [0.6, 0.8, -0.2],
-    hemiIntensity: 0.5,
-    environmentIntensity: 0.3,
-    brazierIntensity: 18,
-    brazierRange: 11,
+    hemiIntensity: 0.75,
+    environmentIntensity: 0.45,
+    brazierIntensity: 20,
+    brazierRange: 12,
   },
 };
 
-/** The demon tower's crown: a ring of tall pillars under violet witch-light. */
+/**
+ * The demon tower's crown: a roofless throne hall. Columns line the aisle, statues stand along
+ * the walls, and the throne waits in an apse to the north under the chained, floating spire.
+ */
 const BOUND_SPIRE: ArenaDef = {
   id: 'bound_spire',
   name: 'The Bound Spire',
-  floorRadius: 22,
+  floorRadius: 20.5,
   wall: { segments: 28, height: 5, thickness: 1.4 },
+  outline: [
+    [-9, -30],
+    [9, -30],
+    [9, -22],
+    [21, -22],
+    [21, 21],
+    [-21, 21],
+    [-21, -22],
+    [-9, -22],
+  ],
   spawn: [0, 1.2, 8],
   spawnPoints: [
     [-17, 0],
     [17, 0],
-    [0, -17],
-    [-11, 13],
-    [11, 13],
-    [-12, -12],
-    [12, -12],
+    [0, -19],
+    [-15, 12],
+    [15, 12],
+    [-15, -11],
+    [15, -11],
   ],
   bossSpawn: [0, -7],
   dummySpawn: [0, 3],
-  pillars: [0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
-    const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
-    return { x: Math.cos(a) * 14.5, z: Math.sin(a) * 14.5, radius: 0.85, height: 8 };
-  }),
+  // Two rows of columns lining the aisle.
+  pillars: [-15, -6, 3, 12].flatMap((z) => [
+    { x: -11, z, radius: 0.85, height: 8 },
+    { x: 11, z, radius: 0.85, height: 8 },
+  ]),
   blocks: [{ position: [0, 0.3, -15.5], size: [5, 0.6, 2], rotationYDeg: 0 }],
   rocks: [
     { x: -6, z: 18, scale: 0.9 },
@@ -302,32 +377,49 @@ const BOUND_SPIRE: ArenaDef = {
     { x: 0, z: 6 },
   ],
   palette: {
-    background: 0x07050c,
-    fog: 0x140c22,
-    fogDensity: 0.03,
+    background: 0x0a0814,
+    fog: 0x1c1430,
+    fogDensity: 0.02,
     floorBase: 0x221e2a,
     stone: 0x3e3650,
     ember: 0xb070ff,
-    moonlight: 0x9080ff,
-    hemiSky: 0x302850,
-    hemiGround: 0x0c0814,
+    moonlight: 0xa898ff,
+    hemiSky: 0x443a6a,
+    hemiGround: 0x18101e,
   },
   lighting: {
-    moonIntensity: 2,
+    moonIntensity: 2.5,
     moonDirection: [-0.3, 1, 0.5],
-    hemiIntensity: 0.6,
-    environmentIntensity: 0.35,
-    brazierIntensity: 12,
-    brazierRange: 9,
+    hemiIntensity: 0.85,
+    environmentIntensity: 0.5,
+    brazierIntensity: 16,
+    brazierRange: 11,
   },
 };
 
-/** A cavern under the wastes: stalagmites, glowing fungus and an open floor for big beasts. */
+/**
+ * A cavern under the wastes: walls of wet rock hung with giant roots, mossy shelves at their
+ * foot, an underground pool, glowing fungus and a great crystal breaking out of the north wall.
+ */
 const HOLLOW_DEEP: ArenaDef = {
   id: 'hollow_deep',
   name: 'The Hollow Deep',
-  floorRadius: 24,
+  floorRadius: 23,
   wall: { segments: 30, height: 6, thickness: 1.8 },
+  outline: [
+    [-8, -25],
+    [6, -26],
+    [16, -20],
+    [23, -10],
+    [24, 3],
+    [20, 15],
+    [10, 23],
+    [-4, 24.5],
+    [-15, 20],
+    [-23, 10],
+    [-24, -4],
+    [-19, -17],
+  ],
   spawn: [0, 1.2, 9],
   spawnPoints: [
     [-18, 2],
@@ -345,7 +437,6 @@ const HOLLOW_DEEP: ArenaDef = {
     { x: 15, z: -6, radius: 1.2, height: 7 },
     { x: -9, z: 17, radius: 0.9, height: 4 },
     { x: 9, z: 17, radius: 0.9, height: 5.5 },
-    { x: 0, z: -18, radius: 1.4, height: 9 },
   ],
   blocks: [],
   rocks: [
@@ -362,22 +453,228 @@ const HOLLOW_DEEP: ArenaDef = {
     { x: 0, z: -15 },
   ],
   palette: {
-    background: 0x040706,
-    fog: 0x0a120e,
-    fogDensity: 0.03,
+    background: 0x050908,
+    fog: 0x0e1a15,
+    fogDensity: 0.024,
     floorBase: 0x23271f,
     stone: 0x3c4238,
     ember: 0x8aff5a,
-    moonlight: 0x8ac8a8,
-    hemiSky: 0x283a32,
-    hemiGround: 0x0c0a08,
+    moonlight: 0x9ad8b8,
+    hemiSky: 0x3a5246,
+    hemiGround: 0x141410,
   },
   lighting: {
-    moonIntensity: 1.4,
+    moonIntensity: 1.9,
     moonDirection: [0.35, 1, 0.4],
-    hemiIntensity: 0.5,
-    environmentIntensity: 0.35,
-    brazierIntensity: 18,
+    hemiIntensity: 0.8,
+    environmentIntensity: 0.5,
+    brazierIntensity: 20,
+    brazierRange: 13,
+  },
+};
+
+/**
+ * A moonlit graveyard in a wood of dead trees: rows of leaning headstones east and west, low
+ * cemetery walls, and a crypt with its angels on the north side.
+ */
+const GRAVEWOOD: ArenaDef = {
+  id: 'gravewood',
+  name: 'The Gravewood',
+  floorRadius: 21.5,
+  wall: { segments: 26, height: 3, thickness: 1.4 },
+  outline: [
+    [-10, -24],
+    [10, -24],
+    [20, -15],
+    [24, -2],
+    [22, 12],
+    [12, 22],
+    [-12, 22],
+    [-22, 12],
+    [-24, -2],
+    [-20, -15],
+  ],
+  spawn: [0, 1.2, 8],
+  spawnPoints: [
+    [0, -18],
+    [-15, -12],
+    [15, -12],
+    [-13, 12],
+    [13, 12],
+    [0, 18],
+    [9, -16],
+  ],
+  bossSpawn: [0, -8],
+  dummySpawn: [0, 3],
+  pillars: [
+    { x: -8, z: -7, radius: 0.7, height: 3.6 },
+    { x: 8, z: 7, radius: 0.7, height: 2.4 },
+  ],
+  blocks: [
+    // Tombs with their lids still on.
+    { position: [6.5, 0.45, -4], size: [2.4, 0.9, 1.2], rotationYDeg: 12 },
+    { position: [-6.5, 0.45, 5], size: [2.4, 0.9, 1.2], rotationYDeg: -8 },
+  ],
+  rocks: [
+    { x: -18, z: 8, scale: 1.1 },
+    { x: 18.5, z: -8, scale: 1.0 },
+  ],
+  braziers: [
+    { x: -4.5, z: 1 },
+    { x: 4.5, z: 1 },
+  ],
+  palette: {
+    background: 0x070b12,
+    fog: 0x15202a,
+    fogDensity: 0.022,
+    floorBase: 0x262a26,
+    stone: 0x4a5058,
+    ember: 0x9ad0ff,
+    moonlight: 0xb8d0ff,
+    hemiSky: 0x40506a,
+    hemiGround: 0x161a14,
+  },
+  lighting: {
+    moonIntensity: 2.8,
+    moonDirection: [0.35, 1, -0.45],
+    hemiIntensity: 0.85,
+    environmentIntensity: 0.5,
+    brazierIntensity: 16,
+    brazierRange: 11,
+  },
+};
+
+/**
+ * A mountain pass: a ledge between a sheer cliff to the west and a drop to the east, a parapet
+ * along the brink and the fortified gate that closes the pass to the north.
+ */
+const WIDOWS_PASS: ArenaDef = {
+  id: 'widows_pass',
+  name: "Widow's Pass",
+  floorRadius: 18,
+  wall: { segments: 26, height: 3.5, thickness: 1.4 },
+  outline: [
+    [-8, -28],
+    [8, -28],
+    [16, -18],
+    [18.5, -4],
+    [18, 10],
+    [14, 22],
+    [-14, 22],
+    [-18, 10],
+    [-18.5, -4],
+    [-16, -18],
+  ],
+  spawn: [0, 1.2, 8],
+  spawnPoints: [
+    [-13, -6],
+    [13, -6],
+    [-11, 11],
+    [11, 11],
+    [0, -13.5],
+    [-9, -13],
+    [9, -13],
+  ],
+  bossSpawn: [0, -9],
+  dummySpawn: [0, 3],
+  pillars: [
+    { x: -7, z: -2, radius: 0.8, height: 4.2 },
+    { x: 7, z: 4, radius: 0.8, height: 2.6 },
+  ],
+  blocks: [{ position: [0, 0.3, -17.2], size: [6, 0.6, 1.6], rotationYDeg: 0 }],
+  rocks: [
+    { x: -15.5, z: 4, scale: 1.4 },
+    { x: -13.5, z: -11.5, scale: 1.2 },
+    { x: 14, z: 9.5, scale: 0.9 },
+  ],
+  braziers: [
+    { x: -4, z: 1 },
+    { x: 4, z: 1 },
+  ],
+  palette: {
+    background: 0x0c0e16,
+    fog: 0x252a36,
+    fogDensity: 0.016,
+    floorBase: 0x2a2a2c,
+    stone: 0x55555a,
+    ember: 0xffa050,
+    moonlight: 0xd8e0ff,
+    hemiSky: 0x4e5878,
+    hemiGround: 0x1e1a16,
+  },
+  lighting: {
+    moonIntensity: 2.9,
+    moonDirection: [0.55, 1, 0.15],
+    hemiIntensity: 0.85,
+    environmentIntensity: 0.5,
+    brazierIntensity: 20,
+    brazierRange: 12,
+  },
+};
+
+/**
+ * A flooded cloister: arcades round a garth gone to moss and roots, standing water in its
+ * corners, and the broken bell tower to the north.
+ */
+const DROWNED_CLOISTER: ArenaDef = {
+  id: 'drowned_cloister',
+  name: 'The Drowned Cloister',
+  floorRadius: 20.5,
+  wall: { segments: 28, height: 3.6, thickness: 1.4 },
+  outline: [
+    [-17, -21],
+    [17, -21],
+    [21, -17],
+    [21, 17],
+    [17, 21],
+    [-17, 21],
+    [-21, 17],
+    [-21, -17],
+  ],
+  spawn: [0, 1.2, 8],
+  spawnPoints: [
+    [-16, 0],
+    [16, 0],
+    [0, -17],
+    [-12, 13],
+    [12, 13],
+    [-13, -12],
+    [13, -12],
+  ],
+  bossSpawn: [0, -8],
+  dummySpawn: [0, 3],
+  pillars: [
+    { x: -9, z: -9, radius: 0.75, height: 2.8 },
+    { x: 9, z: -9, radius: 0.75, height: 5.5 },
+    { x: -9, z: 9, radius: 0.75, height: 4.2 },
+    { x: 9, z: 9, radius: 0.75, height: 2.2 },
+  ],
+  blocks: [],
+  rocks: [
+    { x: -17, z: -6, scale: 1.0 },
+    { x: 17.5, z: 6, scale: 1.1 },
+  ],
+  braziers: [
+    { x: -5, z: -2 },
+    { x: 5, z: -2 },
+  ],
+  palette: {
+    background: 0x060b0c,
+    fog: 0x12201e,
+    fogDensity: 0.022,
+    floorBase: 0x262c26,
+    stone: 0x4c544c,
+    ember: 0xffb060,
+    moonlight: 0xb0e0d8,
+    hemiSky: 0x3e5a56,
+    hemiGround: 0x161a12,
+  },
+  lighting: {
+    moonIntensity: 2.6,
+    moonDirection: [-0.4, 1, 0.25],
+    hemiIntensity: 0.85,
+    environmentIntensity: 0.5,
+    brazierIntensity: 20,
     brazierRange: 12,
   },
 };
@@ -388,6 +685,136 @@ export const ARENAS = {
   ashen_wastes: ASHEN_WASTES,
   bound_spire: BOUND_SPIRE,
   hollow_deep: HOLLOW_DEEP,
+  gravewood: GRAVEWOOD,
+  widows_pass: WIDOWS_PASS,
+  drowned_cloister: DROWNED_CLOISTER,
 } as const satisfies Record<string, ArenaDef>;
 
 export type ArenaId = keyof typeof ARENAS;
+
+export const ARENA_IDS = Object.keys(ARENAS) as ArenaId[];
+
+/** One edge of an arena's outline with its outward normal. */
+export interface OutlineEdge {
+  readonly a: Vec2;
+  readonly b: Vec2;
+  readonly length: number;
+  /** Unit outward normal (x, z). */
+  readonly normal: Vec2;
+  /** The outline turns outward-convex at a / b (wall colliders overlap there to seal it). */
+  readonly convexA: boolean;
+  readonly convexB: boolean;
+}
+
+/** The arena's boundary polygon (its outline, or the round arena's polygon). */
+export function arenaOutline(def: ArenaDef): Vec2[] {
+  if (def.outline !== undefined) return def.outline.map((p): Vec2 => [p[0], p[1]]);
+  const n = def.wall.segments;
+  const rc = def.floorRadius / Math.cos(Math.PI / n);
+  return Array.from({ length: n }, (_, i): Vec2 => {
+    const a = ((i + 0.5) / n) * Math.PI * 2;
+    return [Math.cos(a) * rc, Math.sin(a) * rc];
+  });
+}
+
+/** Signed area of a polygon (positive when counter-clockwise in x / z). */
+function signedArea(poly: readonly Vec2[]): number {
+  let s = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i] ?? [0, 0];
+    const q = poly[(i + 1) % poly.length] ?? [0, 0];
+    s += p[0] * q[1] - q[0] * p[1];
+  }
+  return s / 2;
+}
+
+/** The outline's edges, each with its outward normal and corner convexity. */
+export function outlineEdges(def: ArenaDef): OutlineEdge[] {
+  const poly = arenaOutline(def);
+  const ccw = signedArea(poly) > 0;
+  const n = poly.length;
+  const turn = (i: number): number => {
+    const p = poly[(i + n - 1) % n] ?? [0, 0];
+    const c = poly[i] ?? [0, 0];
+    const q = poly[(i + 1) % n] ?? [0, 0];
+    return (c[0] - p[0]) * (q[1] - c[1]) - (c[1] - p[1]) * (q[0] - c[0]);
+  };
+  const convex = (i: number): boolean => turn(i) > 0 === ccw;
+  return poly.map((a, i): OutlineEdge => {
+    const b = poly[(i + 1) % n] ?? a;
+    const dx = b[0] - a[0];
+    const dz = b[1] - a[1];
+    const length = Math.hypot(dx, dz);
+    // Counter-clockwise (signed area > 0) puts the outside on the right of travel.
+    const s = ccw ? 1 : -1;
+    const normal: Vec2 = [(dz / length) * s, (-dx / length) * s];
+    return { a, b, length, normal, convexA: convex(i), convexB: convex((i + 1) % n) };
+  });
+}
+
+/** Distance from (x, z) to the nearest outline edge. */
+export function outlineDistance(def: ArenaDef, x: number, z: number): number {
+  let best = Infinity;
+  for (const e of outlineEdges(def)) {
+    const dx = e.b[0] - e.a[0];
+    const dz = e.b[1] - e.a[1];
+    const t = Math.max(0, Math.min(1, ((x - e.a[0]) * dx + (z - e.a[1]) * dz) / e.length ** 2));
+    best = Math.min(best, Math.hypot(x - e.a[0] - dx * t, z - e.a[1] - dz * t));
+  }
+  return best;
+}
+
+/** Even-odd point-in-polygon test. */
+export function pointInPolygon(poly: readonly Vec2[], x: number, z: number): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, zi] = poly[i] ?? [0, 0];
+    const [xj, zj] = poly[j] ?? [0, 0];
+    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/** True when (x, z) is inside the outline and at least `margin` m from its edges. */
+export function insideOutline(def: ArenaDef, x: number, z: number, margin = 0): boolean {
+  return (
+    pointInPolygon(arenaOutline(def), x, z) && (margin <= 0 || outlineDistance(def, x, z) >= margin)
+  );
+}
+
+/** Farthest outline corner from the centre. */
+export function outlineReach(def: ArenaDef): number {
+  return Math.max(...arenaOutline(def).map(([x, z]) => Math.hypot(x, z)));
+}
+
+/** A boundary wall collider: centre (x, z), half sizes along and across the edge, yaw. */
+export interface WallBox {
+  readonly x: number;
+  readonly z: number;
+  readonly halfLength: number;
+  readonly halfThickness: number;
+  /** Rotation about Y turning the box's X axis along its edge. */
+  readonly yaw: number;
+}
+
+/**
+ * The wall colliders sealing an arena: one box standing just outside every outline edge,
+ * overlapping its neighbours at outward corners.
+ */
+export function wallBoxes(def: ArenaDef): WallBox[] {
+  const t = def.wall.thickness;
+  return outlineEdges(def).map((e): WallBox => {
+    const extA = e.convexA ? t / 2 : 0;
+    const extB = e.convexB ? t / 2 : 0;
+    const ux = (e.b[0] - e.a[0]) / e.length;
+    const uz = (e.b[1] - e.a[1]) / e.length;
+    const shift = (extB - extA) / 2;
+    return {
+      x: (e.a[0] + e.b[0]) / 2 + e.normal[0] * (t / 2) + ux * shift,
+      z: (e.a[1] + e.b[1]) / 2 + e.normal[1] * (t / 2) + uz * shift,
+      halfLength: e.length / 2 + (extA + extB) / 2,
+      halfThickness: t / 2,
+      yaw: -Math.atan2(uz, ux),
+    };
+  });
+}

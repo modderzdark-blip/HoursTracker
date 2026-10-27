@@ -83,6 +83,66 @@ export function lavaRingGeometry(r0: number, r1: number, seed: number, y = 0.04)
   return g;
 }
 
+/**
+ * A lava channel along a polyline of (x, z) points, `width` m across with wobbling banks; `aEdge`
+ * is 0 on both banks and 1 down the middle.
+ */
+export function lavaChannelGeometry(
+  points: readonly (readonly [number, number])[],
+  width: number,
+  seed: number,
+  y = 0.04,
+): BufferGeometry {
+  // Resample the path every ~0.8 m so the banks can wobble.
+  const path: [number, number][] = [];
+  for (let i = 0; i + 1 < points.length; i++) {
+    const a = points[i];
+    const b = points[i + 1];
+    if (a === undefined || b === undefined) continue;
+    const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 0.8));
+    for (let k = 0; k < n; k++) {
+      const t = k / n;
+      path.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+    }
+  }
+  const last = points[points.length - 1];
+  if (last !== undefined) path.push([last[0], last[1]]);
+  const cols = 4;
+  const pos: number[] = [];
+  const edge: number[] = [];
+  path.forEach(([x, z], i) => {
+    const p = path[Math.max(0, i - 1)] ?? [x, z];
+    const q = path[Math.min(path.length - 1, i + 1)] ?? [x, z];
+    const dx = q[0] - p[0];
+    const dz = q[1] - p[1];
+    const len = Math.hypot(dx, dz) || 1;
+    const nx = -dz / len;
+    const nz = dx / len;
+    // Narrow at the ends, wobbling along the way.
+    const end = Math.min(1, Math.min(i, path.length - 1 - i) / 3 + 0.35);
+    for (let c = 0; c <= cols; c++) {
+      const t = c / cols - 0.5;
+      const wob = 1 + fbm(x * 0.4 + seed + t * 3, z * 0.4, seed, 2) * 0.5;
+      const off = t * width * wob * end;
+      pos.push(x + nx * off, y, z + nz * off);
+      edge.push(1 - Math.abs(t) * 2);
+    }
+  });
+  const index: number[] = [];
+  for (let i = 0; i + 1 < path.length; i++) {
+    for (let c = 0; c < cols; c++) {
+      const a = i * (cols + 1) + c;
+      const b = a + cols + 1;
+      index.push(a, b, a + 1, a + 1, b, b + 1);
+    }
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+  g.setAttribute('aEdge', new BufferAttribute(new Float32Array(edge), 1));
+  g.setIndex(index);
+  return g;
+}
+
 const vertexShader = /* glsl */ `
 attribute float aEdge;
 varying vec3 vWorld;

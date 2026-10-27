@@ -1,6 +1,17 @@
-import { Box3, Euler, InstancedMesh, Matrix4, Quaternion, Vector3, type Object3D } from 'three';
-import type { ArenaAssets, CastleWall, PropPlacement, PropScatter } from '../data/arenaAssets';
-import { FORT_MODEL } from '../data/arenaAssets';
+import {
+  Box3,
+  BufferAttribute,
+  Euler,
+  InstancedMesh,
+  Matrix4,
+  Quaternion,
+  Vector3,
+  type BufferGeometry,
+  type Material,
+  type Object3D,
+} from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import type { ArenaAssets, PropPlacement, PropScatter, SetPiece } from '../data/arenaAssets';
 import type { ArenaDef } from '../data/arenas';
 import type { QualityPreset } from '../data/quality';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
@@ -13,24 +24,38 @@ const DEG = Math.PI / 180;
 interface Prop {
   readonly parts: readonly ModelPart[];
   readonly box: Box3;
-  /** Parts placed without their offsets (a single node of a kit or set). */
+  /** Parts placed without their offsets (a single node of a kit or set, or a merged model). */
   readonly single: boolean;
 }
 
+/** Detail tier a quality preset shows: 0 = key set pieces only (Low), 1 = Medium, 2 = High. */
+export function detailTier(preset: QualityPreset): number {
+  if (preset.clutterDensity <= 0) return 0;
+  return preset.clutterDensity >= 1.5 ? 2 : 1;
+}
+
 /**
- * Places the scanned props of an arena (ARENA_ASSETS): set pieces, scattered dressing near the
- * wall, fire pits for the braziers, boulders for the arena's rocks and fort-kit castle walls.
- * Every part is one InstancedMesh holding all copies, so a prop costs one draw call per material
- * however often it appears. Geometry and materials belong to the AssetLibrary.
+ * Places the scanned models of an arena (ARENA_ASSETS): the composed set pieces (architecture,
+ * cliffs, landmark, backdrop terrain) in world space, small props at compass spots, scattered
+ * dressing near the edge, fire pits for the braziers and boulders for the arena's rocks. Every
+ * part is one InstancedMesh holding all copies, and a whole model's parts that share a material
+ * are merged first, so a prop costs one draw call per material however often it appears.
+ * Geometry and materials of the parts belong to the AssetLibrary; merged copies are ours.
  */
 export class ScannedProps {
   readonly objects: Object3D[] = [];
   readonly flames: FlameSpot[] = [];
   colliders = 0;
-  private readonly instances = new Map<ModelPart, Matrix4[]>();
+  /** Placed copies per part: shadow casters and backdrop pieces (no shadows) kept apart. */
+  private readonly near = new Map<ModelPart, Matrix4[]>();
+  private readonly far = new Map<ModelPart, Matrix4[]>();
+  /** Whole models merged per material (geometry owned here). */
+  private readonly merged = new Map<string, Prop>();
+  private readonly owned: BufferGeometry[] = [];
   /** Taken ground (x, z, r) so scattered props do not pile into each other. */
   private readonly occupied: [number, number, number][] = [];
   private readonly R: number;
+  private readonly tier: number;
   private readonly m = new Matrix4();
   private readonly q = new Quaternion();
   private readonly e = new Euler(0, 0, 0, 'YXZ');
@@ -47,49 +72,103 @@ export class ScannedProps {
     keepOut: readonly (readonly [number, number, number])[],
   ) {
     this.R = def.floorRadius;
+    this.tier = detailTier(preset);
     for (const k of keepOut) this.occupied.push([k[0], k[1], k[2]]);
     for (const p of def.pillars) this.occupied.push([p.x, p.z, p.radius + 0.6]);
     for (const b of def.braziers) this.occupied.push([b.x, b.z, 1.2]);
   }
 
+  /** Ground taken by placed props (x, z, r), for the procedural dressing to keep clear of. */
+  get taken(): readonly (readonly [number, number, number])[] {
+    return this.occupied;
+  }
+
   build(): void {
-    for (const p of this.a.props) this.place(p);
-    if (this.a.castle !== undefined) this.castle(this.a.castle);
+    for (const p of this.a.pieces ?? [])
+      if ((p.tier ?? 0) <= this.tier && this.tier <= (p.upTo ?? 2)) this.piece(p);
+    for (const p of this.a.props) if ((p.tier ?? 0) <= this.tier) this.place(p);
     this.braziers();
     this.boulders();
     // Low quality keeps the set pieces and drops the scattered small props (like clutter).
-    if (this.preset.clutterDensity > 0) for (const s of this.a.scatter) this.scatter(s);
+    if (this.tier > 0) for (const s of this.a.scatter) this.scatter(s);
     this.flush();
   }
 
-  /** Instanced meshes are ours; geometry and materials stay with the library. */
+  /** Instanced meshes and merged geometry are ours; the rest stays with the library. */
   dispose(): void {
     for (const o of this.objects) {
       o.removeFromParent();
       if (o instanceof InstancedMesh) o.dispose();
     }
     this.objects.length = 0;
+    for (const g of this.owned) g.dispose();
+    this.owned.length = 0;
+    this.merged.clear();
+  }
+
+  // ------------------------------------------------------------------ models
+
+  private prop(model: string, node?: string): Prop | null {
+    if (node === undefined) return this.whole(model);
+    const all = this.lib.model(model);
+    if (all === undefined) return null;
+    const parts = all.filter((p) => p.node === node);
+    if (parts.length === 0) return null;
+    return { parts, box: bounds(parts, true), single: true };
+  }
+
+  /** A whole model with its parts merged per material (offsets baked in). */
+  private whole(model: string): Prop | null {
+    const cached = this.merged.get(model);
+    if (cached !== undefined) return cached;
+    const all = this.lib.model(model);
+    if (all === undefined || all.length === 0) return null;
+    const byMat = new Map<Material, ModelPart[]>();
+    for (const part of all) {
+      const list = byMat.get(part.material) ?? [];
+      list.push(part);
+      byMat.set(part.material, list);
+    }
+    const parts: ModelPart[] = [];
+    for (const [material, list] of byMat) {
+      const first = list[0];
+      if (list.length === 1 && first !== undefined && first.offset.lengthSq() === 0) {
+        parts.push(first);
+        continue;
+      }
+      const moved = list.map((part) => {
+        const g = floatAttributes(part.geometry.clone());
+        g.translate(part.offset.x, part.offset.y, part.offset.z);
+        return g;
+      });
+      // Only parts with the same vertex layout merge (else they stay separate below).
+      const names = (g: BufferGeometry): string => Object.keys(g.attributes).sort().join();
+      const same = moved.every((g) => names(g) === names(moved[0] ?? g));
+      const geometry = same ? mergeGeometries(moved, false) : null;
+      for (const g of moved) g.dispose();
+      if (geometry === null) {
+        // Parts with different vertex layouts: keep them separate (offsets baked per copy).
+        for (const part of list) {
+          const g = part.geometry.clone();
+          g.translate(part.offset.x, part.offset.y, part.offset.z);
+          g.computeBoundingBox();
+          g.computeBoundingSphere();
+          this.owned.push(g);
+          parts.push({ node: part.node, geometry: g, material, offset: new Vector3() });
+        }
+        continue;
+      }
+      geometry.computeBoundingBox();
+      geometry.computeBoundingSphere();
+      this.owned.push(geometry);
+      parts.push({ node: `${model}#${parts.length}`, geometry, material, offset: new Vector3() });
+    }
+    const prop = { parts, box: bounds(parts, true), single: true };
+    this.merged.set(model, prop);
+    return prop;
   }
 
   // ------------------------------------------------------------------ placement
-
-  private prop(model: string, node?: string): Prop | null {
-    const all = this.lib.model(model);
-    if (all === undefined) return null;
-    const parts = node === undefined ? all : all.filter((p) => p.node === node);
-    if (parts.length === 0) return null;
-    const single = node !== undefined;
-    const box = new Box3();
-    const b = new Box3();
-    for (const part of parts) {
-      const bb = part.geometry.boundingBox;
-      if (bb === null) continue;
-      b.copy(bb);
-      if (!single) b.translate(part.offset);
-      box.union(b);
-    }
-    return { parts, box, single };
-  }
 
   /** Compass position (0° = north, −Z) at a radius, and the yaw that faces the centre. */
   private polar(deg: number, r: number): [number, number, number] {
@@ -97,6 +176,52 @@ export class ScannedProps {
     const x = Math.sin(t) * r;
     const z = -Math.cos(t) * r;
     return [x, z, Math.atan2(-x, -z)];
+  }
+
+  /** A composed set piece in world space. */
+  private piece(pc: SetPiece): void {
+    const prop = this.prop(pc.model, pc.node);
+    if (prop === null) return;
+    const k = pc.scale ?? 1;
+    const st = pc.stretch ?? [1, 1, 1];
+    const sx = k * st[0];
+    const sy = k * st[1];
+    const sz = k * st[2];
+    const yaw = (pc.yaw ?? 0) * DEG;
+    this.e.set((pc.tilt ?? 0) * DEG, yaw, (pc.roll ?? 0) * DEG, 'YXZ');
+    this.q.setFromEuler(this.e);
+    this.p.set(pc.x, -prop.box.min.y * sy + (pc.y ?? 0), pc.z);
+    this.s.set(sx, sy, sz);
+    this.add(prop, new Matrix4().compose(this.p, this.q, this.s), pc.far === true);
+    const size = prop.box.getSize(new Vector3());
+    const centre = prop.box.getCenter(new Vector3());
+    // Footprint centre in world space (models are rarely centred on their pivot).
+    const c = Math.cos(yaw);
+    const s = Math.sin(yaw);
+    const lx = centre.x * sx;
+    const lz = centre.z * sz;
+    const cx = pc.x + lx * c + lz * s;
+    const cz = pc.z - lx * s + lz * c;
+    const hx = (size.x * sx) / 2;
+    const hz = (size.z * sz) / 2;
+    const top = (pc.y ?? 0) + size.y * sy;
+    if (top > 0.2) this.occupied.push([cx, cz, Math.max(hx, hz)]);
+    if (pc.solid === 'round') this.solid(cx, cz, top, Math.min(hx, hz) * 0.85);
+    else if (pc.solid === 'box' && top > 0) {
+      this.e.set(0, yaw, 0);
+      this.q.setFromEuler(this.e);
+      this.physics.addStaticCuboid(
+        cx,
+        top / 2,
+        cz,
+        hx * 0.92,
+        Math.max(0.3, top / 2),
+        hz * 0.92,
+        this.q,
+      );
+      this.colliders++;
+    }
+    if (pc.fire !== undefined) this.flames.push({ x: cx, y: pc.fire, z: cz, size: 0.8 * k });
   }
 
   private place(pl: PropPlacement): void {
@@ -128,15 +253,19 @@ export class ScannedProps {
     const lift = -prop.box.min.y * scale - sink;
     this.p.set(x, lift, z);
     this.s.set(scale, scale, scale);
-    const base = new Matrix4().compose(this.p, this.q, this.s);
+    this.add(prop, new Matrix4().compose(this.p, this.q, this.s), false);
+  }
+
+  private add(prop: Prop, base: Matrix4, far: boolean): void {
+    const map = far ? this.far : this.near;
     for (const part of prop.parts) {
       const mat = prop.single
         ? base.clone()
         : base.clone().multiply(this.m.makeTranslation(part.offset));
-      let list = this.instances.get(part);
+      let list = map.get(part);
       if (list === undefined) {
         list = [];
-        this.instances.set(part, list);
+        map.set(part, list);
       }
       list.push(mat);
     }
@@ -210,65 +339,52 @@ export class ScannedProps {
     });
   }
 
-  /**
-   * Fort-kit walls standing on the arena's wall ring (the ring keeps its own colliders), with
-   * round towers at intervals: each tower is solid and kept clear of enemy spawn points.
-   */
-  private castle(c: CastleWall): void {
-    const wall = this.prop(FORT_MODEL, `${FORT_MODEL}_wall_thin_straight_01`);
-    const tower = this.prop(FORT_MODEL, `${FORT_MODEL}_tower_round`);
-    if (wall === null) return;
-    const w = this.def.wall;
-    const ring = this.R + w.thickness / 2 + 0.2;
-    const len = wall.box.getSize(this.p).z * c.scale;
-    const n = Math.ceil((2 * Math.PI * ring) / len);
-    const stretch = ((2 * Math.PI * ring) / n / len) * 1.06;
-    for (let i = 0; i < n; i++) {
-      const deg = (i / n) * 360;
-      const [x, z, face] = this.polar(deg, ring);
-      // The kit's walls run along their Z axis: turn them tangent to the ring.
-      this.e.set(0, face + Math.PI / 2, 0, 'YXZ');
-      this.q.setFromEuler(this.e);
-      this.p.set(x, -wall.box.min.y * c.scale - 0.15, z);
-      this.s.set(c.scale, c.scale, c.scale * stretch);
-      const mat = new Matrix4().compose(this.p, this.q, this.s);
-      for (const part of wall.parts) this.push(part, mat);
-    }
-    if (tower === null) return;
-    const tr = (tower.box.getSize(this.p).x * c.towerScale) / 2;
-    for (let i = 0; i < n; i += c.towerEvery) {
-      const deg = ((i + 0.5) / n) * 360;
-      const [x, z, face] = this.polar(deg, ring + tr * 0.35);
-      if (!this.free(x, z, tr * 0.9)) continue;
-      this.put(tower, x, z, face, c.towerScale, 0, 0.2);
-      this.occupied.push([x, z, tr]);
-      this.solid(x, z, tower.box.getSize(this.p).y * c.towerScale, tr * 0.92);
-    }
-  }
-
-  private push(part: ModelPart, mat: Matrix4): void {
-    let list = this.instances.get(part);
-    if (list === undefined) {
-      list = [];
-      this.instances.set(part, list);
-    }
-    list.push(mat);
-  }
-
-  /** One InstancedMesh per part with all its copies. */
+  /** One InstancedMesh per part (and shadow class) with all its copies. */
   private flush(): void {
     const shadows = this.preset.shadows;
-    for (const [part, mats] of this.instances) {
-      const mesh = new InstancedMesh(part.geometry, part.material, mats.length);
-      mats.forEach((mm, i) => mesh.setMatrixAt(i, mm));
-      mesh.instanceMatrix.needsUpdate = true;
-      mesh.computeBoundingSphere();
-      const radius = part.geometry.boundingSphere?.radius ?? 0;
-      mesh.castShadow = shadows && radius > 0.35;
-      mesh.receiveShadow = true;
-      mesh.name = `scanned-${part.node}`;
-      this.objects.push(mesh);
+    for (const [map, far] of [
+      [this.near, false],
+      [this.far, true],
+    ] as const) {
+      for (const [part, mats] of map) {
+        const mesh = new InstancedMesh(part.geometry, part.material, mats.length);
+        mats.forEach((mm, i) => mesh.setMatrixAt(i, mm));
+        mesh.instanceMatrix.needsUpdate = true;
+        mesh.computeBoundingSphere();
+        const radius = part.geometry.boundingSphere?.radius ?? 0;
+        mesh.castShadow = shadows && !far && radius > 0.35;
+        mesh.receiveShadow = !far;
+        mesh.name = `scanned-${part.node}${far ? '-far' : ''}`;
+        this.objects.push(mesh);
+      }
+      map.clear();
     }
-    this.instances.clear();
   }
+}
+
+/** Bounds of parts (with their offsets unless `single`). */
+function bounds(parts: readonly ModelPart[], single: boolean): Box3 {
+  const box = new Box3();
+  const b = new Box3();
+  for (const part of parts) {
+    const bb = part.geometry.boundingBox;
+    if (bb === null) continue;
+    b.copy(bb);
+    if (!single) b.translate(part.offset);
+    box.union(b);
+  }
+  return box;
+}
+
+/** Every attribute as plain floats (quantized scans mix integer and float layouts). */
+function floatAttributes(g: BufferGeometry): BufferGeometry {
+  for (const name of Object.keys(g.attributes)) {
+    const a = g.getAttribute(name);
+    if (a.array instanceof Float32Array && !a.normalized) continue;
+    const out = new Float32Array(a.count * a.itemSize);
+    for (let i = 0; i < a.count; i++)
+      for (let k = 0; k < a.itemSize; k++) out[i * a.itemSize + k] = a.getComponent(i, k);
+    g.setAttribute(name, new BufferAttribute(out, a.itemSize));
+  }
+  return g;
 }

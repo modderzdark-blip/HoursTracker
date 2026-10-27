@@ -1,7 +1,6 @@
 import {
   BoxGeometry,
   BufferAttribute,
-  CircleGeometry,
   Color,
   ConeGeometry,
   CylinderGeometry,
@@ -15,16 +14,27 @@ import {
   MeshStandardMaterial,
   Quaternion,
   Vector3,
-  type BufferGeometry,
+  BufferGeometry,
   type Material,
   type Object3D,
   type WebGLRenderer,
 } from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { mulberry32 } from '../core/random';
-import { ARENA_ASSETS, arenaAssetRequest, type SurfaceRef } from '../data/arenaAssets';
+import { ARENA_ASSETS, arenaAssetRequest, type Mass, type SurfaceRef } from '../data/arenaAssets';
 import { ARENA_LOOKS, type ArenaLook, type SurfaceLook } from '../data/arenaLooks';
-import type { ArenaDef, ArenaId } from '../data/arenas';
+import {
+  arenaOutline,
+  insideOutline,
+  outlineDistance,
+  outlineEdges,
+  outlineReach,
+  pointInPolygon,
+  wallBoxes,
+  type ArenaDef,
+  type ArenaId,
+  type Vec2,
+} from '../data/arenas';
 import type { QualityPreset } from '../data/quality';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import {
@@ -61,11 +71,11 @@ import { Flames } from '../vfx/Flames';
 import { GlowPools } from '../vfx/GlowPools';
 import { GroundFog } from '../vfx/GroundFog';
 import { GroundSigil } from '../vfx/GroundSigil';
-import { LavaSurface } from '../vfx/LavaSurface';
+import { lavaChannelGeometry, LavaSurface } from '../vfx/LavaSurface';
 import { LightShafts } from '../vfx/LightShafts';
 import { SmokeCards } from '../vfx/SmokeCards';
 import { ArenaDresser, type DressingPart } from './arenaDressing';
-import { ScannedProps } from './ScannedProps';
+import { detailTier, ScannedProps } from './ScannedProps';
 
 const DEG = Math.PI / 180;
 
@@ -215,33 +225,27 @@ export class ArenaBuilder {
       ...def.spawnPoints.map(([x, z]): [number, number, number] => [x, z, 2]),
     );
 
-    this.buildFloor(floorMat);
-    if (L.wallKind === 'rock') this.buildRockWall(rockMat);
-    else this.buildMasonryWall(wallMat, lib === null || A.castle === undefined);
+    this.buildFloor(floorMat, lib !== null ? A.ground : undefined);
+    this.buildWallColliders();
+    const ownWalls = lib !== null && A.ownWalls === true;
+    if (!ownWalls) {
+      if (L.wallKind === 'rock') this.buildRockWall(rockMat);
+      else this.buildMasonryWall(wallMat);
+    }
     this.buildColumns();
     this.buildBlocks();
     this.buildRocks(lib === null || A.boulders === undefined);
-    this.buildBackdrop(rockMat);
+    this.buildBackdrop(rockMat, lib !== null && A.ownBackdrop === true);
     if (lib === null) {
       this.buildRubble();
       this.buildFallenDrums();
     }
     this.buildSpires();
     this.buildBraziers(lib === null || A.brazier === undefined);
-    if (L.wallKind === 'masonry') this.buildTorches();
+    if (L.wallKind === 'masonry' && !ownWalls) this.buildTorches();
 
-    const dresser = new ArenaDresser(
-      def,
-      L,
-      this.batch,
-      physics,
-      this.rand,
-      this.keepOut,
-      this.wallInfo,
-    );
-    dresser.dress(lib === null ? undefined : SCANNED_REPLACES);
-    this.colliderCount += dresser.colliders;
-    this.flameSpots.push(...dresser.flames);
+    // Scanned set pieces first: the procedural dressing keeps clear of them.
+    const taken: [number, number, number][] = [...this.keepOut];
     if (lib !== null) {
       const props = new ScannedProps(lib, def, A, physics, preset, this.rand, this.keepOut);
       props.build();
@@ -249,7 +253,41 @@ export class ArenaBuilder {
       this.flameSpots.push(...props.flames);
       this.colliderCount += props.colliders;
       this.disposables.push(props);
+      for (const t of props.taken) taken.push([t[0], t[1], t[2]]);
+      this.buildMasses(A.masses ?? [], { stone: stoneMat, rock: rockMat, wall: wallMat });
     }
+    const dresser = new ArenaDresser(def, L, this.batch, physics, this.rand, taken, this.wallInfo);
+    const skip = new Set<DressingPart>([...SCANNED_REPLACES, ...(A.skip ?? [])]);
+    for (const k of A.keep ?? []) skip.delete(k);
+    dresser.dress(lib === null ? undefined : skip);
+    if (lib !== null) {
+      dresser.hangBanners(A.banners ?? []);
+      for (const c of A.lava ?? []) {
+        dresser.lava.push(lavaChannelGeometry(c.points, c.width, 5));
+        // Its glow spills onto the ground along the banks.
+        for (let i = 0; i + 1 < c.points.length; i++) {
+          const a = c.points[i];
+          const b = c.points[i + 1];
+          if (a === undefined || b === undefined) continue;
+          const n = Math.max(1, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / 5));
+          for (let k = 0; k < n; k++) {
+            const t = (k + 0.5) / n;
+            dresser.pools.push({
+              x: a[0] + (b[0] - a[0]) * t,
+              z: a[1] + (b[1] - a[1]) * t,
+              radius: c.width * 1.5 + 2,
+              color: L.tints.glow,
+              intensity: 0.8,
+              flicker: 0.35,
+            });
+          }
+        }
+      }
+      for (const pool of A.pools ?? []) dresser.puddles.push([pool[0], pool[1], pool[2]]);
+      dresser.cards.push(...(A.mist ?? []));
+    }
+    this.colliderCount += dresser.colliders;
+    this.flameSpots.push(...dresser.flames);
 
     this.buildBatches(stoneMat, rockMat);
     this.buildFloating(dresser, stoneMat);
@@ -349,86 +387,157 @@ export class ArenaBuilder {
 
   // ------------------------------------------------------------------ layout pieces
 
-  private buildFloor(material: Material): void {
-    const r = this.def.floorRadius + this.def.wall.thickness + 9;
-    const geo = this.geo(new CircleGeometry(r, 96, 0));
-    geo.rotateX(-Math.PI / 2);
-    geo.deleteAttribute('uv');
-    // Baked occlusion: darker toward the wall foot.
-    const pos = geo.getAttribute('position');
-    const colors = new Float32Array(pos.count * 3);
-    const wallR = this.def.floorRadius;
-    for (let i = 0; i < pos.count; i++) {
-      const d = Math.hypot(pos.getX(i), pos.getZ(i));
-      const ao = d > wallR - 1.5 ? 0.55 + 0.45 * Math.max(0, (wallR - d) / 1.5) : 1;
-      colors[i * 3] = colors[i * 3 + 1] = colors[i * 3 + 2] = Math.max(0.45, ao);
+  /**
+   * The ground: a grid clipped to `ground` (or a disc well past the walls) with baked occlusion
+   * along the outline, and one big collider under it.
+   */
+  private buildFloor(material: Material, ground: readonly Vec2[] | undefined): void {
+    const t = this.def.wall.thickness;
+    const reach =
+      ground !== undefined
+        ? Math.max(...ground.map(([x, z]) => Math.hypot(x, z)))
+        : outlineReach(this.def) + t + 9;
+    // Fine 1.25 m cells over the arena (baked occlusion along the walls), 5 m cells beyond.
+    const coarse = 5;
+    const sub = 4;
+    const cell = coarse / sub;
+    const n = Math.ceil((reach * 2) / coarse);
+    const half = (n * coarse) / 2;
+    const poly = arenaOutline(this.def);
+    const xs = poly.map(([x]) => x);
+    const zs = poly.map(([, z]) => z);
+    const lo = (v: number): number => Math.floor((v - 3 + half) / coarse);
+    const hi = (v: number): number => Math.ceil((v + 3 + half) / coarse);
+    const fine = [
+      lo(Math.min(...xs)),
+      hi(Math.max(...xs)),
+      lo(Math.min(...zs)),
+      hi(Math.max(...zs)),
+    ];
+    const inFine = (i: number, j: number): boolean =>
+      i >= (fine[0] ?? 0) && i < (fine[1] ?? 0) && j >= (fine[2] ?? 0) && j < (fine[3] ?? 0);
+    const inside = (x: number, z: number): boolean =>
+      ground !== undefined ? pointInPolygon(ground, x, z) : Math.hypot(x, z) <= reach;
+    const pos: number[] = [];
+    const colors: number[] = [];
+    const index: number[] = [];
+    const ids = new Map<number, number>();
+    const side = n * sub + 1;
+    const vertex = (i: number, j: number): number => {
+      const key = i * side + j;
+      const id = ids.get(key);
+      if (id !== undefined) return id;
+      const x = -half + i * cell;
+      const z = -half + j * cell;
+      pos.push(x, 0, z);
+      // Darker toward the foot of the walls; beyond them the ground falls into shade.
+      const d = insideOutline(this.def, x, z) ? outlineDistance(this.def, x, z) : -1;
+      const ao = d < 0 ? 0.6 : d < 1.6 ? 0.6 + 0.4 * (d / 1.6) : 1;
+      colors.push(ao, ao, ao);
+      ids.set(key, pos.length / 3 - 1);
+      return pos.length / 3 - 1;
+    };
+    const quad = (i: number, j: number, k: number): void => {
+      const a = vertex(i, j);
+      const b = vertex(i + k, j);
+      const c = vertex(i + k, j + k);
+      const d = vertex(i, j + k);
+      index.push(a, d, c, a, c, b);
+    };
+    for (let I = 0; I < n; I++) {
+      for (let J = 0; J < n; J++) {
+        if (!inFine(I, J)) {
+          if (inside(-half + (I + 0.5) * coarse, -half + (J + 0.5) * coarse))
+            quad(I * sub, J * sub, sub);
+          continue;
+        }
+        for (let i = I * sub; i < (I + 1) * sub; i++)
+          for (let j = J * sub; j < (J + 1) * sub; j++)
+            if (inside(-half + (i + 0.5) * cell, -half + (j + 0.5) * cell)) quad(i, j, 1);
+      }
     }
-    geo.setAttribute('color', new BufferAttribute(colors, 3));
+    const geo = this.geo(new BufferGeometry());
+    geo.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+    const normals = new Float32Array(pos.length);
+    for (let i = 1; i < normals.length; i += 3) normals[i] = 1;
+    geo.setAttribute('normal', new BufferAttribute(normals, 3));
+    geo.setAttribute('color', new BufferAttribute(new Float32Array(colors), 3));
+    geo.setIndex(index);
+    geo.computeBoundingSphere();
     const floor = new Mesh(geo, material);
     floor.receiveShadow = true;
     floor.name = 'floor';
     this.objects.push(floor);
-    this.physics.addStaticCuboid(0, -0.5, 0, r + 4, 0.5, r + 4);
+    this.physics.addStaticCuboid(0, -0.5, 0, half + 4, 0.5, half + 4);
     this.colliderCount++;
   }
 
+  /** Sealed boundary: a wall collider standing just outside every outline edge. */
+  private buildWallColliders(): void {
+    const h = this.def.wall.height;
+    for (const b of wallBoxes(this.def)) {
+      this.e.set(0, b.yaw, 0);
+      this.q.setFromEuler(this.e);
+      this.physics.addStaticCuboid(b.x, h, b.z, b.halfLength, h, b.halfThickness, this.q);
+      this.colliderCount++;
+    }
+  }
+
   /**
-   * Ruined masonry ring: wall slabs with broken tops (merged, one draw call), buttresses and
-   * capstones (stone batch). Records segment heights and buttress caps for the dressing.
+   * Ruined masonry along the outline: wall slabs with broken tops (merged, one draw call),
+   * buttresses and capstones (stone batch). Records segment heights and buttress caps for the
+   * dressing.
    */
-  private buildMasonryWall(material: Material, visual: boolean): void {
+  private buildMasonryWall(material: Material): void {
     const w = this.def.wall;
-    const n = w.segments;
-    const ringR = this.def.floorRadius + w.thickness / 2;
-    const segLen = ((2 * Math.PI * ringR) / n) * 1.04;
+    const segLen = (2 * Math.PI * this.def.floorRadius) / w.segments;
     const variants = [0, 1, 2].map((v) => this.slabGeometry(v + this.def.id.length));
     const slabs: BufferGeometry[] = [];
     const buttress = stoneBlockGeometry(5);
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2;
-      const x = Math.cos(a) * ringR;
-      const z = Math.sin(a) * ringR;
-      const h = w.height * (0.55 + this.rand() * 0.6);
-      this.wallInfo.heights.push(h * 0.82);
-      this.e.set(0, -a + Math.PI / 2, (this.rand() - 0.5) * 0.03);
-      this.q.setFromEuler(this.e);
-      this.p.set(x, 0, z);
-      this.s.set(segLen, h, w.thickness);
-      const slab = visual ? variants[i % 3]?.clone() : undefined;
-      if (slab !== undefined) {
-        slab.applyMatrix4(this.m.compose(this.p, this.q, this.s));
-        slabs.push(slab);
-      }
-      // Collider always full height so the ring stays sealed.
-      this.e.set(0, -a + Math.PI / 2, 0);
-      this.q.setFromEuler(this.e);
-      this.physics.addStaticCuboid(x, w.height, z, segLen / 2, w.height, w.thickness / 2, this.q);
-      this.colliderCount++;
-      // Buttress at every other joint: two stacked blocks plus a capstone, leaning inward.
-      if (visual && i % 2 === 0) {
-        const ja = a + Math.PI / n;
-        const jr = ringR - w.thickness * 0.55;
+    let i = 0;
+    for (const e of outlineEdges(this.def)) {
+      const n = Math.max(1, Math.round(e.length / segLen));
+      const len = e.length / n;
+      const yaw = -Math.atan2(e.b[1] - e.a[1], e.b[0] - e.a[0]);
+      for (let k = 0; k < n; k++, i++) {
+        const f = (k + 0.5) / n;
+        const x = e.a[0] + (e.b[0] - e.a[0]) * f + e.normal[0] * (w.thickness / 2);
+        const z = e.a[1] + (e.b[1] - e.a[1]) * f + e.normal[1] * (w.thickness / 2);
+        const h = w.height * (0.55 + this.rand() * 0.6);
+        this.wallInfo.heights.push(h * 0.82);
+        this.e.set(0, yaw, (this.rand() - 0.5) * 0.03);
+        this.q.setFromEuler(this.e);
+        this.p.set(x, 0, z);
+        this.s.set(len * 1.04, h, w.thickness);
+        const slab = variants[i % 3]?.clone();
+        if (slab !== undefined) {
+          slab.applyMatrix4(this.m.compose(this.p, this.q, this.s));
+          slabs.push(slab);
+        }
+        // Buttress at every other joint: two stacked blocks plus a capstone, leaning inward.
+        if (i % 2 !== 0) continue;
+        const jx = e.a[0] + (e.b[0] - e.a[0]) * (k / n) - e.normal[0] * w.thickness * 0.05;
+        const jz = e.a[1] + (e.b[1] - e.a[1]) * (k / n) - e.normal[1] * w.thickness * 0.05;
         const bh = Math.min(h, w.height) * (0.7 + this.rand() * 0.4);
-        for (let k = 0; k < 3; k++) {
-          const lift = k === 2 ? bh + 0.15 : (bh / 2) * k + bh / 4;
-          const scale = k === 2 ? [1.5, 0.35, 1.3] : [1.1, bh / 2, 1];
-          this.e.set(0, -ja + Math.PI / 2 + (this.rand() - 0.5) * 0.1, (this.rand() - 0.5) * 0.05);
+        for (let j = 0; j < 3; j++) {
+          const lift = j === 2 ? bh + 0.15 : (bh / 2) * j + bh / 4;
+          const scale = j === 2 ? [1.5, 0.35, 1.3] : [1.1, bh / 2, 1];
+          this.e.set(0, yaw + (this.rand() - 0.5) * 0.1, (this.rand() - 0.5) * 0.05);
           this.q.setFromEuler(this.e);
-          this.p.set(Math.cos(ja) * jr, lift, Math.sin(ja) * jr);
+          this.p.set(jx, lift, jz);
           this.s.set(scale[0] ?? 1, scale[1] ?? 1, scale[2] ?? 1);
           this.batch.add('stone', buttress, this.m.compose(this.p, this.q, this.s));
         }
         this.wallInfo.buttresses.push({
-          x: Math.cos(ja) * jr,
+          x: jx,
           y: bh + 0.15 + 0.175,
-          z: Math.sin(ja) * jr,
-          a: ja,
+          z: jz,
+          a: Math.atan2(jz, jx),
         });
       }
     }
     for (const v of variants) v.dispose();
     buttress.dispose();
-    if (!visual) return;
     const merged = mergeGeometries(slabs, false);
     for (const g of slabs) g.dispose();
     if (merged === null) throw new Error('wall merge failed');
@@ -468,27 +577,8 @@ export class ArenaBuilder {
     return g;
   }
 
-  /** Cave: a craggy cliff ring stands in for the wall (colliders as for masonry). */
+  /** Cave: a craggy cliff ring stands in for the wall. */
   private buildRockWall(material: Material): void {
-    const w = this.def.wall;
-    const n = w.segments;
-    const ringR = this.def.floorRadius + w.thickness / 2;
-    const segLen = ((2 * Math.PI * ringR) / n) * 1.04;
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2;
-      this.e.set(0, -a + Math.PI / 2, 0);
-      this.q.setFromEuler(this.e);
-      this.physics.addStaticCuboid(
-        Math.cos(a) * ringR,
-        w.height,
-        Math.sin(a) * ringR,
-        segLen / 2,
-        w.height,
-        w.thickness / 2,
-        this.q,
-      );
-      this.colliderCount++;
-    }
     const cliff = new Mesh(
       this.geo(
         cliffRingGeometry(this.def.floorRadius - 0.2, this.look.backdrop.cliffHeight, 3, 128, 18),
@@ -498,6 +588,64 @@ export class ArenaBuilder {
     cliff.receiveShadow = true;
     cliff.name = 'cave-wall';
     this.objects.push(cliff);
+  }
+
+  /**
+   * Built stone (terraces, daises, plinths, ledges, stair flights) from the arena's scanned
+   * surfaces: one merged mesh per surface, colliders for the solid ones. Low quality keeps the
+   * key masses only.
+   */
+  private buildMasses(
+    list: readonly Mass[],
+    mats: Record<NonNullable<Mass['surface']>, Material>,
+  ): void {
+    const tier = detailTier(this.preset);
+    const groups = new Map<NonNullable<Mass['surface']>, BufferGeometry[]>();
+    const box = (m: Mass, w: number, h: number, d: number, oz: number): void => {
+      const g = massGeometry(w, h, d);
+      const yaw = (m.yaw ?? 0) * DEG;
+      this.e.set((m.tilt ?? 0) * DEG, yaw, (m.roll ?? 0) * DEG, 'YXZ');
+      this.q.setFromEuler(this.e);
+      const x = m.x + oz * Math.sin(yaw);
+      const z = m.z + oz * Math.cos(yaw);
+      g.applyMatrix4(this.m.compose(this.p.set(x, m.y ?? 0, z), this.q, this.s.set(1, 1, 1)));
+      const surface = m.surface ?? 'stone';
+      const list = groups.get(surface) ?? [];
+      list.push(g);
+      groups.set(surface, list);
+      const top = (m.y ?? 0) + h;
+      if (m.solid === true && top > 0.05) {
+        this.e.set(0, yaw, 0);
+        this.q.setFromEuler(this.e);
+        this.physics.addStaticCuboid(x, top / 2, z, w / 2, top / 2, d / 2, this.q);
+        this.colliderCount++;
+      }
+    };
+    for (const m of list) {
+      if ((m.tier ?? 0) > tier) continue;
+      const [w, h, d] = m.size;
+      const steps = m.steps ?? 0;
+      if (steps <= 0) {
+        box(m, w, h, d, 0);
+        continue;
+      }
+      // A flight rising toward local −Z: step k spans from the back to its own front edge.
+      for (let k = 0; k < steps; k++) {
+        const depth = (d * (steps - k)) / steps;
+        box(m, w, (h * (k + 1)) / steps, depth, -d / 2 + depth / 2);
+      }
+    }
+    for (const [surface, geos] of groups) {
+      const merged = mergeGeometries(geos, false);
+      for (const g of geos) g.dispose();
+      if (merged === null) throw new Error('mass merge failed');
+      merged.computeBoundingSphere();
+      const mesh = new Mesh(this.geo(merged), mats[surface]);
+      mesh.name = `masses-${surface}`;
+      mesh.castShadow = this.preset.shadows;
+      mesh.receiveShadow = true;
+      this.objects.push(mesh);
+    }
   }
 
   /** Columns built to their real size (base/capital proportions kept), into the stone batch. */
@@ -563,13 +711,13 @@ export class ArenaBuilder {
   // ------------------------------------------------------------------ backdrop & dressing
 
   /** Cliffs outside the wall and the far peaks, merged into one mesh (no shadows). */
-  private buildBackdrop(material: Material): void {
+  private buildBackdrop(material: Material, own: boolean): void {
     const b = this.look.backdrop;
     const parts: BufferGeometry[] = [];
-    if (this.look.wallKind !== 'rock') {
+    if (this.look.wallKind !== 'rock' && !own) {
       parts.push(
         cliffRingGeometry(
-          this.def.floorRadius + this.def.wall.thickness + 5,
+          outlineReach(this.def) + this.def.wall.thickness + 5,
           b.cliffHeight,
           7,
           128,
@@ -636,7 +784,8 @@ export class ArenaBuilder {
     for (let i = 0; i < n; i++) {
       const spot = this.dressingSpot(R - 4, R - 0.6, 0.6);
       if (spot === null) continue;
-      const big = this.rand() < 0.35;
+      // Tall ones never in the south band (between the camera and the hero).
+      const big = this.rand() < 0.35 && spot[1] < R * 0.3;
       const h = big ? 2.5 + this.rand() * 3.5 : 0.6 + this.rand() * 1.4;
       const r = h * (0.18 + this.rand() * 0.08);
       this.e.set((this.rand() - 0.5) * 0.15, this.rand() * 6, (this.rand() - 0.5) * 0.15);
@@ -1003,4 +1152,24 @@ export class ArenaBuilder {
     this.materials.push(m);
     return m;
   }
+}
+
+/**
+ * A box from its base (y 0 to h) with baked occlusion darkening toward the ground, subdivided
+ * about every 2 m so the occlusion and the lighting have vertices to work with.
+ */
+function massGeometry(w: number, h: number, d: number): BufferGeometry {
+  const seg = (v: number): number => Math.max(1, Math.min(12, Math.round(v / 2)));
+  const box = new BoxGeometry(w, h, d, seg(w), Math.max(2, seg(h)), seg(d));
+  box.deleteAttribute('uv');
+  box.translate(0, h / 2, 0);
+  const pos = box.getAttribute('position');
+  const colors = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    const ao = 0.55 + 0.45 * Math.min(1, y / 0.9);
+    colors[i * 3] = colors[i * 3 + 1] = colors[i * 3 + 2] = ao;
+  }
+  box.setAttribute('color', new BufferAttribute(colors, 3));
+  return box;
 }

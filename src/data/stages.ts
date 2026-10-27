@@ -205,7 +205,7 @@ export const CHAPTERS: readonly ChapterDef[] = [
     },
     {
       name: 'Smoke Cloister',
-      arena: 'cinder_court',
+      arena: 'drowned_cloister',
       waves: [
         [
           ['gloom_bat', 6],
@@ -310,7 +310,7 @@ export const CHAPTERS: readonly ChapterDef[] = [
     },
     {
       name: 'Wretch Hollow',
-      arena: 'ash_gate',
+      arena: 'gravewood',
       waves: [
         [
           ['revenant', 4],
@@ -364,7 +364,7 @@ export const CHAPTERS: readonly ChapterDef[] = [
     },
     {
       name: 'The Kiln Bridges',
-      arena: 'cinder_court',
+      arena: 'widows_pass',
       waves: [
         [
           ['magma_golem', 1],
@@ -456,7 +456,7 @@ export const CHAPTERS: readonly ChapterDef[] = [
     },
     {
       name: 'The Weeping Stair',
-      arena: 'bound_spire',
+      arena: 'widows_pass',
       waves: [
         [['gloom_bat', 10]],
         [
@@ -488,7 +488,7 @@ export const CHAPTERS: readonly ChapterDef[] = [
     },
     {
       name: 'Gallery of Ash',
-      arena: 'cinder_court',
+      arena: 'gravewood',
       waves: [
         [
           ['ember_wisp', 6],
@@ -508,7 +508,7 @@ export const CHAPTERS: readonly ChapterDef[] = [
     },
     {
       name: 'The Bleeding Vault',
-      arena: 'bound_spire',
+      arena: 'drowned_cloister',
       waves: [
         [
           ['magma_golem', 2],
@@ -635,7 +635,7 @@ export const CHAPTERS: readonly ChapterDef[] = [
     },
     {
       name: 'The Silk Chasm',
-      arena: 'hollow_deep',
+      arena: 'widows_pass',
       waves: [
         [
           ['broodling', 6],

@@ -7,11 +7,11 @@ import {
   Vector3,
   type BufferGeometry,
 } from 'three';
+import type { BannerHang } from '../data/arenaAssets';
 import type { ArenaLook } from '../data/arenaLooks';
-import type { ArenaDef } from '../data/arenas';
+import { insideOutline, type ArenaDef } from '../data/arenas';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import {
-  colossusRibsGeometry,
   floatingSpireGeometry,
   mushroomClusterGeometry,
   portcullisGeometry,
@@ -134,7 +134,6 @@ export class ArenaDresser {
   private readonly altars: { x: number; z: number }[] = [];
   private readonly temp: BufferGeometry[] = [];
   private readonly m = new Matrix4();
-  private readonly m2 = new Matrix4();
   private readonly e = new Euler();
   private readonly q = new Quaternion();
   private readonly p = new Vector3();
@@ -191,6 +190,26 @@ export class ArenaDresser {
     }
     for (const g of this.temp) g.dispose();
     this.temp.length = 0;
+  }
+
+  /** Banners at given spots (scanned walls): cloth on an iron rod, waving out of step. */
+  hangBanners(list: readonly BannerHang[]): void {
+    for (const b of list) {
+      const yaw = (b.yaw * Math.PI) / 180;
+      const cloth = bannerClothGeometry(b.w, b.h);
+      const rod = bannerRodGeometry(b.w);
+      this.batch.add(
+        'cloth',
+        cloth,
+        this.at(b.x, b.y, b.z, yaw),
+        this.tint(this.L.tints.cloth),
+        [0, 0, 0],
+        this.rand() * 6,
+      );
+      this.batch.add('iron', rod, this.at(b.x, b.y + 0.03, b.z, yaw), this.L.tints.iron);
+      cloth.dispose();
+      rod.dispose();
+    }
   }
 
   // ------------------------------------------------------------------ helpers
@@ -400,12 +419,11 @@ export class ArenaDresser {
         break;
       }
       case 'volcano': {
-        // A volcano on the northern horizon with glowing lava streams, and the bleached ribs of a
-        // colossal beast arching beyond the north-west wall.
+        // A volcano of dark basalt on the northern horizon with glowing lava streams.
         const v = volcanoGeometry(23, 38, 34);
         this.keepParts(v);
         if (v.parts.rock !== undefined)
-          this.batch.add('rock', v.parts.rock, this.at(16, -2, -70, 0.4));
+          this.batch.add('rock', v.parts.rock, this.at(16, -2, -70, 0.4), 0x5a4640);
         if (v.parts.glow !== undefined) {
           const g = v.parts.glow.clone();
           g.applyMatrix4(this.at(16, -2, -70, 0.4));
@@ -414,21 +432,6 @@ export class ArenaDresser {
           for (let i = 0; i < c.count; i++) c.setXYZ(i, hot.r, hot.g, hot.b);
           this.farGlow = g;
         }
-        const a = -2.15;
-        const r = R + t + 4.2;
-        const cx = Math.cos(a) * r;
-        const cz = Math.sin(a) * r;
-        const yaw = Math.atan2(-Math.cos(a), -Math.sin(a));
-        const ribs = this.keep(colossusRibsGeometry(31, 7, 7.5));
-        ribs.translate(-5.6, 0, 0);
-        this.batch.add('bone', ribs, this.at(cx, -0.3, cz, yaw), tint.bone);
-        const skull = this.keep(skullGeometry(3));
-        this.m2.makeRotationY(-Math.PI / 2).setPosition(-7.6, 0.9, 0.4);
-        const world = this.at(cx, -0.3, cz, yaw)
-          .clone()
-          .multiply(this.m2)
-          .multiply(new Matrix4().makeScale(13, 13, 13));
-        this.batch.add('bone', skull, world, tint.bone);
         this.cards.push({ x: 16, y: 20, z: -66, w: 16, h: 30, kind: 0, alpha: 0.5 });
         break;
       }
@@ -514,6 +517,56 @@ export class ArenaDresser {
         this.pool(0, -(R - 2.5), 8, tint.crystal, 1, 0.12);
         this.pool(-5, -(R - 1.5), 4, tint.crystal, 0.7, 0.12);
         this.pool(5, -(R - 1.5), 4, tint.crystal, 0.7, 0.12);
+        break;
+      }
+      case 'mausoleum': {
+        // A crypt beyond the north wall: an arched door between two squat towers, an angel
+        // keeping watch on either side and lamps burning at the threshold.
+        const z0 = -(R + t + 2.2);
+        const tower = this.keep(towerGeometry(71, 3, 7));
+        for (const sx of [-1, 1]) {
+          this.batch.add('stone', tower, this.at(sx * 4.2, 0, z0, 0));
+          this.batch.add(
+            'stone',
+            this.keep(angelStatueGeometry(81 + sx, false)),
+            this.at(sx * 7.4, 0, z0 + 1.5, 0, 1.4),
+          );
+          this.flames.push({ x: sx * 2.2, y: 2.6, z: z0 + 1.4, size: 0.6 });
+        }
+        this.batch.add('stone', this.keep(archGeometry(73, false)), this.at(0, 0, z0, 0, 1.3));
+        this.pool(0, z0 + 2.5, 6, tint.glow, 0.7, 0.4);
+        break;
+      }
+      case 'pass_gate': {
+        // The pass runs on north through a fortified gate: tall towers, an arch and a portcullis.
+        const z0 = -(R + t + 3);
+        const tower = this.keep(towerGeometry(91, 4.4, 14));
+        for (const sx of [-1, 1]) {
+          this.batch.add('stone', tower, this.at(sx * 6, 0, z0, 0));
+          this.flames.push({ x: sx * 3.6, y: 4.4, z: z0 + 1.4, size: 0.8 });
+        }
+        this.batch.add('stone', this.keep(archGeometry(93, false)), this.at(0, 0, z0, 0, 1.9));
+        this.batch.add(
+          'iron',
+          this.keep(portcullisGeometry(4.6, 4.4)),
+          this.at(0, 2.4, z0 + 0.2, 0),
+          tint.iron,
+        );
+        this.pool(0, z0 + 2, 6, tint.glow, 0.6, 0.6);
+        break;
+      }
+      case 'drowned_arches': {
+        // The broken north range of the cloister: three arches, one fallen, standing in water.
+        const z0 = -(R + t + 1.5);
+        for (const [i, x] of [-6, 0, 6].entries()) {
+          this.batch.add(
+            'stone',
+            this.keep(archGeometry(101 + i, i === 2)),
+            this.at(x, 0, z0, 0, 1.5),
+          );
+        }
+        this.puddles.push([0, z0 + 2, 4], [-7, z0 + 1, 2.5], [7, z0 + 1.5, 2.2]);
+        this.pool(0, z0 + 2, 7, tint.glow, 0.5, 0.2);
         break;
       }
     }
@@ -706,7 +759,11 @@ export class ArenaDresser {
       } else {
         // Beyond the wall: silhouettes above it, mostly north.
         const a = Math.PI * (1.1 + this.rand() * 0.8);
-        const r = this.R + t + 1.5 + this.rand() * 3;
+        let r = this.R + t + 1.5 + this.rand() * 3;
+        // Shaped arenas reach past the radius: step out until the tree stands outside.
+        for (let k = 0; k < 12 && insideOutline(this.def, Math.cos(a) * r, Math.sin(a) * r); k++)
+          r += 1.5;
+        r += t;
         this.batch.add(
           'wood',
           g,
