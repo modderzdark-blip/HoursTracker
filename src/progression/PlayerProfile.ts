@@ -22,8 +22,10 @@ import {
   itemPower,
   rollItem,
   salvageValue,
+  tryEnchant,
   tryUpgrade,
   upgradeCost,
+  type EnchantOutcome,
   type GearItem,
   type UpgradeOutcome,
 } from './gear';
@@ -45,6 +47,8 @@ import {
   type HearthYield,
 } from './goals';
 import { rollItemLevel, rollRarity } from './loot';
+import { applyRelicMods, equippedRelicBonus, openCasket, type CasketResult } from './relics';
+import type { CasketId, RelicId } from '../data/relics';
 import {
   hatch,
   petBonus,
@@ -72,6 +76,7 @@ export interface PurchaseResult {
   readonly currencies: { readonly currency: Currency; readonly amount: number }[];
   readonly items: GearItem[];
   readonly pets: HatchResult[];
+  readonly relics: CasketResult[];
 }
 
 /** The active pet for a battle: its look, strike and progress. */
@@ -189,8 +194,9 @@ export class PlayerProfile {
     return gained;
   }
 
+  /** Skill-tree ranks plus the equipped relics' effects. */
   mods(id: HeroId): HeroMods {
-    return computeMods(SKILL_TREES[id], this.hero(id).skills);
+    return applyRelicMods(computeMods(SKILL_TREES[id], this.hero(id).skills), this.data.relics);
   }
 
   stats(id: HeroId): StatBlock {
@@ -262,10 +268,43 @@ export class PlayerProfile {
     return this.data.pets.active;
   }
 
+  /** Stat bonus from the active pet and the equipped relics. */
   private activePetBonus(): PetBonus | null {
+    const out = equippedRelicBonus(this.data.relics);
     const id = this.data.pets.active;
     const prog = id === null ? undefined : this.data.pets.owned[id];
-    return id === null || prog === undefined ? null : petBonus(PETS[id], prog);
+    if (id !== null && prog !== undefined)
+      for (const [k, v] of Object.entries(petBonus(PETS[id], prog)) as [keyof PetBonus, number][])
+        out[k] = (out[k] ?? 0) + v;
+    return Object.keys(out).length > 0 ? out : null;
+  }
+
+  // ------------------------------------------------------------------ relics
+
+  relic(id: RelicId): { level: number } | undefined {
+    return this.data.relics.owned[id];
+  }
+
+  get equippedRelics(): readonly (RelicId | null)[] {
+    return this.data.relics.equipped;
+  }
+
+  /** Puts an owned relic in a slot (moving it if it was in the other one). */
+  equipRelic(id: RelicId, slot: number): boolean {
+    const r = this.data.relics;
+    if (r.owned[id] === undefined || slot < 0 || slot >= r.equipped.length) return false;
+    const was = r.equipped.indexOf(id);
+    if (was >= 0) r.equipped[was] = null;
+    r.equipped[slot] = id;
+    this.commit();
+    return true;
+  }
+
+  unequipRelic(id: RelicId): void {
+    const r = this.data.relics;
+    const i = r.equipped.indexOf(id);
+    if (i >= 0) r.equipped[i] = null;
+    this.commit();
   }
 
   /** The pet that follows the hero into battle, or null. */
@@ -354,7 +393,7 @@ export class PlayerProfile {
     if (this.shopBlock(offer, nowMs) !== null) return null;
     if (offer.price !== null && !this.wallet.spend(offer.price.currency, offer.price.amount))
       return null;
-    const result: PurchaseResult = { currencies: [], items: [], pets: [] };
+    const result: PurchaseResult = { currencies: [], items: [], pets: [], relics: [] };
     for (const r of offer.rewards) {
       if (r.kind === 'currency') {
         const n = this.rewardAmount(r);
@@ -363,13 +402,21 @@ export class PlayerProfile {
       } else if (r.kind === 'gear') {
         for (let i = 0; i < r.count; i++)
           result.items.push(this.rollShopItem(r.minRarity, r.levelBonus));
-      } else {
+      } else if (r.kind === 'egg') {
         for (let i = 0; i < r.count; i++) result.pets.push(this.hatchEgg(r.egg));
+      } else {
+        for (let i = 0; i < r.count; i++) result.relics.push(this.openRelicCasket(r.casket));
       }
     }
     this.data.shop.bought[offer.id] = (this.data.shop.bought[offer.id] ?? 0) + 1;
     this.commit();
     return result;
+  }
+
+  private openRelicCasket(casket: CasketId): CasketResult {
+    const res = openCasket(this.data.relics, casket, this.rng);
+    if (res.souls > 0) this.wallet.add('souls', res.souls);
+    return res;
   }
 
   private hatchEgg(egg: EggId): HatchResult {
@@ -519,6 +566,15 @@ export class PlayerProfile {
       this.track('upgrade', 1);
       this.commit();
     }
+    return r;
+  }
+
+  /** Enchants an item with Enchant Stones (see ENCHANT_CONFIG). */
+  enchant(uid: number): EnchantOutcome {
+    const item = this.item(uid);
+    if (item === undefined) return 'maxed';
+    const r = tryEnchant(item, this.wallet, this.rng);
+    if (r === 'success' || r === 'failed') this.commit();
     return r;
   }
 

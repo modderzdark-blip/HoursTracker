@@ -6,6 +6,7 @@
 import type { Currency } from './economy';
 import type { Rarity } from './items';
 import type { EggId } from './pets';
+import type { CasketId } from './relics';
 
 export type ShopReward =
   | {
@@ -22,11 +23,21 @@ export type ShopReward =
       /** Item levels above the player's progress level. */
       readonly levelBonus: number;
     }
-  | { readonly kind: 'egg'; readonly egg: EggId; readonly count: number };
+  | { readonly kind: 'egg'; readonly egg: EggId; readonly count: number }
+  | { readonly kind: 'relic'; readonly casket: CasketId; readonly count: number };
 
 /** Picture on the offer card. */
 export type ShopArt =
-  'gold' | 'gems' | 'souls' | 'materials' | 'tickets' | 'chest' | 'egg' | 'sparkle';
+  | 'gold'
+  | 'gems'
+  | 'souls'
+  | 'materials'
+  | 'tickets'
+  | 'chest'
+  | 'egg'
+  | 'sparkle'
+  | 'stones'
+  | 'relic';
 
 export interface ShopOffer {
   readonly id: string;
@@ -145,6 +156,58 @@ export const DEAL_POOL: readonly ShopOffer[] = [
   },
 ];
 
+/** Rarer deals added to the rotation. */
+const EXTRA_DEALS: readonly ShopOffer[] = [
+  {
+    id: 'deal_stone',
+    name: 'Glimmering Stone',
+    blurb: 'An Enchant Stone, cheaper than usual. Rarely on sale.',
+    art: 'stones',
+    tint: 'mythic',
+    price: { currency: 'gems', amount: 220 },
+    limit: 1,
+    rewards: [cur('stones', 1)],
+    ribbon: 'RARE',
+  },
+  {
+    id: 'deal_relic',
+    name: 'Dusty Reliquary',
+    blurb: 'A relic casket at a merchant’s discount.',
+    art: 'relic',
+    tint: 'epic',
+    price: { currency: 'gems', amount: 300 },
+    limit: 1,
+    rewards: [{ kind: 'relic', casket: 'reliquary', count: 1 }],
+    ribbon: '-20%',
+  },
+  {
+    id: 'deal_warlord',
+    name: 'Warlord’s Hoard',
+    blurb: 'A relic, an Enchant Stone, gold and an epic+ item.',
+    art: 'chest',
+    tint: 'legendary',
+    price: { currency: 'gems', amount: 720 },
+    limit: 1,
+    rewards: [
+      { kind: 'relic', casket: 'reliquary', count: 1 },
+      cur('stones', 1),
+      cur('gold', 15000, true),
+      { kind: 'gear', minRarity: 'epic', count: 1, levelBonus: 3 },
+    ],
+    ribbon: 'BEST VALUE',
+  },
+  {
+    id: 'deal_feast',
+    name: 'Companion’s Feast',
+    blurb: 'Souls for your pets, and an Ember Egg.',
+    art: 'egg',
+    tint: 'rare',
+    price: { currency: 'gold', amount: 18000 },
+    limit: 1,
+    rewards: [cur('souls', 60), { kind: 'egg', egg: 'ember', count: 1 }],
+  },
+];
+
 export const CHESTS: readonly ShopOffer[] = [
   {
     id: 'chest_iron',
@@ -236,9 +299,71 @@ export const EXCHANGE: readonly ShopOffer[] = [
   },
 ];
 
+/** Reliquary caskets: relics (see data/relics.ts). */
+export const RELIC_OFFERS: readonly ShopOffer[] = [
+  {
+    id: 'relic_casket',
+    name: 'Reliquary Casket',
+    blurb: 'One relic: epic, sometimes legendary, rarely mythic.',
+    art: 'relic',
+    tint: 'epic',
+    price: { currency: 'gems', amount: 380 },
+    limit: 3,
+    rewards: [{ kind: 'relic', casket: 'reliquary', count: 1 }],
+  },
+  {
+    id: 'relic_sealed',
+    name: 'Sealed Reliquary',
+    blurb: 'Legendary or better. A duplicate raises the relic a level.',
+    art: 'relic',
+    tint: 'legendary',
+    price: { currency: 'gems', amount: 980 },
+    limit: 1,
+    rewards: [{ kind: 'relic', casket: 'sealed', count: 1 }],
+    ribbon: 'LEGENDARY+',
+  },
+];
+
+/** Enchant Stones: deliberately scarce (one of each a day). */
+export const STONE_OFFERS: readonly ShopOffer[] = [
+  {
+    id: 'stone_gems',
+    name: 'Enchant Stone',
+    blurb: 'Raises a rare-or-better item’s enchantment.',
+    art: 'stones',
+    tint: 'mythic',
+    price: { currency: 'gems', amount: 300 },
+    limit: 1,
+    rewards: [cur('stones', 1)],
+    ribbon: '1 / DAY',
+  },
+  {
+    id: 'stone_souls',
+    name: 'Soulforged Stone',
+    blurb: 'Bound from four hundred restless souls.',
+    art: 'stones',
+    tint: 'epic',
+    price: { currency: 'souls', amount: 400 },
+    limit: 1,
+    rewards: [cur('stones', 1)],
+    ribbon: '1 / DAY',
+  },
+  {
+    id: 'stone_writs',
+    name: 'Forgemaster’s Writ',
+    blurb: 'Trade reward tickets for a stone.',
+    art: 'stones',
+    tint: 'rare',
+    price: { currency: 'tickets', amount: 6 },
+    limit: 1,
+    rewards: [cur('stones', 1)],
+    ribbon: '1 / DAY',
+  },
+];
+
 export const SHOP_CONFIG = {
   /** Daily deals shown at once. */
-  dealsPerDay: 3,
+  dealsPerDay: 4,
   /** Scaling currency rewards: × (1 + perLevel × (progress level − 1)). */
   perLevel: 0.05,
 } as const;
@@ -246,7 +371,15 @@ export const SHOP_CONFIG = {
 /** Every offer that can be bought, by id. */
 export function offerById(id: string): ShopOffer | undefined {
   if (id === DAILY_GIFT.id) return DAILY_GIFT;
-  return [...DEAL_POOL, ...CHESTS, ...EGG_OFFERS, ...EXCHANGE].find((o) => o.id === id);
+  return [
+    ...DEAL_POOL,
+    ...EXTRA_DEALS,
+    ...CHESTS,
+    ...EGG_OFFERS,
+    ...RELIC_OFFERS,
+    ...STONE_OFFERS,
+    ...EXCHANGE,
+  ].find((o) => o.id === id);
 }
 
 /** The deals on sale on a local day (deterministic, no repeats within a day). */
@@ -258,7 +391,7 @@ export function dailyDeals(day: number): ShopOffer[] {
     seed ^= seed << 5;
     return (seed >>> 0) / 4294967296;
   };
-  const pool = [...DEAL_POOL];
+  const pool = [...DEAL_POOL, ...EXTRA_DEALS];
   const out: ShopOffer[] = [];
   while (out.length < SHOP_CONFIG.dealsPerDay && pool.length > 0) {
     const i = Math.floor(rand() * pool.length);

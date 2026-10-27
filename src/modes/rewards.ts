@@ -1,3 +1,4 @@
+import { ENCHANT_CONFIG } from '../data/items';
 import { DIFFICULTIES, type DifficultyId } from '../data/difficulty';
 import { HEROES, type HeroId } from '../data/heroes';
 import { MODE_ORDER, MODES } from '../data/modes';
@@ -25,6 +26,8 @@ export interface RewardSummary {
   readonly souls: number;
   readonly materials: number;
   readonly tickets: number;
+  /** Enchant Stones (a rare boss drop). */
+  readonly stones: number;
   readonly xp: number;
   readonly items: readonly GearItem[];
   readonly autoSalvaged: SalvageSummary;
@@ -157,6 +160,9 @@ export function grantVictory(i: GrantInput): RewardSummary {
   if (i.outcome.souls > 0) p.wallet.add('souls', i.outcome.souls);
   if (loot.materials > 0) p.wallet.add('materials', loot.materials);
   if (tickets > 0) p.wallet.add('tickets', tickets);
+  // Enchant Stones: a rare boss drop, likelier on harder difficulties.
+  const stones = i.outcome.bossKilled && i.rng() < ENCHANT_CONFIG.bossDrop[i.difficulty] ? 1 : 0;
+  if (stones > 0) p.wallet.add('stones', stones);
   const lt = p.data.lifetime;
   lt.battles++;
   lt.victories++;
@@ -178,6 +184,7 @@ export function grantVictory(i: GrantInput): RewardSummary {
     souls: i.outcome.souls,
     materials: loot.materials,
     tickets,
+    stones,
     xp,
     items: added.kept,
     autoSalvaged: added.salvaged,

@@ -683,6 +683,7 @@ export class Runs {
         souls: 0,
         materials: 0,
         tickets: 0,
+        stones: 0,
         xp: 0,
         items: [],
         autoSalvaged: { count: 0, materials: 0, gold: 0 },

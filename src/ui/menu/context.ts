@@ -20,10 +20,11 @@ export interface MenuNav {
   quests(): void;
   shop(tab?: ShopTab): void;
   pets(): void;
+  relics(): void;
   mode(id: ModeId): void;
 }
 
-export type ShopTab = 'deals' | 'chests' | 'eggs' | 'exchange';
+export type ShopTab = 'deals' | 'chests' | 'eggs' | 'relics' | 'enchant' | 'exchange';
 
 /** Actions that leave the menus (start a battle). */
 export interface MenuActions {

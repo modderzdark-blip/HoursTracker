@@ -1,6 +1,14 @@
-export type Currency = 'gold' | 'gems' | 'souls' | 'materials' | 'tickets';
+/** `stones`: Enchant Stones, rare (boss drops, tower milestones, limited shop offers). */
+export type Currency = 'gold' | 'gems' | 'souls' | 'materials' | 'tickets' | 'stones';
 
-export const CURRENCIES: readonly Currency[] = ['gold', 'gems', 'souls', 'materials', 'tickets'];
+export const CURRENCIES: readonly Currency[] = [
+  'gold',
+  'gems',
+  'souls',
+  'materials',
+  'tickets',
+  'stones',
+];
 
 export const ECONOMY = {
   /** One-time grant on a new save so the revive flow can be tried (gems are earned in-game only). */

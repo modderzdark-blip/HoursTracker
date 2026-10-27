@@ -3,7 +3,7 @@ import { CURRENCIES, ECONOMY, type Currency } from '../data/economy';
 export type Balances = Record<Currency, number>;
 
 export function emptyBalances(): Balances {
-  return { gold: 0, gems: 0, souls: 0, materials: 0, tickets: 0 };
+  return { gold: 0, gems: 0, souls: 0, materials: 0, tickets: 0, stones: 0 };
 }
 
 function validAmount(amount: number): boolean {

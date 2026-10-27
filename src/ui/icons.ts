@@ -210,7 +210,7 @@ export function iconSpan(cls: string, name: IconName): HTMLElement {
 export function bundleAmounts(r: Partial<Record<Currency, number>>): HTMLElement {
   const span = document.createElement('span');
   span.className = 'bundle';
-  for (const c of ['gold', 'gems', 'souls', 'materials', 'tickets'] as const) {
+  for (const c of ['gold', 'gems', 'souls', 'materials', 'tickets', 'stones'] as const) {
     const v = r[c];
     if (v !== undefined && v > 0) span.append(amount(c, String(v)));
   }

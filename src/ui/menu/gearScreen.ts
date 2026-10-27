@@ -8,6 +8,9 @@ import {
   type Rarity,
 } from '../../data/items';
 import {
+  canEnchant,
+  enchantCost,
+  enchantMult,
   formatStat,
   itemName,
   itemPower,
@@ -19,6 +22,8 @@ import {
 } from '../../progression/gear';
 import { el } from '../dom';
 import { amount, icon } from '../icons';
+import { RELICS } from '../../data/relics';
+import { relicGem } from './relicsScreen';
 import type { MenuContext } from './context';
 import { statRows } from './heroesScreen';
 import { fmtInt, type View } from './View';
@@ -123,6 +128,7 @@ export function itemTile(
   tile.append(icon(slot, 'item-icon', rarity ?? 'dark'));
   if (item !== undefined) {
     if (item.plus > 0) tile.append(el('span', 'item-plus', `+${item.plus}`));
+    if (item.ench > 0) tile.append(enchantBadge(item.ench));
     tile.append(el('span', 'item-ilvl', `Lv${item.ilvl}`));
     if (item.isNew) tile.append(el('span', 'item-new'));
     if (item.locked) tile.append(icon('lock', 'item-lock'));
@@ -202,11 +208,28 @@ export function renderGear(ctx: MenuContext, filter: GearSlot | null): void {
     { testid: 'gear-auto' },
   );
   auto.append(icon('sparkle'), el('span', '', 'Auto-equip'));
+  const relics = el('div', 'gear-relics');
+  p.equippedRelics.forEach((id, i) => {
+    const b = v.button(
+      '',
+      `gear-relic${id === null ? ' is-empty' : ''}`,
+      () => {
+        ctx.uiTap();
+        ctx.nav.relics();
+      },
+      { testid: `gear-relic-${i}` },
+    );
+    if (id === null) b.append(el('span', 'relic-slot-plus', '+'));
+    else b.append(relicGem(RELICS[id], 'is-tiny'));
+    relics.append(b);
+  });
+  relics.append(el('span', 'gear-relics-label', 'Relics'));
   core.append(
     el('div', 'gear-hero-name', HEROES[heroId].name),
     el('div', 'gear-hero-lv', `Level ${p.hero(heroId).level}`),
     power,
     mini,
+    relics,
     auto,
   );
   left.append(colA, core, colB);
@@ -337,6 +360,7 @@ function openItem(ctx: MenuContext, item: GearItem, filter: GearSlot | null): vo
   big.style.setProperty('--rarity', r.color);
   big.append(icon(item.slot, 'item-icon', item.rarity));
   if (item.plus > 0) big.append(el('span', 'item-plus', `+${item.plus}`));
+  if (item.ench > 0) big.append(enchantBadge(item.ench));
   const titles = el('div', 'item-titles');
   const name = el('div', 'item-name', `${itemName(item)}${item.plus > 0 ? ` +${item.plus}` : ''}`);
   name.style.color = r.color;
@@ -378,6 +402,7 @@ function openItem(ctx: MenuContext, item: GearItem, filter: GearSlot | null): vo
       up.append(el('span', 'upgrade-safe', 'A failed upgrade never harms the item'));
     leftCol.append(up);
   }
+  leftCol.append(enchantBlock(ctx, m, item, filter));
   const rightCol = el('div', 'item-col');
   if (!wornHere) {
     rightCol.append(
@@ -477,4 +502,80 @@ function openItem(ctx: MenuContext, item: GearItem, filter: GearSlot | null): vo
     }),
   );
   m.root.append(cols, row);
+}
+
+/** Corner mark of an enchanted item: a stone and the level. */
+function enchantBadge(level: number): HTMLElement {
+  const b = el('span', 'item-ench');
+  b.append(icon('stones'), document.createTextNode(String(level)));
+  return b;
+}
+
+/** Enchanting in the item panel: level, next bonus, cost in stones and gold, chance. */
+function enchantBlock(
+  ctx: MenuContext,
+  m: View,
+  item: GearItem,
+  filter: GearSlot | null,
+): HTMLElement {
+  const p = ctx.profile;
+  const box = el('div', 'item-enchant');
+  const head = el('div', 'item-enchant-head');
+  head.append(
+    icon('stones'),
+    el(
+      'span',
+      '',
+      item.ench > 0
+        ? `Enchant +${item.ench} · all stats +${Math.round((enchantMult(item) - 1) * 100)}%`
+        : 'Not enchanted',
+    ),
+  );
+  box.append(head);
+  if (!canEnchant(item)) {
+    box.append(el('div', 'item-enchant-note', 'Only rare or better gear holds an enchantment.'));
+    return box;
+  }
+  const cost = enchantCost(item);
+  if (cost === null) {
+    box.append(el('div', 'item-enchant-note', 'Fully enchanted.'));
+    return box;
+  }
+  const have = p.wallet.get('stones');
+  const canPay = p.wallet.canAfford('stones', cost.stones) && p.wallet.canAfford('gold', cost.gold);
+  const btn = m.button(
+    '',
+    `btn btn-cost btn-enchant${canPay ? '' : ' is-short'}`,
+    () => {
+      ctx.uiTap();
+      const heroId = p.selectedHero;
+      const before = p.power(heroId);
+      const res = p.enchant(item.uid);
+      if (res === 'success') {
+        ctx.toast(`Enchanted to +${item.ench}!`);
+        ctx.stingers.play('fanfare');
+        if (p.wearer(item.uid) === heroId) ctx.shell.showPower(before, p.power(heroId));
+      } else if (res === 'failed') ctx.toast('The stone cracked — the item is unharmed');
+      else if (res === 'unaffordable') ctx.toast('Not enough Enchant Stones or gold');
+      ctx.shell.refreshCurrencies();
+      renderGear(ctx, filter);
+      openItem(ctx, item, filter);
+    },
+    { disabled: !canPay, testid: 'item-enchant' },
+  );
+  btn.append(
+    el('span', 'btn-cost-label', `Enchant +${item.ench + 1}`),
+    amount('stones', `${cost.stones}`),
+    amount('gold', fmtInt(cost.gold)),
+    el('span', 'enchant-chance', `${Math.round(cost.successRate * 100)}%`),
+  );
+  box.append(
+    btn,
+    el(
+      'div',
+      'item-enchant-note',
+      `You have ${have} Enchant Stone${have === 1 ? '' : 's'} · Shop › Enchant`,
+    ),
+  );
+  return box;
 }

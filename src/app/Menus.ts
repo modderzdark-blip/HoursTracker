@@ -5,6 +5,7 @@ import type { ModeId } from '../data/modes';
 import type { PlayerProfile } from '../progression/PlayerProfile';
 import type { MenuActions, MenuContext, MenuNav, SettingsPort, ShopTab } from '../ui/menu/context';
 import { renderPets } from '../ui/menu/petsScreen';
+import { renderRelics } from '../ui/menu/relicsScreen';
 import { renderShop } from '../ui/menu/shopScreen';
 import { renderGear } from '../ui/menu/gearScreen';
 import { renderHeroes } from '../ui/menu/heroesScreen';
@@ -87,6 +88,10 @@ export class Menus implements MenuNav {
 
   pets(): void {
     renderPets(this.ctx, this.o.profile.activePet);
+  }
+
+  relics(): void {
+    renderRelics(this.ctx);
   }
 
   mode(id: ModeId): void {

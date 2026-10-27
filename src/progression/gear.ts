@@ -1,4 +1,5 @@
 import {
+  ENCHANT_CONFIG,
   GEAR_CONFIG,
   GEAR_STATS,
   RARITY_DEFS,
@@ -28,6 +29,8 @@ export interface GearItem {
   readonly ilvl: number;
   /** Upgrade level 0..GEAR_CONFIG.maxPlus. */
   plus: number;
+  /** Enchant level 0..ENCHANT_CONFIG.maxLevel (Enchant Stones). */
+  ench: number;
   readonly main: StatRoll;
   readonly subs: readonly StatRoll[];
   locked: boolean;
@@ -91,6 +94,7 @@ export function rollItem(
     base: Math.floor(rng() * slotDef.names.length),
     ilvl: level,
     plus: 0,
+    ench: 0,
     main: { stat: slotDef.main, value: mainValue },
     subs,
     locked: false,
@@ -103,13 +107,65 @@ export function itemName(item: GearItem): string {
   return names[item.base % names.length] ?? SLOT_DEFS[item.slot].label;
 }
 
-/** Current value of the main stat (with upgrades). */
+/** Stat multiplier from the item's enchant level. */
+export function enchantMult(item: Pick<GearItem, 'ench'>): number {
+  return 1 + ENCHANT_CONFIG.perLevel * item.ench;
+}
+
+/** Current value of the main stat (with upgrades and enchantment). */
 export function mainValue(item: GearItem): number {
-  return round(item.main.stat, item.main.value * (1 + GEAR_CONFIG.mainPerPlus * item.plus));
+  return round(
+    item.main.stat,
+    item.main.value * (1 + GEAR_CONFIG.mainPerPlus * item.plus) * enchantMult(item),
+  );
 }
 
 export function subValue(item: GearItem, roll: StatRoll): number {
-  return round(roll.stat, roll.value * (1 + GEAR_CONFIG.subPerPlus * item.plus));
+  return round(
+    roll.stat,
+    roll.value * (1 + GEAR_CONFIG.subPerPlus * item.plus) * enchantMult(item),
+  );
+}
+
+export interface EnchantCost {
+  readonly stones: number;
+  readonly gold: number;
+  readonly successRate: number;
+}
+
+/** Whether the item can carry enchantments (rare or better). */
+export function canEnchant(item: Pick<GearItem, 'rarity'>): boolean {
+  return item.rarity !== 'common';
+}
+
+/** Cost of the next enchant level; null at the cap or for common gear. */
+export function enchantCost(item: GearItem): EnchantCost | null {
+  if (!canEnchant(item) || item.ench >= ENCHANT_CONFIG.maxLevel) return null;
+  const n = item.ench + 1;
+  return {
+    stones: ENCHANT_CONFIG.stones[n - 1] ?? 5,
+    gold: Math.round(
+      ENCHANT_CONFIG.goldBase * Math.pow(n, 1.4) * RARITY_DEFS[item.rarity].costMult,
+    ),
+    successRate: ENCHANT_CONFIG.successRates[n - 1] ?? 0.25,
+  };
+}
+
+export type EnchantOutcome = 'success' | 'failed' | 'maxed' | 'unaffordable';
+
+/** Pays the cost (all or nothing) and rolls; a failure never lowers the level. */
+export function tryEnchant(item: GearItem, wallet: Wallet, rng: () => number): EnchantOutcome {
+  const cost = enchantCost(item);
+  if (cost === null) return 'maxed';
+  if (!wallet.canAfford('stones', cost.stones) || !wallet.canAfford('gold', cost.gold))
+    return 'unaffordable';
+  wallet.spend('stones', cost.stones);
+  wallet.spend('gold', cost.gold);
+  if (rng() < cost.successRate) {
+    item.ench++;
+    return 'success';
+  }
+  return 'failed';
 }
 
 /** Adds the item's stats into `out`. */

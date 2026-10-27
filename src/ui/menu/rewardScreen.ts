@@ -85,6 +85,7 @@ export function renderVictory(
   if (r.gems > 0) chip(r.gems, 'loot-gems', (n) => `+${Math.round(n)} gems`);
   if (r.souls > 0) chip(r.souls, 'loot-souls', (n) => `+${Math.round(n)} souls`);
   if (r.materials > 0) chip(r.materials, 'loot-mat', (n) => `+${Math.round(n)} materials`);
+  if (r.stones > 0) chip(r.stones, 'loot-stone', (n) => `+${Math.round(n)} Enchant Stone`);
   if (r.tickets > 0)
     chip(r.tickets, 'loot-ticket', (n) => `+${Math.round(n)} ticket${r.tickets > 1 ? 's' : ''}`);
 

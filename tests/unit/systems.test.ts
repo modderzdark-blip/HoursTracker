@@ -238,7 +238,14 @@ describe('save migrations', () => {
     expect(save.version).toBe(CURRENT_SAVE_VERSION);
     expect(save.settings.quality).toBe('low');
     expect(save.settings.fpsCap).toBe(30);
-    expect(save.wallet).toEqual({ gold: 0, gems: 20, souls: 0, materials: 0, tickets: 0 });
+    expect(save.wallet).toEqual({
+      gold: 0,
+      gems: 20,
+      souls: 0,
+      materials: 0,
+      tickets: 0,
+      stones: 0,
+    });
     expect(save.records).toEqual({});
     expect(save.profile.heroes.kael.unlocked).toBe(true);
     expect(save.profile.items).toEqual([]);
@@ -255,7 +262,14 @@ describe('save migrations', () => {
     };
     const save = normalizeSave(migrate(v2, CURRENT_SAVE_VERSION, SAVE_MIGRATIONS));
     expect(save.version).toBe(3);
-    expect(save.wallet).toEqual({ gold: 300, gems: 15, souls: 40, materials: 0, tickets: 0 });
+    expect(save.wallet).toEqual({
+      gold: 300,
+      gems: 15,
+      souls: 40,
+      materials: 0,
+      tickets: 0,
+      stones: 0,
+    });
     expect(save.settings.vibration).toBe(false);
     expect(save.records).toEqual({});
     expect(save.profile.selectedHero).toBe('kael');

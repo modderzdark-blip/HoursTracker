@@ -4,12 +4,17 @@ import {
   CHESTS,
   EGG_OFFERS,
   EXCHANGE,
+  RELIC_OFFERS,
+  STONE_OFFERS,
   type ShopArt,
   type ShopOffer,
   type ShopReward,
 } from '../../data/shop';
 import { itemName } from '../../progression/gear';
 import { eggOdds } from '../../progression/pets';
+import { casketOdds } from '../../progression/relics';
+import { RELICS } from '../../data/relics';
+import { relicGem } from './relicsScreen';
 import type { PurchaseResult } from '../../progression/PlayerProfile';
 import { el } from '../dom';
 import { amount, icon, type IconName } from '../icons';
@@ -20,7 +25,9 @@ import { fmtInt } from './View';
 const TABS: readonly { id: ShopTab; label: string; icon: IconName }[] = [
   { id: 'deals', label: 'Deals', icon: 'sparkle' },
   { id: 'chests', label: 'Chests', icon: 'chest' },
-  { id: 'eggs', label: 'Pet Eggs', icon: 'egg' },
+  { id: 'eggs', label: 'Eggs', icon: 'egg' },
+  { id: 'relics', label: 'Relics', icon: 'relic' },
+  { id: 'enchant', label: 'Enchant', icon: 'stones' },
   { id: 'exchange', label: 'Exchange', icon: 'swap' },
 ];
 
@@ -33,6 +40,8 @@ const ART: Readonly<Record<ShopArt, IconName>> = {
   chest: 'chest',
   egg: 'egg',
   sparkle: 'sparkle',
+  stones: 'stones',
+  relic: 'relic',
 };
 
 /** Time until the next local midnight, as "5h 12m". */
@@ -71,7 +80,11 @@ export function renderShop(ctx: MenuContext, tab: ShopTab): void {
         ? [...CHESTS]
         : tab === 'eggs'
           ? [...EGG_OFFERS]
-          : [...EXCHANGE];
+          : tab === 'relics'
+            ? [...RELIC_OFFERS]
+            : tab === 'enchant'
+              ? [...STONE_OFFERS]
+              : [...EXCHANGE];
   const head = el('div', 'shop-head');
   head.append(
     el(
@@ -105,6 +118,14 @@ function rewardLine(ctx: MenuContext, r: ShopReward): HTMLElement {
       document.createTextNode(`${r.count}× ${RARITY_DEFS[r.minRarity].label}+ gear`),
     );
     s.style.setProperty('--rarity', RARITY_DEFS[r.minRarity].color);
+    return s;
+  }
+  if (r.kind === 'relic') {
+    const s = el('span', 'offer-reward');
+    const odds = casketOdds(r.casket)
+      .map((o) => `${RARITY_DEFS[o.rarity].label} ${Math.round(o.chance * 100)}%`)
+      .join(' · ');
+    s.append(icon('relic'), document.createTextNode(odds));
     return s;
   }
   const s = el('span', 'offer-reward');
@@ -207,6 +228,29 @@ function showPurchase(ctx: MenuContext, o: ShopOffer, r: PurchaseResult, tab: Sh
     got.append(card);
     best = Math.max(best, ['common', 'rare', 'epic', 'legendary', 'mythic'].indexOf(def.rarity));
   }
+  for (const c of r.relics) {
+    const def = RELICS[c.relic];
+    const d = RARITY_DEFS[def.rarity];
+    const card = el('div', `got-card rarity-${def.rarity}`);
+    card.style.setProperty('--rarity', d.color);
+    const n = el('div', 'got-name', def.name);
+    n.style.color = d.color;
+    card.append(
+      relicGem(def, 'is-small'),
+      n,
+      el(
+        'div',
+        'got-value',
+        c.isNew
+          ? `NEW · ${d.label}`
+          : c.souls > 0
+            ? `Max level → +${c.souls} souls`
+            : `Duplicate → level ${c.level}`,
+      ),
+    );
+    got.append(card);
+    best = Math.max(best, ['common', 'rare', 'epic', 'legendary', 'mythic'].indexOf(def.rarity));
+  }
   if (r.pets.length > 0) ctx.onPetChanged();
   const rarities = ['common', 'rare', 'epic', 'legendary', 'mythic'] as const;
   const top = rarities[best];
@@ -219,6 +263,14 @@ function showPurchase(ctx: MenuContext, o: ShopOffer, r: PurchaseResult, tab: Sh
         ctx.uiTap();
         ctx.shell.closeModal();
         ctx.nav.gear(null);
+      }),
+    );
+  if (r.relics.length > 0)
+    row.append(
+      m.button('See Relics', 'btn', () => {
+        ctx.uiTap();
+        ctx.shell.closeModal();
+        ctx.nav.relics();
       }),
     );
   if (r.pets.length > 0)

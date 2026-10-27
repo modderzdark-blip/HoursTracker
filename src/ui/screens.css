@@ -1432,3 +1432,282 @@
 .reduce-flashes .reward-title.reward-shine::after {
   animation: none;
 }
+
+/* ---------------------------------------------------------------- Relics */
+.relic-gem {
+  position: relative;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  transform: rotate(45deg);
+  background:
+    radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--relic) 70%, #fff), transparent 55%),
+    linear-gradient(135deg, color-mix(in srgb, var(--relic) 55%, #120808), #0c0606);
+  box-shadow:
+    0 0 0 2px var(--rarity),
+    0 0 18px color-mix(in srgb, var(--relic) 55%, transparent);
+}
+
+.relic-gem .icon {
+  position: relative;
+  width: 62%;
+  height: 62%;
+  transform: rotate(-45deg);
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.75));
+}
+
+.relic-gem-glow {
+  position: absolute;
+  inset: -35%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--relic) 45%, transparent),
+    transparent 70%
+  );
+  animation: pet-glow 2.8s ease-in-out infinite;
+}
+
+.reduce-flashes .relic-gem-glow {
+  animation: none;
+}
+
+.relic-gem.is-unknown {
+  background: linear-gradient(135deg, #2e2626, #0c0808);
+  box-shadow: 0 0 0 2px rgba(169, 156, 140, 0.4);
+}
+
+.relic-gem.is-unknown .relic-gem-glow {
+  display: none;
+}
+
+.relic-gem.is-small {
+  width: 34px;
+  height: 34px;
+  margin: 3px;
+}
+
+.relic-gem.is-tiny {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+}
+
+.relic-gem.is-big {
+  width: 64px;
+  height: 64px;
+  margin: 10px;
+  border-radius: 16px;
+}
+
+.relic-slots {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.relic-slot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 52px;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(232, 190, 110, 0.55);
+  background: linear-gradient(160deg, rgba(48, 32, 20, 0.95), rgba(14, 10, 10, 0.95));
+}
+
+.relic-slot.is-empty {
+  border-style: dashed;
+  border-color: rgba(201, 162, 74, 0.35);
+  justify-content: center;
+}
+
+.relic-slot.is-selected {
+  box-shadow:
+    0 0 0 1px var(--gold),
+    0 0 14px rgba(232, 190, 110, 0.35);
+}
+
+.relic-slot-label {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.15;
+  color: #f4e6cf;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.relic-slot.is-empty .relic-slot-label {
+  color: var(--ink-dim);
+}
+
+.relic-slot-plus {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+  color: rgba(201, 162, 74, 0.6);
+}
+
+.relic-pips {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.relic-pips span {
+  width: 6px;
+  height: 6px;
+  transform: rotate(45deg);
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.relic-pips .is-on {
+  background: #ffd27a;
+  box-shadow: 0 0 5px rgba(255, 190, 90, 0.8);
+}
+
+.relic-level {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--gold);
+}
+
+.relic-effect {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border-left: 3px solid var(--relic);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--relic) 18%, transparent),
+    transparent
+  );
+  font-size: 15px;
+  font-weight: 700;
+  color: #f4e6cf;
+}
+
+.relic-effect-label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--relic);
+}
+
+.relic-effect .pet-next {
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.gear-relics {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gear-relic {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(232, 190, 110, 0.6);
+  background: radial-gradient(circle, rgba(60, 40, 24, 0.95), rgba(14, 10, 10, 0.95));
+}
+
+.gear-relic.is-empty {
+  border-style: dashed;
+  border-color: rgba(201, 162, 74, 0.35);
+}
+
+.gear-relic .relic-slot-plus {
+  font-size: 16px;
+}
+
+.gear-relics-label {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+/* ---------------------------------------------------------------- Enchanting */
+.item-ench {
+  position: absolute;
+  bottom: 2px;
+  right: 3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  font-size: 12px;
+  line-height: 1.1;
+  font-weight: 900;
+  color: #9ef0ff;
+  text-shadow:
+    0 1px 2px #000,
+    0 0 6px rgba(80, 200, 255, 0.7);
+}
+
+.item-ench .icon {
+  width: 12px;
+  height: 12px;
+}
+
+.item-enchant {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(110, 200, 255, 0.35);
+  background: linear-gradient(160deg, rgba(20, 34, 48, 0.85), rgba(10, 10, 14, 0.9));
+}
+
+.item-enchant-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #bfeeff;
+}
+
+.item-enchant-head .icon {
+  width: 20px;
+  height: 20px;
+}
+
+.item-enchant-note {
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.btn-enchant {
+  align-self: flex-start;
+  background: linear-gradient(180deg, #3aa6d8, #1a5a8a);
+  border-color: #8ad8ff;
+}
+
+.enchant-chance {
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #0c2030;
+  background: #bfeeff;
+}

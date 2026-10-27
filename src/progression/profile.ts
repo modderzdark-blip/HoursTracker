@@ -1,13 +1,22 @@
 import { MAX_CHAPTER } from '../data/adventure';
 import type { DifficultyId } from '../data/difficulty';
 import { DEFAULT_HERO, HEROES, type HeroId } from '../data/heroes';
-import { GEAR_CONFIG, GEAR_SLOTS, GEAR_STATS, RARITIES, type GearSlot } from '../data/items';
+import {
+  ENCHANT_CONFIG,
+  GEAR_CONFIG,
+  GEAR_SLOTS,
+  GEAR_STATS,
+  RARITIES,
+  type GearSlot,
+} from '../data/items';
 import { XP_CONFIG } from '../data/progression';
 import { ACHIEVEMENTS, BLESSING_CONFIG, DAILY_QUESTS } from '../data/goals';
 import type { GearItem, StatRoll } from './gear';
 import { createDailyState, type DailyState } from './goals';
 import type { PityState } from './loot';
 import { createPetState, type PetState } from './pets';
+import { createRelicState, type RelicState } from './relics';
+import { RELIC_CONFIG, RELIC_IDS } from '../data/relics';
 import { PET_CONFIG, PET_IDS } from '../data/pets';
 
 /** Per-hero progress as stored in the save. */
@@ -114,6 +123,7 @@ export interface ProfileData {
   blessings: Record<string, number>;
   story: StoryState;
   pets: PetState;
+  relics: RelicState;
   shop: ShopState;
 }
 
@@ -165,6 +175,7 @@ export function createDefaultProfile(nowMs = Date.now()): ProfileData {
     blessings: {},
     story: { prologueSeen: false, chapterIntros: [], chapterOutros: [], modesSeen: ['adventure'] },
     pets: createPetState(),
+    relics: createRelicState(),
     shop: { day: -1, bought: {} },
   };
 }
@@ -244,6 +255,7 @@ function sanitizeItem(raw: unknown): GearItem | null {
     // Endless chapters go past level 1000 at the very bottom.
     ilvl: int(raw['ilvl'], 1, 9999, 1),
     plus: int(raw['plus'], 0, GEAR_CONFIG.maxPlus, 0),
+    ench: int(raw['ench'], 0, ENCHANT_CONFIG.maxLevel, 0),
     main,
     subs,
     locked: raw['locked'] === true,
@@ -414,6 +426,7 @@ export function sanitizeProfile(raw: unknown, nowMs = Date.now()): ProfileData {
   }
   sanitizeStory(raw['story'], p.story);
   sanitizePets(raw['pets'], p.pets);
+  sanitizeRelics(raw['relics'], p.relics);
   if (isRecord(raw['shop'])) {
     p.shop.day = int(raw['shop']['day'], -1, 1e7, -1);
     const bought = raw['shop']['bought'];
@@ -441,4 +454,23 @@ function sanitizePets(raw: unknown, into: PetState): void {
     }
   const active = PET_IDS.find((id) => id === raw['active']);
   into.active = active !== undefined && into.owned[active] !== undefined ? active : null;
+}
+
+function sanitizeRelics(raw: unknown, into: RelicState): void {
+  if (!isRecord(raw)) return;
+  const owned = raw['owned'];
+  if (isRecord(owned))
+    for (const id of RELIC_IDS) {
+      const o = owned[id];
+      if (isRecord(o)) into.owned[id] = { level: int(o['level'], 1, RELIC_CONFIG.maxLevel, 1) };
+    }
+  const eq = raw['equipped'];
+  if (Array.isArray(eq))
+    for (let i = 0; i < RELIC_CONFIG.slots; i++) {
+      const id = RELIC_IDS.find((r) => r === eq[i]);
+      into.equipped[i] =
+        id !== undefined && into.owned[id] !== undefined && !into.equipped.slice(0, i).includes(id)
+          ? id
+          : null;
+    }
 }

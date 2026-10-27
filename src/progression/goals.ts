@@ -104,12 +104,15 @@ export function bundleText(r: RewardBundle): string {
     souls: 'souls',
     materials: 'materials',
     tickets: 'tickets',
+    stones: 'Enchant Stones',
   };
   const parts: string[] = [];
   for (const c of CURRENCIES) {
     const v = r[c];
     if (v !== undefined && v > 0)
-      parts.push(`${v} ${v === 1 && c === 'tickets' ? 'ticket' : names[c]}`);
+      parts.push(
+        `${v} ${v === 1 && c === 'tickets' ? 'ticket' : v === 1 && c === 'stones' ? 'Enchant Stone' : names[c]}`,
+      );
   }
   return parts.join(' + ');
 }

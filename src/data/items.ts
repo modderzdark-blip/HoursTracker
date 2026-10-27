@@ -229,3 +229,22 @@ export const GEAR_CONFIG = {
   /** Hero stat caps after gear. */
   caps: { critChance: 0.75, attackSpeed: 1.4, moveSpeedMult: 1.25 },
 } as const;
+
+/**
+ * Enchanting: Enchant Stones (rare) raise an item's enchant level; every level adds a share to
+ * all of the item's stats. Rare or better gear only. A failed enchant spends the cost but never
+ * lowers the level or harms the item.
+ */
+export const ENCHANT_CONFIG = {
+  maxLevel: 10,
+  /** Each level: all of the item's stat values × (1 + perLevel × level). */
+  perLevel: 0.06,
+  /** Stones to reach level N (index N − 1). */
+  stones: [1, 1, 1, 2, 2, 2, 3, 3, 4, 5],
+  /** Gold to reach level N: goldBase × N^1.4 × rarity cost multiplier. */
+  goldBase: 2500,
+  /** Success chance to reach level N (index N − 1). */
+  successRates: [1, 1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.25],
+  /** Chance a boss drops a stone, by difficulty. */
+  bossDrop: { normal: 0.06, hard: 0.1, nightmare: 0.15 },
+} as const;
