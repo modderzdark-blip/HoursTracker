@@ -21,7 +21,14 @@ import {
 } from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { mulberry32 } from '../core/random';
-import { ARENA_ASSETS, arenaAssetRequest, type Mass, type SurfaceRef } from '../data/arenaAssets';
+import {
+  ARENA_ASSETS,
+  arenaAssetRequest,
+  type Mass,
+  type Structure,
+  type SurfaceRef,
+} from '../data/arenaAssets';
+import { buildStructure } from './structures';
 import { ARENA_LOOKS, type ArenaLook, type SurfaceLook } from '../data/arenaLooks';
 import {
   arenaOutline,
@@ -254,7 +261,11 @@ export class ArenaBuilder {
       this.colliderCount += props.colliders;
       this.disposables.push(props);
       for (const t of props.taken) taken.push([t[0], t[1], t[2]]);
-      this.buildMasses(A.masses ?? [], { stone: stoneMat, rock: rockMat, wall: wallMat });
+      this.buildMasses(A.masses ?? [], A.structures ?? [], {
+        stone: stoneMat,
+        rock: rockMat,
+        wall: wallMat,
+      });
     }
     const dresser = new ArenaDresser(def, L, this.batch, physics, this.rand, taken, this.wallInfo);
     const skip = new Set<DressingPart>([...SCANNED_REPLACES, ...(A.skip ?? [])]);
@@ -597,6 +608,7 @@ export class ArenaBuilder {
    */
   private buildMasses(
     list: readonly Mass[],
+    structures: readonly Structure[],
     mats: Record<NonNullable<Mass['surface']>, Material>,
   ): void {
     const tier = detailTier(this.preset);
@@ -633,6 +645,26 @@ export class ArenaBuilder {
       for (let k = 0; k < steps; k++) {
         const depth = (d * (steps - k)) / steps;
         box(m, w, (h * (k + 1)) / steps, depth, -d / 2 + depth / 2);
+      }
+    }
+    // Procedural architecture joins the same per-surface meshes.
+    for (const st of structures) {
+      if ((st.tier ?? 0) > tier) continue;
+      const built = buildStructure(st);
+      for (const part of built.parts) {
+        const list = groups.get(part.surface) ?? [];
+        list.push(part.geometry);
+        groups.set(part.surface, list);
+      }
+      for (const c of built.colliders) {
+        if (c.round) {
+          this.physics.addStaticCylinder(c.x, c.h / 2, c.z, c.h / 2, c.hx);
+        } else {
+          this.e.set(0, c.yaw, 0);
+          this.q.setFromEuler(this.e);
+          this.physics.addStaticCuboid(c.x, c.h / 2, c.z, c.hx, c.h / 2, c.hz, this.q);
+        }
+        this.colliderCount++;
       }
     }
     for (const [surface, geos] of groups) {

@@ -45,6 +45,33 @@ const statues = [
 ];
 
 export const BOUND_SPIRE_ASSETS: ArenaAssets = {
+  // The nave's aisles: pointed arcades down both long sides, whole and towering.
+  structures: [
+    {
+      kind: 'arcade',
+      x: -18.6,
+      z: -4,
+      yaw: 90,
+      length: 32,
+      count: 6,
+      height: 5.5,
+      pointed: true,
+      surface: 'wall',
+      seed: 31,
+    },
+    {
+      kind: 'arcade',
+      x: 18.6,
+      z: -4,
+      yaw: 90,
+      length: 32,
+      count: 6,
+      height: 5.5,
+      pointed: true,
+      surface: 'wall',
+      seed: 32,
+    },
+  ],
   floor: { id: 'patterned_slate_tiles', size: 2.2 },
   floorPatch: { id: 'marble_mosaic_tiles', size: 2 },
   wall: { id: 'stone_tiles_02', size: 2 },

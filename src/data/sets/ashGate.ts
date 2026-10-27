@@ -23,6 +23,37 @@ const deadTree = (x: number, z: number, scale: number, yaw: number, lean = 0): S
 });
 
 export const ASH_GATE_ASSETS: ArenaAssets = {
+  // The old processional road west of the gate: a broken colonnade of round arches; a chapel
+  // ruin and two obelisks on the ridge north of the gatehouse.
+  structures: [
+    {
+      kind: 'arcade',
+      x: -33,
+      z: 0,
+      yaw: 90,
+      length: 34,
+      count: 7,
+      height: 6,
+      ruined: 0.5,
+      seed: 11,
+      solid: false,
+    },
+    {
+      kind: 'ruinWall',
+      x: -27,
+      z: -33,
+      yaw: 35,
+      length: 16,
+      count: 4,
+      height: 9,
+      ruined: 0.45,
+      surface: 'wall',
+      seed: 12,
+      solid: false,
+    },
+    { kind: 'obelisk', x: -15, z: -37, height: 11, seed: 13, solid: false },
+    { kind: 'obelisk', x: 15, z: -38, height: 11, seed: 14, solid: false, tier: 1 },
+  ],
   floor: { id: 'volcanic_rock_tiles', size: 1.8 },
   floorPatch: { id: 'brown_mud_rocks_01', size: 1.3 },
   wall: { id: 'cobblestone_square', size: 1.6 },

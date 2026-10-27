@@ -32,6 +32,21 @@ const EAST: Vec2[] = [
 ];
 
 export const WIDOWS_PASS_ASSETS: ArenaAssets = {
+  // Up the pass: the broken arches of an old aqueduct-bridge and a waystone obelisk.
+  structures: [
+    {
+      kind: 'arcade',
+      x: 0,
+      z: -43,
+      length: 30,
+      count: 5,
+      height: 9,
+      ruined: 0.4,
+      seed: 61,
+      solid: false,
+    },
+    { kind: 'obelisk', x: -12, z: -33, height: 9, seed: 62, solid: false },
+  ],
   floor: { id: 'slate_floor_02', size: 2.4, tint: 0xb8b0a8 },
   floorPatch: { id: 'dry_ground_rocks', size: 3 },
   wall: { id: 'castle_wall_varriation', size: 2 },

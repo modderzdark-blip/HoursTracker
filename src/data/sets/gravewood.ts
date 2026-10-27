@@ -61,6 +61,39 @@ const deadTree = (x: number, z: number, scale: number, yaw: number, tier: 0 | 1 
 const LOW = { scale: 0.55, out: 0.7, y: -2.9, face: C };
 
 export const GRAVEWOOD_ASSETS: ArenaAssets = {
+  // Graves crowd the clearing's edge; a pillared mausoleum and a chapel ruin stand in the trees.
+  structures: [
+    { kind: 'tombs', x: -19.5, z: -5, yaw: 80, count: 3, rows: 2, seed: 51 },
+    { kind: 'tombs', x: 19.5, z: -5, yaw: -80, count: 3, rows: 2, seed: 52 },
+    { kind: 'tombs', x: 0, z: -22, count: 4, rows: 1, seed: 57 },
+    { kind: 'tombs', x: -19, z: 6.5, yaw: 90, count: 3, rows: 1, seed: 53, tier: 1 },
+    { kind: 'tombs', x: 19, z: 6.5, yaw: -90, count: 3, rows: 1, seed: 54, tier: 1 },
+    {
+      kind: 'shrine',
+      x: -27,
+      z: -27,
+      yaw: 45,
+      length: 7,
+      height: 5,
+      ruined: 0.15,
+      altar: true,
+      seed: 55,
+      solid: false,
+    },
+    {
+      kind: 'ruinWall',
+      x: 26,
+      z: -29,
+      yaw: -40,
+      length: 14,
+      count: 4,
+      height: 10,
+      ruined: 0.4,
+      surface: 'wall',
+      seed: 56,
+      solid: false,
+    },
+  ],
   floor: { id: 'forest_ground_04', size: 2.6 },
   floorPatch: { id: 'grassy_cobblestone', size: 2.2 },
   wall: { id: 'old_stone_wall', size: 1.6, tint: 0xb0b4b8 },

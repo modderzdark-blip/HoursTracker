@@ -9,7 +9,8 @@ import { ASH_GATE_ASSETS } from './sets/ashGate';
 import { CINDER_COURT_ASSETS } from './sets/cinderCourt';
 import type { DressingPart } from '../modes/arenaDressing';
 import type { SmokeCard } from '../vfx/SmokeCards';
-import type { ArenaId, Vec2 } from './arenas';
+import { ARENA_IDS, ARENA_SCALE, type ArenaId, type Vec2 } from './arenas';
+import { scaleArenaAssets } from './arenaScale';
 
 /**
  * Scanned CC0 assets (Poly Haven, see public/assets/CREDITS.md) dressing each arena: the PBR
@@ -115,6 +116,41 @@ export interface Mass {
   readonly tier?: 0 | 1 | 2;
 }
 
+export type StructureSurface = 'stone' | 'rock' | 'wall';
+
+/**
+ * Procedural architecture (src/modes/structures.ts) in the arena's scanned surfaces, placed at
+ * (x, z) turned by `yaw`; all sizes are metres before `scale`.
+ */
+export interface Structure {
+  readonly kind:
+    'arcade' | 'ruinWall' | 'obelisk' | 'stones' | 'ribs' | 'stalagmites' | 'tombs' | 'shrine';
+  readonly x: number;
+  readonly z: number;
+  readonly y?: number;
+  readonly yaw?: number;
+  readonly scale?: number;
+  /** Arches / bays / stones / ribs / stalagmites / graves per row. */
+  readonly count?: number;
+  /** Rows (graveyards). */
+  readonly rows?: number;
+  /** Length of a run, radius of a ring or field, width of a shrine. */
+  readonly length?: number;
+  readonly height?: number;
+  /** 0 = whole, 1 = mostly fallen. */
+  readonly ruined?: number;
+  /** Gothic pointed arches (arcades). */
+  readonly pointed?: boolean;
+  /** An altar in the middle (stone circles, shrines). */
+  readonly altar?: boolean;
+  readonly surface?: StructureSurface;
+  /** Default true: colliders on the footprints. */
+  readonly solid?: boolean;
+  readonly seed?: number;
+  /** Lowest quality showing it (as for set pieces). */
+  readonly tier?: 0 | 1 | 2;
+}
+
 /** A banner hanging on a wall face: top centre, facing yaw (degrees), cloth size. */
 export interface BannerHang {
   readonly x: number;
@@ -147,6 +183,8 @@ export interface ArenaAssets {
   /** The composed place: architecture, cliffs, landmark and backdrop in world space. */
   readonly pieces?: readonly SetPiece[];
   readonly masses?: readonly Mass[];
+  /** Procedural architecture: each arena's own arcades, ruins, monuments and bones. */
+  readonly structures?: readonly Structure[];
   readonly banners?: readonly BannerHang[];
   readonly lava?: readonly LavaChannel[];
   /** Still water (x, z, radius). */
@@ -165,7 +203,8 @@ export interface ArenaAssets {
   readonly mist?: readonly SmokeCard[];
 }
 
-export const ARENA_ASSETS: Readonly<Record<ArenaId, ArenaAssets>> = {
+/** As authored (see ARENA_SCALE). */
+const AUTHORED_ASSETS: Readonly<Record<ArenaId, ArenaAssets>> = {
   cinder_court: CINDER_COURT_ASSETS,
   ash_gate: ASH_GATE_ASSETS,
   ashen_wastes: ASHEN_WASTES_ASSETS,
@@ -175,6 +214,10 @@ export const ARENA_ASSETS: Readonly<Record<ArenaId, ArenaAssets>> = {
   widows_pass: WIDOWS_PASS_ASSETS,
   drowned_cloister: DROWNED_CLOISTER_ASSETS,
 };
+
+export const ARENA_ASSETS: Readonly<Record<ArenaId, ArenaAssets>> = Object.fromEntries(
+  ARENA_IDS.map((id) => [id, scaleArenaAssets(AUTHORED_ASSETS[id], ARENA_SCALE[id])]),
+) as Record<ArenaId, ArenaAssets>;
 
 /** Everything an arena needs loaded before it is built. */
 export function arenaAssetRequest(id: ArenaId): AssetRequest {

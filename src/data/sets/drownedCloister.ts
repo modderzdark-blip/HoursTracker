@@ -25,6 +25,36 @@ const tower = (x: number, z: number, scale: number, tall: number, y = 0, roll = 
 });
 
 export const DROWNED_CLOISTER_ASSETS: ArenaAssets = {
+  // The abbey church behind the north range (its nave wall, windows empty) and the chapter
+  // house wall to the east.
+  structures: [
+    {
+      kind: 'ruinWall',
+      x: 0,
+      z: -31,
+      length: 26,
+      count: 6,
+      height: 13,
+      ruined: 0.35,
+      surface: 'wall',
+      seed: 71,
+      solid: false,
+    },
+    {
+      kind: 'ruinWall',
+      x: 31,
+      z: -6,
+      yaw: 90,
+      length: 20,
+      count: 5,
+      height: 10,
+      ruined: 0.45,
+      surface: 'wall',
+      seed: 72,
+      solid: false,
+      tier: 1,
+    },
+  ],
   floor: { id: 'mossy_cobblestone', size: 2.2 },
   floorPatch: { id: 'forest_ground_04', size: 2.4 },
   wall: { id: 'castle_wall_varriation', size: 2, tint: 0xa8b4a8 },

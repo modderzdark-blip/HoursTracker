@@ -33,6 +33,35 @@ const quiver = (x: number, z: number, scale: number, yaw: number): SetPiece => (
 });
 
 export const ASHEN_WASTES_ASSETS: ArenaAssets = {
+  // The bones of a fallen colossus on the eastern bank, its ribs arching over the fire; a ring
+  // of standing stones with an altar beyond it and a lone obelisk to the south-east.
+  structures: [
+    {
+      kind: 'ribs',
+      x: 35,
+      z: -4,
+      yaw: 95,
+      length: 28,
+      count: 8,
+      height: 12,
+      ruined: 0.25,
+      seed: 21,
+      solid: false,
+    },
+    {
+      kind: 'stones',
+      x: 42,
+      z: -30,
+      length: 6.5,
+      count: 10,
+      height: 5,
+      ruined: 0.3,
+      altar: true,
+      seed: 22,
+      solid: false,
+    },
+    { kind: 'obelisk', x: 33, z: 17, height: 10, seed: 23, solid: false, tier: 1 },
+  ],
   // Scorched clay: cracked mud plates burnt red, red stony mud gathering toward the edge.
   floor: { id: 'mud_cracked_dry_03', size: 2.2, tint: 0x8a6656 },
   floorPatch: { id: 'red_mud_stones', size: 1.5 },

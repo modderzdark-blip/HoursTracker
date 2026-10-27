@@ -1,3 +1,5 @@
+import { scaleArenaDef } from './arenaScale';
+
 /**
  * Arena layouts. Each entry produces both a visual and a static collider, so an arena is
  * changed (or a new one added) purely by editing this data.
@@ -679,7 +681,8 @@ const DROWNED_CLOISTER: ArenaDef = {
   },
 };
 
-export const ARENAS = {
+/** Arenas as authored; ARENAS builds them at ARENA_SCALE. */
+const AUTHORED = {
   cinder_court: CINDER_COURT,
   ash_gate: ASH_GATE,
   ashen_wastes: ASHEN_WASTES,
@@ -690,9 +693,28 @@ export const ARENAS = {
   drowned_cloister: DROWNED_CLOISTER,
 } as const satisfies Record<string, ArenaDef>;
 
-export type ArenaId = keyof typeof ARENAS;
+export type ArenaId = keyof typeof AUTHORED;
 
-export const ARENA_IDS = Object.keys(ARENAS) as ArenaId[];
+export const ARENA_IDS = Object.keys(AUTHORED) as ArenaId[];
+
+/**
+ * How much bigger each arena is built than authored (positions, outline, architecture; see
+ * arenaScale.ts). Room to move, kite and fight a crowd; the cave stays the tightest.
+ */
+export const ARENA_SCALE: Readonly<Record<ArenaId, number>> = {
+  cinder_court: 1.3,
+  ash_gate: 1.3,
+  ashen_wastes: 1.25,
+  bound_spire: 1.3,
+  hollow_deep: 1.3,
+  gravewood: 1.3,
+  widows_pass: 1.3,
+  drowned_cloister: 1.3,
+};
+
+export const ARENAS: Readonly<Record<ArenaId, ArenaDef>> = Object.fromEntries(
+  ARENA_IDS.map((id) => [id, scaleArenaDef(AUTHORED[id], ARENA_SCALE[id])]),
+) as Record<ArenaId, ArenaDef>;
 
 /** One edge of an arena's outline with its outward normal. */
 export interface OutlineEdge {

@@ -26,6 +26,38 @@ const tower = (x: number, z: number, scale: number, tall: number, y = 0): SetPie
 });
 
 export const CINDER_COURT_ASSETS: ArenaAssets = {
+  // Beyond the walls: the cathedral ruin to the north-west, twin obelisks before the keep and
+  // an aqueduct striding away east.
+  structures: [
+    {
+      kind: 'ruinWall',
+      x: -31,
+      z: -31,
+      yaw: 45,
+      length: 22,
+      count: 6,
+      height: 12,
+      ruined: 0.35,
+      surface: 'wall',
+      seed: 3,
+      solid: false,
+    },
+    { kind: 'obelisk', x: -15, z: -35, height: 13, seed: 4, solid: false },
+    { kind: 'obelisk', x: 15, z: -35, height: 13, seed: 5, solid: false },
+    {
+      kind: 'arcade',
+      x: 35,
+      z: -8,
+      yaw: 90,
+      length: 32,
+      count: 6,
+      height: 7,
+      ruined: 0.3,
+      seed: 6,
+      solid: false,
+      tier: 1,
+    },
+  ],
   floor: { id: 'cobblestone_floor_07', size: 2 },
   floorPatch: { id: 'dry_ground_rocks', size: 4 },
   wall: { id: 'castle_wall_varriation', size: 2.5 },

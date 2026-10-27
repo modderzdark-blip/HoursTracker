@@ -17,6 +17,16 @@ function caveWall(o: Parameters<typeof arc>[1]): SetPiece[] {
 }
 
 export const HOLLOW_DEEP_ASSETS: ArenaAssets = {
+  // Stalagmite fields crowding the cavern's edges (tall to the north, low under the camera).
+  structures: [
+    { kind: 'stalagmites', x: 14, z: -18, length: 3.5, count: 7, height: 6.5, seed: 41 },
+    { kind: 'stalagmites', x: -16, z: -16, length: 3.5, count: 8, height: 6, seed: 42 },
+    { kind: 'stalagmites', x: 21.5, z: 1, length: 2.5, count: 5, height: 5, seed: 43 },
+    { kind: 'stalagmites', x: -21.5, z: 3, length: 2.5, count: 5, height: 5, seed: 44 },
+    { kind: 'stalagmites', x: 2, z: -23, length: 3, count: 6, height: 7, seed: 45, tier: 1 },
+    { kind: 'stalagmites', x: 16, z: 16, length: 2.5, count: 5, height: 2.4, seed: 46, tier: 1 },
+    { kind: 'stalagmites', x: -16, z: 16, length: 2.5, count: 5, height: 2.4, seed: 47, tier: 1 },
+  ],
   // Wet cave rock, darker and cooler than the scan's daylight colour.
   floor: { id: 'mossy_rock', size: 3, tint: 0x6f7c74 },
   floorPatch: { id: 'brown_mud_rocks_01', size: 1.3, tint: 0x8a8278 },
