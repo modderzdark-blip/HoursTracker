@@ -911,16 +911,20 @@
   color: #d8cfc0;
 }
 
+/* Top-left, clear of the +N in the top-right corner (beside the new-item dot when there is one). */
 .item-better {
   position: absolute;
-  top: 2px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 3px;
+  left: 4px;
   font-size: 12px;
   line-height: 1;
   font-weight: 900;
   color: #6dff8a;
   text-shadow: 0 0 6px rgba(80, 255, 120, 0.8);
+}
+
+.item-tile:has(.item-new) .item-better {
+  left: 16px;
 }
 
 .gear-foot {
@@ -1066,6 +1070,13 @@
   }
   .gear-core {
     width: 112px;
+  }
+  .gear-auto {
+    padding: 0 4px;
+    font-size: 13px;
+  }
+  .gear-auto .icon {
+    display: none;
   }
   .gear-hero-name {
     font-size: 16px;
