@@ -47,7 +47,7 @@ export interface FrameRenderInfo {
 /**
  * Owns the WebGLRenderer, the scene and the optional post-processing chain.
  * Without bloom we render straight to the canvas (tone mapping + sRGB applied by the renderer).
- * With bloom, RenderPass → [AO] → [cinematic DoF] → UnrealBloomPass → OutputPass (tone mapping +
+ * With bloom, RenderPass → [cinematic DoF] → [AO] → UnrealBloomPass → OutputPass (tone mapping +
  * sRGB in OutputPass) → [grade], on a 4× MSAA half-float target. AO and DoF read the scene's own
  * depth texture, so they never render the scene twice.
  */
@@ -209,7 +209,7 @@ export class RenderContext {
   }
 
   /**
-   * Post-processing chain: RenderPass → [AO] → [DoF] → [bloom] → OutputPass (tone mapping +
+   * Post-processing chain: RenderPass → [DoF] → [AO] → [bloom] → OutputPass (tone mapping +
    * sRGB) → [grade]. With neither bloom nor grading the scene renders straight to the canvas.
    */
   setPost(request: PostRequest, camera: Camera): void {
@@ -260,13 +260,18 @@ export class RenderContext {
     if (depthEffects) {
       composer.addPass(new DepthTapPass(this.sceneDepth));
       const initial = composer.renderTarget2.depthTexture;
-      if (post.ao && initial !== null) {
-        this.aoPass = new AmbientOcclusionPass(this.scene, camera, this.sceneDepth, initial);
-        composer.addPass(this.aoPass);
-      }
+      // DoF must come straight after the scene render. It samples the scene's depth texture,
+      // and after AO's swap its write target would be the scene target itself, whose depth that
+      // is: a framebuffer feedback loop. ANGLE drops the draw; phone GPUs show a black screen
+      // for the whole cinematic shot (Ultra only, where AO runs). AO's own draws into the chain
+      // never sample that depth (only its internal half-res passes do), so it can follow.
       if (post.dof) {
         this.dofPass = new DepthOfFieldPass(camera, this.sceneDepth);
         composer.addPass(this.dofPass);
+      }
+      if (post.ao && initial !== null) {
+        this.aoPass = new AmbientOcclusionPass(this.scene, camera, this.sceneDepth, initial);
+        composer.addPass(this.aoPass);
       }
     }
     if (post.bloom) {

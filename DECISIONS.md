@@ -264,6 +264,17 @@ Each entry: the decision, why, and what would change it.
   as locked previews (with an ∞ mark and a banner), and the hub has an Endless tile, so chapter
   5 and beyond exist for the player before chapter 4 is beaten.
 
+## Post-processing order: depth of field before AO (0.12.3)
+
+- **The cinematic depth of field runs straight after the scene render, before GTAO.** Both
+  sample the scene's depth texture, which is attached to the composer target the scene was drawn
+  into. GTAO swaps buffers, so a DoF placed after it wrote into that same target while sampling
+  its depth: a framebuffer feedback loop. ANGLE drops the draw with GL_INVALID_OPERATION; phone
+  GPUs showed black for the whole shot, on Ultra only (the one preset with AO). GTAO's own
+  draws into the chain sample only colour, so AO is safe in second place. The 0.12.1 and 0.12.2
+  black-screen changes chased other causes; they stay because each removes a real risk
+  (oversized overlay layers, mid-fight canvas resizes, post shaders compiling mid-fight).
+
 ## Battle overlays and the Android tile budget (0.12.1)
 
 - **Battle overlays avoid blend modes, oversized layers and full-screen fades.** Android

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.12.3] — Ultra cut-scenes fixed (2026-10-28)
+
+### Fixed
+
+- **The black screen during cut-scenes on Ultra graphics:** match intro, wave kill cams,
+  ultimates and Victory.
+  - On Ultra, the cut-scene blur ran after the ambient-occlusion shadows. It then read the
+    depth image of the very picture it was drawing into, which graphics chips forbid. Phones
+    showed black for the whole shot. The blur now runs first, so that can't happen.
+  - Found from the player's report that it only happened on Ultra. Reproduced in Chrome, which
+    logged "Feedback loop formed between Framebuffer and active Texture" on every cut-scene
+    frame. After the fix there are no errors and no dark frames.
+  - Nothing looks different apart from the black frames being gone.
+
 ## [0.12.2] — The real black-screen fix (2026-10-28)
 
 ### Fixed
