@@ -16,6 +16,13 @@
     fading. Fading a full-screen layer makes the phone keep a full copy of it in memory.
   - Peak overlay memory at these moments dropped from about 123 MB to 88 MB. The 3D graphics
     are unchanged.
+- During cinematic moments the touch controls go see-through but still take touches, so a
+  thumb already on the joystick keeps working when the shot ends.
+- **Small phones:**
+  - The Gear screen's relic slots no longer overlap the gear tiles.
+  - The relic slots are now big enough to tap easily.
+  - The item window's enchant panel is now one compact line under the stats, so the Equip,
+    Upgrade and Salvage buttons stay on screen.
 
 ## [0.12.0] — Relics, enchanting and ultimates (2026-10-27)
 

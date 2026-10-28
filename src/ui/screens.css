@@ -1619,8 +1619,8 @@
 }
 
 .gear-relic {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   display: flex;
   align-items: center;
@@ -1669,10 +1669,12 @@
 }
 
 .item-enchant {
+  margin-top: 6px;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 10px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px 4px 8px;
   border-radius: 12px;
   border: 1px solid rgba(110, 200, 255, 0.35);
   background: linear-gradient(160deg, rgba(20, 34, 48, 0.85), rgba(10, 10, 14, 0.9));
@@ -1682,23 +1684,41 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
   font-size: 13px;
   font-weight: 700;
   color: #bfeeff;
 }
 
 .item-enchant-head .icon {
-  width: 20px;
-  height: 20px;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+}
+
+.item-enchant-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.15;
+  white-space: nowrap;
 }
 
 .item-enchant-note {
   font-size: 12px;
+  font-weight: 400;
   color: var(--ink-dim);
 }
 
 .btn-enchant {
-  align-self: flex-start;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 5px;
+  min-height: 44px;
+  padding: 0 8px;
+  font-size: 13px;
   background: linear-gradient(180deg, #3aa6d8, #1a5a8a);
   border-color: #8ad8ff;
 }
@@ -1710,4 +1730,22 @@
   font-weight: 800;
   color: #0c2030;
   background: #bfeeff;
+}
+
+/* Short phones: the hero column keeps name, power, two stats, the relic slots and Auto-equip. */
+@media (max-height: 380px) {
+  .gear-hero-lv,
+  .gear-relics-label {
+    display: none;
+  }
+  .gear-core {
+    gap: 3px;
+  }
+  .gear-mini-row:nth-child(n + 3) {
+    display: none;
+  }
+  .item-enchant .item-enchant-note,
+  .item-enchant-head .icon {
+    display: none;
+  }
 }

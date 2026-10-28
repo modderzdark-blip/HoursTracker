@@ -402,7 +402,6 @@ function openItem(ctx: MenuContext, item: GearItem, filter: GearSlot | null): vo
       up.append(el('span', 'upgrade-safe', 'A failed upgrade never harms the item'));
     leftCol.append(up);
   }
-  leftCol.append(enchantBlock(ctx, m, item, filter));
   const rightCol = el('div', 'item-col');
   if (!wornHere) {
     rightCol.append(
@@ -412,6 +411,8 @@ function openItem(ctx: MenuContext, item: GearItem, filter: GearSlot | null): vo
   } else {
     rightCol.append(el('div', 'pb-label', 'Hero stats'), statRows(p.stats(heroId)));
   }
+  // Under the stats (the shorter column), so the action row stays on screen on small phones.
+  rightCol.append(enchantBlock(ctx, m, item, filter));
   cols.append(leftCol, rightCol);
 
   const canPay =
@@ -511,7 +512,7 @@ function enchantBadge(level: number): HTMLElement {
   return b;
 }
 
-/** Enchanting in the item panel: level, next bonus, cost in stones and gold, chance. */
+/** Enchanting in the item panel, one compact row: level and bonus, then the enchant button. */
 function enchantBlock(
   ctx: MenuContext,
   m: View,
@@ -521,27 +522,27 @@ function enchantBlock(
   const p = ctx.profile;
   const box = el('div', 'item-enchant');
   const head = el('div', 'item-enchant-head');
-  head.append(
-    icon('stones'),
+  const text = el('div', 'item-enchant-text');
+  const stones = p.wallet.get('stones');
+  text.append(
+    el('span', '', item.ench > 0 ? `Enchant +${item.ench}` : 'Enchant'),
     el(
       'span',
-      '',
-      item.ench > 0
-        ? `Enchant +${item.ench} · all stats +${Math.round((enchantMult(item) - 1) * 100)}%`
-        : 'Not enchanted',
+      'item-enchant-note',
+      !canEnchant(item)
+        ? 'Rare or better only'
+        : item.ench > 0
+          ? `All stats +${Math.round((enchantMult(item) - 1) * 100)}%`
+          : `${stones} stone${stones === 1 ? '' : 's'}`,
     ),
   );
+  head.append(icon('stones'), text);
   box.append(head);
-  if (!canEnchant(item)) {
-    box.append(el('div', 'item-enchant-note', 'Only rare or better gear holds an enchantment.'));
-    return box;
-  }
   const cost = enchantCost(item);
   if (cost === null) {
-    box.append(el('div', 'item-enchant-note', 'Fully enchanted.'));
+    if (canEnchant(item)) box.append(el('span', 'item-enchant-note', 'Fully enchanted'));
     return box;
   }
-  const have = p.wallet.get('stones');
   const canPay = p.wallet.canAfford('stones', cost.stones) && p.wallet.canAfford('gold', cost.gold);
   const btn = m.button(
     '',
@@ -564,18 +565,11 @@ function enchantBlock(
     { disabled: !canPay, testid: 'item-enchant' },
   );
   btn.append(
-    el('span', 'btn-cost-label', `Enchant +${item.ench + 1}`),
+    el('span', 'btn-cost-label', `+${item.ench + 1}`),
     amount('stones', `${cost.stones}`),
     amount('gold', fmtInt(cost.gold)),
     el('span', 'enchant-chance', `${Math.round(cost.successRate * 100)}%`),
   );
-  box.append(
-    btn,
-    el(
-      'div',
-      'item-enchant-note',
-      `You have ${have} Enchant Stone${have === 1 ? '' : 's'} · Shop › Enchant`,
-    ),
-  );
+  box.append(btn);
   return box;
 }
