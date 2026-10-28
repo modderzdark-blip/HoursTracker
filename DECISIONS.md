@@ -264,6 +264,16 @@ Each entry: the decision, why, and what would change it.
   as locked previews (with an ∞ mark and a banner), and the hub has an Endless tile, so chapter
   5 and beyond exist for the player before chapter 4 is beaten.
 
+## Battle overlays and the Android tile budget (0.12.1)
+
+- **Battle overlays avoid blend modes, oversized layers and full-screen fades.** Android
+  WebView has a fixed GPU memory budget for page layers ("tile memory limits exceeded" in the
+  emulator log). Every DOM element over the WebGL canvas already needs its own layer, so one
+  extra full-screen layer costs about 10 MB on a phone. Layers that do not fit are painted
+  black. The rule: screen-sized at most, switched off (display: none) after playing, and
+  hidden with visibility rather than opacity when the element covers the whole screen. Layer
+  memory is measured with the Chrome DevTools LayerTree.
+
 ## Relics, enchanting and ultimates (0.12.0)
 
 - **Relic effects reuse the hero-modifier pipeline:** they fold into the skill-tree HeroMods

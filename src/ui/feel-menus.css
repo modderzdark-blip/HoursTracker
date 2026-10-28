@@ -24,7 +24,7 @@
     rgba(255, 250, 230, 0.9) 50%,
     transparent 65%
   );
-  mix-blend-mode: overlay;
+  opacity: 0.55;
   transform: translateX(-90%);
   animation: shine-sweep 1.6s ease-in-out 0.3s 1 forwards;
 }

@@ -44,6 +44,7 @@ export class BattleCallouts {
   private readonly cutHero: HTMLElement;
   private readonly cutUlt: HTMLElement;
   private cutTimer = 0;
+  private burstTimer = 0;
   private lowOn = false;
   private beatMs = 0;
   private chapterTimer = 0;
@@ -220,6 +221,12 @@ export class BattleCallouts {
   ultBurst(color: string): void {
     this.burst.style.setProperty('--burst', color);
     this.restart(this.burst, 'is-on');
+    // Off (display: none) once played, so no idle full-screen layer stays over the game.
+    window.clearTimeout(this.burstTimer);
+    this.burstTimer = window.setTimeout(() => {
+      this.burst.classList.remove('is-on');
+      this.burst.classList.add('is-off');
+    }, 750);
   }
 
   /** Ultimate cut-in: bars close in, the hero's band sweeps across with their name and the move. */
@@ -259,6 +266,7 @@ export class BattleCallouts {
     window.clearTimeout(this.killTimer);
     window.clearTimeout(this.titleTimer);
     window.clearTimeout(this.cutTimer);
+    window.clearTimeout(this.burstTimer);
     this.hideChapter();
     this.chapter.classList.remove('is-fading');
     for (const n of [this.bossCard, this.chapter, this.kill, this.title, this.burst, this.cutIn]) {

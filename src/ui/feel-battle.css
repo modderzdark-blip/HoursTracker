@@ -63,19 +63,25 @@
 }
 
 /* While a cinematic plays the HUD and touch controls step aside. */
-#ui-root:has(.bfx.is-cinematic) .touch-layer,
 #ui-root:has(.bfx.is-cinematic) .bhud-player,
 #ui-root:has(.bfx.is-cinematic) .bhud-top,
 #ui-root:has(.bfx.is-cinematic) .bhud-combo,
 #ui-root:has(.bfx.is-cinematic) .bhud-banner,
 #ui-root:has(.bfx.is-cinematic) .hud-pause,
-#ui-root:has(.bfx.is-cinematic) .dmg-layer,
 .bfx.is-cinematic .bfx-kill {
   opacity: 0;
   transition: opacity 0.3s ease;
 }
 
-.touch-layer,
+/*
+ * The touch layer and damage numbers cover the whole screen: they are hidden with visibility
+ * (no fade), because fading a full-screen element makes it a full-screen GPU layer.
+ */
+#ui-root:has(.bfx.is-cinematic) .touch-layer,
+#ui-root:has(.bfx.is-cinematic) .dmg-layer {
+  visibility: hidden;
+}
+
 .bhud-player,
 .bhud-top,
 .hud-pause {
@@ -451,7 +457,7 @@
     rgba(255, 246, 220, 0.85) 48%,
     transparent 66%
   );
-  mix-blend-mode: overlay;
+  opacity: 0.55;
   transform: translateX(-80%);
   animation: shine-sweep 1.4s ease-in-out 0.45s 2;
 }
@@ -535,24 +541,22 @@
   }
 }
 
-/* ---- ultimate burst */
+/*
+ * ---- ultimate burst
+ * Screen-sized (not a huge square) and without a blend mode: on Android WebView, oversized
+ * layers exceed the GPU tile budget and blend modes over the WebGL canvas can paint black.
+ */
 .bfx-burst {
   --burst: #ff7a2a;
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 140vmax;
-  height: 140vmax;
-  margin: -70vmax 0 0 -70vmax;
-  border-radius: 50%;
+  inset: 0;
   background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--burst) 70%, #fff) 0%,
-    color-mix(in srgb, var(--burst) 45%, transparent) 30%,
-    transparent 62%
+    circle at 50% 50%,
+    color-mix(in srgb, var(--burst) 55%, #fff) 0%,
+    color-mix(in srgb, var(--burst) 35%, transparent) 22%,
+    transparent 48%
   );
   opacity: 0;
-  mix-blend-mode: screen;
 }
 
 .bfx-burst.is-on {
@@ -561,12 +565,12 @@
 
 @keyframes ult-burst {
   0% {
-    opacity: 0.85;
-    transform: scale(0.1);
+    opacity: 0.7;
+    transform: scale(0.15);
   }
   100% {
     opacity: 0;
-    transform: scale(1);
+    transform: scale(1.6);
   }
 }
 
@@ -766,10 +770,9 @@
   background: repeating-linear-gradient(
     90deg,
     rgba(255, 255, 255, 0) 0 34px,
-    rgba(255, 255, 255, 0.35) 34px 36px,
+    rgba(255, 255, 255, 0.22) 34px 36px,
     rgba(255, 255, 255, 0) 36px 90px
   );
-  mix-blend-mode: overlay;
 }
 
 .bfx-cutin-text {

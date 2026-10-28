@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.12.1] — Black screen fix (2026-10-28)
+
+### Fixed
+
+- **The screen no longer turns black behind the text** at the start of a wave, at Victory and
+  during an ultimate on Android phones. These moments created more screen layers than the
+  phone's graphics memory allows, and Android paints the layers it cannot fit as black:
+  - The ultimate's glow was a huge layer (45 MB on a typical phone), and it stayed on screen,
+    invisible, for the rest of the fight. It is now screen-sized and switches off once it has
+    played.
+  - The ultimate glow, the cut-in's moving lines and the shine on VICTORY no longer use blend
+    modes, which Android WebView cannot mix with the game picture.
+  - During cinematic moments, the touch controls and damage numbers hide instantly instead of
+    fading. Fading a full-screen layer makes the phone keep a full copy of it in memory.
+  - Peak overlay memory at these moments dropped from about 123 MB to 88 MB. The 3D graphics
+    are unchanged.
+
 ## [0.12.0] — Relics, enchanting and ultimates (2026-10-27)
 
 ### Added
