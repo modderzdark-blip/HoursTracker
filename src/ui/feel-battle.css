@@ -74,10 +74,15 @@
 }
 
 /*
- * The touch layer and damage numbers cover the whole screen: they are hidden with visibility
- * (no fade), because fading a full-screen element makes it a full-screen GPU layer.
+ * The touch layer and damage numbers cover the whole screen, and fading a full-screen element
+ * makes it a full-screen GPU layer. So the touch controls go see-through without a fade (no
+ * layer; they still take touches, so a thumb already down keeps the joystick) and damage
+ * numbers hide.
  */
-#ui-root:has(.bfx.is-cinematic) .touch-layer,
+#ui-root:has(.bfx.is-cinematic) .touch-layer > * {
+  opacity: 0;
+}
+
 #ui-root:has(.bfx.is-cinematic) .dmg-layer {
   visibility: hidden;
 }
