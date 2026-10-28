@@ -253,6 +253,8 @@ export class App {
   private saveTimer = 0;
   private resizePending = false;
   private readonly dynRes = new DynamicResolution();
+  /** Battle resolution scale currently on the canvas (changed only behind the loading veil). */
+  private dynApplied = 1;
   private appliedRenderScale = 1;
   private fpsRefreshMs = 0;
   private running = false;
@@ -280,8 +282,6 @@ export class App {
       gpu: this.device.gpuRenderer,
     };
     const guessed = guessInitialQuality(hints);
-    // A level detected on an older build is measured again (arenas and effects change).
-    if (settings.detectedFor !== BUILD.version) settings.detectedQuality = null;
     const startLevel: QualityLevel =
       settings.quality === 'auto' ? (settings.detectedQuality ?? guessed) : settings.quality;
     this.ctx = new RenderContext(opts.canvas, QUALITY_PRESETS[startLevel].antialias);
@@ -452,7 +452,7 @@ export class App {
         render: (alpha, dt) => this.renderFrame(alpha, dt),
         frameEnd: (interval, steps) => {
           this.stats.push(interval, steps);
-          this.dynamicResolution(interval);
+          this.measureBattleFrame(interval);
           this.refreshFpsCounter(interval);
           if (this.battle !== null) this.quality.onFrame(interval);
           this.overlay.refresh();
@@ -635,12 +635,16 @@ export class App {
       setup,
     );
     this.battle = battle;
-    this.resetDynamicResolution();
+    this.applyBattleScale();
     this.music.play(setup.duel !== undefined || setup.stage.waves.length === 0 ? 'boss' : 'battle');
     this.quality.addTarget(battle);
     battle.render(1, 0, 1);
     // Compile all shaders (incl. hidden pooled effects) before the first frame of the fight.
     battle.warmShaders(this.camera.camera);
+    // Draw one full frame (every post pass, the cinematic blur too) while the loading veil
+    // still covers the screen: post shaders compile on first use, which on a phone can take a
+    // second, and the canvas must not be blank when the veil fades.
+    this.ctx.renderWarm(this.camera.camera);
     this.touch.setVisible(true);
     this.hud.setPauseVisible(true);
     this.setGameplayInput(true);
@@ -657,7 +661,7 @@ export class App {
     this.quality.removeTarget(b);
     b.dispose();
     this.battle = null;
-    this.resetDynamicResolution();
+    this.dynRes.settle(dynamicResTargetMs(this.opts.save.settings.fpsCap));
     this.battlePhysics?.dispose();
     this.battlePhysics = null;
     this.touch.setVisible(false);
@@ -853,23 +857,23 @@ export class App {
   private renderScale(): number {
     const v = Number(new URLSearchParams(window.location.search).get('renderScale'));
     const base = v >= 0.25 && v <= 1 ? v : this.opts.save.settings.renderScale;
-    return base * this.dynRes.scale;
+    return base * this.dynApplied;
   }
 
   /**
-   * In battle, resolution follows the frame rate (see DynamicResolution); menus and the hub
-   * always render at full resolution. Paused while the quality benchmark measures the device.
+   * Battle frames are measured (not acted on) so the next battle's resolution can be picked
+   * (see DynamicResolution). Not while the quality benchmark is measuring the device.
    */
-  private dynamicResolution(intervalMs: number): void {
-    if (this.battle === null || this.quality.benchmarkRunning || this.loop.isPaused) return;
-    const next = this.dynRes.frame(intervalMs, dynamicResTargetMs(this.opts.save.settings.fpsCap));
-    if (next !== null) this.resize();
+  private measureBattleFrame(intervalMs: number): void {
+    if (this.battle === null || this.loop.isPaused) return;
+    if (this.quality.benchmarkRunning) this.dynRes.discard();
+    else this.dynRes.frame(intervalMs);
   }
 
-  /** Back to full resolution (battle start and end). */
-  private resetDynamicResolution(): void {
-    if (this.dynRes.scale === 1) return;
-    this.dynRes.reset();
+  /** Applies the learned battle resolution; called while the loading veil covers the screen. */
+  private applyBattleScale(): void {
+    if (this.dynRes.scale === this.dynApplied) return;
+    this.dynApplied = this.dynRes.scale;
     this.resize();
   }
 

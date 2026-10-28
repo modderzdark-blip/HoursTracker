@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.12.2] — The real black-screen fix (2026-10-28)
+
+### Fixed
+
+- **No more one-second black screen** at match start, new waves, ultimates and Victory. 0.12.1
+  did not fix it, because the cause was not the screen effects. These were the real causes:
+  - **Dynamic resolution resized the 3D picture in the middle of a fight**, and those were
+    always the heaviest moments. On Android a resize clears the picture to black, and the next
+    frame (rebuilding the graphics buffers) can take a second.
+    - Resolution now changes only between fights: the game measures how a fight ran and
+      adjusts the next one while the loading screen is up.
+  - **The quality auto-detect ran again after every update.** It changes graphics settings
+    during a fight, which causes the same black.
+    - It is back to running once, on first install.
+  - **The first frame of a fight was drawn after the loading screen lifted.** The screen
+    effects (bloom, colour grading, the cinematic blur) were set up only then, and the blur
+    first appeared at the first cut-scene.
+    - All of them are now prepared and drawn while the loading screen still covers the screen.
+- The 3D graphics quality is unchanged.
+
 ## [0.12.1] — Black screen fix (2026-10-28)
 
 ### Fixed

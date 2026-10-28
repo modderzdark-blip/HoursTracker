@@ -1,63 +1,61 @@
 /**
- * Dynamic resolution for battles: watches real frame times and scales the render resolution
- * between `min` and 1 so the frame rate holds its target. It drops quickly when frames run long
- * and climbs back slowly when there is headroom, so the image is only ever as soft as the device
- * needs and never flickers between sizes.
+ * Adaptive battle resolution, decided between fights. During a battle it only measures real
+ * frame times; when the battle ends it picks the resolution for the next one, which is applied
+ * behind the loading veil. The canvas is never resized mid-fight: on Android a resize clears the
+ * picture, and the next frame (new render targets) can take a second, so the screen went black
+ * at the heaviest moments (wave starts, ultimates, victory).
  */
 export const DYNAMIC_RES_CONFIG = {
-  /** Frames are averaged over windows this long (ms of real time). */
-  windowMs: 700,
   /** Lowest scale (of the quality preset's resolution). */
   min: 0.62,
-  stepDown: 0.08,
-  stepUp: 0.04,
-  /** Average frame time above target × this → step down. */
+  /** Largest single step down, and the step back up. */
+  maxStepDown: 0.15,
+  stepUp: 0.05,
+  /** Average frame time above target × this → lower the next battle's resolution. */
   downAbove: 1.15,
-  /** Below target × this for `upWindows` windows in a row → step up. */
-  upBelow: 0.8,
-  upWindows: 3,
+  /** Below target × this → raise it a step. */
+  upBelow: 0.85,
+  /** Frames needed before a battle counts (short fights say little). */
+  minFrames: 300,
   /** Frames longer than this (loading hitches, tab switches) are ignored. */
   outlierMs: 120,
 } as const;
 
 export class DynamicResolution {
+  /** Scale for the next battle (and the current one, once applied). */
   scale = 1;
   private sum = 0;
   private count = 0;
-  private elapsed = 0;
-  private good = 0;
 
   constructor(private readonly cfg: typeof DYNAMIC_RES_CONFIG = DYNAMIC_RES_CONFIG) {}
 
-  /** Feeds one real frame interval; returns the new scale when it changed, else null. */
-  frame(intervalMs: number, targetMs: number): number | null {
-    if (!(intervalMs > 0) || intervalMs > this.cfg.outlierMs) return null;
+  /** Feeds one real battle frame interval. */
+  frame(intervalMs: number): void {
+    if (!(intervalMs > 0) || intervalMs > this.cfg.outlierMs) return;
     this.sum += intervalMs;
     this.count++;
-    this.elapsed += intervalMs;
-    if (this.elapsed < this.cfg.windowMs) return null;
-    const avg = this.sum / this.count;
-    this.sum = this.count = this.elapsed = 0;
-    const before = this.scale;
-    if (avg > targetMs * this.cfg.downAbove) {
-      this.good = 0;
-      this.scale = Math.max(this.cfg.min, this.scale - this.cfg.stepDown);
-    } else if (avg < targetMs * this.cfg.upBelow) {
-      this.good++;
-      if (this.good >= this.cfg.upWindows) {
-        this.good = 0;
-        this.scale = Math.min(1, this.scale + this.cfg.stepUp);
-      }
-    } else {
-      this.good = 0;
-    }
-    this.scale = Math.round(this.scale * 100) / 100;
-    return this.scale !== before ? this.scale : null;
   }
 
-  reset(): void {
-    this.scale = 1;
-    this.sum = this.count = this.elapsed = this.good = 0;
+  /** The battle ended: returns the scale for the next battle (unchanged if it ran fine). */
+  settle(targetMs: number): number {
+    const n = this.count;
+    const avg = n > 0 ? this.sum / n : 0;
+    this.sum = this.count = 0;
+    if (n < this.cfg.minFrames) return this.scale;
+    if (avg > targetMs * this.cfg.downAbove) {
+      // Pixel cost goes with the square of the scale; step by the square root of the overshoot.
+      const factor = Math.max(1 - this.cfg.maxStepDown, Math.sqrt(targetMs / avg));
+      this.scale = Math.max(this.cfg.min, this.scale * Math.min(0.97, factor));
+    } else if (avg < targetMs * this.cfg.upBelow) {
+      this.scale = Math.min(1, this.scale + this.cfg.stepUp);
+    }
+    this.scale = Math.round(this.scale * 100) / 100;
+    return this.scale;
+  }
+
+  /** Discards the frames measured so far (a battle left before it counted). */
+  discard(): void {
+    this.sum = this.count = 0;
   }
 }
 

@@ -144,6 +144,18 @@ export class RenderContext {
     this.dofPass?.setFocus(distance, dtSec);
   }
 
+  /**
+   * Renders one frame with every post pass on (the cinematic depth of field at zero strength
+   * too), so all post shaders compile now rather than at the first cinematic shot.
+   */
+  renderWarm(camera: Camera): void {
+    const dof = this.dofPass;
+    const was = dof?.enabled ?? false;
+    if (dof !== null) dof.enabled = true;
+    this.render(camera);
+    if (dof !== null) dof.enabled = was;
+  }
+
   get currentPixelRatio(): number {
     return this.pixelRatio;
   }

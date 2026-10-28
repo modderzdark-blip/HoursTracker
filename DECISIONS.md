@@ -291,9 +291,13 @@ Each entry: the decision, why, and what would change it.
 - **The ultimate cut-in is DOM and CSS, not 3D:** a few elements animated with transform and
   opacity cost almost nothing on the GPU, which matters in battle on phones. It has its own bars
   rather than the shared letterbox, so it can never leave the boss-intro bars stuck on.
-- **Dynamic resolution, not lower presets:** frame time is averaged over 0.7 s windows. The
-  resolution drops quickly and recovers slowly, so the image only softens as much as the
-  device needs and never pumps back and forth.
+- **Dynamic resolution, decided between fights (0.12.2):** 0.12.0 resized the canvas
+  mid-fight. The resizes landed exactly on the heaviest moments, and on Android each one cleared
+  the picture and stalled for about a second while buffers were rebuilt: a black screen at wave
+  starts, ultimates and Victory. Now the battle's frame times are only measured. When the fight
+  ends, the next battle's scale is picked (down by at most 15% per battle, back up 5% after a
+  smooth one), and it is applied behind the loading veil. The quality auto-detect no longer
+  re-runs after updates, for the same reason: it switches presets mid-fight.
 
 ## Pets, Shop and the menu restyle (0.11.0)
 

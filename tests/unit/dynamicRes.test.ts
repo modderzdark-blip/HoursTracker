@@ -5,51 +5,55 @@ import {
   dynamicResTargetMs,
 } from '../../src/render/DynamicResolution';
 
-/** Feeds `ms` frames for about `windows` averaging windows; returns the changes seen. */
-function run(d: DynamicResolution, ms: number, windows: number, targetMs = 16.7): number[] {
-  const out: number[] = [];
-  const frames = Math.ceil((DYNAMIC_RES_CONFIG.windowMs * windows) / ms);
-  for (let i = 0; i < frames; i++) {
-    const r = d.frame(ms, targetMs);
-    if (r !== null) out.push(r);
-  }
-  return out;
+const TARGET = 1000 / 60;
+
+/** Plays one battle of `frames` frames at `ms` each and returns the next battle's scale. */
+function battle(d: DynamicResolution, ms: number, frames = 1200): number {
+  for (let i = 0; i < frames; i++) d.frame(ms);
+  return d.settle(TARGET);
 }
 
-describe('dynamic resolution', () => {
-  it('holds full resolution while the target is met', () => {
+describe('dynamic resolution (between battles)', () => {
+  it('keeps full resolution while the target is met', () => {
     const d = new DynamicResolution();
-    expect(run(d, 16.7, 10)).toEqual([]);
-    expect(d.scale).toBe(1);
+    expect(battle(d, 16.7)).toBe(1);
+    expect(battle(d, 15)).toBe(1);
   });
 
-  it('drops step by step when frames run long, never below the floor', () => {
+  it('only changes when a battle ends, never during one', () => {
     const d = new DynamicResolution();
-    const changes = run(d, 40, 20);
-    expect(changes[0]).toBeCloseTo(1 - DYNAMIC_RES_CONFIG.stepDown, 5);
+    for (let i = 0; i < 5000; i++) d.frame(40);
+    // Nothing applied mid-fight: the scale moves only at settle().
+    expect(d.scale).toBe(1);
+    expect(d.settle(TARGET)).toBeLessThan(1);
+  });
+
+  it('lowers it for slow battles, by a bounded step, never below the floor', () => {
+    const d = new DynamicResolution();
+    const first = battle(d, 30);
+    expect(first).toBeLessThan(1);
+    expect(first).toBeGreaterThanOrEqual(1 - DYNAMIC_RES_CONFIG.maxStepDown - 1e-9);
+    for (let i = 0; i < 20; i++) battle(d, 60);
     expect(d.scale).toBe(DYNAMIC_RES_CONFIG.min);
   });
 
-  it('climbs back slowly once there is headroom', () => {
+  it('climbs back a step per smooth battle', () => {
     const d = new DynamicResolution();
-    run(d, 40, 4);
-    expect(d.scale).toBeLessThan(1);
-    const ups = run(d, 10, 200);
-    expect(ups.length).toBeGreaterThan(1);
-    // Never more than one small step at a time, and it ends back at full resolution.
-    for (let i = 1; i < ups.length; i++)
-      expect((ups[i] ?? 0) - (ups[i - 1] ?? 0)).toBeLessThanOrEqual(
-        DYNAMIC_RES_CONFIG.stepUp + 1e-9,
-      );
+    battle(d, 30);
+    const low = d.scale;
+    const next = battle(d, 10);
+    expect(next).toBeCloseTo(Math.min(1, low + DYNAMIC_RES_CONFIG.stepUp), 5);
+    for (let i = 0; i < 20; i++) battle(d, 10);
     expect(d.scale).toBe(1);
   });
 
-  it('ignores hitches and resets', () => {
+  it('ignores short battles, hitches and discarded frames', () => {
     const d = new DynamicResolution();
-    expect(run(d, 500, 10)).toEqual([]);
-    run(d, 40, 5);
-    d.reset();
-    expect(d.scale).toBe(1);
+    expect(battle(d, 40, DYNAMIC_RES_CONFIG.minFrames - 1)).toBe(1);
+    expect(battle(d, 500)).toBe(1);
+    for (let i = 0; i < 2000; i++) d.frame(40);
+    d.discard();
+    expect(d.settle(TARGET)).toBe(1);
   });
 
   it('aims for 60 FPS unless capped lower', () => {
