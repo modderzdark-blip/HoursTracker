@@ -264,6 +264,17 @@ Each entry: the decision, why, and what would change it.
   as locked previews (with an ∞ mark and a banner), and the hub has an Endless tile, so chapter
   5 and beyond exist for the player before chapter 4 is beaten.
 
+## Spawns and startup (0.13.1)
+
+- **Spawn spots are settled, not hand-moved:** each one starts at its authored position, and if
+  the scaled architecture covers or crowds it, it steps outward toward its fully scaled position
+  (clear, because everything scaled together). New arenas need no extra spawn authoring, and the
+  layout tests still check every spot.
+- **Startup cost is shaders:** profiling the production build put the wait on shader linking,
+  not on JS parse or Rapier's base64 WASM (physics init is under 0.4 s even with a ×4
+  throttle). So the fix is compileAsync for the hub plus `checkShaderErrors` off in release,
+  not moving to the non-compat Rapier build.
+
 ## Abilities, finales and runes (0.13.0)
 
 - **Loadouts swap abilities, not slots of the talent tree.** Talent branches stay tied to

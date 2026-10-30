@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.13.1] — Closer fights, faster start (2026-10-30)
+
+### Fixed
+
+- **Enemies and bosses start close again.** Since the arenas grew in 0.10, waves started
+  about 23% further away. The hero, enemies and boss now start at their original spots, 5 to
+  7 m closer. A spot now covered by the bigger architecture moves out just enough to stand
+  clear.
+- **Faster startup.** Timing showed the wait is the graphics driver building shaders, mostly
+  the hero's material, not the engine download or the physics.
+  - The menu's shaders now build in parallel in the background, so the title stays
+    responsive.
+  - Release builds no longer stop to check each shader for errors.
+  - In testing, startup was 20 to 25% faster.
+  - The first launch after an update is still the slowest: Android keeps built shaders, so
+    later launches are quicker.
+- A `[boot]` line in the debug log shows how long physics, app setup and shaders took.
+
 ## [0.13.0] — Abilities, true ultimates, runes (2026-10-30)
 
 ### Added
