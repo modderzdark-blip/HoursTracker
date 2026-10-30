@@ -98,6 +98,8 @@ export interface TestHookState {
   ready: boolean;
   /** Strikes the active pet landed this run (0 without a pet). */
   petStrikes: number;
+  ultFinales: number;
+  ultFinaleHits: number;
   running: boolean;
   paused: boolean;
   /** 'battle' during a fight, otherwise the menu screen id ('hub', 'map', 'victory', ...). */
@@ -1094,6 +1096,8 @@ export class App {
         return {
           ready: true,
           petStrikes: m?.petStrikes ?? 0,
+          ultFinales: m?.ultFinales ?? 0,
+          ultFinaleHits: m?.ultFinaleHits ?? 0,
           running: this.running,
           paused: this.loop.isPaused,
           screen:

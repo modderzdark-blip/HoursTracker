@@ -33,7 +33,7 @@ import { ARENAS, type ArenaDef } from '../data/arenas';
 import { BOSSES, type BossId } from '../data/bosses';
 import type { StatBlock } from '../data/combatTypes';
 import { DIFFICULTIES, type DifficultyDef, type DifficultyId } from '../data/difficulty';
-import { CAMERA_CONFIG } from '../data/config';
+import { CAMERA_CONFIG, ULTIMATE_CONFIG } from '../data/config';
 import { ECONOMY } from '../data/economy';
 import type { EnemyId } from '../data/enemies';
 import type { HeroDef } from '../data/heroes';
@@ -66,6 +66,7 @@ import { ResultScreen } from '../ui/ResultScreen';
 import { BlobShadows } from '../vfx/BlobShadows';
 import { EmberField } from '../vfx/EmberField';
 import { ShadowClones } from '../vfx/ShadowClones';
+import { ultimateFinaleHit, ultimateFinaleMult } from '../combat/ultimateFinale';
 import { SoulOrbs } from '../vfx/SoulOrbs';
 import { Sparks } from '../vfx/Sparks';
 import { Fx } from '../vfx/Fx';
@@ -242,6 +243,11 @@ export class BattleMode implements QualityTarget, WaveWorld {
   private finished = false;
   private soulsThisRun = 0;
   private ultCloneTimer = 0;
+  private ultFinalePending = false;
+  /** Ultimate finales fired this run, and the targets they hit (test hook). */
+  ultFinales = 0;
+  ultFinaleHits = 0;
+  private readonly finaleHits = new Set<number>();
   private chargeSparkSec = 0;
   private duelHudShown = false;
   private introPending = false;
@@ -423,7 +429,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
       RIGS[rigId],
       cloneClips.map((c) => c.name),
       cloneClips,
-      hero.ultimate.clones,
+      Math.max(hero.ultimate.clones, ULTIMATE_CONFIG.echoes),
     );
 
     this.hud = new BattleHud(d.uiRoot, () => this.skipCountdown());
@@ -1180,8 +1186,24 @@ export class BattleMode implements QualityTarget, WaveWorld {
       case 'ultimate': {
         this.sfx.play('ult');
         this.ultCloneTimer = 0;
+        this.ultFinalePending = true;
         const p = this.player;
         const hero = this.setup.hero;
+        // Power gathers: a column of light on the hero and rings closing in.
+        const fx = this.fx;
+        const hx = p.currFeet.x;
+        const hz = p.currFeet.z;
+        fx.spawn('pillar', { x: hx, y: 0, z: hz, scale: 1.3, color: hero.color, life: 0.9 });
+        for (let i = 0; i < 3; i++)
+          fx.spawn('ring', {
+            x: hx,
+            y: 0.05,
+            z: hz,
+            scale: 6 - i * 1.6,
+            color: hero.color,
+            life: 0.5 + i * 0.12,
+          });
+        this.sparks.burst(hx, 1.2, hz, 60, hero.color, 7, 0, 0, 0.6, 1.4, -0.4);
         this.feel.ultimate(
           hero.name,
           hero.ultimate.name,
@@ -1257,11 +1279,7 @@ export class BattleMode implements QualityTarget, WaveWorld {
 
     // Ultimate shadow clones strike around targets during the active window.
     const p = this.player;
-    if (
-      p.state === 'ultimate' &&
-      p.runner.phase === 'active' &&
-      this.setup.hero.ultimate.clones > 0
-    ) {
+    if (p.state === 'ultimate' && p.runner.phase === 'active') {
       this.ultCloneTimer -= dtMs;
       if (this.ultCloneTimer <= 0) {
         this.ultCloneTimer = ULT_CLONE_INTERVAL_MS;
@@ -1269,10 +1287,73 @@ export class BattleMode implements QualityTarget, WaveWorld {
       }
     }
 
+    // The finale lands with the ultimate's last blow (not if it was cut short).
+    if (this.ultFinalePending && (p.state !== 'ultimate' || p.runner.phase === 'recovery')) {
+      this.ultFinalePending = false;
+      if (p.state === 'ultimate') this.ultimateFinale();
+    }
+
     if (this.resultTimerMs > 0) {
       this.resultTimerMs -= dtMs;
       if (this.resultTimerMs <= 0) this.showResult();
     }
+  }
+
+  /**
+   * The ultimate's finale: a blast around the hero (damage scaled like the ultimate itself), a
+   * ring of light columns, a nova, ground cracks, three shadow echoes striking outward, a flash,
+   * heavy shake and a beat of slow motion.
+   */
+  private ultimateFinale(): void {
+    const p = this.player;
+    const hero = this.setup.hero;
+    const f = ULTIMATE_CONFIG.finale;
+    const color = hero.color;
+    this.finaleHits.clear();
+    this.ultFinales++;
+    const hit = this.combat.strike(p, ultimateFinaleHit(), {
+      damageMult: ultimateFinaleMult(this.setup.mods.ultDamage),
+      difficultyMod: 1,
+      hitSet: this.finaleHits,
+    });
+    this.ultFinaleHits += hit.hits;
+    const x = p.currFeet.x;
+    const z = p.currFeet.z;
+    const fx = this.fx;
+    fx.spawn('nova', { x, y: 1, z, scale: f.radius * 0.7, color, life: 0.9 });
+    fx.spawn('ring', { x, y: 0.05, z, scale: f.radius * 1.25, color, life: 0.8 });
+    fx.spawn('ring', { x, y: 0.05, z, scale: f.radius * 0.8, color: 0xffffff, life: 0.55 });
+    fx.spawn('cracks', {
+      x,
+      y: 0,
+      z,
+      yaw: this.rng() * Math.PI * 2,
+      scale: f.radius,
+      color,
+      life: 2.2,
+    });
+    fx.spawn('flash', { x, y: 1.4, z, scale: f.radius * 0.35, color, life: 0.3 });
+    for (let i = 0; i < f.pillars; i++) {
+      const a = (i / f.pillars) * Math.PI * 2;
+      const px = x + Math.cos(a) * f.radius * 0.6;
+      const pz = z + Math.sin(a) * f.radius * 0.6;
+      fx.spawn('pillar', { x: px, y: 0, z: pz, scale: 1.1, color, life: 0.9 });
+    }
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + this.rng();
+      this.clones.spawn(
+        x + Math.cos(a) * 1.8,
+        z + Math.sin(a) * 1.8,
+        Math.atan2(Math.cos(a), Math.sin(a)),
+      );
+    }
+    fx.smokeBurst(x, 0.5, z, 30, f.radius * 0.5, 0.2);
+    this.sparks.burst(x, 1, z, 140, color, 13, 0, 0, 0.8, 1.6, 0.4);
+    this.fxLights.flash(x, 1.6, z, color, 3, 0.8);
+    this.fxd.screen(0.42, color, 0.016);
+    this.d.bus.emit('camera:shake', { trauma: 1 });
+    this.d.bus.emit('time:slowMotion', { scale: f.slowScale, ms: f.slowMs });
+    this.sfx.play('slam');
   }
 
   private spawnClone(): void {

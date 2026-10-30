@@ -172,4 +172,16 @@ export const ULTIMATE_CONFIG = {
   castShake: 0.45,
   /** How long the cut-in (bars + band) stays up, ms. */
   cutInMs: 1250,
+  /** Shadow copies of the hero that strike around them (heroes whose data asks for fewer). */
+  echoes: 3,
+  /** The finale: a blast around the hero the moment the ultimate's last blow lands. */
+  finale: {
+    radius: 9,
+    /** Skill multiplier (scaled by the ultimate's own bonuses and `power`). */
+    damage: 2.4,
+    slowScale: 0.25,
+    slowMs: 650,
+    /** Columns of light ringed around the hero. */
+    pillars: 8,
+  },
 } as const;

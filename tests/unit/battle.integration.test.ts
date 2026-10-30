@@ -19,6 +19,7 @@ import { DuelistBrain } from '../../src/ai/DuelistBrain';
 import { INPUT_SOURCE } from '../../src/input/actions';
 import { InputState } from '../../src/input/InputState';
 import { separateCrowd } from '../../src/modes/crowd';
+import { ultimateFinaleHit, ultimateFinaleMult } from '../../src/combat/ultimateFinale';
 import { loadRapier, PhysicsWorld, type Rapier } from '../../src/physics/PhysicsWorld';
 import type { TelegraphPort } from '../../src/vfx/telegraphPort';
 
@@ -348,6 +349,28 @@ describe('player combat (integration)', () => {
     });
     expect(exposed).toBe(0);
     expect(w.player.state).not.toBe('ultimate');
+  });
+});
+
+describe('ultimate finale (integration)', () => {
+  it('launches everything inside its radius, nothing beyond, scaled by the ultimate bonus', () => {
+    const w = makeWorld();
+    const near = w.addDummy(0, -4);
+    const mid = w.addDummy(6, -5);
+    const far = w.addDummy(0, -12);
+    w.step(2);
+    const hp = (d: { health: { current: number } }): number => d.health.current;
+    const before = [hp(near), hp(mid), hp(far)];
+    const r = w.combat.strike(w.player, ultimateFinaleHit(), {
+      damageMult: ultimateFinaleMult(1),
+      difficultyMod: 1,
+      hitSet: new Set(),
+    });
+    expect(r.hits).toBe(2);
+    expect(hp(near)).toBeLessThan(before[0] ?? 0);
+    expect(hp(mid)).toBeLessThan(before[1] ?? 0);
+    expect(hp(far)).toBe(before[2]);
+    expect(ultimateFinaleMult(1.5)).toBeGreaterThan(ultimateFinaleMult(1));
   });
 });
 
