@@ -3,7 +3,7 @@
 Mobile dark-fantasy hack-and-slash action RPG — Three.js + TypeScript + Rapier, no engine.
 Playable in Chrome on Android (GitHub Pages) and as a sideloadable Capacitor APK.
 
-> Status: **0.13.1 — abilities, true ultimates, runes** (six abilities per hero with a loadout
+> Status: **0.13.2 — abilities, true ultimates, runes** (six abilities per hero with a loadout
 > for buttons I / II / III and icons, ultimate finales and shadow armies, enchant runes and a
 > ritual), on top of 0.12 (ten relics in two slots, Enchant Stones to enchant gear up to +10,
 > cinematic ultimates, smoother battles), on top of 0.11.0 (pets that fight beside you, a Shop for in-game

@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.13.2] — Lighter Ultra, same picture (2026-10-30)
+
+### Changed
+
+- **Ultra and High do less graphics work per frame, with the same look.** Measuring showed
+  the boss arenas are not heavier than the others in objects or game logic (the game's own
+  code is about 3% busy). The cost is the graphics chip running Ultra's full-screen effects at
+  high resolution, and on phones that is mostly memory traffic. So:
+  - Tone mapping and colour grading are one pass instead of two, with the same maths.
+  - Ambient occlusion darkens the picture in place instead of copying the whole frame first.
+  - The Ultra shadow map is 3072 instead of 4096, a quarter of its memory traffic less. Its
+    softness is scaled to match, so shadows look the same, and still sharper than High.
+  - Before and after screenshots at Ultra match: the menu scene differs by 0.05 out of 255,
+    which is just film grain.
+
 ## [0.13.1] — Closer fights, faster start (2026-10-30)
 
 ### Fixed

@@ -264,6 +264,16 @@ Each entry: the decision, why, and what would change it.
   as locked previews (with an ∞ mark and a banner), and the hub has an Endless tile, so chapter
   5 and beyond exist for the player before chapter 4 is beaten.
 
+## Fewer full-screen passes, same image (0.13.2)
+
+- **On phones, post-processing cost is bandwidth:** each full-screen pass reads and writes the
+  whole half-float frame (about 20 MB at Ultra's pixel ratio). Passes were removed where the maths
+  allows it with an identical result. Tone mapping + sRGB moved into the grade pass, applied per
+  sample so even the aberration taps match. AO is multiplied onto the frame in place (its blend
+  already multiplied the destination, so the copy before it did nothing visible). The shadow-map
+  resolution was not set by eye: its filter radius is in texels, so it scales with the map to
+  keep the same world-space softness.
+
 ## Spawns and startup (0.13.1)
 
 - **Spawn spots are settled, not hand-moved:** each one starts at its authored position, and if
