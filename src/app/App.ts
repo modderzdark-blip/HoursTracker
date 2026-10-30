@@ -264,8 +264,17 @@ export class App {
   private inputEnabled = true;
 
   static async create(opts: AppOptions): Promise<App> {
+    const t0 = performance.now();
     const rapier = await loadRapier();
-    return new App(opts, rapier);
+    const t1 = performance.now();
+    const app = new App(opts, rapier);
+    const t2 = performance.now();
+    await app.warmHub();
+    // Startup timing in the debug log (slow phones: which step takes the time).
+    console.info(
+      `[boot] physics ${Math.round(t1 - t0)} ms, app ${Math.round(t2 - t1)} ms, shaders ${Math.round(performance.now() - t2)} ms`,
+    );
+    return app;
   }
 
   private constructor(
@@ -499,8 +508,15 @@ export class App {
     this.ctx.setScene(this.hubScene.scene);
     this.ctx.setGrade(this.hubScene.grade);
     this.hubScene.update(0);
-    this.ctx.renderer.compile(this.hubScene.scene, this.hubScene.camera);
-    this.ctx.render(this.hubScene.camera);
+  }
+
+  /**
+   * Compiles the hub's shaders without blocking the page (parallel compile where the GPU driver
+   * supports it, so the title stays responsive), then draws the first frame.
+   */
+  private async warmHub(): Promise<void> {
+    await this.ctx.renderer.compileAsync(this.hubScene.scene, this.hubScene.camera);
+    this.ctx.renderWarm(this.hubScene.camera);
   }
 
   /** Called from the title screen tap. */

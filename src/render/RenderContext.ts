@@ -96,6 +96,9 @@ export class RenderContext {
       alpha: false,
       preserveDrawingBuffer: false,
     });
+    // Release builds skip the per-shader error query: it makes the browser wait for each shader
+    // to finish compiling the moment it is first used (seconds of stalls on phone GPUs).
+    this.renderer.debug.checkShaderErrors = import.meta.env.DEV;
     this.renderer.outputColorSpace = SRGBColorSpace;
     this.renderer.toneMapping = ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
