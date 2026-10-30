@@ -712,9 +712,63 @@ export const ARENA_SCALE: Readonly<Record<ArenaId, number>> = {
   drowned_cloister: 1.3,
 };
 
+/** Clearance a spawn spot keeps from obstacles and the outline (m). */
+const SPAWN_CLEARANCE = { outline: 1.6, round: 1.1, box: 0.7 } as const;
+
 export const ARENAS: Readonly<Record<ArenaId, ArenaDef>> = Object.fromEntries(
-  ARENA_IDS.map((id) => [id, scaleArenaDef(AUTHORED[id], ARENA_SCALE[id])]),
+  ARENA_IDS.map((id) => [
+    id,
+    settleSpawns(scaleArenaDef(AUTHORED[id], ARENA_SCALE[id]), ARENA_SCALE[id]),
+  ]),
 ) as Record<ArenaId, ArenaDef>;
+
+/** True when nothing of the (scaled) arena stands on or right beside (x, z). */
+function spotClear(def: ArenaDef, x: number, z: number): boolean {
+  if (!insideOutline(def, x, z, SPAWN_CLEARANCE.outline)) return false;
+  const c = SPAWN_CLEARANCE.round;
+  for (const p of def.pillars) if (Math.hypot(x - p.x, z - p.z) <= p.radius + c) return false;
+  for (const r of def.rocks) if (Math.hypot(x - r.x, z - r.z) <= r.scale * 0.95 + c) return false;
+  for (const b of def.braziers) if (Math.hypot(x - b.x, z - b.z) <= 0.7 + c) return false;
+  for (const b of def.blocks) {
+    const yaw = (b.rotationYDeg * Math.PI) / 180;
+    const dx = x - b.position[0];
+    const dz = z - b.position[2];
+    const lx = dx * Math.cos(yaw) - dz * Math.sin(yaw);
+    const lz = dx * Math.sin(yaw) + dz * Math.cos(yaw);
+    if (
+      Math.abs(lx) <= b.size[0] / 2 + SPAWN_CLEARANCE.box &&
+      Math.abs(lz) <= b.size[2] / 2 + SPAWN_CLEARANCE.box
+    )
+      return false;
+  }
+  return true;
+}
+
+/**
+ * Keeps the fight as close as it was authored in an arena built `k` times bigger: each spawn
+ * spot stays at its authored position unless the grown architecture now stands there, in which
+ * case it moves outward, step by step, toward where scaling would put it (clear by construction).
+ */
+function settleSpawns(def: ArenaDef, k: number): ArenaDef {
+  if (k === 1) return def;
+  const settle = (p: Vec2): Vec2 => {
+    for (let i = 0; i <= 10; i++) {
+      const f = 1 + ((k - 1) * i) / 10;
+      const x = p[0] * f;
+      const z = p[1] * f;
+      if (spotClear(def, x, z)) return [x, z];
+    }
+    return [p[0] * k, p[1] * k];
+  };
+  const [sx, sz] = settle([def.spawn[0], def.spawn[2]]);
+  return {
+    ...def,
+    spawn: [sx, def.spawn[1], sz],
+    spawnPoints: def.spawnPoints.map(settle),
+    bossSpawn: settle(def.bossSpawn),
+    dummySpawn: settle(def.dummySpawn),
+  };
+}
 
 /** One edge of an arena's outline with its outward normal. */
 export interface OutlineEdge {

@@ -5,7 +5,8 @@ import type { ArenaDef, Vec2 } from './arenas';
  * Builds an arena bigger than it was authored: every position, the outline, the architecture and
  * the terrain grow by `k` around the centre, so the composition (walls meeting, statues on their
  * plinths, lights on their walls) stays intact while the place gets wider and taller. Hand-sized
- * dressing (crates, barrels, chests, lanterns) moves with it but keeps its real size. Stair and
+ * dressing (crates, barrels, chests, lanterns) moves with it but keeps its real size. Spawn
+ * points stay where they were authored (the fight starts as close as before). Stair and
  * dais rises grow too: the sets keep them low enough to stay walkable at their scale (tested).
  */
 
@@ -41,10 +42,12 @@ export function scaleArenaDef(d: ArenaDef, k: number): ArenaDef {
     floorRadius: d.floorRadius * k,
     wall: { ...d.wall, height: d.wall.height * k, thickness: d.wall.thickness * k },
     outline: d.outline?.map((p) => v2(p, k)),
-    spawn: [d.spawn[0] * k, d.spawn[1], d.spawn[2] * k],
-    spawnPoints: d.spawnPoints.map((p) => v2(p, k)),
-    bossSpawn: v2(d.bossSpawn, k),
-    dummySpawn: v2(d.dummySpawn, k),
+    // The fight stays where it was: hero, enemies and boss start at their authored spots, so
+    // waves reach the hero as quickly as before; the extra room is around them.
+    spawn: d.spawn,
+    spawnPoints: d.spawnPoints,
+    bossSpawn: d.bossSpawn,
+    dummySpawn: d.dummySpawn,
     pillars: d.pillars.map((p) => ({
       x: p.x * k,
       z: p.z * k,
