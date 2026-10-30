@@ -264,6 +264,23 @@ Each entry: the decision, why, and what would change it.
   as locked previews (with an ∞ mark and a banner), and the hub has an Endless tile, so chapter
   5 and beyond exist for the player before chapter 4 is beaten.
 
+## Abilities, finales and runes (0.13.0)
+
+- **Loadouts swap abilities, not slots of the talent tree.** Talent branches stay tied to
+  buttons I / II / III, and their bonuses apply to whatever ability sits on that button, so a
+  player who changes abilities keeps every talent they paid for. The UI renames the branches
+  after the equipped abilities.
+- **Extra abilities reuse the action data model:** hits, projectiles, zones and cues, with
+  pose-pair clips rather than new custom clips. The hero clip set (cached per hero) includes
+  every ability, so any loadout animates. Each extra passes the same data rules and
+  damage-per-cooldown budget as the kits, and a real-physics test runs each one.
+- **The ultimate finale fires in code, at the end of the active phase,** instead of being added
+  to each ultimate's data. Custom ultimate clips are timed to their data, so stretching the data
+  would slow the animations. A finale cut short (death, interruption) never fires.
+- **Runes reuse the relic effect kinds** (applyEffect), folded into the hero's modifiers only
+  for worn gear. Items enchanted before runes existed get their runes from their uid, so old
+  saves gain them without randomness at load.
+
 ## Post-processing order: depth of field before AO (0.12.3)
 
 - **The cinematic depth of field runs straight after the scene render, before GTAO.** Both

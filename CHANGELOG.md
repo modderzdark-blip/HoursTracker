@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.13.0] — Abilities, true ultimates, runes (2026-10-30)
+
+### Added
+
+- **Ability loadout:** every hero has six abilities, and you pick any three for buttons I, II
+  and III.
+  - 24 new abilities, 3 per hero, unlocking at hero level 4, 9 and 15.
+  - Kael: Hollow Fan, Eclipse Cross, Shade Mirage.
+  - Brann: Whirlwind Cleave, Warlord's Roar, Sunder Leap.
+  - Lyra: Hunter's Spread, Rain of Thorns, Lunar Dagger Dance.
+  - Garrick: Hammer Quake, Shield Throw, Sanctuary.
+  - Seraphine: Flame Barrage, Inferno Ring, Phoenix Wall.
+  - Ryn: Rising Dragon, Thousand Palms, Phantom Kick.
+  - Valka: Storm Javelin, Chain Lightning, Valkyrie Charge.
+  - Morrow: Soul Harvest, Bone Cage, Grave Pulse.
+  - The Skills screen has a new **Abilities** tab: your three buttons, every ability with what
+    it does (leap, ranged, area, burn, life drain…), its damage and cooldown, and the level it
+    unlocks at. The talent tree is the second tab, and its branches follow whatever ability is
+    on that button.
+  - Every ability has its own icon (48 icons from game-icons.net), shown in the tab and on the
+    battle buttons in the hero's colour.
+- **Enchant runes:** reaching +3, +6 and +9 grants a rune with a real combat effect: combo
+  damage, crit, life drain, ability damage, counters, dodge or ability cooldowns, ultimate
+  charge or ultimate damage. Each slot has its own rune pool. Later runes are stronger, and
+  runes only work while the item is worn.
+- **Enchant ritual:** the stone sinks into a turning rune circle around the item, then it
+  flares in the new tier's colour and names any new rune, or the stone cracks.
+
+### Changed
+
+- **Ultimates are far bigger:**
+  - Every hero now summons a shadow army of at least three copies of themselves, which strike
+    around enemies during the ultimate.
+  - The moment the last blow lands, a finale fires: a 9 m blast that launches everything,
+    with a ring of light columns, a nova, ground cracks, shadow echoes, a flash in the hero's
+    colour, heavy shake and slow motion. Its damage grows with your ultimate bonuses.
+  - The cast opens with a column of light and rings closing in on the hero.
+- **Enchanted gear glows by tier:** blue (+1 to +3), violet (+4 to +6), gold (+7 to +9), and
+  radiant at +10.
+
 ## [0.12.3] — Ultra cut-scenes fixed (2026-10-28)
 
 ### Fixed
