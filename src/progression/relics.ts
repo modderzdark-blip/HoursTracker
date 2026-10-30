@@ -6,6 +6,7 @@ import {
   RELICS,
   type CasketId,
   type RelicDef,
+  type RelicEffectKind,
   type RelicId,
 } from '../data/relics';
 import type { PetBonus } from './pets';
@@ -39,6 +40,40 @@ export function relicBonus(def: RelicDef, level: number): PetBonus {
   return out;
 }
 
+/** Adds one effect (a relic signature or an enchant rune) to `mods`, in place. */
+export function applyEffect(mods: HeroMods, kind: RelicEffectKind, v: number): void {
+  switch (kind) {
+    case 'ultDamage':
+      mods.ultDamage += v;
+      break;
+    case 'ultGain':
+      mods.ultGain += v;
+      break;
+    case 'lifesteal':
+      mods.lifesteal += v;
+      break;
+    case 'critChance':
+      mods.critChance += v;
+      break;
+    case 'comboDamage':
+      mods.comboDamage += v;
+      break;
+    case 'counterBonus':
+      mods.counterBonus += v;
+      break;
+    case 'skillDamage':
+      for (let i = 0; i < 3; i++) mods.skillDamage[i] = (mods.skillDamage[i] ?? 1) + v;
+      break;
+    case 'skillCooldown':
+      for (let i = 0; i < 3; i++)
+        mods.skillCooldown[i] = Math.max(0.3, (mods.skillCooldown[i] ?? 1) - v);
+      break;
+    case 'dodgeCooldown':
+      mods.dodgeCooldown = Math.max(0.3, mods.dodgeCooldown - v);
+      break;
+  }
+}
+
 /** Folds equipped relics' effects into `mods` (in place) and returns it. */
 export function applyRelicMods(mods: HeroMods, state: RelicState): HeroMods {
   for (const id of state.equipped) {
@@ -46,37 +81,7 @@ export function applyRelicMods(mods: HeroMods, state: RelicState): HeroMods {
     const owned = state.owned[id];
     if (owned === undefined) continue;
     const def = RELICS[id];
-    const v = relicEffectValue(def, owned.level);
-    switch (def.effect.kind) {
-      case 'ultDamage':
-        mods.ultDamage += v;
-        break;
-      case 'ultGain':
-        mods.ultGain += v;
-        break;
-      case 'lifesteal':
-        mods.lifesteal += v;
-        break;
-      case 'critChance':
-        mods.critChance += v;
-        break;
-      case 'comboDamage':
-        mods.comboDamage += v;
-        break;
-      case 'counterBonus':
-        mods.counterBonus += v;
-        break;
-      case 'skillDamage':
-        for (let i = 0; i < 3; i++) mods.skillDamage[i] = (mods.skillDamage[i] ?? 1) + v;
-        break;
-      case 'skillCooldown':
-        for (let i = 0; i < 3; i++)
-          mods.skillCooldown[i] = Math.max(0.3, (mods.skillCooldown[i] ?? 1) - v);
-        break;
-      case 'dodgeCooldown':
-        mods.dodgeCooldown = Math.max(0.3, mods.dodgeCooldown - v);
-        break;
-    }
+    applyEffect(mods, def.effect.kind, relicEffectValue(def, owned.level));
   }
   return mods;
 }

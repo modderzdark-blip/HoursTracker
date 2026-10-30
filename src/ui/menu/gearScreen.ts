@@ -15,6 +15,7 @@ import {
   itemName,
   itemPower,
   mainValue,
+  runeText,
   salvageValue,
   subValue,
   upgradeCost,
@@ -23,6 +24,7 @@ import {
 import { el } from '../dom';
 import { amount, icon } from '../icons';
 import { RELICS } from '../../data/relics';
+import { enchantTier, RUNE_MILESTONES, RUNES, type RuneId } from '../../data/runes';
 import { relicGem } from './relicsScreen';
 import type { MenuContext } from './context';
 import { statRows } from './heroesScreen';
@@ -120,7 +122,7 @@ export function itemTile(
   const rarity = item?.rarity;
   const tile = v.button(
     '',
-    `item-tile${rarity !== undefined ? ` rarity-${rarity}` : ' is-empty'}`,
+    `item-tile${rarity !== undefined ? ` rarity-${rarity}` : ' is-empty'}${item !== undefined && item.ench > 0 ? ` ench-t${enchantTier(item.ench)}` : ''}`,
     onTap,
     testid !== undefined ? { testid } : {},
   );
@@ -551,16 +553,21 @@ function enchantBlock(
       ctx.uiTap();
       const heroId = p.selectedHero;
       const before = p.power(heroId);
+      const runesBefore = item.runes.length;
       const res = p.enchant(item.uid);
-      if (res === 'success') {
-        ctx.toast(`Enchanted to +${item.ench}!`);
-        ctx.stingers.play('fanfare');
-        if (p.wearer(item.uid) === heroId) ctx.shell.showPower(before, p.power(heroId));
-      } else if (res === 'failed') ctx.toast('The stone cracked — the item is unharmed');
-      else if (res === 'unaffordable') ctx.toast('Not enough Enchant Stones or gold');
+      if (res === 'unaffordable') {
+        ctx.toast('Not enough Enchant Stones or gold');
+        return;
+      }
+      if (res !== 'success' && res !== 'failed') return;
       ctx.shell.refreshCurrencies();
-      renderGear(ctx, filter);
-      openItem(ctx, item, filter);
+      const rune = item.runes.length > runesBefore ? (item.runes[runesBefore] ?? null) : null;
+      enchantRitual(ctx, item, res === 'success', rune, () => {
+        renderGear(ctx, filter);
+        openItem(ctx, item, filter);
+        if (res === 'success' && p.wearer(item.uid) === heroId)
+          ctx.shell.showPower(before, p.power(heroId));
+      });
     },
     { disabled: !canPay, testid: 'item-enchant' },
   );
@@ -571,5 +578,100 @@ function enchantBlock(
     el('span', 'enchant-chance', `${Math.round(cost.successRate * 100)}%`),
   );
   box.append(btn);
-  return box;
+  return withRunes(box, item);
+}
+
+/** The enchant row plus the item's runes (and where the next one comes from). */
+function withRunes(box: HTMLElement, item: GearItem): HTMLElement {
+  if (!canEnchant(item)) return box;
+  const wrap = el('div', 'item-enchant-wrap');
+  const runes = el('div', 'item-runes');
+  item.runes.forEach((r, i) => {
+    const chip = el('span', 'rune-chip');
+    chip.style.setProperty('--rune', RUNES[r].color);
+    chip.append(el('span', 'rune-gem'), el('span', '', runeText(r, i)));
+    chip.title = RUNES[r].name;
+    runes.append(chip);
+  });
+  const next = RUNE_MILESTONES.find((ms) => ms > item.ench);
+  if (next !== undefined) runes.append(el('span', 'rune-next', `Rune at +${next}`));
+  wrap.append(box, runes);
+  return wrap;
+}
+
+/**
+ * The enchant ritual: the stone sinks into a turning rune circle around the item, then the
+ * circle flares in the new tier's colour (and names a new rune) or the stone cracks.
+ */
+function enchantRitual(
+  ctx: MenuContext,
+  item: GearItem,
+  success: boolean,
+  rune: RuneId | null,
+  onDone: () => void,
+): void {
+  const m = ctx.shell.openModal('ritual-modal');
+  const tier = enchantTier(item.ench);
+  const stage = el('div', `ritual is-casting ritual-t${success ? tier : 0}`);
+  const circle = el('div', 'ritual-circle');
+  for (let i = 0; i < 8; i++) {
+    const g = el('span', 'ritual-glyph');
+    g.style.setProperty('--i', String(i));
+    circle.append(g);
+  }
+  const core = el('div', 'ritual-core');
+  core.append(icon(item.slot, 'ritual-item', item.rarity));
+  const stone = el('div', 'ritual-stone');
+  stone.append(icon('stones'));
+  stage.append(el('div', 'ritual-glow'), circle, core, stone);
+  const result = el('div', 'ritual-result');
+  const row = el('div', 'button-row ritual-actions');
+  const done = m.button(
+    'Continue',
+    'btn btn-primary',
+    () => {
+      ctx.uiTap();
+      ctx.shell.closeModal();
+      onDone();
+    },
+    { testid: 'ritual-continue' },
+  );
+  row.append(done);
+  m.root.append(stage, result, row);
+  window.setTimeout(() => {
+    if (!stage.isConnected) return;
+    stage.classList.remove('is-casting');
+    stage.classList.add(success ? 'is-success' : 'is-fail');
+    if (success) {
+      ctx.stingers.play('fanfare');
+      result.append(
+        el('div', `ritual-title ritual-t${tier}`, `+${item.ench}`),
+        el(
+          'div',
+          'ritual-line',
+          `${itemName(item)} · all stats +${Math.round((enchantMult(item) - 1) * 100)}%`,
+        ),
+      );
+      if (rune !== null) {
+        const line = el('div', 'ritual-rune');
+        line.style.setProperty('--rune', RUNES[rune].color);
+        line.append(
+          el('span', 'rune-gem'),
+          el('span', '', `New: ${RUNES[rune].name} — ${runeText(rune, item.runes.indexOf(rune))}`),
+        );
+        result.append(line);
+      }
+    } else {
+      ctx.stingers.play('defeat', 0, 0.5);
+      result.append(
+        el('div', 'ritual-title is-fail', 'The stone cracked'),
+        el(
+          'div',
+          'ritual-line',
+          'The item is unharmed. Its enchantment stays at +' + String(item.ench) + '.',
+        ),
+      );
+    }
+    row.classList.add('is-ready');
+  }, 1300);
 }

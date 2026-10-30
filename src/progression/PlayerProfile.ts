@@ -21,6 +21,7 @@ import { nextAdventureStage, type GoalSnapshot } from './feel';
 import {
   itemPower,
   rollItem,
+  runeValue,
   salvageValue,
   tryEnchant,
   tryUpgrade,
@@ -47,7 +48,14 @@ import {
   type HearthYield,
 } from './goals';
 import { rollItemLevel, rollRarity } from './loot';
-import { applyRelicMods, equippedRelicBonus, openCasket, type CasketResult } from './relics';
+import {
+  applyEffect,
+  applyRelicMods,
+  equippedRelicBonus,
+  openCasket,
+  type CasketResult,
+} from './relics';
+import { RUNES } from '../data/runes';
 import type { CasketId, RelicId } from '../data/relics';
 import {
   hatch,
@@ -202,9 +210,12 @@ export class PlayerProfile {
     return gained;
   }
 
-  /** Skill-tree ranks plus the equipped relics' effects. */
+  /** Skill-tree ranks plus the equipped relics' effects and the hero's gear runes. */
   mods(id: HeroId): HeroMods {
-    return applyRelicMods(computeMods(SKILL_TREES[id], this.hero(id).skills), this.data.relics);
+    const m = applyRelicMods(computeMods(SKILL_TREES[id], this.hero(id).skills), this.data.relics);
+    for (const item of this.equippedItems(id))
+      item.runes.forEach((r, i) => applyEffect(m, RUNES[r].kind, runeValue(r, i)));
+    return m;
   }
 
   stats(id: HeroId): StatBlock {

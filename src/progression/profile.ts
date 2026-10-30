@@ -1,4 +1,5 @@
 import { MAX_CHAPTER } from '../data/adventure';
+import { RUNE_POOLS, type RuneId } from '../data/runes';
 import type { DifficultyId } from '../data/difficulty';
 import { DEFAULT_HERO, HEROES, type HeroId } from '../data/heroes';
 import {
@@ -11,7 +12,7 @@ import {
 } from '../data/items';
 import { XP_CONFIG } from '../data/progression';
 import { ACHIEVEMENTS, BLESSING_CONFIG, DAILY_QUESTS } from '../data/goals';
-import type { GearItem, StatRoll } from './gear';
+import { runeCount, type GearItem, type StatRoll } from './gear';
 import { createDailyState, type DailyState } from './goals';
 import type { PityState } from './loot';
 import { createPetState, type PetState } from './pets';
@@ -234,6 +235,26 @@ function sanitizeRoll(raw: unknown): StatRoll | null {
   return { stat, value };
 }
 
+/**
+ * Known runes from the slot's pool, one per milestone reached and never repeated. Items enchanted
+ * before runes existed get theirs filled in deterministically (from the uid).
+ */
+function sanitizeRunes(raw: unknown, slot: GearSlot, uid: number, ench: number): RuneId[] {
+  const pool = RUNE_POOLS[slot];
+  const out: RuneId[] = [];
+  const want = runeCount(ench);
+  if (Array.isArray(raw))
+    for (const r of raw) {
+      const id = pool.find((p) => p === r);
+      if (id !== undefined && !out.includes(id) && out.length < want) out.push(id);
+    }
+  for (let i = 0; out.length < want && i < pool.length * 2; i++) {
+    const id = pool[(uid * 7 + i * 3) % pool.length];
+    if (id !== undefined && !out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
 function sanitizeItem(raw: unknown): GearItem | null {
   if (!isRecord(raw)) return null;
   const slot = GEAR_SLOTS.find((s) => s === raw['slot']);
@@ -249,6 +270,7 @@ function sanitizeItem(raw: unknown): GearItem | null {
       if (r !== null) subs.push(r);
     }
   }
+  const ench = int(raw['ench'], 0, ENCHANT_CONFIG.maxLevel, 0);
   return {
     uid,
     slot,
@@ -257,7 +279,8 @@ function sanitizeItem(raw: unknown): GearItem | null {
     // Endless chapters go past level 1000 at the very bottom.
     ilvl: int(raw['ilvl'], 1, 9999, 1),
     plus: int(raw['plus'], 0, GEAR_CONFIG.maxPlus, 0),
-    ench: int(raw['ench'], 0, ENCHANT_CONFIG.maxLevel, 0),
+    ench,
+    runes: sanitizeRunes(raw['runes'], slot, uid, ench),
     main,
     subs,
     locked: raw['locked'] === true,

@@ -1,3 +1,4 @@
+import { RUNE_MILESTONES, RUNE_POOLS, RUNES, type RuneId } from '../data/runes';
 import {
   ENCHANT_CONFIG,
   GEAR_CONFIG,
@@ -31,6 +32,8 @@ export interface GearItem {
   plus: number;
   /** Enchant level 0..ENCHANT_CONFIG.maxLevel (Enchant Stones). */
   ench: number;
+  /** Runes earned at enchant +3 / +6 / +9, in order. */
+  runes: RuneId[];
   readonly main: StatRoll;
   readonly subs: readonly StatRoll[];
   locked: boolean;
@@ -95,6 +98,7 @@ export function rollItem(
     ilvl: level,
     plus: 0,
     ench: 0,
+    runes: [],
     main: { stat: slotDef.main, value: mainValue },
     subs,
     locked: false,
@@ -163,9 +167,33 @@ export function tryEnchant(item: GearItem, wallet: Wallet, rng: () => number): E
   wallet.spend('gold', cost.gold);
   if (rng() < cost.successRate) {
     item.ench++;
+    if (item.runes.length < runeCount(item.ench)) item.runes.push(rollRune(item, rng));
     return 'success';
   }
   return 'failed';
+}
+
+/** Runes an item at this enchant level carries. */
+export function runeCount(ench: number): number {
+  return RUNE_MILESTONES.filter((m) => ench >= m).length;
+}
+
+/** A rune from the item's slot pool that it does not carry yet. */
+export function rollRune(item: Pick<GearItem, 'slot' | 'runes'>, rng: () => number): RuneId {
+  const pool = RUNE_POOLS[item.slot].filter((r) => !item.runes.includes(r));
+  const list = pool.length > 0 ? pool : RUNE_POOLS[item.slot];
+  return list[Math.min(list.length - 1, Math.floor(rng() * list.length))] ?? 'fury';
+}
+
+/** Strength of the item's `index`-th rune (later milestones give stronger runes). */
+export function runeValue(id: RuneId, index: number): number {
+  return RUNES[id].values[Math.min(2, Math.max(0, index))] ?? 0;
+}
+
+/** The rune's effect line ("Combo damage +8%"). */
+export function runeText(id: RuneId, index: number): string {
+  const v = runeValue(id, index) * 100;
+  return RUNES[id].text.replace('{v}', `${v.toFixed(v < 10 ? 1 : 0)}%`);
 }
 
 /** Adds the item's stats into `out`. */
