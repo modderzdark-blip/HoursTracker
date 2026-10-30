@@ -78,7 +78,14 @@ export class AmbientOcclusionPass extends GTAOPass {
     });
     this.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 5, rings: 2 });
     this.blendIntensity = AO_CONFIG.intensity;
+    // The occlusion is multiplied onto the frame in place (see render): no copy of the whole
+    // frame into the other buffer first, so no swap.
+    this.output = GTAOPass.OUTPUT.Off;
+    this.needsSwap = false;
+    this.blendQuad = new FullScreenQuad(this.blendMaterial);
   }
+
+  private readonly blendQuad: FullScreenQuad;
 
   override setSize(width: number, height: number): void {
     const k = AO_CONFIG.resolutionScale;
@@ -101,7 +108,22 @@ export class AmbientOcclusionPass extends GTAOPass {
       if (g !== undefined) g.value = tex;
       if (p !== undefined) p.value = tex;
     }
+    // AO + denoise into the pass's own half-resolution targets…
     super.render(renderer, writeBuffer, readBuffer, deltaTime, maskActive);
+    // …then multiplied straight onto the frame (the blend material multiplies the destination).
+    const u = this.blendMaterial.uniforms;
+    if (u['intensity'] !== undefined) u['intensity'].value = this.blendIntensity;
+    if (u['tDiffuse'] !== undefined) u['tDiffuse'].value = this.pdRenderTarget.texture;
+    const autoClear = renderer.autoClear;
+    renderer.autoClear = false;
+    renderer.setRenderTarget(readBuffer);
+    this.blendQuad.render(renderer);
+    renderer.autoClear = autoClear;
+  }
+
+  override dispose(): void {
+    super.dispose();
+    this.blendQuad.dispose();
   }
 }
 

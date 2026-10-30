@@ -32,6 +32,13 @@ void main() {
 
 const fragmentShader = /* glsl */ `
 uniform sampler2D tDiffuse;
+#ifdef OUTPUT_TRANSFORM
+// Tone mapping + sRGB here instead of a separate OutputPass (same maths, one full-screen pass less).
+#include <tonemapping_pars_fragment>
+vec3 outT(vec3 c) { return sRGBTransferOETF(vec4(ACESFilmicToneMapping(c), 1.0)).rgb; }
+#else
+vec3 outT(vec3 c) { return c; }
+#endif
 uniform vec3 uShadowTint;
 uniform vec3 uHighTint;
 uniform float uSat;
@@ -52,12 +59,12 @@ float hash(vec2 p) {
 
 void main() {
   vec4 src = texture2D(tDiffuse, vUv);
-  vec3 c = src.rgb;
+  vec3 c = outT(src.rgb);
   if (uAberr > 0.0001) {
     // Colour fringing toward the edges (big hits, ultimates).
     vec2 dir = (vUv - 0.5) * uAberr;
-    c.r = texture2D(tDiffuse, vUv + dir).r;
-    c.b = texture2D(tDiffuse, vUv - dir).b;
+    c.r = outT(texture2D(tDiffuse, vUv + dir).rgb).r;
+    c.b = outT(texture2D(tDiffuse, vUv - dir).rgb).b;
   }
   float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
   c = mix(vec3(l), c, uSat);
@@ -91,18 +98,32 @@ void main() {
 
 /**
  * Final grading pass: saturation, contrast, split toning (cool shadows / warm highlights),
- * vignette and film grain. Runs on display-referred colour, after the OutputPass.
+ * vignette and film grain. Runs on display-referred colour: after the OutputPass, or doing its
+ * tone mapping and sRGB conversion itself (`outputTransform`).
  */
 export class GradePass extends Pass {
   private readonly material: ShaderMaterial;
   private readonly quad: FullScreenQuad;
   private time = 0;
 
-  /** `film` (Ultra) adds the film tone curve and mid-tone weighted grain. */
-  constructor(grade: ColorGrade = DEFAULT_GRADE, grain = 0.018, film = false) {
+  /**
+   * `film` (Ultra) adds the film tone curve and mid-tone weighted grain. `outputTransform` folds
+   * the OutputPass (ACES tone mapping + sRGB) into this pass.
+   */
+  constructor(
+    grade: ColorGrade = DEFAULT_GRADE,
+    grain = 0.018,
+    film = false,
+    private readonly outputTransform = false,
+  ) {
     super();
+    const defines: Record<string, number> = {};
+    if (film) defines['FILM'] = 1;
+    if (outputTransform) defines['OUTPUT_TRANSFORM'] = 1;
     this.material = new ShaderMaterial({
-      defines: film ? { FILM: 1 } : {},
+      defines,
+      // The renderer must not add its own tone mapping to this pass.
+      toneMapped: false,
       uniforms: {
         tDiffuse: { value: null },
         uShadowTint: { value: new Color() },
@@ -115,6 +136,7 @@ export class GradePass extends Pass {
         uResolution: { value: new Vector2(1, 1) },
         uFlash: { value: new Color(0, 0, 0) },
         uAberr: { value: 0 },
+        toneMappingExposure: { value: 1 },
       },
       vertexShader,
       fragmentShader,
@@ -157,6 +179,8 @@ export class GradePass extends Pass {
   ): void {
     const u = this.material.uniforms;
     if (u['tDiffuse'] !== undefined) u['tDiffuse'].value = readBuffer.texture;
+    if (this.outputTransform && u['toneMappingExposure'] !== undefined)
+      u['toneMappingExposure'].value = renderer.toneMappingExposure;
     this.time = (this.time + 0.016) % 1000;
     if (u['uTime'] !== undefined) u['uTime'].value = this.time;
     renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);

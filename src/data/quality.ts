@@ -124,7 +124,9 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     maxPixelRatio: 2.5,
     antialias: true,
     shadows: true,
-    shadowMapSize: 4096,
+    // 3072 (not 4096): the tight frustum already gives sub-centimetre texels; this is 44% less
+    // shadow-map memory traffic per frame on phones, with the radius scaled to match (below).
+    shadowMapSize: 3072,
     shadowFrustumHalfSize: 12,
     bloom: true,
     grade: true,
@@ -138,7 +140,8 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     textureMaxSize: 4096,
     textureBudgetMB: 320,
     anisotropy: 8,
-    shadowRadius: 2.6,
+    // Filter radius is in shadow-map texels: 2.6 at 4096 × 3072/4096 keeps the same world softness.
+    shadowRadius: 1.95,
     ao: true,
     cinematicDof: true,
     filmGrade: true,

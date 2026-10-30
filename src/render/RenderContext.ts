@@ -292,9 +292,17 @@ export class RenderContext {
       );
       composer.addPass(this.bloomPass);
     }
-    composer.addPass(new OutputPass());
+    // With grading on, the grade pass does the tone mapping + sRGB itself (one full-screen pass
+    // less: on phones each pass is a full read and write of the half-float frame).
+    const mergedOutput = post.grade && this.renderer.toneMapping === ACESFilmicToneMapping;
+    if (!mergedOutput) composer.addPass(new OutputPass());
     if (post.grade) {
-      this.gradePass = new GradePass(this.grade, post.film ? 0.016 : 0.018, post.film);
+      this.gradePass = new GradePass(
+        this.grade,
+        post.film ? 0.016 : 0.018,
+        post.film,
+        mergedOutput,
+      );
       composer.addPass(this.gradePass);
     }
     if (aa === 'fxaa') {
