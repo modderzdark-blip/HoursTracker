@@ -1,6 +1,6 @@
 import type { StatBlock } from '../data/combatTypes';
 import { DIFFICULTIES, type DifficultyId } from '../data/difficulty';
-import { HEROES, type HeroId } from '../data/heroes';
+import { HEROES, type HeroDef, type HeroId } from '../data/heroes';
 import { GEAR_CONFIG, GEAR_SLOTS, type GearSlot } from '../data/items';
 import { CHALLENGE_CONFIG, MODES, type ModeId } from '../data/modes';
 import {
@@ -67,6 +67,14 @@ import { computeHeroStats, powerRating } from './heroStats';
 import type { HeroProgress, ProfileData } from './profile';
 import { computeMods, rankBlock, rankUp, type HeroMods } from './skillTree';
 import { Wallet } from './wallet';
+import {
+  abilityLevel,
+  assignSlot,
+  heroWithLoadout,
+  resolveLoadout,
+  skillPool,
+  type Loadout,
+} from './loadout';
 import { addXp } from './xp';
 
 export const DIFFICULTY_ORDER: readonly DifficultyId[] = ['normal', 'hard', 'nightmare'];
@@ -442,6 +450,30 @@ export class PlayerProfile {
 
   power(id: HeroId): number {
     return powerRating(this.stats(id));
+  }
+
+  // ------------------------------------------------------------------ abilities
+
+  /** Abilities on skill buttons I / II / III (locked or unknown saved picks fall back). */
+  loadout(id: HeroId): Loadout {
+    const h = this.hero(id);
+    return resolveLoadout(id, h.loadout, h.level);
+  }
+
+  /** Puts an unlocked ability on a skill button (swapping if it is already on another one). */
+  setLoadoutSlot(id: HeroId, slot: number, skillId: string): boolean {
+    if (slot < 0 || slot > 2) return false;
+    const h = this.hero(id);
+    if (!skillPool(id).some((s) => s.id === skillId) || abilityLevel(id, skillId) > h.level)
+      return false;
+    h.loadout = [...assignSlot(this.loadout(id), slot, skillId)];
+    this.commit();
+    return true;
+  }
+
+  /** The hero as it enters battle, with the chosen abilities. */
+  battleHero(id: HeroId): HeroDef {
+    return heroWithLoadout(HEROES[id], this.loadout(id));
   }
 
   rankUpSkill(id: HeroId, nodeId: string): boolean {

@@ -1,4 +1,5 @@
 import type { AnimationClip } from 'three';
+import { EXTRA_SKILLS } from '../data/heroKits/abilities';
 import type { ActionDef } from '../data/combatTypes';
 import type { EnemyDef } from '../data/enemies';
 import type { HeroDef } from '../data/heroes';
@@ -23,7 +24,11 @@ const enemySets = new Map<string, AnimSet>();
 
 /** Every action a hero can perform (combo, ranged combo, skills, ultimate). */
 export function heroActions(hero: HeroDef): ActionDef[] {
-  return [...hero.combo, ...(hero.rangedCombo ?? []), ...hero.skills, hero.ultimate];
+  // Every ability the hero could have on a skill button (the clip set is cached per hero).
+  const skills = [...hero.skills, ...EXTRA_SKILLS[hero.id]].filter(
+    (s, i, all) => all.findIndex((o) => o.id === s.id) === i,
+  );
+  return [...hero.combo, ...(hero.rangedCombo ?? []), ...skills, hero.ultimate];
 }
 
 /**

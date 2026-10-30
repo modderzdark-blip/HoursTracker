@@ -1,5 +1,6 @@
 import { INPUT_CONFIG } from '../data/config';
 import { el, listen } from '../ui/dom';
+import { icon, type IconMaterial, type IconName } from '../ui/icons';
 import { INPUT_SOURCE, isInputAction, type InputAction } from './actions';
 import type { InputState } from './InputState';
 import { followOrigin, shapeStick, type StickVector } from './joystickMath';
@@ -59,6 +60,7 @@ export class TouchControls {
   private readonly buttons: ButtonBinding[] = [];
   private readonly skillCooldown: HTMLElement[] = [];
   private readonly skillTimer: HTMLElement[] = [];
+  private readonly skillButtons: HTMLElement[] = [];
   private readonly skillCdCache = [-1, -1, -1];
   private readonly ultimate: HTMLElement;
   private readonly ultimateFill: HTMLElement;
@@ -106,6 +108,7 @@ export class TouchControls {
         b.append(cd, timer);
         this.skillCooldown.push(cd);
         this.skillTimer.push(timer);
+        this.skillButtons.push(b);
       }
       cluster.append(b);
       this.buttons.push({ el: b, action: spec.action, pointerId: -1, rect: null });
@@ -179,6 +182,16 @@ export class TouchControls {
   }
 
   /** fraction: 1 = just used, 0 = ready. Writes to the DOM only when the value visibly changes. */
+  /** Icons of the abilities on buttons I / II / III (the numeral stays as a small tag). */
+  setSkillIcons(names: readonly (IconName | null)[], material: IconMaterial): void {
+    this.skillButtons.forEach((b, i) => {
+      b.querySelector('.tc-icon')?.remove();
+      const name = names[i] ?? null;
+      b.classList.toggle('has-icon', name !== null);
+      if (name !== null) b.prepend(icon(name, 'tc-icon', material));
+    });
+  }
+
   setSkillCooldown(slot: number, fraction: number, remainingSec: number): void {
     const q = Math.round(fraction * 200) / 200;
     if (this.skillCdCache[slot] === q) return;

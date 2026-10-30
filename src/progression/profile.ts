@@ -28,6 +28,8 @@ export interface HeroProgress {
   equipped: Partial<Record<GearSlot, number>>;
   /** Skill-tree ranks by node id. */
   skills: Record<string, number>;
+  /** Abilities chosen for skill buttons I / II / III (empty = the kit's own; see loadout.ts). */
+  loadout: string[];
 }
 
 export interface DungeonState {
@@ -131,7 +133,7 @@ export const ARENA_START_RATING = 1000;
 export const DUNGEON_MAX_ENTRIES = 5;
 
 export function defaultHeroProgress(unlocked: boolean): HeroProgress {
-  return { unlocked, level: 1, xp: 0, equipped: {}, skills: {} };
+  return { unlocked, level: 1, xp: 0, equipped: {}, skills: {}, loadout: [] };
 }
 
 export function createDefaultProfile(nowMs = Date.now()): ProfileData {
@@ -287,6 +289,9 @@ function sanitizeHero(
       if (rank > 0) h.skills[id] = rank;
     }
   }
+  const lo = raw['loadout'];
+  if (Array.isArray(lo))
+    h.loadout = lo.slice(0, 3).map((id) => (typeof id === 'string' && id.length < 64 ? id : ''));
   return h;
 }
 

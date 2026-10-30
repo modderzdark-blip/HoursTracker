@@ -28,6 +28,7 @@ import {
   type QualityPreset,
   type QualitySetting,
 } from '../data/quality';
+import { HERO_ICON_MATERIAL, SKILL_ICONS } from '../data/heroKits/abilities';
 import { DebugOverlay } from '../debug/DebugOverlay';
 import { DynamicResolution, dynamicResTargetMs } from '../render/DynamicResolution';
 import { collectDeviceInfo, detectMobile, readHeapMB, type DeviceInfo } from '../debug/deviceInfo';
@@ -645,6 +646,10 @@ export class App {
     // still covers the screen: post shaders compile on first use, which on a phone can take a
     // second, and the canvas must not be blank when the veil fades.
     this.ctx.renderWarm(this.camera.camera);
+    this.touch.setSkillIcons(
+      setup.hero.skills.map((s) => SKILL_ICONS[s.id] ?? null),
+      HERO_ICON_MATERIAL[setup.hero.id],
+    );
     this.touch.setVisible(true);
     this.hud.setPauseVisible(true);
     this.setGameplayInput(true);

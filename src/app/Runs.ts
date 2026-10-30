@@ -157,7 +157,7 @@ export class Runs {
     const heroId = p.selectedHero;
     return {
       stage,
-      hero: HEROES[heroId],
+      hero: p.battleHero(heroId),
       heroStats: p.stats(heroId),
       mods: p.mods(heroId),
       label,

@@ -14,6 +14,7 @@ import type { GameEvents } from '../../src/core/events';
 import { GameClock } from '../../src/core/GameClock';
 import type { ActionDef, HitSpec } from '../../src/data/combatTypes';
 import { ENEMIES } from '../../src/data/enemies';
+import { EXTRA_SKILLS } from '../../src/data/heroKits/abilities';
 import { HEROES, type HeroDef, type HeroId } from '../../src/data/heroes';
 import { INPUT_SOURCE } from '../../src/input/actions';
 import { InputState } from '../../src/input/InputState';
@@ -208,6 +209,27 @@ describe('new heroes: every move lands (integration)', () => {
     w.step(stepsFor(totalMs(hero.ultimate) + 1500));
     expect(dealt(), hero.ultimate.id).toBeGreaterThan(0);
     expect(w.player.state).toBe('locomotion');
+  });
+});
+
+describe('extra abilities (integration)', () => {
+  const ALL: readonly HeroId[] = ['kael', 'brann', 'lyra', ...NEW_HEROES];
+  it.each(ALL)('%s: each extra ability runs from a skill button and damages a dummy', (id) => {
+    for (const def of EXTRA_SKILLS[id]) {
+      const base = HEROES[id];
+      // On button I, as the loadout would put it.
+      const hero: HeroDef = { ...base, skills: [def, base.skills[1], base.skills[2]] };
+      const w = makeWorld(hero);
+      const dummy = w.addDummy(0, -2.6);
+      const dealt = w.damageTo(dummy);
+      w.press('skill1');
+      w.step(1);
+      expect(w.player.actionId, def.id).toBe(def.id);
+      w.step(stepsFor(totalMs(def) + 3200));
+      expect(dealt(), def.id).toBeGreaterThan(0);
+      expect(w.player.cooldowns.isReady(0), def.id).toBe(false);
+      expect(w.player.state, def.id).toBe('locomotion');
+    }
   });
 });
 
